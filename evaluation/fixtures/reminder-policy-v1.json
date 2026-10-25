@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "morrow-synthetic-reminder-policy",
+  "version": "1.0.0",
+  "source": "synthetic",
+  "seed": 271828,
+  "policyVersion": "goal-review-v1",
+  "defaults": {
+    "now": "2026-10-22T12:00:00.000Z",
+    "scheduledAt": "2026-10-22T12:00:00.000Z",
+    "replayed": false,
+    "featureEnabled": true,
+    "notificationSupported": true,
+    "goalState": "active",
+    "shownInLast24Hours": 0,
+    "lastShownAt": null,
+    "settings": {
+      "enabled": true,
+      "goalReviewEnabled": true,
+      "consentStatus": "active",
+      "consentVersion": "morrow-local-reminders-1",
+      "maxPer24Hours": 3,
+      "cooldownMinutes": 30,
+      "quietHoursEnabled": false,
+      "quietHoursStart": "22:00",
+      "quietHoursEnd": "08:00",
+      "timeZone": "UTC",
+      "mutedUntil": null
+    }
+  },
+  "cases": [
+    { "id": "explicit-active-goal-notify", "overrides": {}, "expected": { "disposition": "notify", "reason": "triggered_on_time" } },
+    { "id": "eligible-startup-replay", "overrides": { "now": "2026-10-22T12:05:00.000Z", "scheduledAt": "2026-10-22T12:00:00.000Z", "replayed": true }, "expected": { "disposition": "notify", "reason": "triggered_after_restart" } },
+    { "id": "release-feature-flag-off", "overrides": { "featureEnabled": false }, "expected": { "disposition": "cancel", "reason": "feature_disabled" } },
+    { "id": "user-paused-reminders", "overrides": { "settings": { "enabled": false } }, "expected": { "disposition": "cancel", "reason": "paused" } },
+    { "id": "never-consented", "overrides": { "settings": { "enabled": false, "consentStatus": "never", "consentVersion": null } }, "expected": { "disposition": "cancel", "reason": "paused" } },
+    { "id": "consent-withdrawn", "overrides": { "settings": { "enabled": false, "consentStatus": "withdrawn" } }, "expected": { "disposition": "cancel", "reason": "consent_withdrawn" } },
+    { "id": "reminder-type-disabled", "overrides": { "settings": { "goalReviewEnabled": false } }, "expected": { "disposition": "cancel", "reason": "type_disabled" } },
+    { "id": "stopped-goal", "overrides": { "goalState": "inactive" }, "expected": { "disposition": "cancel", "reason": "goal_inactive" } },
+    { "id": "deleted-goal", "overrides": { "goalState": "missing" }, "expected": { "disposition": "cancel", "reason": "goal_deleted" } },
+    { "id": "not-yet-due", "overrides": { "now": "2026-10-22T11:59:00.000Z", "scheduledAt": "2026-10-22T12:00:00.000Z" }, "expected": { "disposition": "suppress", "reason": "invalid_state" } },
+    { "id": "older-than-replay-window", "overrides": { "now": "2026-10-24T12:00:00.000Z", "scheduledAt": "2026-10-22T12:00:00.000Z", "replayed": true }, "expected": { "disposition": "suppress", "reason": "overdue" } },
+    { "id": "user-muted", "overrides": { "settings": { "mutedUntil": "2026-10-22T13:00:00.000Z" } }, "expected": { "disposition": "suppress", "reason": "muted" } },
+    { "id": "quiet-hours-window", "overrides": { "now": "2026-10-23T00:30:00.000Z", "scheduledAt": "2026-10-23T00:30:00.000Z", "settings": { "quietHoursEnabled": true } }, "expected": { "disposition": "suppress", "reason": "quiet_hours" } },
+    { "id": "rolling-daily-limit", "overrides": { "shownInLast24Hours": 3 }, "expected": { "disposition": "suppress", "reason": "daily_limit" } },
+    { "id": "cooldown-reservation", "overrides": { "lastShownAt": "2026-10-22T11:45:00.000Z" }, "expected": { "disposition": "suppress", "reason": "cooldown" } },
+    { "id": "unsupported-desktop-notifications", "overrides": { "notificationSupported": false }, "expected": { "disposition": "suppress", "reason": "notification_unsupported" } },
+    { "id": "invalid-time-zone-fails-closed", "overrides": { "settings": { "timeZone": "Mars/Olympus" } }, "expected": { "disposition": "suppress", "reason": "invalid_state" } },
+    { "id": "invalid-quota-state-fails-closed", "overrides": { "shownInLast24Hours": -1 }, "expected": { "disposition": "suppress", "reason": "invalid_state" } },
+    { "id": "invalid-last-display-time-fails-closed", "overrides": { "lastShownAt": "not-a-timestamp" }, "expected": { "disposition": "suppress", "reason": "invalid_state" } }
+  ]
+}

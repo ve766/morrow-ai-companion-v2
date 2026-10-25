@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "m1-substring",
+  "version": "1.0.0",
+  "strategy": "sqlite-ascii-substring-v1",
+  "topK": 5
+}

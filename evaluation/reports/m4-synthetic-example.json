@@ -1,0 +1,283 @@
+{
+  "dataset": {
+    "id": "morrow-synthetic-reminder-policy",
+    "version": "1.0.0",
+    "source": "synthetic",
+    "seed": 271828,
+    "caseCount": 19,
+    "policyVersion": "goal-review-v1"
+  },
+  "candidate": {
+    "id": "bounded-goal-review-policy",
+    "version": "goal-review-v1"
+  },
+  "metrics": {
+    "expectedTriggerCount": 2,
+    "predictedTriggerCount": 2,
+    "truePositiveCount": 2,
+    "falsePositiveCount": 0,
+    "falseNegativeCount": 0,
+    "precision": 1,
+    "recall": 1,
+    "safetyLeakCounts": {
+      "feature_disabled": 0,
+      "consent_withdrawn": 0,
+      "paused": 0,
+      "type_disabled": 0,
+      "invalid_state": 0,
+      "goal_inactive": 0,
+      "goal_deleted": 0,
+      "quiet_hours": 0,
+      "daily_limit": 0,
+      "cooldown": 0,
+      "muted": 0,
+      "overdue": 0,
+      "notification_unsupported": 0
+    }
+  },
+  "gate": {
+    "passed": true,
+    "failures": []
+  },
+  "candidateActivation": {
+    "state": "offline-shadow-only",
+    "activated": false,
+    "automaticPromotion": false,
+    "featureFlagRequired": true
+  },
+  "determinism": {
+    "repeatable": true,
+    "resultHash": "b61fcb94565235fe500aa6f313ead175b19a5fe60013171e498e6edf6927ca01"
+  },
+  "cases": [
+    {
+      "id": "explicit-active-goal-notify",
+      "expected": {
+        "disposition": "notify",
+        "reason": "triggered_on_time"
+      },
+      "actual": {
+        "disposition": "notify",
+        "reason": "triggered_on_time"
+      },
+      "passed": true
+    },
+    {
+      "id": "eligible-startup-replay",
+      "expected": {
+        "disposition": "notify",
+        "reason": "triggered_after_restart"
+      },
+      "actual": {
+        "disposition": "notify",
+        "reason": "triggered_after_restart"
+      },
+      "passed": true
+    },
+    {
+      "id": "release-feature-flag-off",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "feature_disabled"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "feature_disabled"
+      },
+      "passed": true
+    },
+    {
+      "id": "user-paused-reminders",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "paused"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "paused"
+      },
+      "passed": true
+    },
+    {
+      "id": "never-consented",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "paused"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "paused"
+      },
+      "passed": true
+    },
+    {
+      "id": "consent-withdrawn",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "consent_withdrawn"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "consent_withdrawn"
+      },
+      "passed": true
+    },
+    {
+      "id": "reminder-type-disabled",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "type_disabled"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "type_disabled"
+      },
+      "passed": true
+    },
+    {
+      "id": "stopped-goal",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "goal_inactive"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "goal_inactive"
+      },
+      "passed": true
+    },
+    {
+      "id": "deleted-goal",
+      "expected": {
+        "disposition": "cancel",
+        "reason": "goal_deleted"
+      },
+      "actual": {
+        "disposition": "cancel",
+        "reason": "goal_deleted"
+      },
+      "passed": true
+    },
+    {
+      "id": "not-yet-due",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "passed": true
+    },
+    {
+      "id": "older-than-replay-window",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "overdue"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "overdue"
+      },
+      "passed": true
+    },
+    {
+      "id": "user-muted",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "muted"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "muted"
+      },
+      "passed": true
+    },
+    {
+      "id": "quiet-hours-window",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "quiet_hours"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "quiet_hours"
+      },
+      "passed": true
+    },
+    {
+      "id": "rolling-daily-limit",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "daily_limit"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "daily_limit"
+      },
+      "passed": true
+    },
+    {
+      "id": "cooldown-reservation",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "cooldown"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "cooldown"
+      },
+      "passed": true
+    },
+    {
+      "id": "unsupported-desktop-notifications",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "notification_unsupported"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "notification_unsupported"
+      },
+      "passed": true
+    },
+    {
+      "id": "invalid-time-zone-fails-closed",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "passed": true
+    },
+    {
+      "id": "invalid-quota-state-fails-closed",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "passed": true
+    },
+    {
+      "id": "invalid-last-display-time-fails-closed",
+      "expected": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "actual": {
+        "disposition": "suppress",
+        "reason": "invalid_state"
+      },
+      "passed": true
+    }
+  ],
+  "reportSha256": "ccea2ce1b15e8a63f76f314453a749bec651200c8bb9f04c45e4ea7c393d4ede"
+}

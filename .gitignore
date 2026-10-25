@@ -1,0 +1,14 @@
+node_modules/
+out/
+release/
+dist/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+evaluation/reports/*
+!evaluation/reports/m3-synthetic-example.json
+!evaluation/reports/m4-synthetic-example.json
+!evaluation/reports/cognitive-turn-synthetic-example.json
+!evaluation/reports/feeling-synthetic-example.json
+!evaluation/reports/cognitive-alpha-adversarial-report.json

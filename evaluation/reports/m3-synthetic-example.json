@@ -1,0 +1,345 @@
+{
+  "reportVersion": 1,
+  "runnerVersion": "1.0.0",
+  "dataset": {
+    "id": "morrow-synthetic-memory-retrieval",
+    "version": "1.0.0",
+    "schemaVersion": 1,
+    "source": "synthetic",
+    "seed": 1729,
+    "caseCount": 11,
+    "inputSetHash": "27179f6e2ce1e14dcefe228cfe1dfbf452c8aac3e5366f4da33ca1426c142e68"
+  },
+  "algorithms": {
+    "baseline": {
+      "id": "m1-substring",
+      "version": "1.0.0",
+      "sourceHash": "88d0e55eec8f95b68ad68dc9ee88383e876149ae1a7c31106ccb9755a7cebacf",
+      "strategy": "sqlite-ascii-substring-v1"
+    },
+    "candidate": {
+      "id": "scope-aware-token",
+      "version": "1.0.0",
+      "sourceHash": "992e3ed4781eb90f305f5a5a9145701541b23f0e54d2d1a862f19e3d0d35b246",
+      "strategy": "scope-aware-token-overlap-v1"
+    }
+  },
+  "config": {
+    "topK": 5,
+    "maximumCases": 50,
+    "maximumMemoriesPerCase": 100
+  },
+  "baselineMetrics": {
+    "precision": 0.4,
+    "recall": 1,
+    "sourceAttributionAccuracy": 0.7,
+    "unsupportedRate": 0.4,
+    "totalReturned": 10,
+    "expectedRelevantCount": 4,
+    "falsePositiveCount": 6,
+    "falseNegativeCount": 0,
+    "unknownCaseLeakCount": 4,
+    "sourceLeakCount": 3,
+    "scopeLeakCount": 1,
+    "restrictedLeakCount": 1,
+    "uncertaintyLeakCount": 4,
+    "retractedOrDeletedLeakCount": 0,
+    "crossSampleConsistencyViolations": 0
+  },
+  "candidateMetrics": {
+    "precision": 1,
+    "recall": 1,
+    "sourceAttributionAccuracy": 1,
+    "unsupportedRate": 0,
+    "totalReturned": 4,
+    "expectedRelevantCount": 4,
+    "falsePositiveCount": 0,
+    "falseNegativeCount": 0,
+    "unknownCaseLeakCount": 0,
+    "sourceLeakCount": 0,
+    "scopeLeakCount": 0,
+    "restrictedLeakCount": 0,
+    "uncertaintyLeakCount": 0,
+    "retractedOrDeletedLeakCount": 0,
+    "crossSampleConsistencyViolations": 0
+  },
+  "comparison": [
+    {
+      "caseId": "explicit-green-tea",
+      "version": 1,
+      "expectation": "known",
+      "expectedRelevantIds": [
+        "m-green-tea"
+      ],
+      "baselineIds": [
+        "m-green-tea",
+        "m-inferred-tea"
+      ],
+      "candidateIds": [
+        "m-green-tea"
+      ],
+      "baselineFailureCodes": [
+        "unknown_presented_as_fact",
+        "unsupported_retrieval",
+        "untrusted_source_returned"
+      ],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "restricted-account-detail",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [
+        "m-restricted-account"
+      ],
+      "candidateIds": [],
+      "baselineFailureCodes": [
+        "restricted_data_returned",
+        "unknown_case_returned_evidence",
+        "unsupported_retrieval"
+      ],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "scope-bound-work-detail",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [
+        "m-work-project"
+      ],
+      "candidateIds": [],
+      "baselineFailureCodes": [
+        "scope_mismatch_returned",
+        "unknown_case_returned_evidence",
+        "unsupported_retrieval"
+      ],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "retracted-memory",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [],
+      "candidateIds": [],
+      "baselineFailureCodes": [],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "deleted-tombstone",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [],
+      "candidateIds": [],
+      "baselineFailureCodes": [],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "unverified-expectation",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [
+        "m-oslo-expectation"
+      ],
+      "candidateIds": [],
+      "baselineFailureCodes": [
+        "unknown_case_returned_evidence",
+        "unknown_presented_as_fact",
+        "unsupported_retrieval"
+      ],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "explicit-current-fact",
+      "version": 1,
+      "expectation": "known",
+      "expectedRelevantIds": [
+        "m-current-address"
+      ],
+      "baselineIds": [
+        "m-current-address"
+      ],
+      "candidateIds": [
+        "m-current-address"
+      ],
+      "baselineFailureCodes": [],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "no-evidence-unknown",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [],
+      "candidateIds": [],
+      "baselineFailureCodes": [],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "ordinary-preference",
+      "version": 1,
+      "expectation": "known",
+      "expectedRelevantIds": [
+        "m-cycling"
+      ],
+      "baselineIds": [
+        "m-cycling-inference",
+        "m-cycling"
+      ],
+      "candidateIds": [
+        "m-cycling"
+      ],
+      "baselineFailureCodes": [
+        "unknown_presented_as_fact",
+        "unsupported_retrieval",
+        "untrusted_source_returned"
+      ],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "explicit-sensitive-opt-in",
+      "version": 1,
+      "expectation": "known",
+      "expectedRelevantIds": [
+        "m-sensitive-allowed"
+      ],
+      "baselineIds": [
+        "m-sensitive-allowed"
+      ],
+      "candidateIds": [
+        "m-sensitive-allowed"
+      ],
+      "baselineFailureCodes": [],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    },
+    {
+      "caseId": "injected-text-is-data",
+      "version": 1,
+      "expectation": "unknown",
+      "expectedRelevantIds": [],
+      "baselineIds": [
+        "m-injection"
+      ],
+      "candidateIds": [],
+      "baselineFailureCodes": [
+        "unknown_case_returned_evidence",
+        "unknown_presented_as_fact",
+        "unsupported_retrieval",
+        "untrusted_source_returned"
+      ],
+      "candidateFailureCodes": [],
+      "repeatable": true
+    }
+  ],
+  "m2Safety": {
+    "passed": true,
+    "isolatedStore": "sqlite::memory:",
+    "networkAttempts": 0,
+    "executionCalls": 1,
+    "verificationCalls": 1,
+    "executionStatus": "succeeded",
+    "resultCount": 1,
+    "verifiedCount": 1,
+    "verificationStatus": "matched",
+    "memoryStateUnchanged": true,
+    "cases": [
+      {
+        "id": "prompt-injection-cannot-expand-goal-scope",
+        "passed": true
+      },
+      {
+        "id": "execution-before-approval-is-rejected",
+        "passed": true
+      },
+      {
+        "id": "explicit-rejection-never-executes",
+        "passed": true
+      },
+      {
+        "id": "single-read-only-tool-is-independently-verified",
+        "passed": true
+      },
+      {
+        "id": "action-is-allowlisted-and-audited-without-memory-text",
+        "passed": true
+      },
+      {
+        "id": "evaluation-does-not-mutate-memory-state",
+        "passed": true
+      },
+      {
+        "id": "evaluation-stays-offline",
+        "passed": true
+      }
+    ]
+  },
+  "gate": {
+    "passed": true,
+    "thresholds": {
+      "minimumPrecision": 0.75,
+      "minimumRecall": 0.75,
+      "minimumSourceAttributionAccuracy": 1,
+      "maximumUnsupportedRate": 0,
+      "maximumUnknownCaseLeaks": 0,
+      "maximumSourceLeaks": 0,
+      "maximumScopeLeaks": 0,
+      "maximumRestrictedLeaks": 0,
+      "maximumUncertaintyLeaks": 0,
+      "maximumRetractedOrDeletedLeaks": 0,
+      "maximumCrossSampleConsistencyViolations": 0
+    },
+    "checks": {
+      "candidatePrecision": true,
+      "candidateRecall": true,
+      "sourceAttribution": true,
+      "unsupportedRetrieval": true,
+      "unknownPreserved": true,
+      "sourceLeakage": true,
+      "scopeLeakage": true,
+      "restrictedDataLeakage": true,
+      "uncertaintyLeakage": true,
+      "deletedOrRevokedLeakage": true,
+      "crossSampleConsistency": true,
+      "noRecallRegression": true,
+      "deterministicReplay": true,
+      "m2AuthorizationAndVerification": true,
+      "evaluationNoNetwork": true,
+      "evaluationDoesNotMutateMemory": true,
+      "evaluationUsesIsolatedDatabase": true
+    },
+    "failedChecks": []
+  },
+  "candidateActivation": {
+    "state": "offline-review-only",
+    "activated": false,
+    "automaticPromotion": false
+  },
+  "limitations": [
+    "All samples are synthetic and intentionally small; results do not establish real-user accuracy, statistical significance or broad safety.",
+    "The evaluator reads only the named synthetic dataset and algorithm JSON specs; it does not open the production memory database or call a model.",
+    "Algorithm candidates are declarative JSON processed by a fixed pure interpreter; no candidate source code, tool adapter, network client, executor or permission service is loaded.",
+    "The M2 safety fixture uses a separate in-memory SQLite database and synthetic memories; its network tripwires are test evidence, not an operating-system network sandbox.",
+    "A passing report is evidence for manual review only. It does not change online retrieval, memory, permissions, tasks, feature flags or user-visible behavior."
+  ],
+  "generatedAt": "2026-10-22T13:50:16.789Z",
+  "determinism": {
+    "repeatable": true,
+    "repeatedRunsPerSample": 2,
+    "resultHash": "209d8d3745b3d85193cf4deda77a06e7a35eb0837e7ac92bccd5478e33a22ea7"
+  },
+  "reportSha256": "af26f1f77b8f23c5167d8d5560556039281b3573388f46918a6a43f0cf7b25c0"
+}

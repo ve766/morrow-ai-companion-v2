@@ -1,0 +1,166 @@
+import { ApplicationError } from '../shared/errors'
+import { SqliteDatabase } from './database'
+import { recordDeletionState } from './deletion-journal'
+import type { MemoryChangeType, MemoryRecord, MemoryRevisionRecord, MemoryStatus } from '../memory/memory-domain'
+import { MEMORY_SOURCE_CATEGORY } from '../memory/memory-domain'
+
+interface MemoryRow {
+  id: string
+  original_text: string
+  current_text: string
+  source_category: string
+  status: string
+  created_at: string
+  sensitivity: string
+  updated_at: string
+  revision: number
+}
+
+interface RevisionRow {
+  memory_id: string
+  revision: number
+  content: string
+  source_category: string
+  status: string
+  change_type: string
+  created_at: string
+  previous_revision: number | null
+}
+
+export interface MemoryRepository {
+  create(record: MemoryRecord, revision: MemoryRevisionRecord): void
+  get(id: string): MemoryRecord | null
+  list(): MemoryRecord[]
+  listActiveForContext(limit: number): MemoryRecord[]
+  countActive(): number
+  countActiveForVerification(): number
+  search(query: string): MemoryRecord[]
+  history(id: string): MemoryRevisionRecord[] | null
+  transition(previousRevision: number, record: MemoryRecord, revision: MemoryRevisionRecord): void
+  delete(id: string): boolean
+}
+
+function mapMemory(row: MemoryRow): MemoryRecord {
+  return {
+    id: row.id,
+    originalText: row.original_text,
+    currentText: row.current_text,
+    sourceCategory: MEMORY_SOURCE_CATEGORY,
+    status: row.status as MemoryStatus,
+    sensitivity: row.sensitivity as MemoryRecord['sensitivity'],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    revision: row.revision
+  }
+}
+
+function mapRevision(row: RevisionRow): MemoryRevisionRecord {
+  return {
+    memoryId: row.memory_id,
+    revision: row.revision,
+    content: row.content,
+    sourceCategory: MEMORY_SOURCE_CATEGORY,
+    status: row.status as MemoryStatus,
+    changeType: row.change_type as MemoryChangeType,
+    createdAt: row.created_at,
+    previousRevision: row.previous_revision
+  }
+}
+
+export class SqliteMemoryRepository implements MemoryRepository {
+  constructor(private readonly database: SqliteDatabase) {}
+
+  create(record: MemoryRecord, revision: MemoryRevisionRecord): void {
+    this.database.transaction(() => {
+      this.database.connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, updated_at, revision, sensitivity)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(record.id, record.originalText, record.currentText, record.sourceCategory, record.status, record.createdAt, record.updatedAt, record.revision, record.sensitivity)
+      this.insertRevision(revision)
+    })
+  }
+
+  get(id: string): MemoryRecord | null {
+    const row = this.database.connection.prepare('SELECT * FROM memories WHERE id = ?').get(id) as unknown as MemoryRow | undefined
+    return row ? mapMemory(row) : null
+  }
+
+  list(): MemoryRecord[] {
+    const rows = this.database.connection.prepare('SELECT * FROM memories ORDER BY created_at DESC, id').all() as unknown as MemoryRow[]
+    return rows.map(mapMemory)
+  }
+
+  listActiveForContext(limit: number): MemoryRecord[] {
+    const rows = this.database.connection.prepare("SELECT * FROM memories WHERE status = 'active' ORDER BY updated_at DESC, id LIMIT ?")
+      .all(limit) as unknown as MemoryRow[]
+    return rows.map(mapMemory)
+  }
+
+  countActive(): number {
+    const row = this.database.connection.prepare("SELECT count(*) AS count FROM memories WHERE status = 'active'").get() as unknown as { count: number }
+    return row.count
+  }
+
+  countActiveForVerification(): number {
+    const row = this.database.connection.prepare("SELECT count(id) AS count FROM memories WHERE status = 'active'").get() as unknown as { count: number }
+    return row.count
+  }
+
+  search(query: string): MemoryRecord[] {
+    const rows = this.database.connection.prepare(`
+      SELECT * FROM memories
+      WHERE status = 'active' AND instr(lower(current_text), lower(?)) > 0
+      ORDER BY updated_at DESC, id
+      LIMIT 200
+    `).all(query) as unknown as MemoryRow[]
+    return rows.map(mapMemory)
+  }
+
+  history(id: string): MemoryRevisionRecord[] | null {
+    if (!this.get(id)) return null
+    const rows = this.database.connection.prepare(`
+      SELECT * FROM memory_revisions WHERE memory_id = ? ORDER BY revision
+    `).all(id) as unknown as RevisionRow[]
+    return rows.map(mapRevision)
+  }
+
+  transition(previousRevision: number, record: MemoryRecord, revision: MemoryRevisionRecord): void {
+    this.database.transaction(() => {
+      const previous = this.database.connection.prepare('SELECT status FROM memories WHERE id = ? AND revision = ?').get(record.id, previousRevision) as unknown as { status: string } | undefined
+      if (!previous) throw new ApplicationError('CONFLICT')
+      const result = this.database.connection.prepare(`
+        UPDATE memories
+        SET current_text = ?, status = ?, updated_at = ?, revision = ?
+        WHERE id = ? AND revision = ?
+      `).run(record.currentText, record.status, record.updatedAt, record.revision, record.id, previousRevision)
+      if (result.changes !== 1) throw new ApplicationError('CONFLICT')
+      this.insertRevision(revision)
+      if (record.status === 'retracted') recordDeletionState(this.database, 'memory', record.id, 'retracted', record.updatedAt)
+      else if (previous.status === 'retracted' && record.status === 'active') recordDeletionState(this.database, 'memory', record.id, 'unretracted', record.updatedAt)
+    })
+  }
+
+  delete(id: string): boolean {
+    return this.database.transaction(() => {
+      const result = this.database.connection.prepare('DELETE FROM memories WHERE id = ?').run(id)
+      if (result.changes === 1) recordDeletionState(this.database, 'memory', id, 'deleted', new Date().toISOString())
+      return result.changes === 1
+    })
+  }
+
+  private insertRevision(revision: MemoryRevisionRecord): void {
+    this.database.connection.prepare(`
+      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      revision.memoryId,
+      revision.revision,
+      revision.content,
+      revision.sourceCategory,
+      revision.status,
+      revision.changeType,
+      revision.createdAt,
+      revision.previousRevision
+    )
+  }
+}

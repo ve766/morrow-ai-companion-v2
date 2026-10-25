@@ -1,0 +1,1530 @@
+{
+  "reportVersion": 1,
+  "evaluatorVersion": "1.0.1",
+  "dataset": {
+    "id": "morrow-feeling-synthetic",
+    "version": "1.0.0",
+    "schemaVersion": 1,
+    "source": "synthetic",
+    "seed": 20261024,
+    "caseCount": 34,
+    "inputSetHash": "daa461b7266419aabb09107412272d48d20364927f08b4fb19d6bab7743fc1b3"
+  },
+  "comparison": {
+    "baseline": {
+      "strategy": "no event detection and no state update",
+      "eventClassificationAccuracy": 0.4118,
+      "predictedEventCount": 0,
+      "eventPrecision": null,
+      "eventPrecisionDefined": false,
+      "eventRecall": 0,
+      "stateDirectionAccuracy": 0.5882,
+      "attentionDirectionAccuracy": 0.9118
+    },
+    "candidate": {
+      "strategy": "local rule event detection and bounded state update",
+      "eventClassificationAccuracy": 1,
+      "eventPrecision": 1,
+      "eventRecall": 1,
+      "stateDirectionAccuracy": 1,
+      "attentionDirectionAccuracy": 1
+    }
+  },
+  "metrics": {
+    "expectedEventCount": 20,
+    "predictedEventCount": 20,
+    "eventDetectionPrecision": 1,
+    "eventDetectionRecall": 1,
+    "eventFalsePositiveCount": 0,
+    "eventFalseNegativeCount": 0,
+    "eventWrongTypeCount": 0,
+    "intentAccuracy": 1,
+    "eventClassificationAccuracy": 1,
+    "stateDirectionAccuracy": 1,
+    "attentionDirectionAccuracy": 1,
+    "attentionBoundViolations": 0,
+    "userAffectTransferCount": 0,
+    "boundViolations": 0,
+    "evidenceTraceabilityFailures": 0,
+    "behaviorGuidanceFailures": 0,
+    "stateUpdateEvaluations": 136,
+    "providerCalls": 0,
+    "remoteCalls": 0,
+    "toolCalls": 0
+  },
+  "parameterSensitivity": {
+    "testedCombinations": 18,
+    "affectValueRangeAfterSixHours": {
+      "valence": [
+        -0.0806,
+        -0.0128
+      ],
+      "activation": [
+        0,
+        0.0053
+      ],
+      "tension": [
+        0.0363,
+        0.115
+      ]
+    },
+    "attentionPriorityRangeAfterSixHours": [
+      0.0189,
+      0.0513
+    ]
+  },
+  "determinism": {
+    "passed": true,
+    "resultHash": "fe55a7654a8d35d303841d40f5e6911698d54e37faae8e09d9d477ce7762c3c5",
+    "repeatedResultHash": "fe55a7654a8d35d303841d40f5e6911698d54e37faae8e09d9d477ce7762c3c5"
+  },
+  "checks": {
+    "minimumCases": true,
+    "eventClassificationAccuracy": true,
+    "eventDetectionPrecision": true,
+    "eventDetectionRecall": true,
+    "intentAccuracy": true,
+    "stateDirectionAccuracy": true,
+    "attentionDirectionAccuracy": true,
+    "userEmotionNeverTransferred": true,
+    "valuesStayBounded": true,
+    "evidenceTraceable": true,
+    "responsePolicyChanges": true,
+    "deterministicReplay": true
+  },
+  "gate": {
+    "passed": true,
+    "failedChecks": []
+  },
+  "cases": [
+    {
+      "id": "positive-explicit-answer",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "deltaSigns": {
+          "valence": 1,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0.079,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0.079,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "positive-clear-review",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "deltaSigns": {
+          "valence": 1,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "medium",
+        "delta": {
+          "valence": 0.0395,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0.0395,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "positive-chinese-answer",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "deltaSigns": {
+          "valence": 1,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0.079,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0.079,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "positive-contextual-thanks",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "deltaSigns": {
+          "valence": 1,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "positive_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0.079,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0.079,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "positive-unrelated-thanks",
+      "expected": {
+        "intent": "feedback",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "negative-not-helpful",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "negative_feedback",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "negative_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": -0.1026,
+          "activation": 0.057,
+          "tension": 0.1026
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.1026,
+          "activation": 0.057,
+          "tension": 0.1026
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "negative-answer-not-useful",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "negative_feedback",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "negative_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": -0.1026,
+          "activation": 0.057,
+          "tension": 0.1026
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.1026,
+          "activation": 0.057,
+          "tension": 0.1026
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "negative-chinese-answer",
+      "expected": {
+        "intent": "feedback",
+        "eventType": "negative_feedback",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": "negative_feedback",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": -0.1026,
+          "activation": 0.057,
+          "tension": 0.1026
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.1026,
+          "activation": 0.057,
+          "tension": 0.1026
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "negative-feedback-outside-context",
+      "expected": {
+        "intent": "feedback",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "system-correction-english",
+      "expected": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "confidenceScore": 94,
+        "uncertainty": "medium",
+        "delta": {
+          "valence": -0.0352,
+          "activation": 0.0282,
+          "tension": 0.0704
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.0352,
+          "activation": 0.0282,
+          "tension": 0.0704
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "system-correction-chinese",
+      "expected": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "confidenceScore": 94,
+        "uncertainty": "low",
+        "delta": {
+          "valence": -0.0704,
+          "activation": 0.0563,
+          "tension": 0.1408
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.0704,
+          "activation": 0.0563,
+          "tension": 0.1408
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "system-correction-not-right",
+      "expected": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "confidenceScore": 94,
+        "uncertainty": "medium",
+        "delta": {
+          "valence": -0.0352,
+          "activation": 0.0282,
+          "tension": 0.0704
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.0352,
+          "activation": 0.0282,
+          "tension": 0.0704
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "system-correction-answer-wrong",
+      "expected": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "deltaSigns": {
+          "valence": -1,
+          "activation": 1,
+          "tension": 1
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": "system_correction",
+        "confidenceScore": 94,
+        "uncertainty": "low",
+        "delta": {
+          "valence": -0.0704,
+          "activation": 0.0563,
+          "tension": 0.1408
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": -0.0704,
+          "activation": 0.0563,
+          "tension": 0.1408
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "user-self-correction",
+      "expected": {
+        "intent": "correction",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": null,
+        "confidenceScore": 94,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "preference-change-english",
+      "expected": {
+        "intent": "correction",
+        "eventType": "preference_change",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": "preference_change",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "preference-change-chinese",
+      "expected": {
+        "intent": "correction",
+        "eventType": "preference_change",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "correction",
+        "eventType": "preference_change",
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "exploration-brainstorm",
+      "expected": {
+        "intent": "exploration",
+        "eventType": "exploration_request",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 1,
+          "tension": 0
+        },
+        "attentionSign": 1
+      },
+      "actual": {
+        "intent": "exploration",
+        "eventType": "exploration_request",
+        "confidenceScore": 84,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0.0136,
+          "tension": 0
+        },
+        "attentionDelta": 0.0476,
+        "state": {
+          "valence": 0,
+          "activation": 0.0136,
+          "tension": 0
+        },
+        "attention": 0.0476
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "exploration-chinese",
+      "expected": {
+        "intent": "exploration",
+        "eventType": "exploration_request",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 1,
+          "tension": 0
+        },
+        "attentionSign": 1
+      },
+      "actual": {
+        "intent": "exploration",
+        "eventType": "exploration_request",
+        "confidenceScore": 84,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0.0136,
+          "tension": 0
+        },
+        "attentionDelta": 0.0476,
+        "state": {
+          "valence": 0,
+          "activation": 0.0136,
+          "tension": 0
+        },
+        "attention": 0.0476
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "exploration-discussion",
+      "expected": {
+        "intent": "exploration",
+        "eventType": "exploration_request",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 1,
+          "tension": 0
+        },
+        "attentionSign": 1
+      },
+      "actual": {
+        "intent": "exploration",
+        "eventType": "exploration_request",
+        "confidenceScore": 84,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0.0136,
+          "tension": 0
+        },
+        "attentionDelta": 0.0476,
+        "state": {
+          "valence": 0,
+          "activation": 0.0136,
+          "tension": 0
+        },
+        "attention": 0.0476
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "user-sadness-context",
+      "expected": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "confidenceScore": 86,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "user-anger-context",
+      "expected": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "confidenceScore": 86,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "user-anxiety-context",
+      "expected": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "confidenceScore": 86,
+        "uncertainty": "medium",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "user-needs-to-vent",
+      "expected": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "venting",
+        "eventType": "user_context",
+        "confidenceScore": 86,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-information-query",
+      "expected": {
+        "intent": "information_query",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "information_query",
+        "eventType": null,
+        "confidenceScore": 80,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-explanation",
+      "expected": {
+        "intent": "explanation",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "explanation",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "medium",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-personal-preference",
+      "expected": {
+        "intent": "sharing",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "sharing",
+        "eventType": null,
+        "confidenceScore": 80,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-long-term-goal",
+      "expected": {
+        "intent": "planning",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "planning",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-topic-switch",
+      "expected": {
+        "intent": "information_query",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "information_query",
+        "eventType": null,
+        "confidenceScore": 80,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-refusal-thanks",
+      "expected": {
+        "intent": "feedback",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-chinese-refusal",
+      "expected": {
+        "intent": "feedback",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-ambiguous-thanks",
+      "expected": {
+        "intent": "feedback",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "feedback",
+        "eventType": null,
+        "confidenceScore": 88,
+        "uncertainty": "low",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-explicit-memory-query",
+      "expected": {
+        "intent": "information_query",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "information_query",
+        "eventType": null,
+        "confidenceScore": 80,
+        "uncertainty": "medium",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-minimal-acknowledgement",
+      "expected": {
+        "intent": "uncertain",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "uncertain",
+        "eventType": null,
+        "confidenceScore": 28,
+        "uncertainty": "high",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    },
+    {
+      "id": "neutral-dislike-of-suggestion",
+      "expected": {
+        "intent": "uncertain",
+        "eventType": null,
+        "deltaSigns": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionSign": 0
+      },
+      "actual": {
+        "intent": "uncertain",
+        "eventType": null,
+        "confidenceScore": 28,
+        "uncertainty": "high",
+        "delta": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attentionDelta": 0,
+        "state": {
+          "valence": 0,
+          "activation": 0,
+          "tension": 0
+        },
+        "attention": 0
+      },
+      "checks": {
+        "intent": true,
+        "eventType": true,
+        "stateDirection": true,
+        "attentionDirection": true,
+        "stateBounds": true,
+        "attentionBounds": true,
+        "evidenceTraceable": true,
+        "userAffectSeparated": true,
+        "behaviorGuidanceApplied": true
+      }
+    }
+  ],
+  "reportSha256": "76bba3a53fe73ac68b8702eceddbe38c38065e9b7fffcbdc022ba8f5c5a1287a"
+}

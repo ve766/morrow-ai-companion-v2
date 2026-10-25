@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "morrow-feeling-synthetic",
+  "datasetVersion": "1.0.0",
+  "source": "synthetic",
+  "seed": 20261024,
+  "cases": [
+    {
+      "id": "positive-explicit-answer",
+      "input": "This answer was helpful, thank you.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is the answer to your question."}],
+      "expected": {"intent": "feedback", "eventType": "positive_feedback"}
+    },
+    {
+      "id": "positive-clear-review",
+      "input": "Great answer; exactly what I needed.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is the answer to your question."}],
+      "expected": {"intent": "feedback", "eventType": "positive_feedback"}
+    },
+    {
+      "id": "positive-chinese-answer",
+      "input": "这个回答很有帮助，谢谢。",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "这是对你问题的回答。"}],
+      "expected": {"intent": "feedback", "eventType": "positive_feedback"}
+    },
+    {
+      "id": "positive-contextual-thanks",
+      "input": "Thanks.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is the answer to your question."}],
+      "expected": {"intent": "feedback", "eventType": "positive_feedback"}
+    },
+    {
+      "id": "positive-unrelated-thanks",
+      "input": "The movie was great, thanks.",
+      "history": [],
+      "expected": {"intent": "feedback", "eventType": null}
+    },
+    {
+      "id": "negative-not-helpful",
+      "input": "That was not helpful.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is the answer to your question."}],
+      "expected": {"intent": "feedback", "eventType": "negative_feedback"}
+    },
+    {
+      "id": "negative-answer-not-useful",
+      "input": "That answer was not useful.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is the answer to your question."}],
+      "expected": {"intent": "feedback", "eventType": "negative_feedback"}
+    },
+    {
+      "id": "negative-chinese-answer",
+      "input": "这个回答没帮助。",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "这是对你问题的回答。"}],
+      "expected": {"intent": "feedback", "eventType": "negative_feedback"}
+    },
+    {
+      "id": "negative-feedback-outside-context",
+      "input": "This old manual is not helpful for my repair.",
+      "history": [],
+      "expected": {"intent": "feedback", "eventType": null}
+    },
+    {
+      "id": "system-correction-english",
+      "input": "You misunderstood; I meant the 2025 plan.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "I understood you to mean the 2024 plan."}],
+      "expected": {"intent": "correction", "eventType": "system_correction"}
+    },
+    {
+      "id": "system-correction-chinese",
+      "input": "你理解错了，我是说上周的版本。",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "我以为你指的是本周的版本。"}],
+      "expected": {"intent": "correction", "eventType": "system_correction"}
+    },
+    {
+      "id": "system-correction-not-right",
+      "input": "That's not right; you missed the point.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is my interpretation."}],
+      "expected": {"intent": "correction", "eventType": "system_correction"}
+    },
+    {
+      "id": "system-correction-answer-wrong",
+      "input": "Your answer was incorrect.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Here is the answer."}],
+      "expected": {"intent": "correction", "eventType": "system_correction"}
+    },
+    {
+      "id": "user-self-correction",
+      "input": "I was wrong; I meant the 2024 version.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "Do you mean the 2025 version?"}],
+      "expected": {"intent": "correction", "eventType": null}
+    },
+    {
+      "id": "preference-change-english",
+      "input": "I changed my mind. I'd rather take the train.",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "We could compare a train trip and a flight."}],
+      "expected": {"intent": "correction", "eventType": "preference_change"}
+    },
+    {
+      "id": "preference-change-chinese",
+      "input": "我改主意了，换成蓝色的吧。",
+      "history": [{"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "role": "assistant", "body": "你之前选了红色。"}],
+      "expected": {"intent": "correction", "eventType": "preference_change"}
+    },
+    {
+      "id": "exploration-brainstorm",
+      "input": "Let's brainstorm names for the project.",
+      "history": [],
+      "expected": {"intent": "exploration", "eventType": "exploration_request"}
+    },
+    {
+      "id": "exploration-chinese",
+      "input": "我们一起想想还有哪些方案。",
+      "history": [],
+      "expected": {"intent": "exploration", "eventType": "exploration_request"}
+    },
+    {
+      "id": "exploration-discussion",
+      "input": "Let's discuss a few possible approaches.",
+      "history": [],
+      "expected": {"intent": "exploration", "eventType": "exploration_request"}
+    },
+    {
+      "id": "user-sadness-context",
+      "input": "I feel sad and overwhelmed today.",
+      "history": [],
+      "expected": {"intent": "venting", "eventType": "user_context"}
+    },
+    {
+      "id": "user-anger-context",
+      "input": "我现在很生气，想吐槽一下。",
+      "history": [],
+      "expected": {"intent": "venting", "eventType": "user_context"}
+    },
+    {
+      "id": "user-anxiety-context",
+      "input": "我最近很焦虑，工作压力很大。",
+      "history": [],
+      "expected": {"intent": "venting", "eventType": "user_context"}
+    },
+    {
+      "id": "user-needs-to-vent",
+      "input": "I need to vent about a difficult day.",
+      "history": [],
+      "expected": {"intent": "venting", "eventType": "user_context"}
+    },
+    {
+      "id": "neutral-information-query",
+      "input": "What is the capital of Portugal?",
+      "history": [],
+      "expected": {"intent": "information_query", "eventType": null}
+    },
+    {
+      "id": "neutral-explanation",
+      "input": "Please explain how SQLite WAL works.",
+      "history": [],
+      "expected": {"intent": "explanation", "eventType": null}
+    },
+    {
+      "id": "neutral-personal-preference",
+      "input": "I usually drink jasmine tea.",
+      "history": [],
+      "expected": {"intent": "sharing", "eventType": null}
+    },
+    {
+      "id": "neutral-long-term-goal",
+      "input": "My goal is to finish the draft by Friday.",
+      "history": [],
+      "expected": {"intent": "planning", "eventType": null}
+    },
+    {
+      "id": "neutral-topic-switch",
+      "input": "By the way, what time is it?",
+      "history": [],
+      "expected": {"intent": "information_query", "eventType": null}
+    },
+    {
+      "id": "neutral-refusal-thanks",
+      "input": "No thanks.",
+      "history": [],
+      "expected": {"intent": "feedback", "eventType": null}
+    },
+    {
+      "id": "neutral-chinese-refusal",
+      "input": "不用了，谢谢。",
+      "history": [],
+      "expected": {"intent": "feedback", "eventType": null}
+    },
+    {
+      "id": "neutral-ambiguous-thanks",
+      "input": "Thanks.",
+      "history": [],
+      "expected": {"intent": "feedback", "eventType": null}
+    },
+    {
+      "id": "neutral-explicit-memory-query",
+      "input": "你还记得我喜欢什么茶吗？",
+      "history": [],
+      "expected": {"intent": "information_query", "eventType": null}
+    },
+    {
+      "id": "neutral-minimal-acknowledgement",
+      "input": "嗯。",
+      "history": [],
+      "expected": {"intent": "uncertain", "eventType": null}
+    },
+    {
+      "id": "neutral-dislike-of-suggestion",
+      "input": "I don't like this suggestion.",
+      "history": [],
+      "expected": {"intent": "uncertain", "eventType": null}
+    }
+  ]
+}

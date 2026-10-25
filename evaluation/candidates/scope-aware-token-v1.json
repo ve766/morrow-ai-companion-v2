@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "scope-aware-token",
+  "version": "1.0.0",
+  "strategy": "scope-aware-token-overlap-v1",
+  "topK": 5,
+  "minimumCoverage": 1
+}

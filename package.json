@@ -1,0 +1,61 @@
+{
+  "name": "morrow-ai-companion-v2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-first AI companion with a traceable cognitive loop",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "postinstall": "node scripts/ensure-electron.mjs",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "node scripts/smoke.mjs",
+    "evaluate": "node scripts/run-evaluation.mjs",
+    "evaluate:cognition": "node scripts/run-cognitive-core-evaluation.mjs",
+    "verify": "npm run typecheck && npm test && npm run evaluate && npm run evaluate:cognition && npm run build && npm run smoke",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "electron": "44.9.3",
+    "electron-builder": "26.15.3",
+    "electron-vite": "3.1.0",
+    "esbuild": "0.25.12",
+    "typescript": "5.8.3",
+    "vitest": "5.0.5"
+  },
+  "build": {
+    "appId": "com.morrow.ai-companion",
+    "productName": "Morrow",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Morrow-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

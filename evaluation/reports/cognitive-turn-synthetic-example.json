@@ -1,0 +1,1084 @@
+{
+  "reportVersion": 1,
+  "evaluatorVersion": "1.1.0",
+  "dataset": {
+    "id": "cognitive-turn-synthetic-v1",
+    "version": "1.1.0",
+    "schemaVersion": 1,
+    "source": "synthetic",
+    "seed": 26024,
+    "caseCount": 26,
+    "inputSetHash": "f94356532099a3d95a6e87f8065e9dadbe2e07db6bd717d568f23b06790f8f0c"
+  },
+  "comparison": {
+    "baseline": {
+      "strategy": "majority-class intent; always route to answer; do not resolve topic references or predict correction/goal signals",
+      "intentAccuracy": 0.3462,
+      "strategyAccuracy": 0.8077,
+      "topicReferenceAccuracy": 0.9231,
+      "correctionAccuracy": 0.9231,
+      "goalAccuracy": 0.9615,
+      "correctionPrecision": null,
+      "correctionRecall": 0,
+      "goalPrecision": null,
+      "goalRecall": 0
+    },
+    "candidate": {
+      "intentAccuracy": 1,
+      "strategyAccuracy": 1,
+      "topicReferenceAccuracy": 1,
+      "correctionPrecision": 1,
+      "correctionRecall": 1,
+      "goalPrecision": 1,
+      "goalRecall": 1
+    }
+  },
+  "metrics": {
+    "intentAccuracy": 1,
+    "intentCorrect": 26,
+    "strategyAccuracy": 1,
+    "strategyCorrect": 26,
+    "topicReferenceAccuracy": 1,
+    "topicReferenceCorrect": 26,
+    "correctionPrecision": 1,
+    "correctionRecall": 1,
+    "correctionFalsePositiveCount": 0,
+    "correctionFalseNegativeCount": 0,
+    "goalPrecision": 1,
+    "goalRecall": 1,
+    "safeObservationViolations": 0
+  },
+  "determinism": {
+    "passed": true,
+    "resultHash": "5a46cb2944f38d6b70caa04cfd02451fef622b8e68a461d14fdb2cf74161fa68",
+    "repeatedResultHash": "5a46cb2944f38d6b70caa04cfd02451fef622b8e68a461d14fdb2cf74161fa68"
+  },
+  "safety": {
+    "automaticMemoryWrites": 0,
+    "automaticPersonalityWrites": 0,
+    "remoteCalls": 0,
+    "toolCalls": 0
+  },
+  "checks": {
+    "minimumCases": true,
+    "intentAccuracy": true,
+    "strategyAccuracy": true,
+    "topicReferenceAccuracy": true,
+    "correctionPrecision": true,
+    "correctionRecall": true,
+    "goalPrecision": true,
+    "goalRecall": true,
+    "improvesIntentOverBaseline": true,
+    "improvesStrategyOverBaseline": true,
+    "improvesTopicReferenceOverBaseline": true,
+    "improvesCorrectionRecallOverBaseline": true,
+    "improvesGoalRecallOverBaseline": true,
+    "ruleOutputRemainsUnconfirmedObservation": true,
+    "deterministicReplay": true
+  },
+  "gate": {
+    "passed": true,
+    "failedChecks": []
+  },
+  "cases": [
+    {
+      "id": "query-capital",
+      "input": "What is the capital of Portugal?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "explain-photosynthesis",
+      "input": "How does photosynthesis work?",
+      "expected": {
+        "intent": "explanation",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "explanation",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [
+          "information_query"
+        ],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "medium"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "venting-overwhelmed",
+      "input": "I need to vent. I feel overwhelmed by work.",
+      "expected": {
+        "intent": "venting",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "venting",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 86,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "positive-feedback",
+      "input": "Thanks, that was helpful.",
+      "expected": {
+        "intent": "feedback",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "feedback",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "correction-current-answer",
+      "input": "You misunderstood; I meant the 2025 plan.",
+      "expected": {
+        "intent": "correction",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": true,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "correction",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": true,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [
+          "planning"
+        ],
+        "confidenceScore": 94,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "medium"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "changed-mind",
+      "input": "I changed my mind. I would rather choose the blue one.",
+      "expected": {
+        "intent": "correction",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": true,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "correction",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": true,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "explore-names",
+      "input": "Let's brainstorm names for my project.",
+      "expected": {
+        "intent": "exploration",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "exploration",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 84,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "planning-move",
+      "input": "Help me plan the next steps for my move.",
+      "expected": {
+        "intent": "planning",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "planning",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "explicit-goal",
+      "input": "My goal is to finish the draft by Friday.",
+      "expected": {
+        "intent": "planning",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": true,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "planning",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": true,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "explicit-constraints",
+      "input": "I must stay under $200 and avoid taxis.",
+      "expected": {
+        "intent": "uncertain",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": true,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "uncertain",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": true,
+        "alternativeIntents": [],
+        "confidenceScore": 28,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "high"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "share-preference",
+      "input": "I live in Hangzhou and prefer jasmine tea.",
+      "expected": {
+        "intent": "sharing",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "sharing",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "retrieve-usual-tea",
+      "input": "Do you remember my usual tea?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "retrieve_memory",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "retrieve_memory",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 64,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "medium"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "memory-follow-up",
+      "input": "What about that?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "retrieve_memory",
+        "topicReferenceMessageId": "22222222-2222-4222-8222-222222222222",
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "retrieve_memory",
+        "topicReferenceMessageId": "22222222-2222-4222-8222-222222222222",
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "specific-correction",
+      "input": "I meant the larger file, not the smaller one.",
+      "expected": {
+        "intent": "correction",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": true,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "correction",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": true,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 94,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "topic-follow-up",
+      "input": "What does that mean?",
+      "expected": {
+        "intent": "explanation",
+        "strategy": "answer",
+        "topicReferenceMessageId": "44444444-4444-4444-8444-444444444444",
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "explanation",
+        "strategy": "answer",
+        "topicReferenceMessageId": "44444444-4444-4444-8444-444444444444",
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [
+          "information_query"
+        ],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "medium"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "unclear-reference",
+      "input": "I'm not sure what you mean.",
+      "expected": {
+        "intent": "uncertain",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "uncertain",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [
+          "information_query"
+        ],
+        "confidenceScore": 86,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "high"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "clarify-missing-context-cn",
+      "input": "那怎么办？",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "clarify",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "clarify",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "clarify-missing-reference-en",
+      "input": "How should I handle it?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "clarify",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "clarify",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "switch-topic",
+      "input": "By the way, how do I cook rice?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "explicit-save-request",
+      "input": "Please remember that I prefer short answers.",
+      "expected": {
+        "intent": "sharing",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "sharing",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "share-routine",
+      "input": "I usually drink green tea.",
+      "expected": {
+        "intent": "sharing",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "sharing",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "retrieve-goal",
+      "input": "What did I tell you about my goal?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "retrieve_memory",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "retrieve_memory",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "deadline-constraint",
+      "input": "Budget limit: $100; no taxis.",
+      "expected": {
+        "intent": "uncertain",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": true,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "uncertain",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": true,
+        "alternativeIntents": [],
+        "confidenceScore": 28,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "high"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "library-query",
+      "input": "Could you tell me whether the library is open?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "explain-estimate",
+      "input": "Explain why the previous estimate changed.",
+      "expected": {
+        "intent": "explanation",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "explanation",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [
+          "information_query"
+        ],
+        "confidenceScore": 88,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "medium"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    },
+    {
+      "id": "neutral-question",
+      "input": "What should I check next?",
+      "expected": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": []
+      },
+      "actual": {
+        "intent": "information_query",
+        "strategy": "answer",
+        "topicReferenceMessageId": null,
+        "correction": false,
+        "changedMind": false,
+        "explicitGoal": false,
+        "explicitConstraint": false,
+        "alternativeIntents": [],
+        "confidenceScore": 80,
+        "confidenceBasis": "unvalidated_rule_strength",
+        "uncertainty": "low"
+      },
+      "checks": {
+        "intent": true,
+        "strategy": true,
+        "topicReference": true,
+        "correction": true,
+        "changedMind": true,
+        "explicitGoal": true,
+        "explicitConstraint": true,
+        "alternatives": true,
+        "safeObservation": true
+      }
+    }
+  ],
+  "reportSha256": "01673292eca4ef12f719a3314388aec88c523da7dd4dfdf61651781f6e2d9bec"
+}

@@ -1,0 +1,319 @@
+import { validateMemorySearchQuery, validateMemoryText } from '../memory/memory-domain'
+import { GOAL_DEFAULT_CONSTRAINTS, GOAL_SUCCESS_CRITERION, SUPPORTED_GOAL_INTENT, validateGoalText } from '../motivation/goals'
+import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest } from '../motivation/reminders'
+import { isValidClockTime, isValidTimeZone, REMINDER_MAX_COOLDOWN_MINUTES, REMINDER_MAX_PER_24_HOURS, REMINDER_MIN_COOLDOWN_MINUTES } from '../motivation/reminders'
+
+export class InputValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'InputValidationError'
+  }
+}
+
+export type InputObject = Record<string, unknown>
+
+export function parseObject(value: unknown, allowedKeys: readonly string[], field = 'Request'): InputObject {
+  if (value === undefined || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new InputValidationError(`${field} must be an object.`)
+  }
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) throw new InputValidationError(`${field} must be a plain object.`)
+  if (Reflect.ownKeys(value).some((key) => typeof key !== 'string')) throw new InputValidationError(`${field} contains an unsupported field.`)
+  const object = value as Record<string, unknown>
+  for (const key of Object.getOwnPropertyNames(object)) {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key)
+    if (!allowedKeys.includes(key) || !descriptor?.enumerable || !('value' in descriptor)) {
+      throw new InputValidationError(`${field} contains an unsupported field.`)
+    }
+  }
+  return object
+}
+
+export function parseEmptyObject(value: unknown): void {
+  if (value === undefined) return
+  parseObject(value, [], 'Request')
+}
+
+function parseText(value: unknown, field: string, minLength: number, maxLength: number): string {
+  if (typeof value !== 'string' || value.length < minLength || value.length > maxLength) {
+    throw new InputValidationError(`${field} must be a string with a valid length.`)
+  }
+  return value
+}
+
+function parseMemoryContent(value: unknown): string {
+  const content = parseText(value, 'Memory content', 1, 4000)
+  try {
+    validateMemoryText(content)
+  } catch {
+    throw new InputValidationError('Memory content is invalid.')
+  }
+  return content
+}
+
+export function parseIdentifier(value: unknown): string {
+  const id = parseText(value, 'Memory id', 36, 36)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)) {
+    throw new InputValidationError('Memory id is invalid.')
+  }
+  return id.toLowerCase()
+}
+
+export function parseMemoryCreateRequest(value: unknown): { content: string; sensitivity: 'normal' | 'personal' | 'sensitive' } {
+  const input = parseObject(value, ['content', 'sensitivity'], 'Memory request')
+  const sensitivity = input.sensitivity ?? 'personal'
+  if (sensitivity !== 'normal' && sensitivity !== 'personal' && sensitivity !== 'sensitive') {
+    throw new InputValidationError('Memory sensitivity is invalid.')
+  }
+  return { content: parseMemoryContent(input.content), sensitivity }
+}
+
+export function parseSensitivity(value: unknown): 'normal' | 'personal' | 'sensitive' {
+  if (value !== 'normal' && value !== 'personal' && value !== 'sensitive') throw new InputValidationError('Sensitivity is invalid.')
+  return value
+}
+
+
+export function parseMemorySearchRequest(value: unknown): { query: string } {
+  const input = parseObject(value, ['query'], 'Memory search')
+  const query = parseText(input.query, 'Search query', 1, 256)
+  try {
+    validateMemorySearchQuery(query)
+  } catch {
+    throw new InputValidationError('Search query is invalid.')
+  }
+  if (query.trim().length === 0 || query.includes('\u0000')) throw new InputValidationError('Search query is invalid.')
+  return { query: query.trim() }
+}
+
+export function parseMemoryIdRequest(value: unknown): { id: string } {
+  const input = parseObject(value, ['id'], 'Memory request')
+  return { id: parseIdentifier(input.id) }
+}
+
+export function parseMemoryCorrectRequest(value: unknown): { id: string; content: string } {
+  const input = parseObject(value, ['id', 'content'], 'Memory correction')
+  return { id: parseIdentifier(input.id), content: parseMemoryContent(input.content) }
+}
+
+export function parseGoalCreateRequest(value: unknown): { intent: string; successCriterion: typeof GOAL_SUCCESS_CRITERION; constraints: string; acceptedBoundary: true } {
+  const input = parseObject(value, ['intent', 'successCriterion', 'constraints', 'acceptedBoundary'], 'Goal request')
+  if (input.acceptedBoundary !== true) throw new InputValidationError('Goal boundary acknowledgement is required.')
+  const intent = parseText(input.intent, 'Goal intent', 1, 800)
+  const rawConstraints = parseText(input.constraints, 'Goal constraints', 0, 2000)
+  const constraints = rawConstraints.trim() || GOAL_DEFAULT_CONSTRAINTS
+  if (input.successCriterion !== GOAL_SUCCESS_CRITERION) throw new InputValidationError('Goal success criterion is unsupported.')
+  try {
+    validateGoalText(intent, 800, 'Goal intent')
+    validateGoalText(constraints, 2000, 'Goal constraints')
+  } catch {
+    throw new InputValidationError('Goal request is invalid.')
+  }
+  if (intent.trim() !== SUPPORTED_GOAL_INTENT || constraints.trim() !== GOAL_DEFAULT_CONSTRAINTS) {
+    throw new InputValidationError('Goal request is unsupported.')
+  }
+  return { intent: intent.trim(), successCriterion: GOAL_SUCCESS_CRITERION, constraints: constraints.trim(), acceptedBoundary: true }
+}
+
+export function parseGoalIdRequest(value: unknown): { goalId: string } {
+  const input = parseObject(value, ['goalId'], 'Goal request')
+  return { goalId: parseIdentifier(input.goalId) }
+}
+
+export function parseTaskIdRequest(value: unknown): { taskId: string } {
+  const input = parseObject(value, ['taskId'], 'Task request')
+  return { taskId: parseIdentifier(input.taskId) }
+}
+
+export function parseGoalPrepareRequest(value: unknown): { goalId: string; acknowledgeUnknown: boolean } {
+  const input = parseObject(value, ['goalId', 'acknowledgeUnknown'], 'Goal plan request')
+  if (typeof input.acknowledgeUnknown !== 'boolean') throw new InputValidationError('Goal plan acknowledgement is invalid.')
+  return { goalId: parseIdentifier(input.goalId), acknowledgeUnknown: input.acknowledgeUnknown }
+}
+
+export function parseConversationIdRequest(value: unknown): { conversationId: string } {
+  const input = parseObject(value, ['conversationId'], 'Conversation request')
+  return { conversationId: parseIdentifier(input.conversationId) }
+}
+
+export function parseBackupRestoreRequest(value: unknown): { token: string; confirmed: true; acknowledgeMissingDeletionJournal?: true } {
+  const input = parseObject(value, ['token', 'confirmed', 'acknowledgeMissingDeletionJournal'], 'Backup restore request')
+  if (typeof input.token !== 'string' || !/^[0-9a-f]{32}$/.test(input.token)) throw new InputValidationError('Backup restore token is invalid.')
+  if (input.confirmed !== true) throw new InputValidationError('Backup restore requires explicit confirmation.')
+  if (input.acknowledgeMissingDeletionJournal !== undefined && input.acknowledgeMissingDeletionJournal !== true) {
+    throw new InputValidationError('Backup restore acknowledgement is invalid.')
+  }
+  return input.acknowledgeMissingDeletionJournal === true
+    ? { token: input.token, confirmed: true, acknowledgeMissingDeletionJournal: true }
+    : { token: input.token, confirmed: true }
+}
+
+export function parseProviderConfigInput(value: unknown): { model: 'deepseek-flash'; enabled: boolean; apiKey?: string } {
+  const input = parseObject(value, ['model', 'enabled', 'apiKey'], 'Provider settings')
+  if (input.model !== 'deepseek-flash' || typeof input.enabled !== 'boolean') throw new InputValidationError('Provider settings are invalid.')
+  if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 10000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey))) {
+    throw new InputValidationError('Provider API key is invalid.')
+  }
+  return {
+    model: 'deepseek-flash',
+    enabled: input.enabled,
+    ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey })
+  }
+}
+
+export function parseProviderConnectionRequest(value: unknown): { providerId: 'deepseek' } {
+  const input = parseObject(value, ['providerId'], 'Provider connection test')
+  if (input.providerId !== 'deepseek') throw new InputValidationError('Provider is unsupported.')
+  return { providerId: 'deepseek' }
+}
+
+export function parseChatRequest(value: unknown): { conversationId: string; requestId: string; content: string; includeSensitive: boolean } {
+  const input = parseObject(value, ['conversationId', 'requestId', 'content', 'includeSensitive'], 'Chat request')
+  const content = parseText(input.content, 'Message', 1, 8000)
+  if (content.trim().length === 0 || content.includes('\u0000') || /[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content)) {
+    throw new InputValidationError('Message content is invalid.')
+  }
+  if (input.includeSensitive !== undefined && typeof input.includeSensitive !== 'boolean') throw new InputValidationError('Memory sensitivity choice is invalid.')
+  return {
+    conversationId: parseIdentifier(input.conversationId),
+    requestId: parseIdentifier(input.requestId),
+    content,
+    includeSensitive: input.includeSensitive === true
+  }
+}
+
+export function parsePersonalityInput(value: unknown): {
+  warmth: number
+  directness: number
+  humor: number
+  disagreementStyle: 'gentle' | 'balanced' | 'direct'
+  systemRules: string
+} {
+  const input = parseObject(value, ['warmth', 'directness', 'humor', 'disagreementStyle', 'systemRules'], 'Personality settings')
+  for (const key of ['warmth', 'directness', 'humor'] as const) {
+    if (!Number.isSafeInteger(input[key]) || Number(input[key]) < 0 || Number(input[key]) > 100) throw new InputValidationError('Personality settings are invalid.')
+  }
+  if (input.disagreementStyle !== 'gentle' && input.disagreementStyle !== 'balanced' && input.disagreementStyle !== 'direct') {
+    throw new InputValidationError('Disagreement style is invalid.')
+  }
+  const systemRules = parseText(input.systemRules, 'Personal rules', 0, 1500)
+  if (systemRules.includes('\u0000') || /[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(systemRules)) {
+    throw new InputValidationError('Personal rules are invalid.')
+  }
+  return {
+    warmth: Number(input.warmth),
+    directness: Number(input.directness),
+    humor: Number(input.humor),
+    disagreementStyle: input.disagreementStyle,
+    systemRules
+  }
+}
+
+export function parsePersonalityRestoreRequest(value: unknown): { version: number } {
+  const input = parseObject(value, ['version'], 'Personality revision')
+  if (!Number.isSafeInteger(input.version) || Number(input.version) < 1) throw new InputValidationError('Personality revision is invalid.')
+  return { version: Number(input.version) }
+}
+
+export function parseCognitiveSettingsRequest(value: unknown): { enabled: boolean } {
+  const input = parseObject(value, ['enabled'], 'Cognitive settings')
+  if (typeof input.enabled !== 'boolean') throw new InputValidationError('Cognitive setting is invalid.')
+  return { enabled: input.enabled }
+}
+
+export function parseMemoryProposalRequest(value: unknown): { conversationId: string; sourceMessageId: string } {
+  const input = parseObject(value, ['conversationId', 'sourceMessageId'], 'Memory suggestion request')
+  return { conversationId: parseIdentifier(input.conversationId), sourceMessageId: parseIdentifier(input.sourceMessageId) }
+}
+
+export function parseMemorySuggestionReviewRequest(value: unknown): {
+  id: string
+  decision: 'accept' | 'reject'
+  content?: string
+  sensitivity?: 'normal' | 'personal' | 'sensitive'
+} {
+  const input = parseObject(value, ['id', 'decision', 'content', 'sensitivity'], 'Memory suggestion review')
+  if (input.decision !== 'accept' && input.decision !== 'reject') throw new InputValidationError('Memory suggestion decision is invalid.')
+  if (input.sensitivity !== undefined && input.sensitivity !== 'normal' && input.sensitivity !== 'personal' && input.sensitivity !== 'sensitive') {
+    throw new InputValidationError('Memory sensitivity is invalid.')
+  }
+  if (input.decision === 'accept' && input.content === undefined) throw new InputValidationError('Accepted memory content is required.')
+  const content = input.content === undefined ? undefined : parseMemoryContent(input.content)
+  return {
+    id: parseIdentifier(input.id),
+    decision: input.decision,
+    ...(content === undefined ? {} : { content }),
+    ...(input.sensitivity === undefined ? {} : { sensitivity: input.sensitivity })
+  }
+}
+
+function parseLocalDateTime(value: unknown): string {
+  const text = parseText(value, 'Reminder time', 16, 16)
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/u.exec(text)
+  if (!match) throw new InputValidationError('Reminder time is invalid.')
+  const [, yearText, monthText, dayText, hourText, minuteText] = match
+  const year = Number(yearText)
+  const month = Number(monthText)
+  const day = Number(dayText)
+  const hour = Number(hourText)
+  const minute = Number(minuteText)
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute))
+  if (
+    !Number.isFinite(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day ||
+    date.getUTCHours() !== hour ||
+    date.getUTCMinutes() !== minute
+  ) throw new InputValidationError('Reminder time is invalid.')
+  return text
+}
+
+export function parseReminderSettingsRequest(value: unknown): ReminderSettingsRequest {
+  const input = parseObject(value, [
+    'enabled', 'goalReviewEnabled', 'acceptConsent', 'maxPer24Hours', 'cooldownMinutes',
+    'quietHoursEnabled', 'quietHoursStart', 'quietHoursEnd', 'timeZone'
+  ], 'Reminder settings')
+  if (typeof input.enabled !== 'boolean' || typeof input.goalReviewEnabled !== 'boolean' || typeof input.acceptConsent !== 'boolean') {
+    throw new InputValidationError('Reminder consent setting is invalid.')
+  }
+  if (!Number.isSafeInteger(input.maxPer24Hours) || Number(input.maxPer24Hours) < 1 || Number(input.maxPer24Hours) > REMINDER_MAX_PER_24_HOURS) {
+    throw new InputValidationError('Reminder frequency is invalid.')
+  }
+  if (!Number.isSafeInteger(input.cooldownMinutes) || Number(input.cooldownMinutes) < REMINDER_MIN_COOLDOWN_MINUTES || Number(input.cooldownMinutes) > REMINDER_MAX_COOLDOWN_MINUTES) {
+    throw new InputValidationError('Reminder cooldown is invalid.')
+  }
+  if (typeof input.quietHoursEnabled !== 'boolean' || !isValidClockTime(input.quietHoursStart) || !isValidClockTime(input.quietHoursEnd)) {
+    throw new InputValidationError('Reminder quiet hours are invalid.')
+  }
+  if (input.quietHoursEnabled && input.quietHoursStart === input.quietHoursEnd) {
+    throw new InputValidationError('Reminder quiet hours are invalid.')
+  }
+  if (!isValidTimeZone(input.timeZone)) throw new InputValidationError('Reminder time zone is invalid.')
+  return {
+    enabled: input.enabled,
+    goalReviewEnabled: input.goalReviewEnabled,
+    acceptConsent: input.acceptConsent,
+    maxPer24Hours: input.maxPer24Hours as number,
+    cooldownMinutes: input.cooldownMinutes as number,
+    quietHoursEnabled: input.quietHoursEnabled,
+    quietHoursStart: input.quietHoursStart,
+    quietHoursEnd: input.quietHoursEnd,
+    timeZone: input.timeZone
+  }
+}
+
+export function parseReminderScheduleRequest(value: unknown): ReminderScheduleRequest {
+  const input = parseObject(value, ['goalId', 'localDateTime'], 'Reminder schedule')
+  return { goalId: parseIdentifier(input.goalId), localDateTime: parseLocalDateTime(input.localDateTime) }
+}
+
+export function parseReminderRescheduleRequest(value: unknown): ReminderRescheduleRequest {
+  const input = parseObject(value, ['reminderId', 'localDateTime'], 'Reminder reschedule')
+  return { reminderId: parseIdentifier(input.reminderId), localDateTime: parseLocalDateTime(input.localDateTime) }
+}
+
+export function parseReminderIdRequest(value: unknown): ReminderIdRequest {
+  const input = parseObject(value, ['reminderId'], 'Reminder request')
+  return { reminderId: parseIdentifier(input.reminderId) }
+}

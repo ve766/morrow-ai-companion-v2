@@ -1,0 +1,282 @@
+import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
+import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
+import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
+import type { CognitiveCoreSettings } from '../cognition/cognition'
+import type { FeelingStateView } from '../affective-state/feeling'
+import type {
+  ChatRequest,
+  ChatResult,
+  ChatStreamEvent,
+  ConversationRecord,
+  ConversationWithMessages,
+  MemoryProposalPreview,
+  MemoryProposalRequest,
+  MemorySuggestion,
+  MemorySuggestionReviewRequest,
+  PersonalityInput,
+  PersonalityProfile,
+  PersonalityRevision,
+  ProviderConfigInput,
+  ProviderConfigRecord,
+  ProviderConnectionRequest,
+  ProviderConnectionResult
+} from './companion'
+
+export const IPC_CHANNELS = {
+  appInfo: 'morrow:app:info',
+  memoryCreate: 'morrow:memory:create',
+  providerGet: 'morrow:provider:get',
+  providerSave: 'morrow:provider:save',
+  providerClearCredential: 'morrow:provider:clear-credential',
+  providerTestConnection: 'morrow:provider:test-connection',
+  conversationsCreate: 'morrow:conversations:create',
+  conversationsList: 'morrow:conversations:list',
+  conversationsRead: 'morrow:conversations:read',
+  conversationsDelete: 'morrow:conversations:delete',
+  personalityGet: 'morrow:personality:get',
+  personalitySave: 'morrow:personality:save',
+  personalityHistory: 'morrow:personality:history',
+  personalityRestore: 'morrow:personality:restore',
+  chatSend: 'morrow:chat:send',
+  chatCancel: 'morrow:chat:cancel',
+  chatDelta: 'morrow:chat:delta',
+  memorySuggestionsList: 'morrow:memory-suggestions:list',
+  memorySuggestionsPreview: 'morrow:memory-suggestions:preview',
+  memorySuggestionsPropose: 'morrow:memory-suggestions:propose',
+  memorySuggestionsReview: 'morrow:memory-suggestions:review',
+  memoryList: 'morrow:memory:list',
+  memorySearch: 'morrow:memory:search',
+  memoryHistory: 'morrow:memory:history',
+  memoryCorrect: 'morrow:memory:correct',
+  memoryRevoke: 'morrow:memory:revoke',
+  memoryRestore: 'morrow:memory:restore',
+  memoryDelete: 'morrow:memory:delete',
+  goalsList: 'morrow:goals:list',
+  goalsCreate: 'morrow:goals:create',
+  goalsPrepare: 'morrow:goals:prepare',
+  goalsRequestApproval: 'morrow:goals:request-approval',
+  goalsApprove: 'morrow:goals:approve',
+  goalsRejectApproval: 'morrow:goals:reject-approval',
+  goalsCancelTask: 'morrow:goals:cancel-task',
+  goalsStop: 'morrow:goals:stop',
+  goalsDelete: 'morrow:goals:delete',
+  remindersSnapshot: 'morrow:reminders:snapshot',
+  remindersSaveSettings: 'morrow:reminders:save-settings',
+  remindersPause: 'morrow:reminders:pause',
+  remindersWithdrawConsent: 'morrow:reminders:withdraw-consent',
+  remindersMuteForOneHour: 'morrow:reminders:mute-one-hour',
+  remindersUnmute: 'morrow:reminders:unmute',
+  remindersSchedule: 'morrow:reminders:schedule',
+  remindersReschedule: 'morrow:reminders:reschedule',
+  remindersCancel: 'morrow:reminders:cancel',
+  remindersClearHistory: 'morrow:reminders:clear-history',
+  remindersChanged: 'morrow:reminders:changed',
+  backupExport: 'morrow:backup:export',
+  backupPreview: 'morrow:backup:preview',
+  backupRestore: 'morrow:backup:restore',
+  cognitiveSettingsGet: 'morrow:cognitive:settings:get',
+  cognitiveSettingsSave: 'morrow:cognitive:settings:save',
+  cognitiveFeelingSnapshot: 'morrow:cognitive:feeling:snapshot',
+  cognitiveClearHistory: 'morrow:cognitive:history:clear'
+} as const
+
+export type IpcErrorCode =
+  | 'INVALID_INPUT'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'STORAGE_ERROR'
+  | 'BACKUP_INVALID'
+  | 'INTERNAL_ERROR'
+  | 'PROVIDER_STORAGE_UNAVAILABLE'
+  | 'PROVIDER_CREDENTIAL_STORE_ERROR'
+  | 'PROVIDER_UNCONFIGURED'
+  | 'PROVIDER_PAYLOAD_TOO_LARGE'
+  | 'PROVIDER_RESPONSE'
+  | 'PROVIDER_AUTH'
+  | 'PROVIDER_RATE_LIMIT'
+  | 'PROVIDER_MODEL'
+  | 'PROVIDER_TIMEOUT'
+  | 'PROVIDER_NETWORK'
+  | 'PROVIDER_CANCELLED'
+
+export type IpcResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: IpcErrorCode; message: string } }
+
+export interface AppInfo {
+  name: string
+  version: string
+  platform: string
+  electronVersion: string
+  dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+}
+
+export interface MemoryCreateRequest {
+  content: string
+  sensitivity?: 'normal' | 'personal' | 'sensitive'
+}
+
+export interface MemorySearchRequest {
+  query: string
+}
+
+export interface MemoryIdRequest {
+  id: string
+}
+
+export interface MemoryCorrectRequest {
+  id: string
+  content: string
+}
+
+export interface GoalCreateRequest {
+  intent: string
+  successCriterion: GoalRecord['successCriterion']
+  constraints: string
+  acceptedBoundary: true
+}
+
+export interface GoalIdRequest {
+  goalId: string
+}
+
+export interface GoalPrepareRequest {
+  goalId: string
+  acknowledgeUnknown: boolean
+}
+
+export interface TaskIdRequest {
+  taskId: string
+}
+
+export interface ConversationIdRequest {
+  conversationId: string
+}
+
+export interface PersonalityRestoreRequest {
+  version: number
+}
+
+export interface CognitiveSettingsRequest {
+  enabled: boolean
+}
+
+export interface BackupCounts {
+  conversations: number
+  messages: number
+  memories: number
+  retractedMemories: number
+  deletionJournalEntries: number
+}
+
+export type BackupExportOutcome =
+  | { status: 'created'; directory: string; createdAt: string; counts: BackupCounts }
+  | { status: 'cancelled' }
+
+export type BackupPreviewOutcome =
+  | {
+    status: 'preview'
+    token: string
+    createdAt: string
+    schemaVersion: number
+    counts: BackupCounts
+    missingDeletionJournal: boolean
+    boundaryNotice: string
+  }
+  | { status: 'cancelled' }
+
+export interface BackupRestoreRequest {
+  token: string
+  confirmed: true
+  acknowledgeMissingDeletionJournal?: true
+}
+
+export type BackupRestoreOutcome =
+  | { status: 'restored'; schemaVersion: number; reappliedDeletions: number; reappliedRetractions: number; reappliedUnretractions: number }
+  | { status: 'cancelled' }
+
+export interface MorrowBridge {
+  getAppInfo(): Promise<IpcResult<AppInfo>>
+  providers: {
+    get(): Promise<IpcResult<ProviderConfigRecord | null>>
+    save(request: ProviderConfigInput): Promise<IpcResult<ProviderConfigRecord>>
+    clearCredential(): Promise<IpcResult<ProviderConfigRecord | null>>
+    testConnection(request: ProviderConnectionRequest): Promise<IpcResult<ProviderConnectionResult>>
+  }
+  conversations: {
+    create(): Promise<IpcResult<ConversationRecord>>
+    list(): Promise<IpcResult<ConversationRecord[]>>
+    read(request: ConversationIdRequest): Promise<IpcResult<ConversationWithMessages>>
+    delete(request: ConversationIdRequest): Promise<IpcResult<void>>
+  }
+  personality: {
+    get(): Promise<IpcResult<PersonalityProfile>>
+    save(request: PersonalityInput): Promise<IpcResult<PersonalityProfile>>
+    history(): Promise<IpcResult<PersonalityRevision[]>>
+    restore(request: PersonalityRestoreRequest): Promise<IpcResult<PersonalityProfile>>
+  }
+  cognition: {
+    getSettings(): Promise<IpcResult<CognitiveCoreSettings>>
+    saveSettings(request: CognitiveSettingsRequest): Promise<IpcResult<CognitiveCoreSettings>>
+    getFeelingState(): Promise<IpcResult<FeelingStateView>>
+    clearHistory(): Promise<IpcResult<FeelingStateView>>
+  }
+  chat: {
+    send(request: ChatRequest): Promise<IpcResult<ChatResult>>
+    cancel(request: ConversationIdRequest): Promise<IpcResult<boolean>>
+    onDelta(listener: (event: ChatStreamEvent) => void): () => void
+  }
+  memorySuggestions: {
+    list(request: ConversationIdRequest): Promise<IpcResult<MemorySuggestion[]>>
+    preview(request: MemoryProposalRequest): Promise<IpcResult<MemoryProposalPreview>>
+    propose(request: MemoryProposalRequest): Promise<IpcResult<MemorySuggestion[]>>
+    review(request: MemorySuggestionReviewRequest): Promise<IpcResult<MemorySuggestion[]>>
+  }
+  memories: {
+    create(request: MemoryCreateRequest): Promise<IpcResult<MemoryRecord>>
+    list(): Promise<IpcResult<MemoryRecord[]>>
+    search(request: MemorySearchRequest): Promise<IpcResult<MemoryRecord[]>>
+    history(request: MemoryIdRequest): Promise<IpcResult<MemoryRevisionRecord[]>>
+    correct(request: MemoryCorrectRequest): Promise<IpcResult<MemoryRecord>>
+    revoke(request: MemoryIdRequest): Promise<IpcResult<MemoryRecord>>
+    restore(request: MemoryIdRequest): Promise<IpcResult<MemoryRecord>>
+    delete(request: MemoryIdRequest): Promise<IpcResult<void>>
+  }
+  goals: {
+    list(): Promise<IpcResult<GoalListItem[]>>
+    create(request: GoalCreateRequest): Promise<IpcResult<GoalRecord>>
+    prepare(request: GoalPrepareRequest): Promise<IpcResult<TaskRecord>>
+    requestApproval(request: TaskIdRequest): Promise<IpcResult<ApprovalChallenge>>
+    approveAndExecute(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
+    rejectApproval(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
+    cancelTask(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
+    stop(request: GoalIdRequest): Promise<IpcResult<GoalRecord>>
+    delete(request: GoalIdRequest): Promise<IpcResult<void>>
+  }
+  reminders: {
+    getSnapshot(): Promise<IpcResult<ReminderSnapshot>>
+    saveSettings(request: ReminderSettingsRequest): Promise<IpcResult<ReminderSnapshot>>
+    pause(): Promise<IpcResult<ReminderSnapshot>>
+    withdrawConsent(): Promise<IpcResult<ReminderSnapshot>>
+    muteForOneHour(): Promise<IpcResult<ReminderSnapshot>>
+    unmute(): Promise<IpcResult<ReminderSnapshot>>
+    schedule(request: ReminderScheduleRequest): Promise<IpcResult<ReminderRecord>>
+    reschedule(request: ReminderRescheduleRequest): Promise<IpcResult<ReminderRecord>>
+    cancel(request: ReminderIdRequest): Promise<IpcResult<ReminderRecord>>
+    clearHistory(): Promise<IpcResult<ReminderSnapshot>>
+    onChanged(listener: () => void): () => void
+  }
+  backups: {
+    export(): Promise<IpcResult<BackupExportOutcome>>
+    preview(): Promise<IpcResult<BackupPreviewOutcome>>
+    restore(request: BackupRestoreRequest): Promise<IpcResult<BackupRestoreOutcome>>
+  }
+}
+
+
+declare global {
+  interface Window {
+    morrow: MorrowBridge
+  }
+}
