@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { applyMigrations, CURRENT_SCHEMA_VERSION, type Migration } from './migrations'
+import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION, type Migration } from './migrations'
 import { SUPPORTED_GOAL_INTENT } from '../motivation/goals'
 import { SqliteDatabase } from './database'
 import { isFeelingState } from '../affective-state/feeling'
@@ -194,7 +194,7 @@ describe('versioned local SQLite storage', () => {
     // at v9 — the oldest schema in the open fallback window — regardless of how
     // many migrations exist after v10.
     expect(degraded.schemaVersion).toBe(9)
-    expect(degraded.schemaVersion).toBe(CURRENT_SCHEMA_VERSION - 2)
+    expect(degraded.schemaVersion).toBe(DEGRADED_OPEN_MINIMUM_VERSION)
     expect(degraded.cognitivePersistenceAvailable).toBe(false)
     expect(degraded.connection.prepare('SELECT body FROM messages').get()).toEqual({ body: 'Existing private message.' })
     expect(degraded.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cognitive_feeling_events'").get()).toBeUndefined()

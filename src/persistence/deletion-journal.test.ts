@@ -28,8 +28,8 @@ function createProfile(): { database: SqliteDatabase; cleanup: () => void } {
 }
 
 describe('deletion boundary journal', () => {
-  it('is created by migration v11 as the current schema version', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(11)
+  it('is created by migration v11 and remains present in the current schema', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBeGreaterThanOrEqual(11)
     const { database, cleanup } = createProfile()
     const table = database.connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'deletion_journal'").get()
     expect(table).toBeTruthy()

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { applyMigrations, CURRENT_SCHEMA_VERSION } from './migrations'
+import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION } from './migrations'
 
 function currentVersion(connection: DatabaseSync): number {
   const schemaTable = connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get()
@@ -108,9 +108,9 @@ export class SqliteDatabase {
         version = applyMigrations(connection)
       } catch {
         version = currentVersion(connection)
-        if (![CURRENT_SCHEMA_VERSION - 2, CURRENT_SCHEMA_VERSION - 1].includes(version)) throw new Error('Database migration failed.')
+        if (version < DEGRADED_OPEN_MINIMUM_VERSION) throw new Error('Database migration failed.')
       }
-      if (![CURRENT_SCHEMA_VERSION - 2, CURRENT_SCHEMA_VERSION - 1, CURRENT_SCHEMA_VERSION].includes(version)) {
+      if (version < DEGRADED_OPEN_MINIMUM_VERSION || version > CURRENT_SCHEMA_VERSION) {
         throw new Error('Unexpected database schema version.')
       }
       const cognitiveTables = version === CURRENT_SCHEMA_VERSION &&

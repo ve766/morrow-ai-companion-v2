@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { DatabaseSync, type StatementSync } from 'node:sqlite'
 import { ApplicationError } from '../shared/errors'
 import { SqliteDatabase } from './database'
-import { CURRENT_SCHEMA_VERSION } from './migrations'
+import { CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION } from './migrations'
 import { mergeDeletionJournal, readDeletionJournal, type DeletionJournalEntry } from './deletion-journal'
 
 export const BACKUP_FORMAT = 'morrow-backup'
@@ -331,7 +331,7 @@ export class BackupService {
     if (manifest.application?.databaseFile !== BACKUP_DATABASE_FILE) failInvalid()
     if (typeof manifest.createdAt !== 'string' || Number.isNaN(Date.parse(manifest.createdAt))) failInvalid()
     const schemaVersion = manifest.application?.schemaVersion
-    if (!Number.isSafeInteger(schemaVersion) || schemaVersion > CURRENT_SCHEMA_VERSION || schemaVersion < CURRENT_SCHEMA_VERSION - 2) failInvalid()
+    if (!Number.isSafeInteger(schemaVersion) || schemaVersion > CURRENT_SCHEMA_VERSION || schemaVersion < DEGRADED_OPEN_MINIMUM_VERSION) failInvalid()
     const bytes = statSync(databasePath).size
     const digest = sha256(databasePath)
     if (manifest.database?.bytes !== bytes || manifest.database?.sha256 !== digest) failInvalid()

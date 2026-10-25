@@ -12,19 +12,25 @@ import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
 import { ReminderService } from '../motivation/reminder-service'
 import { BackupService, RESTORE_BOUNDARY_NOTICE } from '../persistence/backup-service'
+import { EventLogService } from '../persistence/event-log'
 import { SqliteGoalRepository } from '../persistence/goal-repository'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteConversationRepository } from '../persistence/conversation-repository'
 import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { SqliteReminderRepository } from '../persistence/reminder-repository'
+import { createLogger } from '../observability/logger'
 import { registerIpcHandlers } from './register-ipc'
+import { observeRendererLoad, reportStartupFailure } from './startup-error'
 import { createSecureWindowOptions, isTrustedRendererUrl, resolveTrustedRendererUrl } from '../security/security'
+
+const logger = createLogger({ minimumLevel: 'info' })
 
 let mainWindow: BrowserWindow | undefined
 let unregisterIpc: (() => void) | undefined
 let database: SqliteDatabase | undefined
 let reminderService: ReminderService | undefined
 let companionService: CompanionService | undefined
+let eventLog: EventLogService | undefined
 
 function relaunchAfterDataReplacement(): void {
   setTimeout(() => {
@@ -127,11 +133,16 @@ function createMainWindow(trustedRendererUrl: string): void {
   session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   session.setPermissionCheckHandler(() => false)
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void window.loadURL(trustedRendererUrl)
-  } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  const loaded = process.env.ELECTRON_RENDERER_URL
+    ? window.loadURL(trustedRendererUrl)
+    : window.loadFile(join(__dirname, '../renderer/index.html'))
+  observeRendererLoad(loaded, () => mainWindow === window, {
+    report: (code) => logger.error('app', 'window load failed', { code }),
+    showError: (title, message) => {
+      void dialog.showMessageBox({ type: 'error', title, message, buttons: ['确定'] })
+    },
+    quit: () => app.quit()
+  })
 }
 
 function focusMainWindow(trustedRendererUrl: string): void {
@@ -153,6 +164,8 @@ if (hasSingleInstanceLock) {
     )
     const databasePath = join(app.getPath('userData'), 'morrow.sqlite3')
     database = SqliteDatabase.open(databasePath)
+    eventLog = new EventLogService(database)
+    eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
     const memories = new MemoryService(new SqliteMemoryRepository(database))
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const companion = new CompanionService({
@@ -267,13 +280,22 @@ if (hasSingleInstanceLock) {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow(trustedRendererUrl)
     })
-  }).catch(() => {
-    console.error('[Morrow] Startup failed.')
-    app.quit()
+  }).catch((error: unknown) => {
+    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown' })
+    reportStartupFailure('application', {
+      report: (code) => logger.error('app', 'startup failure reported', { code }),
+      showError: (title, message) => {
+        try {
+          dialog.showErrorBox(title, message)
+        } catch {}
+      },
+      quit: () => app.quit()
+    })
   })
 }
 
 app.on('before-quit', () => {
+  eventLog?.tryRecord({ sourceModule: 'app', eventType: 'app.closing', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: {} })
   reminderService?.shutdown()
   reminderService = undefined
   companionService?.shutdown()
@@ -283,9 +305,10 @@ app.on('before-quit', () => {
   try {
     database?.close()
   } catch {
-    console.error('[Morrow] Local data could not be closed cleanly.')
+    logger.error('app', 'local data could not be closed cleanly')
   }
   database = undefined
+  eventLog = undefined
 })
 
 app.on('window-all-closed', () => {

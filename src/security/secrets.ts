@@ -34,7 +34,10 @@ function isMissingFile(error: unknown): boolean {
 }
 
 export class SafeStorageSecretStore implements SecretStore {
-  constructor(private readonly rootDirectory: string) {}
+  constructor(
+    private readonly rootDirectory: string,
+    private readonly removeFile: (path: string) => void = (path) => rmSync(path, { force: true })
+  ) {}
 
   isAvailable(): boolean {
     try {
@@ -86,10 +89,11 @@ export class SafeStorageSecretStore implements SecretStore {
   }
 
   delete(id: string): void {
-    if (!validIdentifier(id)) throw new SecretStoreError('invalid_identifier')
+    if (!validIdentifier(id)) return
     try {
-      rmSync(this.file(id), { force: true })
-    } catch {
+      this.removeFile(this.file(id))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw new SecretStoreError('delete_failed')
     }
   }

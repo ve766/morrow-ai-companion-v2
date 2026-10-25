@@ -416,10 +416,40 @@ export const migrations: readonly Migration[] = [
         ) STRICT;
       `)
     }
+  },
+  {
+    version: 12,
+    name: 'unified-event-log',
+    up(database) {
+      database.exec(`
+        CREATE TABLE event_journal (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          id TEXT NOT NULL UNIQUE,
+          schema_version INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          source_module TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          subject_type TEXT NOT NULL,
+          subject_id TEXT,
+          correlation_id TEXT,
+          payload_json TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX idx_event_journal_occurred ON event_journal(occurred_at);
+        CREATE INDEX idx_event_journal_subject ON event_journal(subject_type, subject_id);
+        CREATE INDEX idx_event_journal_correlation ON event_journal(correlation_id);
+      `)
+    }
   }
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
+
+// The oldest schema the application still opens when newer migrations fail:
+// v9 carries conversations and messages (core chat) without the optional
+// cognitive tables. This is a named anchor, not a relative offset, so adding
+// future migrations can never lock an already-degraded database out.
+export const DEGRADED_OPEN_MINIMUM_VERSION = 9
 
 export function applyMigrations(
   database: DatabaseSync,

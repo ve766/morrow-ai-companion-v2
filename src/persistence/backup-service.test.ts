@@ -10,7 +10,10 @@ import { MemoryService } from '../memory/memory-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { BackupService, swapRestoredDatabase } from './backup-service'
 import { SqliteDatabase } from './database'
-import { applyMigrations, CURRENT_SCHEMA_VERSION } from './migrations'
+import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION, migrations } from './migrations'
+
+// 'deletion-boundary-journal' landed in schema v11; backups older than that restore only with explicit acknowledgement.
+const PRE_JOURNAL_SCHEMA_VERSION = migrations.find((migration) => migration.name === 'deletion-boundary-journal')!.version - 1
 import { SqliteConversationRepository } from './conversation-repository'
 import { SqliteMemoryRepository } from './memory-repository'
 import { readLatestDeletionStates } from './deletion-journal'
@@ -250,10 +253,10 @@ describe('backup preview', () => {
 
   it('flags backups that predate the deletion journal', async () => {
     const workspace = createWorkspace()
-    const legacyDirectory = createLegacyBackup(CURRENT_SCHEMA_VERSION - 1, [{ text: '旧 schema 记忆' }])
+    const legacyDirectory = createLegacyBackup(PRE_JOURNAL_SCHEMA_VERSION, [{ text: '旧 schema 记忆' }])
     const preview = await workspace.service.preview(legacyDirectory)
     expect(preview.missingDeletionJournal).toBe(true)
-    expect(preview.schemaVersion).toBe(CURRENT_SCHEMA_VERSION - 1)
+    expect(preview.schemaVersion).toBe(PRE_JOURNAL_SCHEMA_VERSION)
     workspace.close()
   })
 
@@ -325,7 +328,7 @@ describe('backup preview', () => {
         return workspace.service.preview(corrupted)
       }],
       ['too old schema version', async () => {
-        return workspace.service.preview(createLegacyBackup(CURRENT_SCHEMA_VERSION - 3, []))
+        return workspace.service.preview(createLegacyBackup(DEGRADED_OPEN_MINIMUM_VERSION - 1, []))
       }],
       ['manifest counts mismatch', async () => {
         const corrupted = copyCorruptedBackup(target, ({ manifestPath }) => {
@@ -479,7 +482,7 @@ describe('backup restore', () => {
     const deletedAfterBackup = workspace.memories.create('旧格式之后删除的记忆', 'personal')
     workspace.memories.delete(deletedAfterBackup.id)
 
-    const legacyDirectory = createLegacyBackup(CURRENT_SCHEMA_VERSION - 1, [{ text: '旧格式记忆内容' }])
+    const legacyDirectory = createLegacyBackup(PRE_JOURNAL_SCHEMA_VERSION, [{ text: '旧格式记忆内容' }])
     const preview = await previewOf(workspace.service, legacyDirectory)
     expect(preview.missingDeletionJournal).toBe(true)
 
