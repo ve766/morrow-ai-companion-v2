@@ -69,7 +69,8 @@ function changeLabel(value: MemoryRevisionRecord['changeType']): string {
     created: '创建',
     corrected: '更正',
     retracted: '撤销',
-    restored: '恢复'
+    restored: '恢复',
+    confirmed: '再次确认'
   }
   return labels[value]
 }

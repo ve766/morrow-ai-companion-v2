@@ -17,7 +17,9 @@ const initial: MemoryRecord = {
   sensitivity: 'personal',
   createdAt: '2026-10-22T01:00:00.000Z',
   updatedAt: '2026-10-22T01:00:00.000Z',
-  revision: 1
+  revision: 1,
+  confidence: 85,
+  lastConfirmedAt: '2026-10-22T01:00:00.000Z'
 }
 
 describe('explicit memory domain rules', () => {

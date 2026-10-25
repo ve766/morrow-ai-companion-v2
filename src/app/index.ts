@@ -19,6 +19,9 @@ import { SqliteConversationRepository } from '../persistence/conversation-reposi
 import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
+import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
+import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
+import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
 import { createSecureWindowOptions, isTrustedRendererUrl, resolveTrustedRendererUrl } from '../security/security'
@@ -177,14 +180,22 @@ if (hasSingleInstanceLock) {
     database = SqliteDatabase.open(databasePath)
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
-    const memories = new MemoryService(new SqliteMemoryRepository(database))
+    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog)
     const conversations = new ConversationService(new SqliteConversationRepository(database))
+    const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
+    const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
+    const reflection = new ReflectionService(
+      new SqliteReflectionRepository(database),
+      { memories, interests, selfModel, events: eventLog },
+      eventLog
+    )
     const companion = new CompanionService({
       database,
       memories,
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
-      authorize: requestProviderConsent
+      authorize: requestProviderConsent,
+      selfModelLoop: { events: eventLog, interests, selfModel }
     })
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)
@@ -231,6 +242,10 @@ if (hasSingleInstanceLock) {
     })
 
     reminders.startScheduler()
+    // Bounded startup reflection: rate-limited inside the service, findings
+    // only, never auto-executed actions.
+    const startupReflection = reflection.run('startup')
+    if ('skipped' in startupReflection) logger.debug('self-model', 'startup reflection skipped', { reason: startupReflection.skipped })
     const backup = new BackupService(database, databasePath)
     const backupActions = {
       exportBackup: async (): Promise<BackupExportOutcome> => {
@@ -285,7 +300,23 @@ if (hasSingleInstanceLock) {
         }
       }
     }
-    unregisterIpc = registerIpcHandlers({ getAppInfo }, trustedRendererUrl, { memories, goals, reminders, companion, backup: backupActions })
+    unregisterIpc = registerIpcHandlers({ getAppInfo }, trustedRendererUrl, {
+      memories,
+      goals,
+      reminders,
+      companion,
+      backup: backupActions,
+      selfModel: {
+        listInterests: () => interests.list(),
+        setInterestStatus: (request) => interests.setUserStatus(request.interestId, request.status),
+        listEntries: (request) => selfModel.list(request ?? {}),
+        correctEntry: (request) => selfModel.correct(request.entryId, request.statement),
+        retractEntry: (request) => selfModel.retract(request.entryId),
+        runReflection: () => reflection.run('manual'),
+        listReflectionRuns: () => reflection.listRuns(),
+        listReflectionFindings: (request) => reflection.findings(request.runId)
+      }
+    })
     createMainWindow(trustedRendererUrl)
 
     app.on('activate', () => {

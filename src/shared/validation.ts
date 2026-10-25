@@ -198,6 +198,48 @@ export function parseProviderConnectionRequest(value: unknown): { providerId: Pr
   return { providerId: input.providerId }
 }
 
+export function parseInterestIdRequest(value: unknown): { interestId: string } {
+  const input = parseObject(value, ['interestId'], 'Interest request')
+  return { interestId: parseIdentifier(input.interestId) }
+}
+
+export function parseInterestStatusRequest(value: unknown): { interestId: string; status: 'candidate' | 'active' | 'archived' | 'dropped' } {
+  const input = parseObject(value, ['interestId', 'status'], 'Interest status request')
+  if (!['candidate', 'active', 'archived', 'dropped'].includes(String(input.status))) {
+    throw new InputValidationError('Interest status is invalid.')
+  }
+  return { interestId: parseIdentifier(input.interestId), status: input.status as 'candidate' | 'active' | 'archived' | 'dropped' }
+}
+
+export function parseSelfModelListRequest(value: unknown): { kind?: 'fact' | 'inference' | 'unknown' | 'correction' } {
+  if (value === undefined) return {}
+  const input = parseObject(value, ['kind'], 'Self-model list request')
+  if (input.kind === undefined) return {}
+  if (!['fact', 'inference', 'unknown', 'correction'].includes(String(input.kind))) {
+    throw new InputValidationError('Self-model entry kind is invalid.')
+  }
+  return { kind: input.kind as 'fact' | 'inference' | 'unknown' | 'correction' }
+}
+
+export function parseSelfModelCorrectRequest(value: unknown): { entryId: string; statement: string } {
+  const input = parseObject(value, ['entryId', 'statement'], 'Self-model correction request')
+  const statement = parseText(input.statement, 'Statement', 1, 4000)
+  if (statement.includes(' ') || /[--]/u.test(statement)) {
+    throw new InputValidationError('Statement is invalid.')
+  }
+  return { entryId: parseIdentifier(input.entryId), statement }
+}
+
+export function parseSelfModelIdRequest(value: unknown): { entryId: string } {
+  const input = parseObject(value, ['entryId'], 'Self-model entry request')
+  return { entryId: parseIdentifier(input.entryId) }
+}
+
+export function parseReflectionFindingsRequest(value: unknown): { runId: string } {
+  const input = parseObject(value, ['runId'], 'Reflection findings request')
+  return { runId: parseIdentifier(input.runId) }
+}
+
 export function parseChatRequest(value: unknown): { conversationId: string; requestId: string; content: string; includeSensitive: boolean } {
   const input = parseObject(value, ['conversationId', 'requestId', 'content', 'includeSensitive'], 'Chat request')
   const content = parseText(input.content, 'Message', 1, 8000)

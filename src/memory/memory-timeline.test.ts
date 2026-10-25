@@ -11,7 +11,8 @@ function revision(overrides: Partial<MemoryRevisionRecord> & { revision: number 
     status: overrides.status ?? 'active',
     changeType: overrides.changeType ?? 'created',
     createdAt: overrides.createdAt ?? '2026-10-25T00:00:00.000Z',
-    previousRevision: overrides.previousRevision ?? (overrides.revision > 1 ? overrides.revision - 1 : null)
+    previousRevision: overrides.previousRevision ?? (overrides.revision > 1 ? overrides.revision - 1 : null),
+    confidence: overrides.confidence ?? 80
   }
 }
 

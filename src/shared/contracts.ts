@@ -78,7 +78,15 @@ export const IPC_CHANNELS = {
   cognitiveSettingsGet: 'morrow:cognitive:settings:get',
   cognitiveSettingsSave: 'morrow:cognitive:settings:save',
   cognitiveFeelingSnapshot: 'morrow:cognitive:feeling:snapshot',
-  cognitiveClearHistory: 'morrow:cognitive:history:clear'
+  cognitiveClearHistory: 'morrow:cognitive:history:clear',
+  interestsList: 'morrow:selfmodel:interests:list',
+  interestSetStatus: 'morrow:selfmodel:interests:set-status',
+  selfModelList: 'morrow:selfmodel:entries:list',
+  selfModelCorrect: 'morrow:selfmodel:entries:correct',
+  selfModelRetract: 'morrow:selfmodel:entries:retract',
+  reflectionRun: 'morrow:selfmodel:reflection:run',
+  reflectionListRuns: 'morrow:selfmodel:reflection:runs',
+  reflectionFindings: 'morrow:selfmodel:reflection:findings'
 } as const
 
 export type IpcErrorCode =
@@ -159,6 +167,32 @@ export interface ProviderGetRequest {
   providerId?: ProviderId
 }
 
+export interface InterestIdRequest {
+  interestId: string
+}
+
+export interface InterestStatusRequest {
+  interestId: string
+  status: 'candidate' | 'active' | 'archived' | 'dropped'
+}
+
+export interface SelfModelListRequest {
+  kind?: 'fact' | 'inference' | 'unknown' | 'correction'
+}
+
+export interface SelfModelCorrectRequest {
+  entryId: string
+  statement: string
+}
+
+export interface SelfModelIdRequest {
+  entryId: string
+}
+
+export interface ReflectionFindingsRequest {
+  runId: string
+}
+
 export interface PersonalityRestoreRequest {
   version: number
 }
@@ -220,6 +254,16 @@ export interface MorrowBridge {
     save(request: PersonalityInput): Promise<IpcResult<PersonalityProfile>>
     history(): Promise<IpcResult<PersonalityRevision[]>>
     restore(request: PersonalityRestoreRequest): Promise<IpcResult<PersonalityProfile>>
+  }
+  selfModel: {
+    listInterests(): Promise<IpcResult<import('../self-model/self-model-domain').InterestRecord[]>>
+    setInterestStatus(request: InterestStatusRequest): Promise<IpcResult<import('../self-model/self-model-domain').InterestRecord>>
+    listEntries(request?: SelfModelListRequest): Promise<IpcResult<import('../self-model/self-model-domain').SelfModelEntry[]>>
+    correctEntry(request: SelfModelCorrectRequest): Promise<IpcResult<import('../self-model/self-model-domain').SelfModelEntry>>
+    retractEntry(request: SelfModelIdRequest): Promise<IpcResult<void>>
+    runReflection(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' }>>
+    listReflectionRuns(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary[]>>
+    listReflectionFindings(request: ReflectionFindingsRequest): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionFinding[]>>
   }
   cognition: {
     getSettings(): Promise<IpcResult<CognitiveCoreSettings>>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MemoryRecord } from './memory-domain'
 import { MemoryContextAssembler } from './memory-context-assembler'
 
-function memory(id: string, text: string, sensitivity: MemoryRecord['sensitivity'], status: MemoryRecord['status'] = 'active'): MemoryRecord {
+function memory(id: string, text: string, sensitivity: MemoryRecord['sensitivity'], status: MemoryRecord['status'] = 'active', overrides: Partial<MemoryRecord> = {}): MemoryRecord {
   return {
     id,
     originalText: text,
@@ -12,7 +12,10 @@ function memory(id: string, text: string, sensitivity: MemoryRecord['sensitivity
     sensitivity,
     createdAt: '2026-10-22T01:00:00.000Z',
     updatedAt: '2026-10-22T01:00:00.000Z',
-    revision: 1
+    revision: 1,
+    confidence: 85,
+    lastConfirmedAt: '2026-10-22T01:00:00.000Z',
+    ...overrides
   }
 }
 

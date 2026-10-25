@@ -18,7 +18,12 @@ import {
   type MorrowBridge,
   type ConversationIdRequest,
   type PersonalityRestoreRequest,
-  type CognitiveSettingsRequest
+  type CognitiveSettingsRequest,
+  type InterestStatusRequest,
+  type SelfModelListRequest,
+  type SelfModelCorrectRequest,
+  type SelfModelIdRequest,
+  type ReflectionFindingsRequest
 } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -67,6 +72,16 @@ const bridge: MorrowBridge = Object.freeze({
     save: (request: PersonalityInput) => invoke<PersonalityProfile>(IPC_CHANNELS.personalitySave, request),
     history: () => invoke<PersonalityRevision[]>(IPC_CHANNELS.personalityHistory),
     restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request)
+  }),
+  selfModel: Object.freeze({
+    listInterests: () => invoke<import('../self-model/self-model-domain').InterestRecord[]>(IPC_CHANNELS.interestsList),
+    setInterestStatus: (request: InterestStatusRequest) => invoke<import('../self-model/self-model-domain').InterestRecord>(IPC_CHANNELS.interestSetStatus, request),
+    listEntries: (request?: SelfModelListRequest) => invoke<import('../self-model/self-model-domain').SelfModelEntry[]>(IPC_CHANNELS.selfModelList, request ?? {}),
+    correctEntry: (request: SelfModelCorrectRequest) => invoke<import('../self-model/self-model-domain').SelfModelEntry>(IPC_CHANNELS.selfModelCorrect, request),
+    retractEntry: (request: SelfModelIdRequest) => invoke<void>(IPC_CHANNELS.selfModelRetract, request),
+    runReflection: () => invoke<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' }>(IPC_CHANNELS.reflectionRun),
+    listReflectionRuns: () => invoke<import('../self-model/self-model-domain').ReflectionRunSummary[]>(IPC_CHANNELS.reflectionListRuns),
+    listReflectionFindings: (request: ReflectionFindingsRequest) => invoke<import('../self-model/self-model-domain').ReflectionFinding[]>(IPC_CHANNELS.reflectionFindings, request)
   }),
   cognition: Object.freeze({
     getSettings: () => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsGet),

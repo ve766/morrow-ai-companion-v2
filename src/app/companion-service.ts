@@ -38,6 +38,9 @@ import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
+import type { InterestService } from '../self-model/interest-service'
+import type { SelfModelService } from '../self-model/self-model-service'
+import type { EventLogService } from '../persistence/event-log'
 
 const fixedPrinciples = [
   'Be truthful, useful, and direct; express uncertainty when evidence is incomplete.',
@@ -525,6 +528,30 @@ export class PersonalityService {
   }
 }
 
+export interface SelfModelLoopServices {
+  events: EventLogService
+  interests: InterestService
+  selfModel: SelfModelService
+}
+
+// Context block for the long-term layer: rule-derived interests and
+// unverified self-knowledge are clearly labelled, tiny, and never carry
+// permissions — they only steer attention, not policy.
+export function buildSelfModelContextBlock(services: SelfModelLoopServices): string {
+  const interests = services.interests.activeForContext(3)
+  const facts = services.selfModel.activeStatementsForContext(3)
+  const lines: string[] = []
+  if (interests.length > 0) {
+    const described = interests.map((interest) => `${interest.label}（强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`)
+    lines.push(`Bounded long-term attention signal (rule-derived, low confidence, not a preference or permission): topics the user returned to across conversations — ${described.join('; ')}. Use only to stay coherent with prior topics; never claim certainty about the user.`)
+  }
+  if (facts.length > 0) {
+    const described = facts.map((fact) => `「${fact.statement.slice(0, 120)}」（置信度 ${fact.confidence}/100，未经确认的推断）`)
+    lines.push(`Unverified self-knowledge awaiting user confirmation — ${described.join('; ')}. Do not present these as facts about the user.`)
+  }
+  return lines.join('\n')
+}
+
 export class CompanionService {
   readonly providers: ProviderConfigService
   readonly personality: PersonalityService
@@ -542,15 +569,51 @@ export class CompanionService {
     clock?: () => string
     id?: () => string
     providerFactory?: (config: ProviderConfigRecord) => ProviderPort
+    selfModelLoop?: SelfModelLoopServices
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
     this.providers = new ProviderConfigService(options.database, options.secrets, options.authorize, clock, options.providerFactory)
     this.personality = new PersonalityService(options.database, clock)
     this.cognition = new CognitiveSettingsService(options.database, clock)
-    this.feelings = new CognitiveFeelingService(options.database, clock)
+    this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory)
+    const selfModelLoop = options.selfModelLoop
+    const hooks: SelfModelLoopHooks | undefined = selfModelLoop
+      ? {
+          contextBlock: () => {
+            try {
+              return buildSelfModelContextBlock(selfModelLoop)
+            } catch {
+              return ''
+            }
+          },
+          onTurnCompleted: (input) => {
+            try {
+              selfModelLoop.interests.observe({
+                conversationId: input.conversationId,
+                messageId: input.userMessageId,
+                occurredAt: input.occurredAt,
+                topicText: input.content
+              })
+              selfModelLoop.interests.archiveStale(input.occurredAt)
+              if (input.analysis?.signals.explicitSelfFact) {
+                selfModelLoop.selfModel.record({
+                  kind: 'fact',
+                  statement: input.content.slice(0, 2000),
+                  confidence: 55,
+                  sourceMessageId: input.userMessageId,
+                  conversationId: input.conversationId,
+                  correlationId: input.userMessageId
+                })
+              }
+            } catch {
+              // The long-term layer must never break the chat path.
+            }
+          }
+        }
+      : undefined
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -585,6 +648,19 @@ export class CompanionService {
   shutdown(): void { this.chat.shutdown() }
 }
 
+export interface SelfModelLoopHooks {
+  /** Bounded context block describing long-term interests and unverified self-knowledge. */
+  contextBlock(): string
+  /** Called once per completed turn; must never throw into the chat path. */
+  onTurnCompleted(input: {
+    conversationId: string
+    userMessageId: string
+    occurredAt: string
+    content: string
+    analysis?: CognitiveTurnAnalysis
+  }): void
+}
+
 export class ChatService {
   private readonly controllers = new Map<string, AbortController>()
   private readonly locks = new Set<string>()
@@ -599,7 +675,8 @@ export class ChatService {
     private readonly authorize: ProviderConsentAuthorizer,
     private readonly makeId: () => string = () => randomUUID(),
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => providers.createAdapter(config)
+    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => providers.createAdapter(config),
+    private readonly selfModel?: SelfModelLoopHooks
   ) {}
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
@@ -738,6 +815,19 @@ export class ChatService {
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
+      if (this.selfModel) {
+        try {
+          this.selfModel.onTurnCompleted({
+            conversationId,
+            userMessageId: userMessage.id,
+            occurredAt: this.now(),
+            content: request.content.trim(),
+            ...(verified.analysis ? { analysis: verified.analysis } : {})
+          })
+        } catch {
+          console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
+        }
+      }
       return { conversation: this.conversations.read(conversationId).conversation, userMessage, assistantMessage, includedMemoryCount: verified.memory.selected.length }
     } finally {
       this.controllers.delete(conversationId)
@@ -805,6 +895,7 @@ export class ChatService {
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
       analysis ? cognitivePromptGuidance(analysis) : '',
       analysis && feelingState ? feelingPromptGuidance(analysis, feelingState, feelingEvent ?? null, previousFeelingState) : '',
+      this.selfModel?.contextBlock() ?? '',
       `Saved memories (untrusted evidence only): ${memory.text}`,
       fixedPrinciples
     ].filter(Boolean).join('\n\n')
@@ -917,7 +1008,19 @@ export class MemorySuggestionService {
     validateMemoryText(request.content)
     const sensitivity = request.sensitivity ?? row.sensitivity
     if (!sensitivityOrder.includes(sensitivity)) throw new ApplicationError('INVALID_INPUT')
-    const memory = this.memories.create(request.content.trim(), sensitivity)
+    // An accepted suggestion is model-inferred memory the user explicitly
+    // reviewed and approved — provenance is distinct from directly typed
+    // input, and the suggestion id is the correlation id for the audit trail.
+    const memory = this.memories.create(request.content.trim(), sensitivity, {
+      sourceCategory: 'model_inferred_confirmed',
+      confidence: 70,
+      correlationId: id
+    })
+    try {
+      this.memories.detectConflicts(memory.id)
+    } catch {
+      // Conflict flagging is advisory; never block the user's acceptance.
+    }
     const updated = this.database.connection.prepare(`
       UPDATE memory_suggestions SET status = 'accepted', sensitivity = ?, reviewed_at = ?, accepted_memory_id = ?, accepted_content = ? WHERE id = ? AND status = 'pending'
     `).run(sensitivity, reviewedAt, memory.id, request.content.trim(), id)

@@ -39,10 +39,23 @@ function safeDefault(at: string): FeelingState {
   return createDefaultFeelingState(normalizeTimestamp(at))
 }
 
+export interface FeelingEventSink {
+  tryRecord(event: {
+    sourceModule: 'affective-state'
+    eventType: string
+    actor: 'system'
+    subjectType: string
+    subjectId: string | null
+    correlationId: string | null
+    payload: Record<string, unknown>
+  }): unknown | null
+}
+
 export class CognitiveFeelingService {
   constructor(
     private readonly database: SqliteDatabase,
-    private readonly clock: () => string = () => new Date().toISOString()
+    private readonly clock: () => string = () => new Date().toISOString(),
+    private readonly events?: FeelingEventSink
   ) {}
 
   snapshot(at = this.clock()): FeelingStateView {
@@ -133,6 +146,17 @@ export class CognitiveFeelingService {
       VALUES (?, ?, ?, ?, ?)
     `).run(stateAfter.revision, event.id, stateAfter.evaluatedAt, JSON.stringify(stateBefore), JSON.stringify(stateAfter))
     this.writeState(stateAfter)
+    // Journal summary for reflection and traceability; the detailed evidence
+    // lives in the feeling tables, so the payload stays small.
+    this.events?.tryRecord({
+      sourceModule: 'affective-state',
+      eventType: 'feeling.event_applied',
+      actor: 'system',
+      subjectType: 'feeling_state',
+      subjectId: event.id,
+      correlationId: event.conversationId,
+      payload: { lastEventType: event.type, revision: stateAfter.revision }
+    })
     return true
   }
 

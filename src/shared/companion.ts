@@ -1,4 +1,4 @@
-import type { MemoryRecord } from '../memory/memory-domain'
+import type { MemoryRecord, MemorySourceCategory } from '../memory/memory-domain'
 import type { CognitiveTurnRecord } from '../cognition/cognition'
 
 export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com'
@@ -39,6 +39,8 @@ export interface ConversationWithMessages {
 export interface ContextMemory {
   id: string
   content: string
+  sourceCategory: MemorySourceCategory
+  confidence: number
   sensitivity: Sensitivity
   updatedAt: string
   revision: number

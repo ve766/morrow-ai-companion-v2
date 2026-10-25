@@ -470,6 +470,151 @@ export const migrations: readonly Migration[] = [
         ALTER TABLE provider_profiles_v13 RENAME TO provider_profiles;
       `)
     }
+  },
+  {
+    version: 14,
+    name: 'memory-sources-confidence-confirmation',
+    up(database) {
+      // Provenance upgrade: memories gained by model inference and confirmed
+      // by the user are distinguishable from directly typed ones; every
+      // record carries a confidence (1-100) and a last-confirmed timestamp
+      // so retrieval can downrank stale, weakly-supported entries.
+      database.exec(`
+        ALTER TABLE memories RENAME TO memories_v13;
+        DROP INDEX IF EXISTS memories_status_created_idx;
+        CREATE TABLE memories (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          original_text TEXT NOT NULL CHECK (length(trim(original_text)) BETWEEN 1 AND 4000 AND instr(original_text, char(0)) = 0),
+          current_text TEXT NOT NULL CHECK (length(trim(current_text)) BETWEEN 1 AND 4000 AND instr(current_text, char(0)) = 0),
+          source_category TEXT NOT NULL CHECK (source_category IN ('user_explicit_input', 'model_inferred_confirmed', 'turn_derived_confirmed')),
+          status TEXT NOT NULL CHECK (status IN ('active', 'retracted')),
+          created_at TEXT NOT NULL,
+          sensitivity TEXT NOT NULL DEFAULT 'personal' CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          updated_at TEXT NOT NULL,
+          revision INTEGER NOT NULL CHECK (revision > 0),
+          confidence INTEGER NOT NULL DEFAULT 80 CHECK (confidence BETWEEN 1 AND 100),
+          last_confirmed_at TEXT
+        ) STRICT;
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
+          SELECT id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, 80, NULL FROM memories_v13;
+        CREATE INDEX memories_status_created_idx ON memories(status, created_at DESC, id);
+        ALTER TABLE memory_revisions RENAME TO memory_revisions_v13;
+        DROP INDEX IF EXISTS memory_revisions_created_idx;
+        CREATE TABLE memory_revisions (
+          memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+          revision INTEGER NOT NULL CHECK (revision > 0),
+          content TEXT NOT NULL CHECK (length(trim(content)) BETWEEN 1 AND 4000 AND instr(content, char(0)) = 0),
+          source_category TEXT NOT NULL CHECK (source_category IN ('user_explicit_input', 'model_inferred_confirmed', 'turn_derived_confirmed')),
+          status TEXT NOT NULL CHECK (status IN ('active', 'retracted')),
+          change_type TEXT NOT NULL CHECK (change_type IN ('created', 'corrected', 'retracted', 'restored', 'confirmed')),
+          created_at TEXT NOT NULL,
+          previous_revision INTEGER,
+          confidence INTEGER NOT NULL DEFAULT 80 CHECK (confidence BETWEEN 1 AND 100),
+          PRIMARY KEY (memory_id, revision),
+          FOREIGN KEY (memory_id, previous_revision)
+            REFERENCES memory_revisions(memory_id, revision) ON DELETE CASCADE
+        ) STRICT;
+        INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence)
+          SELECT memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, 80 FROM memory_revisions_v13;
+        CREATE INDEX memory_revisions_created_idx ON memory_revisions(memory_id, revision DESC);
+        DROP TABLE memory_revisions_v13;
+        DROP TABLE memories_v13;
+        -- memory_suggestions carries an FK to memories; the earlier RENAME
+        -- rewrote that reference to memories_v13, so the table is rebuilt
+        -- against the new memories table with identical constraints.
+        ALTER TABLE memory_suggestions RENAME TO memory_suggestions_v13;
+        DROP INDEX IF EXISTS memory_suggestions_conversation_created_idx;
+        DROP INDEX IF EXISTS memory_suggestions_source_idx;
+        DROP INDEX IF EXISTS memory_suggestions_status_idx;
+        DROP INDEX IF EXISTS memory_suggestions_source_claim_uq;
+        CREATE TABLE memory_suggestions (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          conversation_id TEXT NOT NULL,
+          source_message_id TEXT NOT NULL,
+          claim TEXT NOT NULL CHECK (length(trim(claim)) BETWEEN 1 AND 1000 AND instr(claim, char(0)) = 0),
+          sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected')),
+          provider_model TEXT NOT NULL,
+          evidence_hash TEXT NOT NULL CHECK (length(evidence_hash) = 64),
+          created_at TEXT NOT NULL,
+          reviewed_at TEXT,
+          accepted_memory_id TEXT REFERENCES memories(id) ON DELETE CASCADE,
+          accepted_content TEXT CHECK (accepted_content IS NULL OR length(trim(accepted_content)) BETWEEN 1 AND 4000),
+          FOREIGN KEY (source_message_id, conversation_id)
+            REFERENCES messages(id, conversation_id) ON DELETE CASCADE,
+          CHECK ((status = 'pending') = (reviewed_at IS NULL)),
+          CHECK ((status = 'accepted') = (accepted_memory_id IS NOT NULL)),
+          CHECK ((status = 'accepted') = (accepted_content IS NOT NULL))
+        ) STRICT;
+        INSERT INTO memory_suggestions(id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content)
+          SELECT id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content FROM memory_suggestions_v13;
+        CREATE INDEX memory_suggestions_conversation_created_idx ON memory_suggestions(conversation_id, created_at DESC);
+        CREATE INDEX memory_suggestions_source_idx ON memory_suggestions(source_message_id, created_at);
+        CREATE INDEX memory_suggestions_status_idx ON memory_suggestions(status, created_at DESC);
+        CREATE UNIQUE INDEX memory_suggestions_source_claim_uq ON memory_suggestions(source_message_id, lower(claim));
+        DROP TABLE memory_suggestions_v13;
+      `)
+    }
+  },
+  {
+    version: 15,
+    name: 'interests-self-model-reflection',
+    up(database) {
+      database.exec(`
+        CREATE TABLE interests (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          label TEXT NOT NULL CHECK (length(trim(label)) BETWEEN 1 AND 64 AND instr(label, char(0)) = 0),
+          status TEXT NOT NULL CHECK (status IN ('candidate', 'active', 'archived', 'dropped')),
+          evidence_count INTEGER NOT NULL CHECK (evidence_count > 0),
+          conversation_count INTEGER NOT NULL CHECK (conversation_count > 0),
+          strength REAL NOT NULL CHECK (strength >= 0 AND strength <= 1),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          source_message_id TEXT NOT NULL CHECK (length(source_message_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          terms_json TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX interests_label_uq ON interests(lower(label));
+
+        CREATE TABLE self_model_entries (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          kind TEXT NOT NULL CHECK (kind IN ('fact', 'inference', 'unknown', 'correction')),
+          statement TEXT NOT NULL CHECK (length(trim(statement)) BETWEEN 1 AND 4000 AND instr(statement, char(0)) = 0),
+          status TEXT NOT NULL CHECK (status IN ('active', 'superseded', 'retracted')),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36),
+          conversation_id TEXT CHECK (conversation_id IS NULL OR length(conversation_id) = 36),
+          superseded_by TEXT REFERENCES self_model_entries(id),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX self_model_status_idx ON self_model_entries(status, updated_at DESC);
+
+        CREATE TABLE reflection_runs (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          trigger_kind TEXT NOT NULL CHECK (trigger_kind IN ('manual', 'startup', 'post_conversation')),
+          started_at TEXT NOT NULL,
+          finished_at TEXT NOT NULL,
+          examined_turns INTEGER NOT NULL CHECK (examined_turns >= 0),
+          examined_events INTEGER NOT NULL CHECK (examined_events >= 0),
+          findings_count INTEGER NOT NULL CHECK (findings_count >= 0),
+          status TEXT NOT NULL CHECK (status IN ('completed', 'failed'))
+        ) STRICT;
+
+        CREATE TABLE reflection_findings (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          run_id TEXT NOT NULL REFERENCES reflection_runs(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN ('memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note')),
+          statement TEXT NOT NULL CHECK (length(trim(statement)) BETWEEN 1 AND 1000 AND instr(statement, char(0)) = 0),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
+      `)
+    }
   }
 ]
 

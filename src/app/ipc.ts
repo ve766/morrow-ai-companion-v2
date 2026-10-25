@@ -24,6 +24,9 @@ import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
 
 import type { GoalService } from '../motivation/goal-service'
+import type { InterestService } from '../self-model/interest-service'
+import type { SelfModelService } from '../self-model/self-model-service'
+import type { ReflectionService } from '../self-model/reflection-service'
 import type { ReminderActions } from '../motivation/reminder-service'
 import { GoalTransitionError, GoalValidationError } from '../motivation/goals'
 import {
@@ -42,7 +45,13 @@ import {
   parsePersonalityRestoreRequest,
   parseMemoryProposalRequest,
   parseMemorySuggestionReviewRequest,
-  parseCognitiveSettingsRequest
+  parseCognitiveSettingsRequest,
+  parseInterestIdRequest,
+  parseInterestStatusRequest,
+  parseSelfModelListRequest,
+  parseSelfModelCorrectRequest,
+  parseSelfModelIdRequest,
+  parseReflectionFindingsRequest
 } from '../shared/validation'
 import {
   parseGoalCreateRequest,
@@ -99,12 +108,24 @@ export interface BackupActions {
   restoreBackup(request: BackupRestoreRequest): Promise<BackupRestoreOutcome>
 }
 
+export interface SelfModelActions {
+  listInterests(): ReturnType<InterestService['list']>
+  setInterestStatus(request: { interestId: string; status: 'candidate' | 'active' | 'archived' | 'dropped' }): ReturnType<InterestService['setUserStatus']>
+  listEntries(request?: { kind?: 'fact' | 'inference' | 'unknown' | 'correction' }): ReturnType<SelfModelService['list']>
+  correctEntry(request: { entryId: string; statement: string }): ReturnType<SelfModelService['correct']>
+  retractEntry(request: { entryId: string }): void
+  runReflection(): ReturnType<ReflectionService['run']>
+  listReflectionRuns(): ReturnType<ReflectionService['listRuns']>
+  listReflectionFindings(request: { runId: string }): ReturnType<ReflectionService['findings']>
+}
+
 export interface ApplicationActions {
   memories: MemoryService
   goals: GoalService
   reminders: ReminderActions
   companion?: CompanionActions
   backup?: BackupActions
+  selfModel?: SelfModelActions
 }
 
 function isTrustedSender(event: IpcEventLike, trustedRendererUrl: string): boolean {
@@ -204,6 +225,16 @@ export function createIpcHandlers(
       [IPC_CHANNELS.backupExport]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => backup.exportBackup()),
       [IPC_CHANNELS.backupPreview]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => backup.previewBackup()),
       [IPC_CHANNELS.backupRestore]: (event, payload) => execute(event, trustedRendererUrl, payload, parseBackupRestoreRequest, (request) => backup.restoreBackup(request))
+    } : {}),
+    ...(actions.selfModel ? {
+      [IPC_CHANNELS.interestsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.selfModel!.listInterests()),
+      [IPC_CHANNELS.interestSetStatus]: (event, payload) => execute(event, trustedRendererUrl, payload, parseInterestStatusRequest, (request) => actions.selfModel!.setInterestStatus(request)),
+      [IPC_CHANNELS.selfModelList]: (event, payload) => execute(event, trustedRendererUrl, payload, parseSelfModelListRequest, (request) => actions.selfModel!.listEntries(request)),
+      [IPC_CHANNELS.selfModelCorrect]: (event, payload) => execute(event, trustedRendererUrl, payload, parseSelfModelCorrectRequest, (request) => actions.selfModel!.correctEntry(request)),
+      [IPC_CHANNELS.selfModelRetract]: (event, payload) => execute(event, trustedRendererUrl, payload, parseSelfModelIdRequest, (request) => actions.selfModel!.retractEntry(request)),
+      [IPC_CHANNELS.reflectionRun]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.selfModel!.runReflection()),
+      [IPC_CHANNELS.reflectionListRuns]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.selfModel!.listReflectionRuns()),
+      [IPC_CHANNELS.reflectionFindings]: (event, payload) => execute(event, trustedRendererUrl, payload, parseReflectionFindingsRequest, (request) => actions.selfModel!.listReflectionFindings(request))
     } : {}),
     ...(companion ? {
       [IPC_CHANNELS.providerGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getProvider()),

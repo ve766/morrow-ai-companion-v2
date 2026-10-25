@@ -68,7 +68,7 @@ describe('exact provider egress policy', () => {
   })
 
   it('requires an explicit sensitive-data approval and never dispatches denied payloads', async () => {
-    const secretMemory = { id: 'm-1', content: 'Sensitive health detail.', sensitivity: 'sensitive' as const, updatedAt: now, revision: 1, score: 1 }
+    const secretMemory = { id: 'm-1', content: 'Sensitive health detail.', sourceCategory: 'user_explicit_input' as const, confidence: 85, sensitivity: 'sensitive' as const, updatedAt: now, revision: 1, score: 1 }
     const value = input(undefined, [secretMemory])
     const basicConsent = consentFor(value)
     expect(assessProviderRequest(profile, value, basicConsent, now))

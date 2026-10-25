@@ -45,8 +45,11 @@ describe('traceable local memory lifecycle', () => {
       status: 'active',
       changeType: 'created',
       createdAt: record.createdAt,
-      previousRevision: null
+      previousRevision: null,
+      confidence: 85
     }])
+    expect(record.confidence).toBe(85)
+    expect(record.lastConfirmedAt).toBe('2026-10-22T01:00:00.000Z')
     expect(database?.connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%derived%'").all())
       .toEqual([])
   })
