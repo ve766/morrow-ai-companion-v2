@@ -6,6 +6,15 @@ dist/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+
+# Credentials and local data must never be committed
+.env
+.env.*
+*.sqlite3
+*.sqlite3-*
+*.sqlite3.bak
+secrets/
+
 evaluation/reports/*
 !evaluation/reports/m3-synthetic-example.json
 !evaluation/reports/m4-synthetic-example.json
