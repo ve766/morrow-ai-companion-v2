@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEEPSEEK_MODEL } from '../shared/companion'
+import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
@@ -76,7 +76,7 @@ describe('DeepSeek companion vertical slice', () => {
 
     const denied = setup({ authorize: async () => undefined })
     try {
-      denied.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      denied.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       await expect(denied.companion.sendChat({
         conversationId: denied.conversation.id,
         requestId: randomUUID(),
@@ -112,7 +112,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ authorize, generate })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       ctx.memories.create('ordinary coffee preference', 'personal')
       ctx.memories.create('private allergy', 'sensitive')
       const request = { conversationId: ctx.conversation.id, requestId: randomUUID(), content: 'coffee', includeSensitive: false }
@@ -141,7 +141,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ generate })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       const request = { conversationId: ctx.conversation.id, requestId: randomUUID(), content: 'Retry this turn.', includeSensitive: false }
       await expect(ctx.companion.sendChat(request, () => undefined)).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT' })
       expect(ctx.conversations.read(ctx.conversation.id).messages).toHaveLength(1)
@@ -177,7 +177,7 @@ describe('DeepSeek companion vertical slice', () => {
     }))
     const ctx = setup({ generate })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       const source = ctx.conversations.appendMessage(ctx.conversation.id, 'user', 'I prefer printed books for long-form reading.', randomUUID()).messages[0]!
       const request = { conversationId: ctx.conversation.id, sourceMessageId: source.id }
       const suggestions = await ctx.companion.proposeMemorySuggestions(request)
@@ -215,7 +215,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ authorize })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       ctx.companion.savePersonality({ warmth: 70, directness: 75, humor: 10, disagreementStyle: 'direct', systemRules: 'Prefer concise responses.' })
       const memory = ctx.memories.create('I prefer jasmine tea.', 'personal')
       const send = () => ctx.companion.sendChat({
@@ -267,7 +267,7 @@ describe('DeepSeek companion vertical slice', () => {
     }
     const ctx = setup({ authorize })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       expect(ctx.companion.getCognitiveSettings()).toMatchObject({ enabled: false, available: true })
       const send = (content: string) => ctx.companion.sendChat({
         conversationId: ctx.conversation.id,
@@ -326,7 +326,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ authorize })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       expect(ctx.companion.getCognitiveSettings()).toMatchObject({ enabled: false, available: true })
       ctx.companion.saveCognitiveSettings({ enabled: true })
       const content = 'I feel sad and overwhelmed, but do not comfort me; list the objective steps.'
@@ -370,7 +370,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ authorize })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       ctx.companion.saveCognitiveSettings({ enabled: true })
       const send = (content: string) => ctx.companion.sendChat({
         conversationId: ctx.conversation.id,
@@ -414,7 +414,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ authorize })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       ctx.companion.saveCognitiveSettings({ enabled: true })
       const send = (conversationId: string, content: string) => ctx.companion.sendChat({
         conversationId,
@@ -463,7 +463,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ authorize })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       ctx.companion.saveCognitiveSettings({ enabled: true })
       const send = (content: string, conversationId = ctx.conversation.id) => ctx.companion.sendChat({
         conversationId,
@@ -511,7 +511,7 @@ describe('DeepSeek companion vertical slice', () => {
     })
     const ctx = setup({ generate })
     try {
-      ctx.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
+      ctx.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
       const deltas: string[] = []
       const request = { conversationId: ctx.conversation.id, requestId: randomUUID(), content: 'Cancel this response.', includeSensitive: false }
       const pending = ctx.companion.sendChat(request, (delta) => deltas.push(delta))

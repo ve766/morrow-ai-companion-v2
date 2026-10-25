@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL } from '../shared/companion'
+import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
@@ -121,7 +121,7 @@ describe('offline manual Provider configuration and chat path', () => {
     const userText = 'Which tea do I prefer?'
     try {
       expect(context.companion.getProvider()).toBeNull()
-      const configured = context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
+      const configured = context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
       expect(configured).toMatchObject({ id: 'deepseek', enabled: true, apiKeyConfigured: true })
       expect(configured).not.toHaveProperty('apiKey')
       expect(JSON.stringify(context.database.connection.prepare('SELECT * FROM provider_profiles').all())).not.toContain(testCredential)
@@ -165,7 +165,7 @@ describe('offline manual Provider configuration and chat path', () => {
     const fetcher = vi.fn<FetchLike>(blockedFetch)
     const context = setup({ authorize: async () => undefined, fetcher })
     try {
-      context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
+      context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
       await expect(context.companion.sendChat({
         conversationId: context.conversation.id,
         requestId: randomUUID(),
@@ -199,7 +199,7 @@ describe('offline manual Provider configuration and chat path', () => {
     })
     const context = setup({ authorize, fetcher })
     try {
-      context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
+      context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
       await expect(context.companion.testProviderConnection({ providerId: 'deepseek' })).resolves.toEqual({
         providerId: 'deepseek',
         model: DEEPSEEK_MODEL,
@@ -218,7 +218,7 @@ describe('offline manual Provider configuration and chat path', () => {
   it('fails closed when enabled without a key or when key storage fails, leaving no enabled SQLite profile', () => {
     const context = setup()
     try {
-      expect(() => context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true }))
+      expect(() => context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true }))
         .toThrowError(new ApplicationError('PROVIDER_UNCONFIGURED'))
       expect(() => context.database.connection.prepare('SELECT * FROM provider_profiles').all()).not.toThrow()
       expect(context.database.connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 0 })
@@ -230,7 +230,7 @@ describe('offline manual Provider configuration and chat path', () => {
         delete: () => undefined
       }
       const failing = setup({ secrets: failingSecrets })
-      expect(() => failing.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential }))
+      expect(() => failing.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential }))
         .toThrowError(new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE'))
       expect(failing.database.connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 0 })
     } finally {
@@ -249,7 +249,7 @@ describe('offline manual Provider configuration and chat path', () => {
     }
     const context = setup({ secrets })
     try {
-      expect(() => context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential }))
+      expect(() => context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential }))
         .toThrowError(new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE'))
       expect(set).toHaveBeenCalledWith('deepseek', testCredential)
       expect(remove).toHaveBeenCalledWith('deepseek')
@@ -262,7 +262,7 @@ describe('offline manual Provider configuration and chat path', () => {
   it('does not report successful credential deletion when secure storage deletion fails', () => {
     const secrets = new MemorySecretStore()
     const context = setup({ secrets })
-    context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
+    context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
     const failingDelete: SecretStore = {
       isAvailable: () => true,
       get: (id) => secrets.get(id),
@@ -298,12 +298,12 @@ describe('offline manual Provider configuration and chat path', () => {
     const fetcher = vi.fn<FetchLike>(blockedFetch)
     const context = setup({ secrets, authorize, fetcher })
     try {
-      context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
+      context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
       corrupt = true
 
       expect(() => context.companion.getProvider())
         .toThrowError(new ApplicationError('PROVIDER_CREDENTIAL_STORE_ERROR'))
-      expect(() => context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: 'replacement-synthetic-key' }))
+      expect(() => context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'replacement-synthetic-key' }))
         .toThrowError(new ApplicationError('PROVIDER_CREDENTIAL_STORE_ERROR'))
       await expect(context.companion.sendChat({
         conversationId: context.conversation.id,
@@ -343,7 +343,7 @@ describe('offline manual Provider configuration and chat path', () => {
     })
     const context = setup({ secrets, authorize, fetcher })
     try {
-      context.companion.saveProvider({ model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
+      context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
       await expect(context.companion.testProviderConnection({ providerId: 'deepseek' }))
         .rejects.toMatchObject({ code: 'PROVIDER_CREDENTIAL_STORE_ERROR' })
       expect(authorize).toHaveBeenCalledTimes(1)

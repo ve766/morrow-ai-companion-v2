@@ -18,6 +18,7 @@ import type {
   PersonalityRevision,
   ProviderConfigInput,
   ProviderConfigRecord,
+  ProviderId,
   ProviderConnectionRequest,
   ProviderConnectionResult
 } from './companion'
@@ -154,6 +155,10 @@ export interface ConversationIdRequest {
   conversationId: string
 }
 
+export interface ProviderGetRequest {
+  providerId?: ProviderId
+}
+
 export interface PersonalityRestoreRequest {
   version: number
 }
@@ -199,9 +204,9 @@ export type BackupRestoreOutcome =
 export interface MorrowBridge {
   getAppInfo(): Promise<IpcResult<AppInfo>>
   providers: {
-    get(): Promise<IpcResult<ProviderConfigRecord | null>>
+    get(request?: ProviderGetRequest): Promise<IpcResult<ProviderConfigRecord | null>>
     save(request: ProviderConfigInput): Promise<IpcResult<ProviderConfigRecord>>
-    clearCredential(): Promise<IpcResult<ProviderConfigRecord | null>>
+    clearCredential(request?: ProviderGetRequest): Promise<IpcResult<ProviderConfigRecord | null>>
     testConnection(request: ProviderConnectionRequest): Promise<IpcResult<ProviderConnectionResult>>
   }
   conversations: {

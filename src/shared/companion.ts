@@ -4,6 +4,10 @@ import type { CognitiveTurnRecord } from '../cognition/cognition'
 export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com'
 export const DEEPSEEK_MODEL = 'deepseek-flash' as const
 export const DEEPSEEK_PROVIDER_ID = 'deepseek' as const
+export const LOCAL_PROVIDER_ID = 'local-openai' as const
+
+export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID
+export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
 export type PersonalityDisagreementStyle = 'gentle' | 'balanced' | 'direct'
@@ -49,23 +53,34 @@ export interface AssembledMemoryContext {
 }
 
 export interface ProviderConfigRecord {
-  id: typeof DEEPSEEK_PROVIDER_ID
-  providerClass: 'remote'
-  endpoint: typeof DEEPSEEK_API_BASE_URL
-  model: typeof DEEPSEEK_MODEL
+  id: ProviderId
+  providerClass: ProviderClassKind
+  endpoint: string
+  model: string
   enabled: boolean
   apiKeyConfigured: boolean
   updatedAt: string
 }
 
-export interface ProviderConfigInput {
+export interface DeepSeekProviderConfigInput {
+  providerId: typeof DEEPSEEK_PROVIDER_ID
   model: typeof DEEPSEEK_MODEL
   enabled: boolean
   apiKey?: string
 }
 
+export interface LocalProviderConfigInput {
+  providerId: typeof LOCAL_PROVIDER_ID
+  endpoint: string
+  model: string
+  enabled: boolean
+  apiKey?: string
+}
+
+export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput
+
 export interface ProviderConnectionRequest {
-  providerId: typeof DEEPSEEK_PROVIDER_ID
+  providerId: ProviderId
 }
 
 export interface PersonalityInput {
@@ -101,9 +116,9 @@ export interface ChatRequest {
 
 export interface ChatPreview {
   action: 'chat' | 'connection-test' | 'memory-proposal'
-  providerId: typeof DEEPSEEK_PROVIDER_ID
-  endpoint: typeof DEEPSEEK_API_BASE_URL
-  model: typeof DEEPSEEK_MODEL
+  providerId: ProviderId
+  endpoint: string
+  model: string
   payloadSha256: string
   payloadCharacters: number
   includedMemories: Array<{ id: string; excerpt: string; sensitivity: Sensitivity }>
@@ -114,9 +129,9 @@ export interface MemoryProposalPreview {
   action: 'memory-proposal'
   conversationId: string
   sourceMessageId: string
-  providerId: typeof DEEPSEEK_PROVIDER_ID
-  endpoint: typeof DEEPSEEK_API_BASE_URL
-  model: typeof DEEPSEEK_MODEL
+  providerId: ProviderId
+  endpoint: string
+  model: string
   payloadSha256: string
   payloadCharacters: number
 }
@@ -135,7 +150,7 @@ export interface ChatStreamEvent {
 }
 
 export interface ProviderConnectionResult {
-  providerId: typeof DEEPSEEK_PROVIDER_ID
+  providerId: ProviderId
   model: string
   connected: boolean
 }

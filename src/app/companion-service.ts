@@ -14,13 +14,14 @@ import type {
   PersonalityInput,
   PersonalityProfile,
   PersonalityRevision,
-  ProviderConfigInput,
   ProviderConfigRecord,
   ProviderConnectionRequest,
   ProviderConnectionResult,
+  ProviderId,
   Sensitivity
 } from '../shared/companion'
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../shared/companion'
+import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput } from '../shared/companion'
+import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
 import { COGNITIVE_ANALYZER_VERSION, withCognitiveContextEvidence, type CognitiveCoreSettings, type CognitiveHistoryMessage, type CognitiveTurnAnalysis, type CognitiveTurnRecord } from '../cognition/cognition'
 import { validateMemoryText } from '../memory/memory-domain'
 import type { SqliteDatabase } from '../persistence/database'
@@ -78,7 +79,7 @@ export type ProviderConsentAuthorizer = (preview: ProviderConsentPreview) => Pro
 
 interface ProviderRow {
   id: string
-  provider_class: 'remote'
+  provider_class: 'remote' | 'local'
   endpoint: string
   model: string
   enabled: number
@@ -174,24 +175,24 @@ function parseSuggestions(text: string): Array<{ claim: string; sensitivity: Sen
   }
 }
 
-function makeRequestPayload(model: string, messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>, stream: boolean, maxTokens: number): Record<string, unknown> {
+function makeRequestPayload(model: string, messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>, stream: boolean, maxTokens: number, includeThinking: boolean): Record<string, unknown> {
   return {
     model,
     messages,
     max_tokens: maxTokens,
     stream,
-    thinking: { type: 'disabled' }
+    ...(includeThinking ? { thinking: { type: 'disabled' } } : {})
   }
 }
 
-function connectionInput(): ProviderInput {
+function connectionInput(config: ProviderConfigRecord): ProviderInput {
   const prompt = 'Reply with exactly OK to confirm the API connection.'
   return {
     prompt,
     context: { text: '', selected: [], omitted: 0, characterCount: 0 },
-    endpoint: `${DEEPSEEK_API_BASE_URL}/chat/completions`,
+    endpoint: `${config.endpoint}/chat/completions`,
     maximumSensitivity: 'normal',
-    requestPayload: makeRequestPayload(DEEPSEEK_MODEL, [{ role: 'user', content: prompt }], true, 32)
+    requestPayload: makeRequestPayload(config.model, [{ role: 'user', content: prompt }], true, 32, config.id === DEEPSEEK_PROVIDER_ID)
   }
 }
 
@@ -204,13 +205,18 @@ export class ProviderConfigService {
     private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => new OpenAICompatibleProvider(config, secrets)
   ) {}
 
-  get(): ProviderConfigRecord | null {
+  get(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
     const row = this.database.connection.prepare('SELECT id, provider_class, endpoint, model, enabled, updated_at FROM provider_profiles WHERE id = ?')
-      .get(DEEPSEEK_PROVIDER_ID) as unknown as ProviderRow | undefined
+      .get(providerId) as unknown as ProviderRow | undefined
     return row ? this.toRecord(row) : null
   }
 
   save(input: ProviderConfigInput): ProviderConfigRecord {
+    if (input.providerId === LOCAL_PROVIDER_ID) return this.saveLocal(input)
+    return this.saveDeepSeek(input)
+  }
+
+  private saveDeepSeek(input: DeepSeekProviderConfigInput): ProviderConfigRecord {
     if (input.model !== DEEPSEEK_MODEL || typeof input.enabled !== 'boolean') throw new ApplicationError('INVALID_INPUT')
     let apiKey: string | undefined
     if (input.apiKey !== undefined) {
@@ -271,28 +277,94 @@ export class ProviderConfigService {
       if (error instanceof ApplicationError) throw error
       throw new ApplicationError('STORAGE_ERROR')
     }
-    const result = this.get()
+    const result = this.get(DEEPSEEK_PROVIDER_ID)
     if (!result) throw new ApplicationError('STORAGE_ERROR')
     if ((apiKey || input.enabled) && !result.apiKeyConfigured) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
     return result
   }
 
-  clearCredential(): ProviderConfigRecord | null {
+  private saveLocal(input: LocalProviderConfigInput): ProviderConfigRecord {
+    if (!isLoopbackEndpoint(input.endpoint) || !isValidLocalModelName(input.model)) throw new ApplicationError('INVALID_INPUT')
+    let apiKey: string | undefined
+    if (input.apiKey !== undefined) {
+      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
+      apiKey = input.apiKey.trim() || undefined
+    }
+    let existingCredential: string | undefined
+    if (apiKey) {
+      try {
+        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+        existingCredential = this.secrets.get(LOCAL_PROVIDER_ID)
+      } catch (error) {
+        throw mapProviderSecretError(error)
+      }
+    }
+    const now = safeTimestamp(this.clock())
+    let transactionStarted = false
+    let credentialWriteCompleted = false
     try {
-      this.secrets.delete(DEEPSEEK_PROVIDER_ID)
-      if (this.secrets.get(DEEPSEEK_PROVIDER_ID) !== undefined) {
+      this.database.connection.exec('BEGIN IMMEDIATE')
+      transactionStarted = true
+      this.database.connection.prepare(`
+        INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at)
+        VALUES (?, 'local', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
+          model = excluded.model, enabled = excluded.enabled, updated_at = excluded.updated_at
+      `).run(LOCAL_PROVIDER_ID, input.endpoint, input.model, input.enabled ? 1 : 0, now)
+      if (apiKey) {
+        try {
+          this.secrets.set(LOCAL_PROVIDER_ID, apiKey)
+          credentialWriteCompleted = true
+          if (!this.secrets.isAvailable() || this.secrets.get(LOCAL_PROVIDER_ID) !== apiKey) {
+            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+          }
+        } catch (error) {
+          throw mapProviderSecretError(error)
+        }
+      }
+      this.database.connection.exec('COMMIT')
+      transactionStarted = false
+    } catch (error) {
+      if (transactionStarted) {
+        try {
+          this.database.connection.exec('ROLLBACK')
+        } catch {
+          transactionStarted = false
+        }
+      }
+      if (credentialWriteCompleted) {
+        try {
+          if (existingCredential === undefined) this.secrets.delete(LOCAL_PROVIDER_ID)
+          else this.secrets.set(LOCAL_PROVIDER_ID, existingCredential)
+        } catch {
+          throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+        }
+      }
+      if (error instanceof ApplicationError) throw error
+      throw new ApplicationError('STORAGE_ERROR')
+    }
+    const result = this.get(LOCAL_PROVIDER_ID)
+    if (!result) throw new ApplicationError('STORAGE_ERROR')
+    return result
+  }
+
+  clearCredential(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
+    try {
+      this.secrets.delete(providerId)
+      if (this.secrets.get(providerId) !== undefined) {
         throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
       }
     } catch (error) {
       throw mapProviderSecretError(error)
     }
-    return this.get()
+    return this.get(providerId)
   }
 
   async testConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult> {
-    if (request.providerId !== DEEPSEEK_PROVIDER_ID) throw new ApplicationError('INVALID_INPUT')
-    const config = this.requireConfigured()
-    const input = connectionInput()
+    const config = this.get(request.providerId)
+    if (!config) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    this.assertUsable(config)
+    const input = connectionInput(config)
     const preview = consentPreview('connection-test', config, input)
     const consent = await this.authorize(preview)
     if (!consent) throw new ApplicationError('FORBIDDEN')
@@ -302,10 +374,27 @@ export class ProviderConfigService {
     return { providerId: config.id, model: output.modelId, connected: output.text.trim().length > 0 }
   }
 
+  // The local provider wins when both are enabled: it keeps data on the
+  // machine and costs nothing; the consent dialog shows the exact endpoint
+  // for every request so the choice stays visible.
   requireConfigured(): ProviderConfigRecord {
-    const config = this.get()
-    if (!config || !config.enabled || !config.apiKeyConfigured) throw new ApplicationError('PROVIDER_UNCONFIGURED')
-    return config
+    const local = this.get(LOCAL_PROVIDER_ID)
+    if (local && local.enabled) {
+      this.assertUsable(local)
+      return local
+    }
+    const deepseek = this.get(DEEPSEEK_PROVIDER_ID)
+    if (deepseek && deepseek.enabled) {
+      this.assertUsable(deepseek)
+      return deepseek
+    }
+    throw new ApplicationError('PROVIDER_UNCONFIGURED')
+  }
+
+  private assertUsable(config: ProviderConfigRecord): void {
+    if (!config.enabled) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    if (config.providerClass === 'remote' && !config.apiKeyConfigured) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    if (config.providerClass === 'local' && !isLoopbackEndpoint(config.endpoint)) throw new ApplicationError('PROVIDER_UNCONFIGURED')
   }
 
   createAdapter(config: ProviderConfigRecord): ProviderPort {
@@ -313,20 +402,21 @@ export class ProviderConfigService {
   }
 
   private toRecord(row: ProviderRow): ProviderConfigRecord {
+    const providerId = row.id === LOCAL_PROVIDER_ID ? LOCAL_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
     return {
-      id: DEEPSEEK_PROVIDER_ID,
-      providerClass: 'remote',
-      endpoint: DEEPSEEK_API_BASE_URL,
-      model: DEEPSEEK_MODEL,
+      id: providerId,
+      providerClass: row.provider_class === 'local' ? 'local' : 'remote',
+      endpoint: row.endpoint,
+      model: row.model,
       enabled: row.enabled === 1,
-      apiKeyConfigured: this.hasCredential(),
+      apiKeyConfigured: this.hasCredential(providerId),
       updatedAt: row.updated_at
     }
   }
 
-  private hasCredential(): boolean {
+  private hasCredential(providerId: ProviderId): boolean {
     try {
-      return Boolean(this.secrets.get(DEEPSEEK_PROVIDER_ID))
+      return Boolean(this.secrets.get(providerId))
     } catch (error) {
       throw mapProviderSecretError(error)
     }
@@ -464,9 +554,14 @@ export class CompanionService {
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
-  getProvider(): ProviderConfigRecord | null { return this.providers.get() }
+  getProvider(request?: { providerId?: ProviderId }): ProviderConfigRecord | null {
+    if (request?.providerId) return this.providers.get(request.providerId)
+    const local = this.providers.get(LOCAL_PROVIDER_ID)
+    if (local?.enabled) return local
+    return this.providers.get(DEEPSEEK_PROVIDER_ID) ?? local
+  }
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord { return this.providers.save(request) }
-  clearProviderCredential(): ProviderConfigRecord | null { return this.providers.clearCredential() }
+  clearProviderCredential(request?: { providerId?: ProviderId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult> { return this.providers.testConnection(request) }
   createConversation(): ConversationRecord { return this.chat.createConversation() }
   listConversations(): ConversationRecord[] { return this.chat.listConversations() }
@@ -726,7 +821,7 @@ export class ChatService {
       ...recent.map((message) => ({ role: message.role, content: message.body })),
       { role: 'user' as const, content }
     ]
-    const requestPayload = makeRequestPayload(config.model, messages, true, 2048)
+    const requestPayload = makeRequestPayload(config.model, messages, true, 2048, config.id === DEEPSEEK_PROVIDER_ID)
     return {
       memory,
       ...(analysis ? { analysis } : {}),
@@ -849,7 +944,7 @@ export class MemorySuggestionService {
       requestPayload: makeRequestPayload(provider.model, [
         { role: 'system', content: system },
         { role: 'user', content: `Source message (untrusted data):\n<source_message>\n${source.body}\n</source_message>` }
-      ], false, 800)
+      ], false, 800, provider.id === DEEPSEEK_PROVIDER_ID)
     }
     return { conversationId, provider, source, input }
   }

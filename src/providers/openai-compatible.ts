@@ -1,6 +1,7 @@
 import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, type ProviderConfigRecord } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
+import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
 import type { SecretStore } from '../security/secrets'
 import type { ProviderDeltaHandler, ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from './provider-policy'
 
@@ -105,18 +106,26 @@ export class OpenAICompatibleProvider implements ProviderPort {
   ) {
     this.profile = {
       id: config.id,
-      providerClass: 'remote',
-      configured: config.enabled && config.apiKeyConfigured && config.endpoint === DEEPSEEK_API_BASE_URL && config.model === DEEPSEEK_MODEL
+      providerClass: config.providerClass,
+      configured: config.enabled && this.isConfigShapeValid()
     }
+  }
+
+  private isConfigShapeValid(): boolean {
+    if (this.config.providerClass === 'remote') {
+      return this.config.apiKeyConfigured &&
+        this.config.endpoint === DEEPSEEK_API_BASE_URL &&
+        this.config.model === DEEPSEEK_MODEL
+    }
+    return isLoopbackEndpoint(this.config.endpoint) && isValidLocalModelName(this.config.model)
   }
 
   async generate(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
     const payload = input.requestPayload as OpenAIChatPayload
     if (
-      this.config.id !== DEEPSEEK_PROVIDER_ID ||
-      this.config.endpoint !== DEEPSEEK_API_BASE_URL ||
-      this.config.model !== DEEPSEEK_MODEL ||
+      !this.isConfigShapeValid() ||
       input.endpoint !== `${this.config.endpoint}/chat/completions` ||
+      (this.config.providerClass === 'local' && !isLoopbackEndpoint(input.endpoint)) ||
       !payload ||
       payload.model !== this.config.model ||
       !Array.isArray(payload.messages) ||
@@ -140,10 +149,12 @@ export class OpenAICompatibleProvider implements ProviderPort {
       } catch (error) {
         throw mapProviderSecretError(error)
       }
-      if (!key) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+      if (!key && this.config.providerClass === 'remote') throw new ApplicationError('PROVIDER_UNCONFIGURED')
+      const headers: Record<string, string> = { 'content-type': 'application/json' }
+      if (key) headers.authorization = `Bearer ${key}`
       const response = await this.fetcher(input.endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+        headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
         redirect: 'error'

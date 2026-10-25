@@ -281,6 +281,32 @@
             <p id="provider-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
           </div>
 
+          <div class="provider-panel panel" id="local-provider-card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">LOCAL PROVIDER</p>
+                <h2>本地模型（OpenAI 兼容）</h2>
+              </div>
+              <span id="local-provider-status" class="status-pill">未配置</span>
+            </div>
+            <p class="companion-disclosure">连接本机的 OpenAI 兼容服务（如 llama.cpp server、LM Studio、Ollama）。端点必须是本机回环地址（127.0.0.1 或 localhost），请求不会离开本机、不产生 API 费用。启用后，对话会优先使用本地模型；每次发送前仍会显示精确请求并单独确认。</p>
+            <form id="local-provider-form" class="provider-form">
+              <label for="local-provider-endpoint">服务端点（回环地址）</label>
+              <input id="local-provider-endpoint" name="endpoint" type="text" maxlength="2000" spellcheck="false" placeholder="例如 http://127.0.0.1:1234" />
+              <label for="local-provider-model">模型名称</label>
+              <input id="local-provider-model" name="model" type="text" maxlength="64" spellcheck="false" placeholder="例如 qwen2.5-7b-instruct" />
+              <label for="local-provider-api-key">访问口令（可选）</label>
+              <input id="local-provider-api-key" name="apiKey" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="本地服务未设置口令时留空" />
+              <label class="companion-toggle"><input id="local-provider-enabled" name="enabled" type="checkbox" /><span>启用本地模型（启用时优先于 DeepSeek）</span></label>
+              <div class="companion-actions">
+                <button class="button button-primary button-small" type="submit">保存设置</button>
+                <button id="local-provider-test" class="button button-secondary button-small" type="button" disabled>测试连接（发送到本机服务）</button>
+                <button id="local-provider-clear-key" class="button button-danger button-small" type="button">删除本机口令</button>
+              </div>
+            </form>
+            <p id="local-provider-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
+          </div>
+
           <form id="cognitive-settings-form" class="cognitive-settings panel">
             <div class="section-heading">
               <div>

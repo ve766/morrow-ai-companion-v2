@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, type ProviderConfigRecord } from '../shared/companion'
+import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, LOCAL_PROVIDER_ID, type ProviderConfigRecord } from '../shared/companion'
+import { isLoopbackEndpoint } from '../security/url-gate'
 import { MemorySecretStore } from '../security/secrets'
 import type { ProviderInput } from './provider-policy'
 import { OpenAICompatibleProvider } from './openai-compatible'
@@ -92,6 +93,45 @@ describe('DeepSeek V4.1 Flash adapter', () => {
     await expect(unauthorized.generate(input())).rejects.toMatchObject({ code: 'PROVIDER_AUTH' })
     const limited = makeProvider(async () => new Response(null, { status: 429 }))
     await expect(limited.generate(input())).rejects.toMatchObject({ code: 'PROVIDER_RATE_LIMIT' })
+  })
+
+  it('marks a loopback local provider configured without any credential and refuses remote endpoints', async () => {
+    const localConfig: ProviderConfigRecord = {
+      id: LOCAL_PROVIDER_ID,
+      providerClass: 'local',
+      endpoint: 'http://127.0.0.1:1234',
+      model: 'test-local-model',
+      enabled: true,
+      apiKeyConfigured: false,
+      updatedAt: '2026-10-25T00:00:00.000Z'
+    }
+    const seenAuth: Array<string | null> = []
+    const local = new OpenAICompatibleProvider(localConfig, new MemorySecretStore(), async (_url, init) => {
+      seenAuth.push(new Headers(init?.headers).get('authorization'))
+      return eventStream([
+        `data: ${JSON.stringify({ model: 'test-local-model', choices: [{ delta: { content: 'ok' } }] })}\n\n`,
+        'data: [DONE]\n\n'
+      ])
+    })
+    expect(local.profile).toMatchObject({ id: LOCAL_PROVIDER_ID, providerClass: 'local', configured: true })
+    const output = await local.generate({
+      prompt: 'Hello',
+      context: { text: '', selected: [], omitted: 0, characterCount: 0 },
+      endpoint: 'http://127.0.0.1:1234/chat/completions',
+      maximumSensitivity: 'personal',
+      requestPayload: {
+        model: 'test-local-model',
+        max_tokens: 100,
+        stream: true,
+        messages: [{ role: 'user', content: 'Hello' }]
+      }
+    })
+    expect(output).toMatchObject({ text: 'ok', modelId: 'test-local-model' })
+    expect(seenAuth).toEqual([null])
+
+    const remoteConfig: ProviderConfigRecord = { ...localConfig, endpoint: 'https://api.example.com' }
+    expect(new OpenAICompatibleProvider(remoteConfig, new MemorySecretStore()).profile.configured).toBe(false)
+    expect(isLoopbackEndpoint(remoteConfig.endpoint)).toBe(false)
   })
 
   it('separates caller cancellation from the request timeout', async () => {

@@ -1,3 +1,5 @@
+import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
+import type { ProviderConfigInput, ProviderId } from './companion'
 import { validateMemorySearchQuery, validateMemoryText } from '../memory/memory-domain'
 import { GOAL_DEFAULT_CONSTRAINTS, GOAL_SUCCESS_CRITERION, SUPPORTED_GOAL_INTENT, validateGoalText } from '../motivation/goals'
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest } from '../motivation/reminders'
@@ -148,23 +150,52 @@ export function parseBackupRestoreRequest(value: unknown): { token: string; conf
     : { token: input.token, confirmed: true }
 }
 
-export function parseProviderConfigInput(value: unknown): { model: 'deepseek-flash'; enabled: boolean; apiKey?: string } {
-  const input = parseObject(value, ['model', 'enabled', 'apiKey'], 'Provider settings')
-  if (input.model !== 'deepseek-flash' || typeof input.enabled !== 'boolean') throw new InputValidationError('Provider settings are invalid.')
-  if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 10000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey))) {
+export function parseProviderConfigInput(value: unknown): ProviderConfigInput {
+  const object = parseObject(value, ['providerId', 'model', 'endpoint', 'enabled', 'apiKey'], 'Provider settings')
+  if (object.providerId !== 'deepseek' && object.providerId !== 'local-openai') {
+    throw new InputValidationError('Provider settings are invalid.')
+  }
+  if (typeof object.enabled !== 'boolean') throw new InputValidationError('Provider settings are invalid.')
+  if (object.apiKey !== undefined && (typeof object.apiKey !== 'string' || object.apiKey.length > 10000 || /[\u0000-\u001f\u007f]/u.test(object.apiKey))) {
     throw new InputValidationError('Provider API key is invalid.')
   }
+  if (object.providerId === 'deepseek') {
+    if (object.endpoint !== undefined) throw new InputValidationError('The DeepSeek endpoint is fixed and cannot be changed.')
+    if (object.model !== undefined && object.model !== 'deepseek-flash') throw new InputValidationError('Provider settings are invalid.')
+    return {
+      providerId: 'deepseek',
+      model: 'deepseek-flash',
+      enabled: object.enabled,
+      ...(object.apiKey === undefined ? {} : { apiKey: object.apiKey })
+    }
+  }
+  if (typeof object.endpoint !== 'string' || !isLoopbackEndpoint(object.endpoint)) {
+    throw new InputValidationError('The local model endpoint must be an http(s) loopback address, e.g. http://127.0.0.1:1234.')
+  }
+  if (typeof object.model !== 'string' || !isValidLocalModelName(object.model)) {
+    throw new InputValidationError('The local model name must be 1 to 64 characters without control characters.')
+  }
   return {
-    model: 'deepseek-flash',
-    enabled: input.enabled,
-    ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey })
+    providerId: 'local-openai' as const,
+    endpoint: object.endpoint,
+    model: object.model,
+    enabled: object.enabled,
+    ...(object.apiKey === undefined ? {} : { apiKey: object.apiKey })
   }
 }
 
-export function parseProviderConnectionRequest(value: unknown): { providerId: 'deepseek' } {
+export function parseProviderGetRequest(value: unknown): { providerId?: ProviderId } {
+  if (value === undefined) return {}
+  const input = parseObject(value, ['providerId'], 'Provider request')
+  if (input.providerId === undefined) return {}
+  if (input.providerId !== 'deepseek' && input.providerId !== 'local-openai') throw new InputValidationError('Provider is unsupported.')
+  return { providerId: input.providerId }
+}
+
+export function parseProviderConnectionRequest(value: unknown): { providerId: ProviderId } {
   const input = parseObject(value, ['providerId'], 'Provider connection test')
-  if (input.providerId !== 'deepseek') throw new InputValidationError('Provider is unsupported.')
-  return { providerId: 'deepseek' }
+  if (input.providerId !== 'deepseek' && input.providerId !== 'local-openai') throw new InputValidationError('Provider is unsupported.')
+  return { providerId: input.providerId }
 }
 
 export function parseChatRequest(value: unknown): { conversationId: string; requestId: string; content: string; includeSensitive: boolean } {

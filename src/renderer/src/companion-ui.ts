@@ -71,12 +71,13 @@ export function initializeCompanion(): void {
   const state: {
     conversationId: string
     provider: ProviderConfigRecord | null
+    localProvider: ProviderConfigRecord | null
     providerStorageUnverified: boolean
     sending: boolean
     requestId: string
     retry: { conversationId: string; requestId: string; content: string; includeSensitive: boolean } | undefined
     streaming: HTMLElement | undefined
-  } = { conversationId: '', provider: null, providerStorageUnverified: false, sending: false, requestId: '', retry: undefined, streaming: undefined }
+  } = { conversationId: '', provider: null, localProvider: null, providerStorageUnverified: false, sending: false, requestId: '', retry: undefined, streaming: undefined }
 
   const setStatus = (message: string, isError = false): void => {
     const status = element<HTMLParagraphElement>('#chat-feedback')
@@ -322,6 +323,7 @@ export function initializeCompanion(): void {
     const keyInput = element<HTMLInputElement>('#provider-api-key')
     const key = keyInput.value
     const request = {
+      providerId: 'deepseek' as const,
       model: 'deepseek-flash' as const,
       enabled: element<HTMLInputElement>('#provider-enabled').checked,
       ...(key ? { apiKey: key } : {})
@@ -331,7 +333,7 @@ export function initializeCompanion(): void {
     try {
       const provider = unwrap(await window.morrow.providers.save(request))
       state.providerStorageUnverified = false
-      updateProviderStatus(provider)
+      await loadProvider()
       setProviderFeedback('设置已保存。密钥不会回显或写入 SQLite；任何对话外发仍需本次单独确认。')
     } catch (error) {
       markProviderStorageUnverified(error)
@@ -367,6 +369,70 @@ export function initializeCompanion(): void {
       setProviderFeedback(errorText(error), true)
     } finally {
       buttonControl.disabled = state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured
+    }
+  })
+
+  const setLocalProviderFeedback = (message: string, isError = false): void => {
+    const status = element<HTMLParagraphElement>('#local-provider-feedback')
+    status.textContent = message
+    status.dataset.kind = isError ? 'error' : 'success'
+    status.hidden = false
+  }
+
+  element<HTMLFormElement>('#local-provider-form').addEventListener('submit', async (event) => {
+    event.preventDefault()
+    const endpoint = element<HTMLInputElement>('#local-provider-endpoint').value.trim()
+    const model = element<HTMLInputElement>('#local-provider-model').value.trim()
+    const keyInput = element<HTMLInputElement>('#local-provider-api-key')
+    const key = keyInput.value
+    const request = {
+      providerId: 'local-openai' as const,
+      endpoint,
+      model,
+      enabled: element<HTMLInputElement>('#local-provider-enabled').checked,
+      ...(key ? { apiKey: key } : {})
+    }
+    const submit = element<HTMLButtonElement>('#local-provider-form button[type="submit"]')
+    submit.disabled = true
+    try {
+      const provider = unwrap(await window.morrow.providers.save(request))
+      state.providerStorageUnverified = false
+      await loadProvider()
+      setLocalProviderFeedback(provider.enabled ? '本地模型已保存并启用；对话将优先使用它，数据不出本机。' : '本地模型设置已保存，当前未启用。')
+    } catch (error) {
+      markProviderStorageUnverified(error)
+      setLocalProviderFeedback(errorText(error), true)
+    } finally {
+      keyInput.value = ''
+      submit.disabled = false
+    }
+  })
+
+  element<HTMLButtonElement>('#local-provider-clear-key').addEventListener('click', async () => {
+    if (!window.confirm('删除本机安全存储中的本地模型访问口令？')) return
+    try {
+      unwrap(await window.morrow.providers.clearCredential({ providerId: 'local-openai' }))
+      state.providerStorageUnverified = false
+      await loadProvider()
+      setLocalProviderFeedback('访问口令已从本机安全存储移除。')
+    } catch (error) {
+      markProviderStorageUnverified(error)
+      setLocalProviderFeedback(errorText(error), true)
+    }
+  })
+
+  element<HTMLButtonElement>('#local-provider-test').addEventListener('click', async () => {
+    const buttonControl = element<HTMLButtonElement>('#local-provider-test')
+    buttonControl.disabled = true
+    setLocalProviderFeedback('将向本机回环端点发送固定测试消息，需在确认框中允许；数据不出本机。')
+    try {
+      const result = unwrap(await window.morrow.providers.testConnection({ providerId: 'local-openai' }))
+      setLocalProviderFeedback(`连接成功。本地服务返回模型标识：${result.model}`)
+    } catch (error) {
+      markProviderStorageUnverified(error)
+      setLocalProviderFeedback(errorText(error), true)
+    } finally {
+      buttonControl.disabled = state.providerStorageUnverified || !state.localProvider?.enabled
     }
   })
 

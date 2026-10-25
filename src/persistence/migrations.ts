@@ -440,6 +440,36 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX idx_event_journal_correlation ON event_journal(correlation_id);
       `)
     }
+  },
+  {
+    version: 13,
+    name: 'local-openai-provider-profile',
+    up(database) {
+      // SQLite cannot alter a CHECK constraint, so the table is rebuilt. The
+      // DeepSeek row stays pinned to the audited endpoint/model; the local
+      // row is free to carry a user endpoint and model name, but its class
+      // must stay 'local' so the loopback egress gate applies at dispatch.
+      database.exec(`
+        CREATE TABLE provider_profiles_v13 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (id IN ('deepseek', 'local-openai')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (
+            (id = 'deepseek' AND endpoint = 'https://api.deepseek.com')
+            OR (id = 'local-openai' AND length(endpoint) BETWEEN 8 AND 2000)
+          ),
+          model TEXT NOT NULL CHECK (
+            (id = 'deepseek' AND model = 'deepseek-flash')
+            OR (id = 'local-openai' AND length(model) BETWEEN 1 AND 64)
+          ),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO provider_profiles_v13(id, provider_class, endpoint, model, enabled, updated_at)
+          SELECT id, provider_class, endpoint, model, enabled, updated_at FROM provider_profiles;
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v13 RENAME TO provider_profiles;
+      `)
+    }
   }
 ]
 
