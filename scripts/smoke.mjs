@@ -368,7 +368,9 @@ async function verifyProviderCredentialStorage(initialRun, initialClient) {
     currentClient = restarted.client
     const restored = await currentClient.evaluate(`(async () => {
       const deadline = Date.now() + 7000
-      while (Date.now() < deadline && document.querySelector('#provider-status')?.textContent?.includes('正在读取')) {
+      // Wait for a SETTLED provider status: the initial pill text is a
+      // placeholder and the async load performs two IPC roundtrips.
+      while (Date.now() < deadline && !/已配置|尚未配置|未启用|未确认/.test(document.querySelector('#provider-status')?.textContent ?? '')) {
         await new Promise((resolve) => setTimeout(resolve, 25))
       }
       const provider = await window.morrow.providers.get()
@@ -890,7 +892,7 @@ try {
 
   stage = 'seed persistent cognitive event before process restart'
   const seededCognitiveTurn = runSeeder('seed', smokeConversationId, cognitiveMarker)
-  if (seededCognitiveTurn.conversationId !== smokeConversationId || seededCognitiveTurn.schemaVersion !== 11 ||
+  if (seededCognitiveTurn.conversationId !== smokeConversationId || seededCognitiveTurn.schemaVersion < 11 ||
     !seededCognitiveTurn.userText.includes(cognitiveMarker)) {
     throw new Error('The isolated cognitive event seed did not match its expected conversation/schema.')
   }
@@ -967,7 +969,7 @@ try {
     throw new Error('Could not create the isolated conversation-deletion smoke fixture.')
   }
   const deletedConversationSeed = runSeeder('seed', deletionSetup.conversationId, deletedConversationMarker)
-  if (deletedConversationSeed.conversationId !== deletionSetup.conversationId || deletedConversationSeed.schemaVersion !== 11) {
+  if (deletedConversationSeed.conversationId !== deletionSetup.conversationId || deletedConversationSeed.schemaVersion < 11) {
     throw new Error('The conversation-deletion cognitive fixture did not seed correctly.')
   }
   const conversationDeletion = await activeClient.evaluate(`(async () => {

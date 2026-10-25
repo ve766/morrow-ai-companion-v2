@@ -99,21 +99,31 @@ export function initializeCompanion(): void {
     state.streaming = undefined
   }
 
-  const updateProviderStatus = (provider: ProviderConfigRecord | null): void => {
+  const updateProviderStatus = (provider: ProviderConfigRecord | null, localProvider: ProviderConfigRecord | null = state.localProvider): void => {
     state.provider = provider
+    state.localProvider = localProvider
     const status = element<HTMLSpanElement>('#provider-status')
     if (state.providerStorageUnverified) status.textContent = '系统安全存储状态未确认；聊天已暂停。请重启应用后复查，未确认前不要发送。'
     else if (!provider) status.textContent = '尚未配置；聊天保持离线。'
     else if (!provider.apiKeyConfigured) status.textContent = '没有可用的系统安全存储密钥；聊天保持离线。'
     else if (!provider.enabled) status.textContent = 'DeepSeek 已配置但未启用。'
     else status.textContent = 'DeepSeek-V4.1-Flash-1017 已配置；每次发送前都会显示精确请求并单独确认。'
-    const ready = Boolean(!state.providerStorageUnverified && provider?.enabled && provider.apiKeyConfigured)
+    const localStatus = element<HTMLSpanElement>('#local-provider-status')
+    if (state.providerStorageUnverified) localStatus.textContent = '系统安全存储状态未确认；聊天已暂停。'
+    else if (!localProvider) localStatus.textContent = '未配置'
+    else if (!localProvider.enabled) localStatus.textContent = '已配置但未启用'
+    else localStatus.textContent = `已启用：${localProvider.model}`
+    const deepseekReady = Boolean(provider?.enabled && provider.apiKeyConfigured)
+    const localReady = Boolean(localProvider?.enabled)
+    const ready = Boolean(!state.providerStorageUnverified && (deepseekReady || localReady))
     element<HTMLButtonElement>('#chat-send').disabled = !ready || state.sending
-    element<HTMLButtonElement>('#provider-test').disabled = !ready || state.sending
+    element<HTMLButtonElement>('#provider-test').disabled = !deepseekReady || state.sending
+    element<HTMLButtonElement>('#local-provider-test').disabled = !localReady || state.sending
     element<HTMLButtonElement>('#conversation-new').disabled = state.sending
     element<HTMLButtonElement>('#conversation-delete').disabled = state.sending
     element<HTMLSelectElement>('#conversation-select').disabled = state.sending
     element<HTMLButtonElement>('#provider-clear-key').disabled = state.sending
+    element<HTMLButtonElement>('#local-provider-clear-key').disabled = state.sending
   }
 
   const markProviderStorageUnverified = (error: unknown): void => {
@@ -124,9 +134,15 @@ export function initializeCompanion(): void {
 
   const loadProvider = async (): Promise<void> => {
     state.providerStorageUnverified = false
-    updateProviderStatus(unwrap(await window.morrow.providers.get()))
+    const deepseek = unwrap(await window.morrow.providers.get({ providerId: 'deepseek' }))
+    const local = unwrap(await window.morrow.providers.get({ providerId: 'local-openai' }))
+    updateProviderStatus(deepseek, local)
     element<HTMLInputElement>('#provider-enabled').checked = state.provider?.enabled ?? false
     element<HTMLInputElement>('#provider-api-key').value = ''
+    element<HTMLInputElement>('#local-provider-enabled').checked = state.localProvider?.enabled ?? false
+    element<HTMLInputElement>('#local-provider-endpoint').value = state.localProvider?.endpoint ?? ''
+    element<HTMLInputElement>('#local-provider-model').value = state.localProvider?.model ?? ''
+    element<HTMLInputElement>('#local-provider-api-key').value = ''
   }
 
   const renderSuggestions = (suggestions: MemorySuggestion[]): void => {
