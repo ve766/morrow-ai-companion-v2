@@ -61,6 +61,9 @@ function launch(port, { remindersEnabled = false, profileDirectory = profile } =
     '--disable-dev-shm-usage'
   ]
   args.push(`--user-data-dir=${profileDirectory}`)
+  // Linux CI containers cannot use the Chromium setuid sandbox; headless
+  // smoke runs there explicitly opt out (Windows/macOS unaffected).
+  if (process.platform === 'linux') args.push('--no-sandbox')
   if (!installedExecutable) args.push(root)
   const child = spawn(installedExecutable ?? electronBinary, args, {
     cwd: root,

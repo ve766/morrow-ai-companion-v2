@@ -51,6 +51,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64
 
       - name: Electron smoke (real app, isolated profile, no network egress)
+        shell: bash
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             xvfb-run -a npm run smoke
