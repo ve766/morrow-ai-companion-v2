@@ -222,7 +222,9 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 
 运行链接：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40309704692 （`completed / success`，时段 `10:44:08Z → 10:46:09Z`）
 
-> 两次运行覆盖的都是**同一批源码改动**（提交 1–3），第二次仅因追加文档提交而重跑。它们证明的是工程检查项稳定通过，**不改变 §1.1 的未覆盖项状态**。
+**第三次运行**（报告第 2 版 `cfa038d`）同样 3/3 通过，逐 Job 数据见 §10。
+
+> 三次运行覆盖的都是**同一批源码改动**（提交 1–3），后两次仅因追加文档提交而重跑。它们证明的是工程检查项稳定通过，**不改变 §1.1 的未覆盖项状态**。
 
 ---
 
@@ -329,15 +331,27 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 | 提交 2 | `d978f09` — `ci: remove the obsolete better-sqlite3 rebuild step` |
 | 提交 3 | `44ffe42` — `docs: correct the SQLite/Node statements and document the evaluation commands` |
 | 提交 4 | `fd6c6cd` — `docs(report): phase 1 work report with reproducible verification evidence`（报告第 1 版） |
-| 提交 5 | 本次审计修正提交（**仅本报告文件**，docs-only）—— SHA 见 PR #2 提交列表；其触发的新一轮 CI 结果见 PR #2 Checks |
+| 提交 5 | `cfa038d` — `docs(report): correct the completion status wording per audit`（报告第 2 版，docs-only） |
+| 提交 6 | 本报告定稿补充 CI 事实的提交（docs-only）—— SHA 见 PR #2 提交列表 |
 | PR | #2 — https://github.com/ve766/morrow-ai-companion-v2/pull/2 （OPEN，`MERGEABLE`，**未合并**） |
 | CI（实质改动 `44ffe42`） | [run 40308680325](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40308680325) — **success**，3/3 Job |
 | CI（报告第 1 版 `fd6c6cd`） | [run 40309704692](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40309704692) — **success**，3/3 Job |
+| CI（报告第 2 版 `cfa038d`） | [run 40312875507](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40312875507) — **success**，3/3 Job（详见下表） |
 | 本报告 | `docs/reports/project-work-report-2026-10-26-phase-1.md`（第 2 版） |
 
-**关于本报告自身的提交**：报告第 1 版（`fd6c6cd`）与本次审计修正提交均属 docs-only，不含任何代码/配置变更。上表两个 CI 运行分别覆盖全部实质性改动（提交 1–3，head `44ffe42`）与报告第 1 版（`fd6c6cd`）。
+**报告第 2 版提交 `cfa038d` 的 CI 实际结果**（该运行已真实完成，非预判）：
 
-**本次审计修正提交的 CI 状态**：截至本报告写入时，该提交尚未创建、其 CI 运行尚未启动，因此本报告**不宣称**它已通过——不做预判，也不把尚未运行的检查写成已通过。请以 PR #2 的 Checks 页面为最终依据；该运行结束后，其真实结论同步记录在 PR #2 描述中。
+| Job | 结论 | 耗时 | 起止 (UTC) |
+|---|---|---|---|
+| Typecheck, tests, build and smoke (`ubuntu-latest`) | **pass** | 1m3s | 11:09:04 → 11:10:07 |
+| Typecheck, tests, build and smoke (`windows-latest`) | **pass** | 2m6s | 11:09:04 → 11:11:10 |
+| Windows upgrade path (schema migrations under the real app) | **pass** | 37s | 11:09:04 → 11:09:41 |
+
+运行整体：`completed / success`，时段 `11:09:02Z → 11:11:11Z`。
+
+**关于本报告自身的提交**：提交 4、5、6 均为 docs-only，不含任何代码/配置变更。上表三次 CI 运行覆盖的都是**同一批源码改动**（提交 1–3），后两次仅因追加文档提交而重跑。
+
+**提交 6 的 CI 状态**：该提交仅补充上述 CI 事实，同样为 docs-only，会触发一次新的 `pull_request` 运行。**本文件不对该运行作任何预判**——截至本文件写入时它尚未启动，其结果请以 PR #2 的 Checks 页面为准（不再回写本文件，以避免「改一次报告触发一次 CI」的循环）。
 
 **停止点**：本报告修正推送后即停止，不合并 PR，不开始第二阶段，等待复审。
 
@@ -348,6 +362,6 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 | 版本 | 日期 | 变更 | 是否触及代码 |
 |---|---|---|---|
 | 第 1 版 | 2026-10-26 | 初版：工程收尾执行记录 + 验证证据 | 未触及（随提交 1–4 交付） |
-| **第 2 版** | 2026-10-26 | 按审计意见修正**完成状态表述**：① 删除「未完成项：无」，改为「工程收尾已完成，产品能力验证仍有未覆盖项」；② 新增 §1.1 显式列出未执行的真实 Provider 多轮对话端到端验证、Windows 安装包实际打包验证、真实陪伴效果验收；③ 新增 §1.2 说明 CI 通过的准确边界；④ §6.2 / §6.3 标题与内容标注为「未覆盖项 A / B」，新增 §6.6；⑤ §6.5 增补「修复状态：未修复」；⑥ §8 拆分「未覆盖验证」与「工程遗留」 | **未触及**（仅本报告文件） |
+| **第 2 版** | 2026-10-26 | 按审计意见修正**完成状态表述**：① 删除「未完成项：无」，改为「工程收尾已完成，产品能力验证仍有未覆盖项」；② 新增 §1.1 显式列出未执行的真实 Provider 多轮对话端到端验证、Windows 安装包实际打包验证、真实陪伴效果验收；③ 新增 §1.2 说明 CI 通过的准确边界；④ §6.2 / §6.3 标题与内容标注为「未覆盖项 A / B」，新增 §6.6；⑤ §6.5 增补「修复状态：未修复」；⑥ §8 拆分「未覆盖验证」与「工程遗留」；⑦ §10 补入第 2 版提交 `cfa038d` 的真实 CI 结果 | **未触及**（仅本报告文件） |
 
-第 2 版**未改动**任何验证结论、命令输出、CI 结果或代码；仅调整完成状态的表述精度。
+第 2 版**未改动**任何验证结论、命令输出、CI 结果或代码；仅调整完成状态的表述精度，并补入已实际完成的 CI 事实。
