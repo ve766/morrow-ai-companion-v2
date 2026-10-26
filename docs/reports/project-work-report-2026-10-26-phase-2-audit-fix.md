@@ -22,7 +22,7 @@
 | 修复前 SHA | `f57989714b52ad2c695649e90ee141a4357eea0d` |
 | 修复前 CI | [run 40324745303](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40324745303) — **success，3/3 Job** |
 | 修复后 SHA（代码最后一提交） | `7bf2e54` |
-| 报告提交 SHA（本文件所在提交） | `b2a16a3` |
+| 报告提交 SHA（**首次引入本文件**） | `b2a16a3` |
 | 修复后 CI | [run 40334673549](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40334673549) @ `b2a16a3` — **success，3/3 Job** |
 | 规模 | 17 文件，+2280 / −230 |
 
@@ -433,5 +433,6 @@ MORROW_REAL_PROVIDER_ENDPOINT='http://127.0.0.1:9/v1' npm run verify:real  # 期
 |---|---|---|
 | 第 1 版 | 2026-10-26 | 初版，随审计修复提交（代码最后一提交 `7bf2e54`） |
 | 第 2 版 | 2026-10-26 | 回填 §A.2 的真实 CI 证据：run **40334673549** @ `b2a16a3`，3/3 Job success。修正 §A.1 中 `request-assertions.test.ts` 的用例数为 22。本行为纯文档提交，不改变任何代码结论。 |
+| 第 3 版 | 2026-10-26 | 把「本文件所在提交」改为「**首次引入本文件**的提交」。原措辞在后续纯文档提交后必然失真——任何声称「本文件所在提交 = 某 SHA」的句子在写下时即已过期，故只声明引入提交，不声明当前 head。 |
 
 > 任何提交的 CI 结论都可用 `gh run list --branch feat/phase-2-companion-core --json headSha,conclusion` 按 head SHA 对齐核验；PR #3 的 Checks 页同样按 SHA 分组。本报告只对**已明确写出 SHA 的 run** 作出结论，不对「分支最新」作任何未经核对的推断。
