@@ -7,10 +7,13 @@
 | 工作分支 | `feat/phase-2-companion-core` |
 | 阶段基线 | `12f83e1`（第一阶段分支 `chore/phase-1-engineering-consistency` 的头提交，其基线为 `main` @ `8b207b7`） |
 | `main` 基线 | `8b207b7` |
-| 本阶段提交 | `137113f` → `4b52731` → `5425653` → `ec53fb8` →（本报告提交） |
+| 本阶段提交 | `137113f` → `4b52731` → `5425653` → `ec53fb8`（源码最后一提交）→ `a8f82ab`（报告初版）→ 本次 CI 记录提交 |
 | Pull Request | **#3** — https://github.com/ve766/morrow-ai-companion-v2/pull/3 |
 | PR 状态 | **OPEN / 未合并**（等待人工审查与审计，按任务要求停止） |
 | PR base | `chore/phase-1-engineering-consistency`（**堆叠 PR**，理由见 §15.2） |
+| CI 运行 | [run 40321367137](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137) — **success**（3 / 3 Job），head `a8f82ab` |
+| CI 实测 | ubuntu-latest **42 文件 / 291 测试通过**；windows-latest **42 文件 / 291 测试通过**；windows 升级路径 6 文件 / 47 测试通过；双平台 smoke `Morrow smoke passed`；`evaluate:companion` 双平台 21/21、`replayStable: true`、`networkCalls: 0` |
+| CI 覆盖范围 | **仅限 `.github/workflows/ci.yml` 定义的检查项**；**不含**真实 Provider 对话、**不含**安装包打包、**不含**任何质量评估（见 §1.2、§17 Q8） |
 | 真实 Provider 验证 | **已执行并通过**：`status: verified`，4 / 4 轮，9 / 9 项客观检查 |
 | 真实 Provider 环境 | 本机 Ollama `http://127.0.0.1:11434/v1`，模型 `qwen2.5:0.5b`（**0.5B 小参数模型**） |
 | 本机测试 | `42` 文件 / `291` 测试通过（`--no-fsModuleCache --maxWorkers=2`） |
@@ -18,7 +21,7 @@
 | 云端 Provider 真实调用 | **未执行**（无凭据，未产生任何付费请求） |
 | Windows 安装包 | **未执行**（本阶段未打包） |
 
-本报告中的每一条事实都对应一次本次实际执行的命令输出。凡未执行、失败或无法验证的项目，均在 §6.4、§12.4 与 §14 单独列明，**不与通过项混写**。模型自己说的话不作为记忆、情绪或人格的证据——所有关于「记忆是否进入请求」「人格是否进入请求」的结论，都来自**被拦截并序列化的请求体本身**，不来自模型自述。
+本报告中的每一条事实都对应一次本次实际执行的命令输出。凡未执行、失败或无法验证的项目，均在 §12.5 与 §14 单独列明，**不与通过项混写**。模型自己说的话不作为记忆、情绪或人格的证据——所有关于「记忆是否进入请求」「人格是否进入请求」的结论，都来自**被拦截并序列化的请求体本身**，不来自模型自述。
 
 ---
 
@@ -40,7 +43,7 @@
 
 - 真实模型是 **0.5B 小参数模型**，它在同会话回忆测试中**未能使用已送达的历史**（§7.4、§11.1）。这是模型能力边界，不是系统缺陷，但也意味着**「模型会用上下文」这件事在本地环境没有拿到正面证据**；
 - 对话质量、人格表达的自然度、长期使用中的记忆负担，`quality.assessed` 明确为 `false`，**没有任何质量结论**；
-- 云端 Provider、Windows 安装包、真实用户可用性均未验证（§12.4）。
+- 云端 Provider、Windows 安装包、真实用户可用性均未验证（§12.5）。
 
 CI 全绿的准确含义见 §1.2。
 
@@ -165,7 +168,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | 不假装记得 | 无记忆时 `memories: []` 且提示词要求「Do not invent user facts」 | 集成测试 `states that nothing is known…`；用例 `unk-01/02` |
 | 不假装有感受 | 内在状态是计算变量，提示词禁止宣称主观体验 | 既有 `fixedPrinciples`（未改）+ `evaluate:cognition` 门禁 |
 | 不静默改人格 | 人格只由用户编辑路径写入 | 集成测试 `puts the stored personality and its version…`；`persists…/restores` |
-| 不越权决策 | 权限与同意策略未改 | 既有 `provider-policy` 测试（43 项族） |
+| 不越权决策 | 权限与同意策略未改 | 既有 `provider-policy` 测试 7 项，断言**未改**，仅补了 fixture 的 `match` 字段 |
 | 修正必须生效 | 纠正替换文本、撤回整条失效 | `stops injecting the old text after a correction…`；`corr-01`/`ret-01`/`del-01` |
 | 冲突要显式 | 新增原则：记忆互相矛盾时**说出来**，不静默择一 | `conflict-01`；`fixedPrinciples` 新增行 |
 | 不确定要说 | 陈旧记忆要表达疑虑而非断言 | `match`/`stale` 标注 + `stale-01` |
@@ -399,7 +402,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | `npm run evaluate:companion` | **通过** | `21/21`、`replayStable: true`、`stubDispatches: 47`、`networkCalls: 0`、`deterministicHash b41b643d…` |
 | `npm run build` | **通过**（exit 0） | electron-vite 产物生成成功 |
 | `npm run verify:real` | **通过**（`verified`） | `4/4` 轮、`9/9` 检查，见 §7 |
-| `npm run smoke` | **未执行（本阶段）** | 理由见 §12.4 |
+| `npm run smoke` | **未执行（本阶段）** | 理由见 §12.5 |
 
 测试数量变化：`main` 40 文件 / 268 测试 → 本分支 **42 文件 / 291 测试**（+2 文件 / +23 测试）。明细：新增集成测试 14 个 + 记忆装配器 3→8（+5）+ 评估自测 4 个 = 23。
 
@@ -436,7 +439,21 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 补充一条本机特有的坑：在本沙箱里 `npx vitest run` 会在启动阶段报 `[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]`（文件操作钩子拦截了 vitest 清理 `node_modules/.vitest-cache` 的 97 个文件）。因此本机必须加 `--no-fsModuleCache`。**这是沙箱限制，CI 上不存在，`npm test` 脚本本身未改。**
 
-### 12.4 本阶段未执行 / 无法验证的项目
+### 12.4 GitHub Actions 实际结果（`run 40321367137`，head `a8f82ab`）
+
+| Job | 结果 | 关键输出 |
+|---|---|---|
+| `Typecheck, tests, build and smoke (ubuntu-latest)` | **success** | `Test Files 42 passed (42)` / `Tests 291 passed (291)`；`evaluate:companion` 21/21、`replayStable: true`、`networkCalls: 0`、hash `b41b643d…`；`Morrow smoke passed` |
+| `Typecheck, tests, build and smoke (windows-latest)` | **success** | `Test Files 42 passed (42)` / `Tests 291 passed (291)`；`evaluate:companion` 同上；`Morrow smoke passed` |
+| `Windows upgrade path (schema migrations under the real app)` | **success** | `Test Files 6 passed (6)` / `Tests 47 passed (47)`（含 v1→v15 升级路径） |
+
+合计 **3 / 3 Job success**，run 结论 `success`。
+
+**这个结果对 §12.3 的意义**：CI 跑的是 `npm test`（即 `vitest run`，**默认并发**，没有 `--maxWorkers=2`），两个平台都跑出 291/291 全绿。这进一步确认本地那 3 个 5000ms 超时是本机资源竞争，不是代码或测试本身的问题——**同一个默认并发配置在 CI 上不复现**。
+
+已知告警（非阻塞，属既有债务，本阶段未处理）：`actions/checkout@v4` 与 `actions/setup-node@v4` 触发 Node 20 弃用提示；`ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26。
+
+### 12.5 本阶段未执行 / 无法验证的项目
 
 | # | 项目 | 状态 | 说明 |
 |---|---|---|---|
@@ -512,6 +529,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | 8 | npm 脚本与 CI 接入 | `package.json`、`.github/workflows/ci.yml` |
 | 9 | 本报告 | `docs/reports/project-work-report-2026-10-26-phase-2.md` |
 | 10 | Pull Request #3（未合并） | https://github.com/ve766/morrow-ai-companion-v2/pull/3 |
+| 11 | CI 运行记录（3 / 3 success） | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137 |
 
 ---
 
@@ -572,4 +590,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
-| 第 1 版 | 2026-10-26 | 初版，随 PR #3 提交 |
+| 第 1 版 | 2026-10-26 | 初版，随 PR #3 提交（`a8f82ab`） |
+| 第 2 版 | 2026-10-26 | 补入 CI 实际结果（`run 40321367137`，3/3 success）；修正 `provider-policy` 测试数量表述（7 项，非「43 项族」）；修正交叉引用编号 |
+
+> 第 2 版只补事实与修正表述，未改动任何验证结论、未改动任何代码。
