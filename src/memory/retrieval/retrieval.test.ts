@@ -42,7 +42,8 @@ describe('retrieval configuration', () => {
   it('ships v2 as the live default while keeping v1 selectable as the control arm', () => {
     const config = resolveRetrievalConfig()
     expect(config.algorithm).toBe(RETRIEVAL_ALGORITHM_V2)
-    expect(config.configVersion).toBe('2.1.0')
+    expect(config.configVersion).toBe('2.2.0')
+    expect(config.lexicalMatching).toBe('token')
     expect(config.maxMemories).toBe(25)
     expect(config.maxCharacters).toBe(3000)
     expect(Object.keys(config.weights).sort()).toEqual([

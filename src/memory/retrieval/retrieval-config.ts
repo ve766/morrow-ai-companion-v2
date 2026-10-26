@@ -1,4 +1,5 @@
 import { ApplicationError } from '../../shared/errors'
+import type { LexicalMatching } from './retrieval-lexical'
 import type { MemorySourceCategory } from '../memory-domain'
 
 // Central, typed and range-checked parameters for memory retrieval.
@@ -28,7 +29,7 @@ export const RETRIEVAL_ALGORITHMS: readonly RetrievalAlgorithmId[] = [
  * Version of the parameter set below. Bump it whenever a default changes, so a
  * stored decision trace can be replayed against the configuration it used.
  */
-export const RETRIEVAL_CONFIG_VERSION = '2.1.0' as const
+export const RETRIEVAL_CONFIG_VERSION = '2.2.0' as const
 
 /**
  * Which algorithm the live chat path uses.
@@ -111,6 +112,15 @@ export interface RetrievalConfig {
   provenanceScores: Record<MemorySourceCategory, number>
   /** Term overlap at or above which two memories are treated as near-duplicates. */
   duplicateOverlapThreshold: number
+  /**
+   * How query terms are matched against memory text.
+   *
+   * `token` matches whole tokens for space-delimited text and Han bigrams for
+   * Chinese. `substring` is the pre-fix behaviour, kept only so the frozen
+   * benchmark stays reproducible; it produces false hits such as "an" matching
+   * inside "analyst".
+   */
+  lexicalMatching: LexicalMatching
   semantic: SemanticPolicy
 }
 
@@ -140,6 +150,7 @@ export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = {
     turn_derived_confirmed: 0.45
   },
   duplicateOverlapThreshold: 0.9,
+  lexicalMatching: 'token',
   semantic: {
     enabled: false,
     modelId: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2',
@@ -169,6 +180,12 @@ function fail(): never {
   throw new ApplicationError('INVALID_INPUT')
 }
 
+function resolveLexicalMatching(value: unknown): LexicalMatching {
+  const resolved = value ?? DEFAULT_RETRIEVAL_CONFIG.lexicalMatching
+  if (resolved !== 'token' && resolved !== 'substring') fail()
+  return resolved
+}
+
 function bounded(value: unknown, minimum: number, maximum: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) fail()
   return value
@@ -182,6 +199,7 @@ export type RetrievalConfigOverrides = {
   decay?: Partial<RetrievalDecayPolicy>
   provenanceScores?: Partial<Record<MemorySourceCategory, number>>
   duplicateOverlapThreshold?: number
+  lexicalMatching?: LexicalMatching
   semantic?: Partial<SemanticPolicy>
 }
 
@@ -232,6 +250,7 @@ export function resolveRetrievalConfig(overrides: RetrievalConfigOverrides = {})
       0.5,
       1
     ),
+    lexicalMatching: resolveLexicalMatching(overrides.lexicalMatching),
     semantic
   }
 }

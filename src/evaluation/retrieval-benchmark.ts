@@ -18,7 +18,7 @@ import type { Sensitivity } from '../shared/companion'
 // type. That is the only way a "v1 vs v2" number can say anything about what
 // users actually get.
 
-export const BENCHMARK_RUNNER_VERSION = '1.0.0' as const
+export const BENCHMARK_RUNNER_VERSION = '2.0.0' as const
 export const BENCHMARK_RECALL_KS = [1, 3, 5] as const
 export const BENCHMARK_NDCG_K = 5 as const
 export const MAX_BENCHMARK_CASES = 60
@@ -157,7 +157,15 @@ export interface BenchmarkReport {
   runnerVersion: string
   generatedAt: string
   dataset: { id: string; version: string; caseCount: number; scenarios: BenchmarkScenario[]; inputSetHash: string }
-  config: { algorithmV1: string; algorithmV2: string; recallKs: number[]; ndcgK: number; duplicateOverlap: number }
+  config: {
+    algorithmV1: string
+    algorithmV2: string
+    /** Which lexical matcher produced these numbers; differs across report versions. */
+    lexicalMatching: string
+    recallKs: number[]
+    ndcgK: number
+    duplicateOverlap: number
+  }
   totals: { v1: AlgorithmTotals; v2: AlgorithmTotals }
   cases: CaseComparison[]
   regressions: string[]
@@ -545,6 +553,7 @@ export function runRetrievalBenchmark(datasetValue: unknown): BenchmarkReport {
     config: {
       algorithmV1: RETRIEVAL_ALGORITHM_V1,
       algorithmV2: RETRIEVAL_ALGORITHM_V2,
+      lexicalMatching: resolveRetrievalConfig().lexicalMatching,
       recallKs: [...BENCHMARK_RECALL_KS],
       ndcgK: BENCHMARK_NDCG_K,
       duplicateOverlap: BENCHMARK_DUPLICATE_OVERLAP

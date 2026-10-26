@@ -1,6 +1,6 @@
 import type { AssembledMemoryContext, ContextMemory, Sensitivity } from '../shared/companion'
 import type { MemoryRecord } from './memory-domain'
-import { RETRIEVAL_ALGORITHM_V1, type RetrievalConfig } from './retrieval/retrieval-config'
+import { DEFAULT_RETRIEVAL_CONFIG, RETRIEVAL_ALGORITHM_V1, type RetrievalConfig } from './retrieval/retrieval-config'
 import { encodeMemoryContext } from './retrieval/retrieval-context-format'
 import { lexicalScore, retrievalTerms } from './retrieval/retrieval-lexical'
 import type { RetrievalStrategy, RetrievalRequest, RetrievalResult } from './retrieval/retrieval-strategy'
@@ -76,7 +76,11 @@ export class MemoryContextAssembler implements RetrievalStrategy {
     for (const record of records) {
       const withinStatus = record.status === 'active'
       const withinSensitivity = order.indexOf(record.sensitivity) <= sensitivityLimit
-      const lexical = withinStatus && withinSensitivity ? lexicalScore(record.currentText, queryTerms, phrase) : 0
+      // The legacy `assemble()` entry point has no config; it must still follow
+      // the single source of truth rather than a second hard-coded default.
+      const lexical = withinStatus && withinSensitivity
+        ? lexicalScore(record.currentText, queryTerms, phrase, config?.lexicalMatching ?? DEFAULT_RETRIEVAL_CONFIG.lexicalMatching)
+        : 0
       const trace: RetrievalCandidateTrace = {
         memoryId: record.id,
         included: false,

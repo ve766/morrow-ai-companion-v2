@@ -239,7 +239,10 @@ describe('semantic signals reach the dispatched request', () => {
   })
 })
 
-describe.skipIf(!hasRealModel)('real embedding model, end to end', () => {
+// ONNX inference is slow enough that several suites loading a 130 MB model at
+// once can exceed the default 5 s per-test budget. The budget is raised for this
+// block only; it is not hiding a hang, and each case finishes in ~2 s alone.
+describe.skipIf(!hasRealModel)('real embedding model, end to end', { timeout: 60_000 }, () => {
   let encoder: SemanticEncoder
 
   beforeEach(async () => {

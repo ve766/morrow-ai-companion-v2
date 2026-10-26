@@ -191,7 +191,7 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
         continue
       }
 
-      const lexical = lexicalScore(record.currentText, queryTerms, phrase)
+      const lexical = lexicalScore(record.currentText, queryTerms, phrase, config.lexicalMatching)
       factors.lexical = lexical
 
       const rawSemantic = semanticSignals ? semanticSignals.similarity(record.currentText) : null
