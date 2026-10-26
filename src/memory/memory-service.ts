@@ -19,13 +19,26 @@ import {
 } from './memory-domain'
 
 import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
-import { MemoryContextAssembler } from './memory-context-assembler'
 import type { MorrowEvent } from '../persistence/event-log'
+import { resolveRetrievalConfig, type RetrievalConfigOverrides } from './retrieval/retrieval-config'
+import { selectRetrievalStrategy } from './retrieval/retrieval-registry'
+import type { SupersededStatement } from './retrieval/retrieval-supersession'
+import { retrievalDecisionEventPayload, type RetrievalDecision } from './retrieval/retrieval-trace'
 
 // Minimal event sink so the memory module never depends on the persistence
 // module's concrete service; tests inject nothing.
 export interface MemoryEventSink {
   tryRecord(event: Omit<MorrowEvent, 'schemaVersion' | 'occurredAt' | 'id'>): MorrowEvent | null
+}
+
+/** Upper bound on superseded statements loaded per retrieval call. */
+const MAX_SUPERSEDED_STATEMENTS = 200
+
+export interface AssembleContextOptions {
+  /** Fixed evaluation instant; defaults to the injected clock. */
+  now?: string
+  /** Per-call algorithm/parameter overrides. Validated before use. */
+  config?: RetrievalConfigOverrides
 }
 
 export interface MemoryCreateOptions {
@@ -63,8 +76,6 @@ function significantTerms(text: string): Set<string> {
 }
 
 export class MemoryService {
-  private readonly contextAssembler = new MemoryContextAssembler()
-
   constructor(
     private readonly repository: MemoryRepository,
     private readonly clock: () => string = () => new Date().toISOString(),
@@ -151,9 +162,70 @@ export class MemoryService {
     return this.repository.search(query.trim())
   }
 
-  assembleContext(query: string, maximumSensitivity: Sensitivity): AssembledMemoryContext {
+  assembleContext(query: string, maximumSensitivity: Sensitivity, options: AssembleContextOptions = {}): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
-    return this.contextAssembler.assemble(query, this.repository.listActiveForContext(1000), maximumSensitivity)
+    const config = resolveRetrievalConfig(options.config)
+    // The evaluation instant comes from the injected clock rather than the wall
+    // clock, so the same data and query replay to the same ranking. This was
+    // the one gap that made the baseline non-reproducible.
+    const now = options.now ?? this.timestamp()
+    const records = this.repository.listActiveForContext(1000)
+    const result = selectRetrievalStrategy(config.algorithm).retrieve({
+      query,
+      records,
+      supersededStatements: this.supersededStatements(),
+      maximumSensitivity,
+      now,
+      config
+    })
+    this.recordRetrievalDecision(result.decision)
+    return result.context
+  }
+
+  /**
+   * Retrieval with its decision trace. Used by the benchmark and available to
+   * diagnostics; the chat path only needs {@link assembleContext}.
+   */
+  retrieveWithDecision(query: string, maximumSensitivity: Sensitivity, options: AssembleContextOptions = {}): {
+    context: AssembledMemoryContext
+    decision: RetrievalDecision
+  } {
+    if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
+    const config = resolveRetrievalConfig(options.config)
+    const now = options.now ?? this.timestamp()
+    const records = this.repository.listActiveForContext(1000)
+    return selectRetrievalStrategy(config.algorithm).retrieve({
+      query,
+      records,
+      supersededStatements: this.supersededStatements(),
+      maximumSensitivity,
+      now,
+      config
+    })
+  }
+
+  private supersededStatements(): SupersededStatement[] {
+    try {
+      return this.repository.listSupersededStatements(MAX_SUPERSEDED_STATEMENTS)
+    } catch {
+      // A degraded correction chain must not break chat; retrieval simply loses
+      // one signal and the decision trace records that it had none.
+      return []
+    }
+  }
+
+  private recordRetrievalDecision(decision: RetrievalDecision): void {
+    this.events?.tryRecord({
+      sourceModule: 'memory',
+      eventType: 'retrieval.decision',
+      actor: 'system',
+      // Deliberately not 'memory': the journal's memory trail is the record of
+      // user-driven lifecycle changes, and retrieval is not one.
+      subjectType: 'memory_retrieval',
+      subjectId: null,
+      correlationId: null,
+      payload: retrievalDecisionEventPayload(decision)
+    })
   }
 
   history(id: string): MemoryRevisionRecord[] {
