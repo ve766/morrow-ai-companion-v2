@@ -31,8 +31,15 @@ export interface MemoryEventSink {
   tryRecord(event: Omit<MorrowEvent, 'schemaVersion' | 'occurredAt' | 'id'>): MorrowEvent | null
 }
 
-/** Upper bound on superseded statements loaded per retrieval call. */
-const MAX_SUPERSEDED_STATEMENTS = 200
+/**
+ * Upper bound on superseded statements loaded per retrieval call.
+ *
+ * The chain is read as one ordered window rather than per candidate because the
+ * superseding memory need not be a candidate itself. If the window is ever
+ * exhausted the decision records `correctionChain.truncated`, so a weakened
+ * correction chain is visible instead of silent.
+ */
+const MAX_SUPERSEDED_STATEMENTS = 2000
 
 export interface AssembleContextOptions {
   /** Fixed evaluation instant; defaults to the injected clock. */
@@ -170,10 +177,12 @@ export class MemoryService {
     // the one gap that made the baseline non-reproducible.
     const now = options.now ?? this.timestamp()
     const records = this.repository.listActiveForContext(1000)
+    const chain = this.supersededStatements()
     const result = selectRetrievalStrategy(config.algorithm).retrieve({
       query,
       records,
-      supersededStatements: this.supersededStatements(),
+      supersededStatements: chain.statements,
+      supersededTruncated: chain.truncated,
       maximumSensitivity,
       now,
       config
@@ -194,23 +203,28 @@ export class MemoryService {
     const config = resolveRetrievalConfig(options.config)
     const now = options.now ?? this.timestamp()
     const records = this.repository.listActiveForContext(1000)
+    const chain = this.supersededStatements()
     return selectRetrievalStrategy(config.algorithm).retrieve({
       query,
       records,
-      supersededStatements: this.supersededStatements(),
+      supersededStatements: chain.statements,
+      supersededTruncated: chain.truncated,
       maximumSensitivity,
       now,
       config
     })
   }
 
-  private supersededStatements(): SupersededStatement[] {
+  private supersededStatements(): { statements: SupersededStatement[]; truncated: boolean } {
     try {
-      return this.repository.listSupersededStatements(MAX_SUPERSEDED_STATEMENTS)
+      // Ask for one more than the cap so truncation is observable rather than
+      // inferred from a full page.
+      const rows = this.repository.listSupersededStatements(MAX_SUPERSEDED_STATEMENTS + 1)
+      return { statements: rows.slice(0, MAX_SUPERSEDED_STATEMENTS), truncated: rows.length > MAX_SUPERSEDED_STATEMENTS }
     } catch {
       // A degraded correction chain must not break chat; retrieval simply loses
       // one signal and the decision trace records that it had none.
-      return []
+      return { statements: [], truncated: false }
     }
   }
 

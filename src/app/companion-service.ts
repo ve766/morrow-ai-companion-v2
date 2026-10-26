@@ -865,7 +865,11 @@ export class ChatService {
           content,
           ...(firstPass.strategy === 'retrieve_memory' ? [referencedMessage?.body, priorUserMessage?.body] : [])
         ].filter((value): value is string => typeof value === 'string' && value.length > 0).join('\n').slice(0, 20_000)
-        memory = this.memories.assembleContext(firstPass.strategy === 'retrieve_memory' ? retrievalQuery : '', max)
+        // Retrieval is pinned to the turn's instant, not to a fresh clock read.
+        // `prepare` runs twice (consent preview, then dispatch); if retrieval
+        // used a different instant the second time, the payload hash could
+        // differ from the approved one and the turn would fail with CONFLICT.
+        memory = this.memories.assembleContext(firstPass.strategy === 'retrieve_memory' ? retrievalQuery : '', max, { now: evaluationAt })
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         const stateView = this.feelings.snapshot(evaluationAt)
@@ -889,7 +893,7 @@ export class ChatService {
       }
     }
 
-    if (!memory) memory = this.memories.assembleContext(content, max)
+    if (!memory) memory = this.memories.assembleContext(content, max, { now: evaluationAt })
     const system = [
       `User-controlled communication preferences, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}.`,
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',

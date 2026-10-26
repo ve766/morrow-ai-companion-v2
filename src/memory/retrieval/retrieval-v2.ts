@@ -307,6 +307,7 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
       memoryBudget: config.maxMemories,
       contextBudget: config.maxCharacters,
       exclusionCounts: countExclusions(candidates),
+      correctionChain: { statements: request.supersededStatements.length, truncated: request.supersededTruncated },
       candidates
     }
 

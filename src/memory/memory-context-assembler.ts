@@ -40,7 +40,7 @@ export class MemoryContextAssembler implements RetrievalStrategy {
     maxCharacters = 3000,
     now: string = new Date().toISOString()
   ): AssembledMemoryContext {
-    return this.run(query, records, maximumSensitivity, maxMemories, maxCharacters, now).context
+    return this.run(query, records, maximumSensitivity, maxMemories, maxCharacters, now, undefined, { statements: 0, truncated: false }).context
   }
 
   retrieve(request: RetrievalRequest): RetrievalResult {
@@ -51,7 +51,8 @@ export class MemoryContextAssembler implements RetrievalStrategy {
       request.config.maxMemories,
       request.config.maxCharacters,
       request.now,
-      request.config
+      request.config,
+      { statements: request.supersededStatements.length, truncated: request.supersededTruncated }
     )
   }
 
@@ -62,7 +63,8 @@ export class MemoryContextAssembler implements RetrievalStrategy {
     maxMemories: number,
     maxCharacters: number,
     now: string,
-    config?: RetrievalConfig
+    config: RetrievalConfig | undefined,
+    correctionChain: { statements: number; truncated: boolean }
   ): RetrievalResult {
     const queryTerms = retrievalTerms(query)
     const phrase = query.normalize('NFKC').trim().toLocaleLowerCase()
@@ -164,6 +166,7 @@ export class MemoryContextAssembler implements RetrievalStrategy {
       memoryBudget: maxMemories,
       contextBudget: maxCharacters,
       exclusionCounts: countExclusions(candidates),
+      correctionChain,
       candidates
     }
 

@@ -73,6 +73,8 @@ export interface RetrievalDecision {
   memoryBudget: number
   contextBudget: number
   exclusionCounts: Record<RetrievalExclusionReason, number>
+  /** How much of the cross-record correction chain was actually available. */
+  correctionChain: { statements: number; truncated: boolean }
   candidates: RetrievalCandidateTrace[]
 }
 
@@ -116,6 +118,7 @@ export function retrievalDecisionEventPayload(decision: RetrievalDecision): Reco
     memoryBudget: decision.memoryBudget,
     contextBudget: decision.contextBudget,
     selectedIds: decision.selectedIds.slice(0, 8),
-    exclusionCounts: decision.exclusionCounts
+    exclusionCounts: decision.exclusionCounts,
+    correctionChain: decision.correctionChain
   }
 }

@@ -31,6 +31,7 @@ function run(algorithm: typeof RETRIEVAL_ALGORITHM_V1 | typeof RETRIEVAL_ALGORIT
     query,
     records,
     supersededStatements: superseded,
+    supersededTruncated: false,
     maximumSensitivity: 'personal',
     now: NOW,
     config: resolved
@@ -231,6 +232,7 @@ describe('determinism and replay', () => {
       query: 'coffee',
       records,
       supersededStatements: [],
+      supersededTruncated: false,
       maximumSensitivity: 'personal',
       now: '2027-10-25T00:00:00.000Z',
       config: laterConfig

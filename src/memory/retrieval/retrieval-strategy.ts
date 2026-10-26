@@ -9,6 +9,13 @@ export interface RetrievalRequest {
   query: string
   records: MemoryRecord[]
   supersededStatements: SupersededStatement[]
+  /**
+   * True when the correction chain was read from a truncated window. Ranking
+   * still proceeds, but the decision records that some older corrections may be
+   * unknown, so a reviewer can tell "no supersession found" apart from "the
+   * chain was not fully loaded".
+   */
+  supersededTruncated: boolean
   maximumSensitivity: Sensitivity
   /** Fixed evaluation instant. Never read the wall clock inside an algorithm. */
   now: string

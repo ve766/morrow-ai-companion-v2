@@ -353,6 +353,7 @@ function evaluateCase(caseValue: BenchmarkCase, algorithm: RetrievalAlgorithmId)
     query: caseValue.query,
     records: toMemoryRecords(caseValue),
     supersededStatements: caseValue.supersededStatements,
+    supersededTruncated: false,
     maximumSensitivity: caseValue.maximumSensitivity,
     now: caseValue.now,
     config
