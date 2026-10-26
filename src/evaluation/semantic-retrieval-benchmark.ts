@@ -21,6 +21,7 @@ import {
   toMemoryRecords,
   topicCoverage,
   validateBenchmarkDataset,
+  wilson95,
   type BenchmarkCase,
   type BenchmarkDataset,
   type CaseMetrics
@@ -62,6 +63,12 @@ export interface ArmTotals {
   topicCoverage: number
   budgetOverruns: number
   deterministic: boolean
+  /** Sample size and 95% Wilson interval for the two headline proportions. */
+  uncertainty: {
+    cases: number
+    firstRank: { hits: number; proportion: number; wilson95: [number, number] }
+    leakFree: { cases: number; hits: number; proportion: number; wilson95: [number, number] }
+  }
 }
 
 export interface ArmCaseResult {
@@ -161,7 +168,29 @@ function totalsFor(arm: ArmSpec, metrics: readonly CaseMetrics[], applied: boole
     duplicatePairs: metrics.reduce((sum, item) => sum + item.duplicatePairs, 0),
     topicCoverage: mean(metrics.map((item) => item.topicCoverage)),
     budgetOverruns: metrics.filter((item) => item.budgetOverrun).length,
-    deterministic
+    deterministic,
+    uncertainty: uncertaintyFor(metrics)
+  }
+}
+
+function uncertaintyFor(metrics: readonly CaseMetrics[]): ArmTotals['uncertainty'] {
+  const firstRankCount = metrics.filter((item) => item.reciprocalRank === 1 && item.selectedCount > 0).length
+  const firstRankN = metrics.filter((item) => item.selectedCount > 0).length
+  const leakFreeCount = metrics.filter((item) => item.leaks.length === 0).length
+  const firstProportion = firstRankN === 0 ? 1 : firstRankCount / firstRankN
+  return {
+    cases: metrics.length,
+    firstRank: {
+      hits: firstRankCount,
+      proportion: Number(firstProportion.toFixed(4)),
+      wilson95: wilson95(firstRankCount, firstRankN)
+    },
+    leakFree: {
+      cases: metrics.length,
+      hits: leakFreeCount,
+      proportion: Number((leakFreeCount / Math.max(1, metrics.length)).toFixed(4)),
+      wilson95: wilson95(leakFreeCount, metrics.length)
+    }
   }
 }
 

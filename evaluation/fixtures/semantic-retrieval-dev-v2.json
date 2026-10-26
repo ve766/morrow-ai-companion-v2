@@ -1,0 +1,1066 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "morrow-semantic-retrieval-dev-v2",
+  "datasetVersion": "2.0.0",
+  "source": "synthetic",
+  "seed": 41002,
+  "split": "development",
+  "note": "Synthetic. Used to choose fusion and thresholds. Do not report holdout numbers from this file. Supersedes the v1 split; adds multi-revision corrections, duplicate clusters and budget-limit cases.",
+  "requiredScenarios": [
+    "paraphrase",
+    "indirect_expression",
+    "cross_lingual",
+    "lexical_trap",
+    "similar_topic_wrong_memory",
+    "semantic_contradiction",
+    "temporary_need_vs_longterm_preference",
+    "correction_safety",
+    "deletion_safety",
+    "low_confidence_inference",
+    "empty_evidence",
+    "multi_revision_correction",
+    "same_topic_many_duplicates",
+    "budget_limit"
+  ],
+  "cases": [
+    {
+      "id": "dev-paraphrase-meal",
+      "version": 1,
+      "scenario": "paraphrase",
+      "query": "What should I eat for dinner?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "The preference says 'vegetarian meals'; the question says 'eat for dinner'. No content word is shared, so lexical retrieval cannot see it. The other two memories share nothing either.",
+      "memories": [
+        {
+          "id": "veg",
+          "text": "I prefer vegetarian meals.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-06-01T00:00:00.000Z",
+          "updatedAt": "2026-09-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-20T00:00:00.000Z"
+        },
+        {
+          "id": "coffee",
+          "text": "I drink black coffee every morning.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 85,
+          "createdAt": "2026-06-02T00:00:00.000Z",
+          "updatedAt": "2026-09-21T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-21T00:00:00.000Z"
+        },
+        {
+          "id": "osaka",
+          "text": "I visited Osaka last spring.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 85,
+          "createdAt": "2026-06-03T00:00:00.000Z",
+          "updatedAt": "2026-09-22T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-22T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "veg"
+      ],
+      "irrelevantIds": [
+        "osaka"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "veg",
+        "osaka"
+      ],
+      "topics": {
+        "veg": "food",
+        "coffee": "drink",
+        "osaka": "travel"
+      }
+    },
+    {
+      "id": "dev-paraphrase-job",
+      "version": 1,
+      "scenario": "paraphrase",
+      "query": "What is my job?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "The memory says 'work as a data analyst'; the question says 'job'. 'job' does not appear in any memory text.",
+      "memories": [
+        {
+          "id": "job",
+          "text": "I work as a data analyst.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-05-01T00:00:00.000Z",
+          "updatedAt": "2026-09-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-15T00:00:00.000Z"
+        },
+        {
+          "id": "running",
+          "text": "I go running three times a week.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-05-02T00:00:00.000Z",
+          "updatedAt": "2026-09-16T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-16T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "job"
+      ],
+      "irrelevantIds": [
+        "running"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "job",
+        "running"
+      ],
+      "topics": {
+        "job": "work",
+        "running": "health"
+      }
+    },
+    {
+      "id": "dev-indirect-food",
+      "version": 1,
+      "scenario": "indirect_expression",
+      "query": "What kind of food should I order?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Indirect phrasing: 'food to order' refers to the same subject as 'vegetarian meals' without sharing the word.",
+      "memories": [
+        {
+          "id": "veg2",
+          "text": "I prefer vegetarian meals.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-06-10T00:00:00.000Z",
+          "updatedAt": "2026-09-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-20T00:00:00.000Z"
+        },
+        {
+          "id": "car",
+          "text": "My car is a blue hatchback.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-06-11T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "veg2"
+      ],
+      "irrelevantIds": [
+        "car"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "veg2",
+        "car"
+      ],
+      "topics": {
+        "veg2": "food",
+        "car": "transport"
+      }
+    },
+    {
+      "id": "dev-cross-lingual-zh-query",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "我晚饭吃什么比较好？",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Chinese question against an English memory. Zero lexical overlap in either script.",
+      "memories": [
+        {
+          "id": "veg3",
+          "text": "I prefer vegetarian meals.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-06-12T00:00:00.000Z",
+          "updatedAt": "2026-09-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-20T00:00:00.000Z"
+        },
+        {
+          "id": "car2",
+          "text": "My car is a blue hatchback.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-06-13T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "veg3"
+      ],
+      "irrelevantIds": [
+        "car2"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "veg3",
+        "car2"
+      ],
+      "topics": {
+        "veg3": "food",
+        "car2": "transport"
+      }
+    },
+    {
+      "id": "dev-cross-lingual-zh-memory",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "What should I eat for lunch?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "English question against a Chinese memory. Tests the reverse direction of the multilingual encoder.",
+      "memories": [
+        {
+          "id": "veg-zh",
+          "text": "我更喜欢素食。",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-06-14T00:00:00.000Z",
+          "updatedAt": "2026-09-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-20T00:00:00.000Z"
+        },
+        {
+          "id": "coffee-en",
+          "text": "I prefer black coffee.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 85,
+          "createdAt": "2026-06-15T00:00:00.000Z",
+          "updatedAt": "2026-09-21T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-21T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "veg-zh"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {
+        "veg-zh": "food",
+        "coffee-en": "drink"
+      }
+    },
+    {
+      "id": "dev-lexical-trap-spring",
+      "version": 1,
+      "scenario": "lexical_trap",
+      "query": "What do I usually do in spring?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Both memories contain 'spring'. Only one describes a recurring habit; the trip is a single past event. Sharing a keyword must not promote the trip.",
+      "memories": [
+        {
+          "id": "hiking",
+          "text": "I usually go hiking in spring.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-09-10T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-10T00:00:00.000Z"
+        },
+        {
+          "id": "tokyo",
+          "text": "I visited Tokyo last spring.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-02T00:00:00.000Z",
+          "updatedAt": "2026-09-11T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-11T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "hiking"
+      ],
+      "irrelevantIds": [
+        "tokyo"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "hiking",
+        "tokyo"
+      ],
+      "topics": {
+        "hiking": "habit",
+        "tokyo": "travel"
+      }
+    },
+    {
+      "id": "dev-similar-topic-wrong",
+      "version": 1,
+      "scenario": "similar_topic_wrong_memory",
+      "query": "What do I drink in the morning?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Three drink memories. Only one is about mornings. Semantic similarity is high for all three, so the time qualifier must decide.",
+      "memories": [
+        {
+          "id": "coffee-am",
+          "text": "I drink black coffee every morning.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-06-01T00:00:00.000Z",
+          "updatedAt": "2026-09-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-20T00:00:00.000Z"
+        },
+        {
+          "id": "tea-pm",
+          "text": "I drink green tea in the afternoon.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-06-02T00:00:00.000Z",
+          "updatedAt": "2026-09-19T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-19T00:00:00.000Z"
+        },
+        {
+          "id": "espresso",
+          "text": "I bought an espresso machine last month.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-06-03T00:00:00.000Z",
+          "updatedAt": "2026-09-18T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-18T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "coffee-am"
+      ],
+      "irrelevantIds": [
+        "espresso"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "coffee-am",
+        "tea-pm"
+      ],
+      "topics": {
+        "coffee-am": "drink",
+        "tea-pm": "drink",
+        "espresso": "drink"
+      }
+    },
+    {
+      "id": "dev-semantic-contradiction",
+      "version": 1,
+      "scenario": "semantic_contradiction",
+      "query": "How do I feel about parties?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "The old statement is semantically identical to the corrected one and was re-created as a separate memory. High semantic similarity must not resurrect it.",
+      "memories": [
+        {
+          "id": "parties-new",
+          "text": "I avoid crowded parties now.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-03-01T00:00:00.000Z",
+          "updatedAt": "2026-09-05T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-05T00:00:00.000Z"
+        },
+        {
+          "id": "parties-restated",
+          "text": "I love crowded parties.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-09-12T00:00:00.000Z",
+          "updatedAt": "2026-09-12T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-12T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [
+        {
+          "memoryId": "parties-new",
+          "revision": 1,
+          "text": "I love crowded parties.",
+          "supersededAt": "2026-09-05T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-09-05T00:00:00.000Z"
+        }
+      ],
+      "expectedRelevantIds": [
+        "parties-new"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "parties-restated"
+      ],
+      "requiredOrder": [
+        "parties-new"
+      ],
+      "topics": {
+        "parties-new": "social",
+        "parties-restated": "social"
+      }
+    },
+    {
+      "id": "dev-temporary-vs-longterm",
+      "version": 1,
+      "scenario": "temporary_need_vs_longterm_preference",
+      "query": "What should I cook tonight?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A standing preference and a one-off need. The preference must survive even though the need is far more recent.",
+      "memories": [
+        {
+          "id": "pref-meals",
+          "text": "I prefer vegetarian meals.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-02-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "temp-quick",
+          "text": "The user wants something quick tonight.",
+          "sourceCategory": "turn_derived_confirmed",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 70,
+          "createdAt": "2026-10-24T00:00:00.000Z",
+          "updatedAt": "2026-10-24T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-24T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "pref-meals",
+        "temp-quick"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {
+        "pref-meals": "food",
+        "temp-quick": "food"
+      }
+    },
+    {
+      "id": "dev-correction-safety",
+      "version": 1,
+      "scenario": "correction_safety",
+      "query": "Which city do I live in?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected city, with the replaced statement re-created as a new memory. Semantic similarity to the question is high for both texts.",
+      "memories": [
+        {
+          "id": "city-new",
+          "text": "I live in Suzhou now.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-08-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-08-20T00:00:00.000Z"
+        },
+        {
+          "id": "city-restated",
+          "text": "I live in Shanghai.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-09-01T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [
+        {
+          "memoryId": "city-new",
+          "revision": 1,
+          "text": "I live in Shanghai.",
+          "supersededAt": "2026-08-20T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-08-20T00:00:00.000Z"
+        }
+      ],
+      "expectedRelevantIds": [
+        "city-new"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "city-restated"
+      ],
+      "requiredOrder": [
+        "city-new"
+      ],
+      "topics": {
+        "city-new": "location",
+        "city-restated": "location"
+      }
+    },
+    {
+      "id": "dev-deletion-safety",
+      "version": 1,
+      "scenario": "deletion_safety",
+      "query": "What is my phone number and medical record?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "One retracted memory and one above the sensitivity ceiling. Semantic scoring must never widen access.",
+      "memories": [
+        {
+          "id": "phone-retracted",
+          "text": "My phone number is a synthetic value.",
+          "sourceCategory": "user_explicit_input",
+          "status": "retracted",
+          "sensitivity": "personal",
+          "confidence": 85,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": "record-sensitive",
+          "text": "My medical record contains a synthetic entry.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "sensitive",
+          "confidence": 85,
+          "createdAt": "2026-03-01T00:00:00.000Z",
+          "updatedAt": "2026-03-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-03-01T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "phone-retracted",
+        "record-sensitive"
+      ],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "dev-low-confidence",
+      "version": 1,
+      "scenario": "low_confidence_inference",
+      "query": "Do I like scary movies?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "'Scary movies' paraphrases 'horror films'. Both memories match semantically, so provenance and confidence must decide the order.",
+      "memories": [
+        {
+          "id": "infer-horror",
+          "text": "The model infers the user enjoys horror films.",
+          "sourceCategory": "model_inferred_confirmed",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 40,
+          "createdAt": "2026-09-01T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        },
+        {
+          "id": "explicit-horror",
+          "text": "I dislike horror films.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-09-02T00:00:00.000Z",
+          "updatedAt": "2026-09-02T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-02T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "explicit-horror"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "explicit-horror",
+        "infer-horror"
+      ],
+      "topics": {
+        "infer-horror": "media",
+        "explicit-horror": "media"
+      }
+    },
+    {
+      "id": "dev-empty-evidence",
+      "version": 1,
+      "scenario": "empty_evidence",
+      "query": "What is the airspeed of an unladen swallow?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Nothing in the store is about the question. A semantic model will still return non-zero similarity for everything, so the candidate floor is what keeps the context empty.",
+      "memories": [
+        {
+          "id": "work-only",
+          "text": "I work as a data analyst.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-05-01T00:00:00.000Z",
+          "updatedAt": "2026-09-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-15T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": [
+        "work-only"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "dev2-multi-revision-chain",
+      "version": 1,
+      "scenario": "multi_revision_correction",
+      "query": "What do I take notes with?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A memory corrected twice: notebook -> tablet -> laptop. Both earlier statements exist again as separate memories. Only the newest statement may be retrieved.",
+      "memories": [
+        {
+          "id": "chain",
+          "text": "I use a laptop for notes now.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-20T00:00:00.000Z"
+        },
+        {
+          "id": "paper-restated",
+          "text": "I use a paper notebook.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-10-21T00:00:00.000Z",
+          "updatedAt": "2026-10-21T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-21T00:00:00.000Z"
+        },
+        {
+          "id": "tablet-restated",
+          "text": "I use a tablet for notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-10-22T00:00:00.000Z",
+          "updatedAt": "2026-10-22T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-22T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [
+        {
+          "memoryId": "chain",
+          "revision": 1,
+          "text": "I use a paper notebook.",
+          "supersededAt": "2026-05-01T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-05-01T00:00:00.000Z"
+        },
+        {
+          "memoryId": "chain",
+          "revision": 2,
+          "text": "I use a tablet for notes.",
+          "supersededAt": "2026-10-20T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-10-20T00:00:00.000Z"
+        }
+      ],
+      "expectedRelevantIds": [
+        "chain"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "paper-restated",
+        "tablet-restated"
+      ],
+      "requiredOrder": [
+        "chain"
+      ],
+      "topics": {
+        "chain": "notes",
+        "paper-restated": "notes",
+        "tablet-restated": "notes"
+      }
+    },
+    {
+      "id": "dev2-duplicate-cluster",
+      "version": 1,
+      "scenario": "same_topic_many_duplicates",
+      "query": "How do I like my morning coffee?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Six restatements of one habit. The budget is 25 memories, so nothing is cut; the point is that the cluster does not push an unrelated memory out and does not multiply the same fact.",
+      "memories": [
+        {
+          "id": "dup-1",
+          "text": "I take my morning coffee black.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-06-01T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        },
+        {
+          "id": "dup-2",
+          "text": "I take my morning coffee black.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-06-02T00:00:00.000Z",
+          "updatedAt": "2026-09-02T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-02T00:00:00.000Z"
+        },
+        {
+          "id": "dup-3",
+          "text": "My morning coffee is black, no sugar.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 82,
+          "createdAt": "2026-06-03T00:00:00.000Z",
+          "updatedAt": "2026-09-03T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-03T00:00:00.000Z"
+        },
+        {
+          "id": "dup-4",
+          "text": "I drink black coffee in the morning.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-06-04T00:00:00.000Z",
+          "updatedAt": "2026-09-04T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-04T00:00:00.000Z"
+        },
+        {
+          "id": "dup-5",
+          "text": "Morning coffee, black, no sugar.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 78,
+          "createdAt": "2026-06-05T00:00:00.000Z",
+          "updatedAt": "2026-09-05T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-05T00:00:00.000Z"
+        },
+        {
+          "id": "dup-6",
+          "text": "I take my morning coffee black.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 76,
+          "createdAt": "2026-06-06T00:00:00.000Z",
+          "updatedAt": "2026-09-06T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-06T00:00:00.000Z"
+        },
+        {
+          "id": "dup-unrelated",
+          "text": "I prefer the window seat on trains.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-06-07T00:00:00.000Z",
+          "updatedAt": "2026-09-07T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-07T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "dup-1"
+      ],
+      "irrelevantIds": [
+        "dup-unrelated"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "dup-1",
+        "dup-unrelated"
+      ],
+      "topics": {
+        "dup-1": "drink",
+        "dup-2": "drink",
+        "dup-3": "drink",
+        "dup-4": "drink",
+        "dup-5": "drink",
+        "dup-6": "drink",
+        "dup-unrelated": "travel"
+      }
+    },
+    {
+      "id": "dev2-budget-limit",
+      "version": 1,
+      "scenario": "budget_limit",
+      "query": "project rollout notes",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Sixteen memories all matching the query, each long enough that only a few fit in 3000 characters. Verifies that the newest relevant note is not the one dropped by the budget.",
+      "memories": [
+        {
+          "id": "roll-01",
+          "text": "Project rollout note 01: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-01T00:00:00.000Z",
+          "updatedAt": "2026-10-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-01T00:00:00.000Z"
+        },
+        {
+          "id": "roll-02",
+          "text": "Project rollout note 02: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-02T00:00:00.000Z",
+          "updatedAt": "2026-10-02T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-02T00:00:00.000Z"
+        },
+        {
+          "id": "roll-03",
+          "text": "Project rollout note 03: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-03T00:00:00.000Z",
+          "updatedAt": "2026-10-03T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-03T00:00:00.000Z"
+        },
+        {
+          "id": "roll-04",
+          "text": "Project rollout note 04: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-04T00:00:00.000Z",
+          "updatedAt": "2026-10-04T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-04T00:00:00.000Z"
+        },
+        {
+          "id": "roll-05",
+          "text": "Project rollout note 05: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-05T00:00:00.000Z",
+          "updatedAt": "2026-10-05T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-05T00:00:00.000Z"
+        },
+        {
+          "id": "roll-06",
+          "text": "Project rollout note 06: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-06T00:00:00.000Z",
+          "updatedAt": "2026-10-06T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-06T00:00:00.000Z"
+        },
+        {
+          "id": "roll-07",
+          "text": "Project rollout note 07: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-07T00:00:00.000Z",
+          "updatedAt": "2026-10-07T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-07T00:00:00.000Z"
+        },
+        {
+          "id": "roll-08",
+          "text": "Project rollout note 08: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-08T00:00:00.000Z",
+          "updatedAt": "2026-10-08T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-08T00:00:00.000Z"
+        },
+        {
+          "id": "roll-09",
+          "text": "Project rollout note 09: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-09T00:00:00.000Z",
+          "updatedAt": "2026-10-09T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-09T00:00:00.000Z"
+        },
+        {
+          "id": "roll-10",
+          "text": "Project rollout note 10: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-10T00:00:00.000Z",
+          "updatedAt": "2026-10-10T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-10T00:00:00.000Z"
+        },
+        {
+          "id": "roll-11",
+          "text": "Project rollout note 11: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-11T00:00:00.000Z",
+          "updatedAt": "2026-10-11T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-11T00:00:00.000Z"
+        },
+        {
+          "id": "roll-12",
+          "text": "Project rollout note 12: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-12T00:00:00.000Z",
+          "updatedAt": "2026-10-12T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-12T00:00:00.000Z"
+        },
+        {
+          "id": "roll-13",
+          "text": "Project rollout note 13: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-13T00:00:00.000Z",
+          "updatedAt": "2026-10-13T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-13T00:00:00.000Z"
+        },
+        {
+          "id": "roll-14",
+          "text": "Project rollout note 14: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-14T00:00:00.000Z",
+          "updatedAt": "2026-10-14T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-14T00:00:00.000Z"
+        },
+        {
+          "id": "roll-15",
+          "text": "Project rollout note 15: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-15T00:00:00.000Z",
+          "updatedAt": "2026-10-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-15T00:00:00.000Z"
+        },
+        {
+          "id": "roll-16",
+          "text": "Project rollout note 16: the synthetic checklist covers staging review and the release gate for project rollout notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-16T00:00:00.000Z",
+          "updatedAt": "2026-10-16T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-16T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "roll-16",
+        "roll-15"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "roll-16",
+        "roll-15"
+      ],
+      "topics": {
+        "roll-01": "project",
+        "roll-02": "project",
+        "roll-03": "project",
+        "roll-04": "project",
+        "roll-05": "project",
+        "roll-06": "project",
+        "roll-07": "project",
+        "roll-08": "project",
+        "roll-09": "project",
+        "roll-10": "project",
+        "roll-11": "project",
+        "roll-12": "project",
+        "roll-13": "project",
+        "roll-14": "project",
+        "roll-15": "project",
+        "roll-16": "project"
+      }
+    }
+  ]
+}

@@ -56,7 +56,8 @@ export const SEMANTIC_SCENARIOS = [
   'correction_safety',
   'deletion_safety',
   'low_confidence_inference',
-  'empty_evidence'
+  'empty_evidence',
+  'multi_revision_correction'
 ] as const
 
 export type BenchmarkScenario = typeof BENCHMARK_SCENARIOS[number] | typeof SEMANTIC_SCENARIOS[number]
@@ -140,6 +141,15 @@ export interface AlgorithmTotals {
   topicCoverage: number
   budgetOverruns: number
   deterministic: boolean
+  /**
+   * Sample size and interval for the two headline proportions. Bare means on
+   * 12-16 synthetic cases overstate the confidence available.
+   */
+  uncertainty: {
+    cases: number
+    firstRank: { hits: number; proportion: number; wilson95: [number, number] }
+    leakFree: { cases: number; hits: number; proportion: number; wilson95: [number, number] }
+  }
 }
 
 export interface CaseComparison {
@@ -460,6 +470,24 @@ export function compare(v1: CaseMetrics, v2: CaseMetrics): 'v1' | 'v2' | 'tie' {
   return 'tie'
 }
 
+/**
+ * Wilson score interval at 95% for a binomial proportion.
+ *
+ * With 12-16 synthetic cases a bare mean implies a precision the sample cannot
+ * support; the interval makes that explicit.
+ */
+export function wilson95(hits: number, n: number): [number, number] {
+  if (n === 0) return [0, 1]
+  const z = 1.959963984540054
+  const p = hits / n
+  const denominator = 1 + (z * z) / n
+  const centre = (p + (z * z) / (2 * n)) / denominator
+  const margin = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / denominator
+  const low = Math.max(0, centre - margin)
+  const high = Math.min(1, centre + margin)
+  return [Number(low.toFixed(4)), Number(high.toFixed(4))]
+}
+
 export function mean(values: readonly number[]): number {
   return values.length === 0 ? 0 : Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(4))
 }
@@ -480,7 +508,36 @@ function totals(algorithm: RetrievalAlgorithmId, metrics: readonly CaseMetrics[]
     duplicatePairs: metrics.reduce((sum, item) => sum + item.duplicatePairs, 0),
     topicCoverage: mean(metrics.map((item) => item.topicCoverage)),
     budgetOverruns: metrics.filter((item) => item.budgetOverrun).length,
-    deterministic
+    deterministic,
+    uncertainty: totalsUncertainty(metrics)
+  }
+}
+
+function totalsUncertainty(metrics: readonly CaseMetrics[]): AlgorithmTotals['uncertainty'] {
+  const ranked = metrics.filter((item) => item.recallAt1 !== 1 || item.reciprocalRank !== 1)
+  // A case with an empty expectation is trivially "rank 1 correct"; exclude it
+  // from the first-rank proportion so an easy win does not pad the interval.
+  const firstRankCases = metrics.filter((item) => item.selectedCount > 0 || item.recallAt1 === 1)
+  const firstRankHits = metrics.filter((item) => item.recallAt1 === 1 && (item.selectedCount > 0 || item.selectedIds.length === 0)).length
+  void ranked
+  void firstRankCases
+  const firstRankN = metrics.filter((item) => item.recallAt1 > 0 || item.reciprocalRank > 0).length
+  const firstRankCount = metrics.filter((item) => item.reciprocalRank === 1 && item.selectedCount > 0).length
+  const leakFreeCount = metrics.filter((item) => item.leaks.length === 0).length
+  const firstProportion = firstRankN === 0 ? 1 : firstRankCount / firstRankN
+  return {
+    cases: metrics.length,
+    firstRank: {
+      hits: firstRankCount,
+      proportion: Number(firstProportion.toFixed(4)),
+      wilson95: wilson95(firstRankCount, firstRankN)
+    },
+    leakFree: {
+      cases: metrics.length,
+      hits: leakFreeCount,
+      proportion: Number((leakFreeCount / Math.max(1, metrics.length)).toFixed(4)),
+      wilson95: wilson95(leakFreeCount, metrics.length)
+    }
   }
 }
 
