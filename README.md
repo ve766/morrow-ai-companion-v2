@@ -41,10 +41,10 @@ docs/               审计、架构、算法、测试文档
 
 ## 安装与运行（Windows）
 
-要求：Node.js ≥ 22.13（使用内置 `node:sqlite`，无原生编译需求）、npm 10+。
+要求：Node.js ≥ 22.13（`node:sqlite` 自 v22.13.0 起无需 `--experimental-sqlite` 标志；**无原生模块，无需本地编译工具链**）、npm 10+。
 
 ```bash
-npm install          # 含 Electron 二进制与 better-sqlite3 预编译模块
+npm install          # 安装依赖并确保 Electron 二进制就位（无原生模块编译步骤）
 npm run dev          # 启动开发实例
 ```
 
@@ -53,9 +53,11 @@ npm run dev          # 启动开发实例
 ```bash
 npm run typecheck    # tsc --noEmit
 npm test             # vitest 全量（40 文件 / 268 测试）
+npm run evaluate     # 离线评估：记忆检索（substring 基线 vs scope-aware 候选）
+npm run evaluate:cognition  # 离线评估：轮次分析 / 内在状态 / 认知 Alpha 对抗
 npm run build        # electron-vite 构建
 npm run smoke        # 真实 Electron 冒烟（凭据生命周期/认知开关/记忆/目标/提醒/重启）
-npm run verify       # 上述全部
+npm run verify       # 上述全部（typecheck + test + 两项评估 + build + smoke）
 ```
 
 验收场景 A–H 的自动化映射：`tests/acceptance/scenarios.test.ts`（场景说明见

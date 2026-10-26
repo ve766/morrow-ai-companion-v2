@@ -1,6 +1,6 @@
 {
   "name": "morrow-ai-companion-v2",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Local-first AI companion with a traceable cognitive loop",
   "main": "./out/main/index.js",
