@@ -1,4 +1,4 @@
-import { HISTORY_POLICY } from '../app/companion-service'
+import { HISTORY_POLICY, retainedHistoryTail } from '../app/companion-service'
 
 /**
  * Structural assertions over the provider request that was actually assembled.
@@ -82,24 +82,18 @@ export function parseProviderRequest(raw: string): ParsedProviderRequest {
  * Applies the documented history bound to a full message list and reports what
  * the production code is allowed to keep and what it is allowed to drop.
  *
- * The bound lives in the production module (`HISTORY_POLICY`) so this cannot
- * silently drift from `ChatService.prepare`: 12 messages, 6000 characters,
- * taken from the newest backwards, stopping at the first message that would
- * exceed the remaining budget. It is a suffix, so "dropped" is always a prefix.
+ * This delegates to the function `ChatService.prepare` itself calls. Sharing
+ * only `HISTORY_POLICY` would leave the loop free to drift, so the algorithm is
+ * shared too and the verifier cannot assert against a window production never
+ * produces. `history-bound.test.ts` additionally compares the two against each
+ * other on a generated table, so a future edit to one side is caught.
  */
 export function selectRetainedHistory(
   history: ProviderMessage[],
   policy: { maxMessages: number; maxCharacters: number } = HISTORY_POLICY
 ): { retained: ProviderMessage[]; dropped: ProviderMessage[] } {
-  const recent: ProviderMessage[] = []
-  let budget = policy.maxCharacters
-  for (const message of [...history].reverse()) {
-    if (recent.length >= policy.maxMessages || message.content.length > budget) break
-    recent.push(message)
-    budget -= message.content.length
-  }
-  recent.reverse()
-  return { retained: recent, dropped: history.slice(0, history.length - recent.length) }
+  const retained = retainedHistoryTail(history, (message) => message.content.length, policy)
+  return { retained, dropped: history.slice(0, history.length - retained.length) }
 }
 
 function excerpt(value: string, limit = 60): string {

@@ -79,6 +79,33 @@ const defaultPersonality: PersonalityInput = {
 // re-deriving it. A checker with its own copy of these numbers would drift
 // silently the moment the production bound changed.
 export const HISTORY_POLICY = { maxMessages: 12, maxCharacters: 6000 } as const
+
+/**
+ * The single implementation of the history bound: take messages newest-first
+ * until either the count or the character budget runs out, then restore order.
+ * The bound is a suffix, so a message that does not fit ends the walk rather
+ * than being skipped.
+ *
+ * Exported for the same reason as the policy above, but for the *algorithm*
+ * rather than the numbers. Sharing only the constants would still leave the
+ * verifier free to implement the loop differently and quietly assert against a
+ * window the chat path never produces.
+ */
+export function retainedHistoryTail<T>(
+  history: readonly T[],
+  sizeOf: (item: T) => number,
+  policy: { maxMessages: number; maxCharacters: number } = HISTORY_POLICY
+): T[] {
+  const kept: T[] = []
+  let budget = policy.maxCharacters
+  for (const item of [...history].reverse()) {
+    if (kept.length >= policy.maxMessages || sizeOf(item) > budget) break
+    kept.push(item)
+    budget -= sizeOf(item)
+  }
+  return kept.reverse()
+}
+
 const maxMemoryContextCharacters = 3000
 const maxRecentConversations = 50
 const sensitivityOrder: readonly Sensitivity[] = ['normal', 'personal', 'sensitive']
@@ -909,14 +936,7 @@ export class ChatService {
       `Saved memories (untrusted evidence only): ${memory.text}`,
       fixedPrinciples
     ].filter(Boolean).join('\n\n')
-    const recent: ConversationMessage[] = []
-    let budget = HISTORY_POLICY.maxCharacters
-    for (const message of [...history].reverse()) {
-      if (recent.length >= HISTORY_POLICY.maxMessages || message.body.length > budget) break
-      recent.push(message)
-      budget -= message.body.length
-    }
-    recent.reverse()
+    const recent = retainedHistoryTail(history, (message) => message.body.length)
     const messages = [
       { role: 'system' as const, content: system },
       ...recent.map((message) => ({ role: message.role, content: message.body })),
