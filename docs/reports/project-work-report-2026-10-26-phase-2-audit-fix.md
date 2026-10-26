@@ -89,10 +89,30 @@ CI 内的步骤（步骤级结论，逐条核对自 API，不是凭印象）：�
 | `b2a16a3` | 上述四者 + 本报告 | 有，[40334673549](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40334673549) — success |
 | `b10f088` | 报告 §A.2 回填 | 有，[40335743832](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40335743832) — success |
 | `151f123` | 报告措辞修正 | 有，[40335930849](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40335930849) — success |
+| `c4aecc3` | 新增 §A.2.a / §E 第 12 条 | 有，[40336723143](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40336723143) — **第 1 次 attempt `failure`，第 2 次 attempt `success`**，详见 §A.2.b |
 
 结论要说准：**能证明的是「`af91825..7bf2e54` 这一串叠加后的树，在 `b2a16a3` 上通过了完整流水线」**，不能证明「链上每一个中间提交各自是绿的」。由于这四段改动彼此不独立（`request-assertions.ts` 只有配上 `062dfa2` 的重写才有调用方），对中间提交单独跑 CI 会大面积出现「引用了尚未提交的模块」的假红，反而降低信号。这一点列入 §E。
 
-> 不要用修复前的 run 40324745303（`f579897`，同样 success）推断修复后的状态。两者是同一条流水线在两份不同代码上的结果，前者证明的是**有缺陷的代码**也能通过 CI —— 这本身说明 CI 只覆盖离线信号，不覆盖真实 Provider 行为。
+#### A.2.b `c4aecc3` 的第一次 attempt 是红的，如实记录
+
+`c4aecc3` 是**纯文档提交**（只改本报告）。它的第一次 CI attempt **失败了**：
+
+| 项 | 值 |
+|---|---|
+| 失败 Job | `Windows upgrade path (schema migrations under the real app)` |
+| 报错 | `Error: Test timed out in 20000ms` |
+| 位置 | `src/persistence/backup-service.test.ts:254`（用例 `flags backups that predate the deletion journal`） |
+| 同 run 其余两个 Job | `success` |
+| 第 2 次 attempt | **全部 3 个 Job `success`**，run 结论 `success` |
+
+这不是「修复引入的回归」，判据是四条而不是一句「重跑就好了」：
+
+1. `git log f579897..HEAD -- src/persistence/backup-service.test.ts` **为空** —— 该文件在本 PR 中一行未改。
+2. 失败用例做的是「建 workspace → 以 journal 之前的 schema 导出备份 → 读回校验」，在 Windows runner 上是重 I/O + 多次 fsync；同一 Job 里的迁移测试也做同类操作。
+3. **同一份代码（仅文档不同）此前已连续 3 次全绿**：`b2a16a3`、`b10f088`、`151f123`。加上 `c4aecc3` 的第 2 次 attempt，同一代码 **4 绿 1 红**。
+4. 本机此前在未修改的 `origin/main` 上复现过同一失败（阶段二报告 §12.3 记录：`backup-service`、`migrations` 均超时）。
+
+**但必须承认它难看**：一条 documents-only 提交把 CI 弄红，说明这条流水线在 Windows 上对时序敏感，红/绿本身带有随机性。因此本报告**不把「CI 绿」当作修复正确的证明**——修复正确性由 §C.1 的失败能力证明与 §D 的真实 Provider 结构断言承担，CI 只负责排除「离线套件被打破」。这一点列入 §E 第 10 条。
 
 > 不要用修复前的 run 40324745303（`f579897`，同样 success）推断修复后的状态。两者是同一条流水线在两份不同代码上的结果，前者证明的是**有缺陷的代码**也能通过 CI —— 这本身说明 CI 只覆盖离线信号，不覆盖真实 Provider 行为。
 
@@ -400,7 +420,7 @@ turn-4 非 system 消息**只有 1 条**（当前提问），system 提示词含
 | 7 | 云端 Provider（DeepSeek）未真实调用 | 中 | 无凭据、未产生任何付费请求。模型名、endpoint、hash 绑定均由离线用例与代码核对覆盖，**真实链路未验证**。 |
 | 8 | Windows 安装包未打包 | 中 | 未执行。 |
 | 9 | `>12` 轮长对话未实测 | 低 | 真实运行只有 3 轮（4 条历史，不触发裁剪）。裁剪边界由离线 `ctx-02`（20 轮）覆盖。 |
-| 10 | 本地 `vitest` 默认并发偶发超时 | 低 | 既有问题（`testTimeout: 20_000` 已在本 PR 前一提交修复）。本轮全部使用 `--maxWorkers=2` 执行。 |
+| 10 | **CI 在 Windows 上对时序敏感，红/绿带随机性** | 中 | 部分修复。既有问题：`testTimeout: 20_000` 已在本 PR 前一提交从 5000ms 上调。但 `c4aecc3`（纯文档）的首次 attempt 仍在 `backup-service.test.ts:254` 撞到 20000ms 超时，第 2 次 attempt 全绿；同一代码 4 绿 1 红。**根因未解**：该用例在 Windows runner 上做重 I/O + 多次 fsync，超时是 worker 被饿，不是逻辑错。本轮不改它（属未触及的文件，改超时值等于用一个无关改动掩盖信号），只如实记录尝试次数。影响：**不能把单次 CI 绿当作证据**，见 §A.2.b。 |
 | 11 | 报告路径守卫的符号链接分支未单测 | 低 | `assertNoSymlink` 只在真实符号链接上触发，Windows 上创建符号链接需要额外权限，本轮只做了「不存在路径不误报」的负向对照。 |
 | 12 | **代码提交成组推送，中间提交没有独立 CI run** | 低 | 未修复（见 §A.2.a）。四个代码提交 `af91825..7bf2e54` 只作为整体在 `b2a16a3` 上被 CI 验证过。**不声称「链上每个提交各自是绿的」**；能证明的仅是叠加后的树通过完整流水线。若需逐提交绿，须拆成四个 PR 分别推送，本轮未做。 |
 
@@ -455,5 +475,6 @@ MORROW_REAL_PROVIDER_ENDPOINT='http://127.0.0.1:9/v1' npm run verify:real  # 期
 | 第 2 版 | 2026-10-26 | 回填 §A.2 的真实 CI 证据：run **40334673549** @ `b2a16a3`，3/3 Job success。修正 §A.1 中 `request-assertions.test.ts` 的用例数为 22。本行为纯文档提交，不改变任何代码结论。 |
 | 第 3 版 | 2026-10-26 | 把「本文件所在提交」改为「**首次引入本文件**的提交」。原措辞在后续纯文档提交后必然失真——任何声称「本文件所在提交 = 某 SHA」的句子在写下时即已过期，故只声明引入提交，不声明当前 head。 |
 | 第 4 版 | 2026-10-26 | 新增 §A.2.a：给出完整 run 序列（按 head SHA，逐条核自 API），并明确声明四个代码提交是**成组推送、无独立 run**，只对叠加后的树作出通过结论。§E 新增第 12 条记录该粒度缺口。 |
+| 第 5 版 | 2026-10-26 | 新增 §A.2.b：`c4aecc3` 首次 CI attempt **红**（Windows Job，`backup-service.test.ts:254` 超时 20000ms），重跑全绿。给出 4 绿 1 红 的量化对比与「未改该文件」的判据。§E 第 10 条由「本地偶发超时」升级为「CI 在 Windows 上红/绿带随机性」并标为**中**。同时修掉了上一版误留的一段重复引用块。 |
 
 > 任何提交的 CI 结论都可用 `gh run list --branch feat/phase-2-companion-core --json headSha,conclusion` 按 head SHA 对齐核验；PR #3 的 Checks 页同样按 SHA 分组。本报告只对**已明确写出 SHA 的 run** 作出结论，不对「分支最新」作任何未经核对的推断。
