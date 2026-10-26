@@ -8,10 +8,12 @@
 | 基线 | `main` @ `8b207b7` |
 | Pull Request | **#2** — https://github.com/ve766/morrow-ai-companion-v2/pull/2 |
 | PR 状态 | **OPEN / 未合并**（等待人工审查与审计） |
-| CI 运行 | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40308680325 |
-| CI 总结果 | **success**（3 / 3 Job 通过） |
+| 报告版本 | **第 2 版**（2026-10-26 审计修正：仅修正完成状态表述，未改任何验证结论、未改任何代码） |
+| CI 运行（实质改动 `44ffe42`） | [run 40308680325](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40308680325) — **success**（3 / 3 Job） |
+| CI 运行（报告第 1 版 `fd6c6cd`） | [run 40309704692](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40309704692) — **success**（3 / 3 Job） |
+| CI 覆盖范围 | **仅限 `.github/workflows/ci.yml` 定义的检查项**；不含真实 Provider 对话、不含 Windows 安装包实际打包（见 §1.1、§1.2） |
 
-本报告中的所有事实均来自本次实际执行的命令输出。凡未执行、失败或无法验证的项目，均在 §6 单独列明，不与通过项混写。
+本报告中的所有事实均来自本次实际执行的命令输出。凡未执行、失败或无法验证的项目，均在 §1.1 与 §6 单独列明，不与通过项混写。
 
 ---
 
@@ -25,10 +27,26 @@
 | 2 | 清理失效 CI 步骤 | **已完成** | 删除两个 job 中的 `npm rebuild better-sqlite3`（−5 行）；确认项目使用 `node:sqlite`；未改动其他 CI 行为 |
 | 3 | 修正文档 | **已完成** | README、验收报告、旧资产审计三处 SQLite 表述修正；补全 `verify` 命令链与 Node 版本依据 |
 | 4 | 回归验证 | **已完成（本地 smoke 除外）** | typecheck / 268 测试 / 两组离线评估 / build 本地通过；smoke 本地失败但 CI 通过，判定为环境问题（§6.1） |
-| 5 | 提交并创建 PR | **已完成** | 3 个提交已推送，PR #2 已创建，**未合并** |
+| 5 | 提交并创建 PR | **已完成** | 5 个提交已推送（3 个实质改动 + 2 个报告文档），PR #2 已创建，**未合并** |
 | 6 | 交付报告 | **本文件** | — |
 
-未完成项：无（smoke 由 CI 判定通过，详见 §5.3 与 §6.1）。
+**完成状态的准确表述**：本阶段的**工程收尾任务**（版本号统一、CI 死步骤清理、文档修正、回归验证）已完成，并已通过 PR #2 提交审查。但**产品能力验证仍有未覆盖项**——本阶段并未、也不能宣称真实陪伴能力已经验收。未覆盖项见 §1.1；失败与无法验证项见 §6。
+
+### 1.1 验证边界与未覆盖项
+
+本阶段交付的是**工程基线**，不是产品验收。以下三项**未执行**，且不在本阶段范围内，其结论不得由本报告的 CI 结果推导：
+
+| # | 未覆盖项 | 状态 | 说明 |
+|---|---|---|---|
+| A | **真实 Provider 多轮对话端到端验证** | **未执行** | 本阶段未使用任何真实 Provider 凭据发起对话，未发起任何真实云端请求。因此以下均**未验证**：多轮上下文连贯性、记忆召回路在真实语料上的实际效果、人格与内在状态在长对话中的行为、模型回复质量。CI 与本地评估输出中的 `providerCalls: 0` / `networkCalls: 0` 恰恰**证明这类调用一次都没有发生**——它是"离线可复现"的证据，不是"真实对话可用"的证据。 |
+| B | **Windows 安装包实际打包验证** | **未执行** | `npm run package:win`（electron-builder NSIS）未运行，未产出任何 `.exe`，未验证安装、覆盖升级、卸载、签名与产物命名。`Morrow-Setup-2.0.0-x64.exe` 这一名称是由 `package.json:50` 的 `artifactName` 模板**推导**得出，不是实测结果。 |
+| C | **真实陪伴效果验收** | **未执行** | 对话质量、长期记忆可用性、逐轮同意摩擦对留存的实际影响，均需真实使用后才能评估。本阶段无任何此类数据。 |
+
+### 1.2 「CI 通过」的准确含义
+
+CI 全绿只证明一件事：**当前 `.github/workflows/ci.yml` 所定义的那几项检查，在这两个 runner 上通过了**。具体是：类型检查、268 个单元/集成测试、两组合成 fixture 离线评估、构建产物生成，以及在隔离 profile 与无网络出口条件下的 Electron 冒烟。
+
+它**不能**推出：真实模型回复质量合格、多轮对话可用、记忆在真实语料上有效、安装包可用、产品体验达标。本报告全文中任何「通过」字样均限定在上述检查范围内，**不构成对真实陪伴能力的验收结论**。
 
 ---
 
@@ -194,9 +212,23 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 
 **结论性事实**：smoke 在两个 runner 上都真实通过，覆盖凭据保存/重启/删除、认知默认关闭与显式开启、记忆生命周期、目标与审批安全、提醒控制、持久化与重启校验。这直接反证本地 smoke 失败属本机环境问题。
 
+**第二次运行**（报告第 1 版 `fd6c6cd`，docs-only 提交触发的 `pull_request` 运行）同样 3/3 通过：
+
+| Job | 结论 | 耗时 |
+|---|---|---|
+| Typecheck, tests, build and smoke (`ubuntu-latest`) | **pass** | 1m27s |
+| Typecheck, tests, build and smoke (`windows-latest`) | **pass** | 1m56s |
+| Windows upgrade path (schema migrations under the real app) | **pass** | 47s |
+
+运行链接：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40309704692 （`completed / success`，时段 `10:44:08Z → 10:46:09Z`）
+
+> 两次运行覆盖的都是**同一批源码改动**（提交 1–3），第二次仅因追加文档提交而重跑。它们证明的是工程检查项稳定通过，**不改变 §1.1 的未覆盖项状态**。
+
 ---
 
 ## 6. 未执行 / 失败 / 无法验证的项目
+
+本节是与通过项隔离的**权威清单**，对应 §1.1 的未覆盖项：§6.2 = 未覆盖项 A，§6.3 = 未覆盖项 B，§6.6 = 未覆盖项 C。任何一项都不因 §5.3 的 CI 通过而改变状态。
 
 ### 6.1 本地 `npm run smoke` —— 失败，已判定为环境问题
 
@@ -215,13 +247,15 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 
 对照用的两个临时 worktree 已清理（`git worktree list` 只剩主工作树）。
 
-### 6.2 真实对话端到端 —— 未执行
+### 6.2 真实 Provider 多轮对话端到端 —— 未执行（未覆盖项 A）
 
-需真实 Provider 凭据与逐轮人工同意，超出本阶段范围。本阶段**不声称**任何云端调用、对话质量或陪伴效果已验证。
+本阶段未使用任何真实 Provider 凭据发起对话，未发起任何真实云端请求。需真实凭据与逐轮人工同意，超出本阶段范围。
 
-### 6.3 打包产物 —— 未执行
+本阶段**不声称**任何云端调用、多轮上下文连贯性、对话质量或陪伴效果已验证。CI 日志中的 `providerCalls: 0` / `networkCalls: 0` 只能证明离线链路干净，不能反过来当作真实对话可用的证据。
 
-`npm run package:win`（electron-builder NSIS）未运行，因此 `Morrow-Setup-2.0.0-x64.exe` 的实际文件名由配置推导，未产出实物验证。属本阶段范围外。
+### 6.3 Windows 安装包实际打包 —— 未执行（未覆盖项 B）
+
+`npm run package:win`（electron-builder NSIS）未运行，因此 `Morrow-Setup-2.0.0-x64.exe` 的实际文件名是由 `package.json:50` 的 `artifactName` 模板推导得出，**未产出任何 `.exe` 实物**，安装 / 覆盖升级 / 卸载 / 签名 / 产物命名均未验证。属本阶段范围外。
 
 ### 6.4 CI 告警（未处理，超出允许改动范围）
 
@@ -233,6 +267,12 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 **评估报告的 `reportSha256` 跨平台不可复现**：同一数据集、同一 `deterministicHash`（`209d8d37…`，Linux 与 Windows 完全一致），但 `reportSha256` 不同 —— Linux `d18c8225…`、Windows `c5c1948d…`。原因已定位：报告 JSON 内嵌 `generatedAt` 时间戳（本地实测 `evaluation/reports/m3-synthetic-retrieval-report.json` 含 `"generatedAt": "2026-10-26T10:06:35.807Z"`），时间戳进入哈希输入。
 
 影响：`reportSha256` 不能作为跨运行一致性凭据，`deterministicHash` 可以。修复需改 `scripts/run-evaluation.mjs`，属算法/脚本变更，**本阶段明确不修**，建议列入下一阶段。
+
+**修复状态：未修复。** 本问题在本阶段结束时**依然存在**，本次审计修正也未触碰 `scripts/run-evaluation.mjs` 或任何评估输出逻辑，因此该跨平台不一致在最新提交上仍然可复现。任何把本报告理解为「该问题已修复」的解读都是错误的——此处只做记录，不做修复。
+
+### 6.6 真实陪伴效果验收 —— 未执行（未覆盖项 C）
+
+对话质量、长期记忆在真实使用中的可用性、逐轮同意摩擦对留存的实际影响，均需真实使用后才能评估。本阶段无任何此类数据，也未做任何主观质量判断。此状态不因 CI 全绿而改变。
 
 ---
 
@@ -249,10 +289,18 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 
 ## 8. 遗留问题
 
-1. **评估报告哈希不可复现**（§6.5）——建议下一阶段修 `run-evaluation.mjs`，把 `generatedAt` 排除在哈希输入外，或改用确定性时间。
-2. **本机 Electron 渲染层不可用**——影响本机所有依赖 GUI 的验证（smoke、真实对话）。建议单独排查（GPU/驱动/安全策略），不阻塞 CI 流程。
-3. **CI action 版本与 runner 镜像告警**（§6.4）——非紧急，建议与下一次 CI 变更合并处理。
-4. **产品层三个 P1 缺口未动**（记忆召回 `score > 0` 硬过滤、逐轮同意摩擦、兴趣/自我模型无 UI）——按任务边界「不修改记忆召回算法/人格算法/内在状态算法/授权策略」，本阶段不触碰。
+**一、本阶段明确未覆盖、需下一阶段承接的验证（对应 §1.1）**
+
+1. **真实 Provider 多轮对话端到端未验证**（未覆盖项 A / §6.2）——需真实凭据、真实云端请求、多轮上下文与记忆召回的实况观察。
+2. **Windows 安装包未实际打包**（未覆盖项 B / §6.3）——需运行 `npm run package:win` 并验证安装 / 升级 / 卸载 / 产物命名。
+3. **真实陪伴效果未验收**（未覆盖项 C / §6.6）——需真实使用数据，无法由任何自动化检查替代。
+
+**二、工程层遗留**
+
+4. **评估报告哈希不可复现**（§6.5）——**未修复**。建议下一阶段修 `run-evaluation.mjs`，把 `generatedAt` 排除在哈希输入外，或改用确定性时间。
+5. **本机 Electron 渲染层不可用**——影响本机所有依赖 GUI 的验证（smoke、真实对话）。建议单独排查（GPU/驱动/安全策略），不阻塞 CI 流程。
+6. **CI action 版本与 runner 镜像告警**（§6.4）——非紧急，建议与下一次 CI 变更合并处理。
+7. **产品层三个 P1 缺口未动**（记忆召回 `score > 0` 硬过滤、逐轮同意摩擦、兴趣/自我模型无 UI）——按任务边界「不修改记忆召回算法/人格算法/内在状态算法/授权策略」，本阶段不触碰。
 
 ---
 
@@ -280,10 +328,26 @@ $ grep -c "better-sqlite3" .github/workflows/ci.yml
 | 提交 1 | `04af222` — `chore(release): align package version with the documented 2.0.0` |
 | 提交 2 | `d978f09` — `ci: remove the obsolete better-sqlite3 rebuild step` |
 | 提交 3 | `44ffe42` — `docs: correct the SQLite/Node statements and document the evaluation commands` |
+| 提交 4 | `fd6c6cd` — `docs(report): phase 1 work report with reproducible verification evidence`（报告第 1 版） |
+| 提交 5 | 本次审计修正提交（**仅本报告文件**，docs-only）—— SHA 见 PR #2 提交列表；其触发的新一轮 CI 结果见 PR #2 Checks |
 | PR | #2 — https://github.com/ve766/morrow-ai-companion-v2/pull/2 （OPEN，`MERGEABLE`，**未合并**） |
-| CI | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40308680325 （**success**，3/3 Job 通过） |
-| 本报告 | `docs/reports/project-work-report-2026-10-26-phase-1.md` |
+| CI（实质改动 `44ffe42`） | [run 40308680325](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40308680325) — **success**，3/3 Job |
+| CI（报告第 1 版 `fd6c6cd`） | [run 40309704692](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40309704692) — **success**，3/3 Job |
+| 本报告 | `docs/reports/project-work-report-2026-10-26-phase-1.md`（第 2 版） |
 
-**关于本报告自身的提交**：本报告作为 PR #2 的第 4 个提交追加，**仅新增本文件，无任何代码/配置变更**。因此上表 CI 运行 `40308680325` 覆盖的是全部实质性改动（提交 1–3，head `44ffe42`）；本报告提交会触发新一轮 `pull_request` 运行，其结果不记录在此文件内（否则会形成"改一次报告触发一次 CI"的循环），请以 PR #2 的 Checks 页面为最终依据，最新提交 SHA 与最终 CI 状态亦见 PR 描述。
+**关于本报告自身的提交**：报告第 1 版（`fd6c6cd`）与本次审计修正提交均属 docs-only，不含任何代码/配置变更。上表两个 CI 运行分别覆盖全部实质性改动（提交 1–3，head `44ffe42`）与报告第 1 版（`fd6c6cd`）。
 
-**停止点**：本报告上传后即停止，不开始下一阶段，不合并 PR，等待审计。
+**本次审计修正提交的 CI 状态**：截至本报告写入时，该提交尚未创建、其 CI 运行尚未启动，因此本报告**不宣称**它已通过——不做预判，也不把尚未运行的检查写成已通过。请以 PR #2 的 Checks 页面为最终依据；该运行结束后，其真实结论同步记录在 PR #2 描述中。
+
+**停止点**：本报告修正推送后即停止，不合并 PR，不开始第二阶段，等待复审。
+
+---
+
+## 11. 修订记录
+
+| 版本 | 日期 | 变更 | 是否触及代码 |
+|---|---|---|---|
+| 第 1 版 | 2026-10-26 | 初版：工程收尾执行记录 + 验证证据 | 未触及（随提交 1–4 交付） |
+| **第 2 版** | 2026-10-26 | 按审计意见修正**完成状态表述**：① 删除「未完成项：无」，改为「工程收尾已完成，产品能力验证仍有未覆盖项」；② 新增 §1.1 显式列出未执行的真实 Provider 多轮对话端到端验证、Windows 安装包实际打包验证、真实陪伴效果验收；③ 新增 §1.2 说明 CI 通过的准确边界；④ §6.2 / §6.3 标题与内容标注为「未覆盖项 A / B」，新增 §6.6；⑤ §6.5 增补「修复状态：未修复」；⑥ §8 拆分「未覆盖验证」与「工程遗留」 | **未触及**（仅本报告文件） |
+
+第 2 版**未改动**任何验证结论、命令输出、CI 结果或代码；仅调整完成状态的表述精度。
