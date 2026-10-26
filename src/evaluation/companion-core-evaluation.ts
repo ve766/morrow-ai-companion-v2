@@ -50,6 +50,12 @@ export interface CompanionCoreExpectation {
   rawContains?: string[]
   rawExcludes?: string[]
   roles?: string[]
+  /** Exact ordered non-system history messages: roles and contents, position by position. */
+  history?: Array<{ role: string; content: string }>
+  /** No message of any role may contain these strings. Structural, not a raw substring scan. */
+  excludeContents?: string[]
+  /** Exact number of memory entries injected into the system prompt. */
+  memoryCount?: number
   maxMessageCount?: number
   errorCode?: string
   storedAssistantCount?: number
@@ -59,17 +65,19 @@ export interface CompanionCoreExpectation {
 }
 
 export interface CompanionCoreStep {
-  type: 'newConversation' | 'send' | 'sendAndCancel' | 'correct' | 'retract' | 'delete' | 'setPersonality' | 'restorePersonality'
+  type: 'newConversation' | 'send' | 'sendAndCancel' | 'correct' | 'retract' | 'restore' | 'delete' | 'setPersonality' | 'restorePersonality'
   content?: string
   memoryIndex?: number
   version?: number
   personality?: PersonalityInput
+  /** Raises the sensitivity bound for this turn, as the real consent dialog does. */
+  includeSensitive?: boolean
 }
 
 export interface CompanionCoreCase {
   id: string
   dimension: CompanionCoreDimension
-  providerMode?: 'ok' | 'auth' | 'timeout' | 'hang'
+  providerMode?: 'ok' | 'auth' | 'timeout' | 'network' | 'hang'
   cognitive?: boolean
   memories?: CompanionCoreMemorySpec[]
   personality?: PersonalityInput
@@ -101,6 +109,8 @@ export interface CompanionCoreCaseResult {
 
 export interface CompanionCoreReport {
   dataset: { id: string; caseCount: number }
+  // Stated explicitly so a reader cannot mistake this report for model evidence.
+  evidenceClass: 'offline_deterministic_stub'
   gate: { passed: boolean; failedChecks: string[] }
   metrics: { cases: number; passed: number; failed: number; dimensionCoverage: Record<string, number> }
   determinism: { resultHash: string; replayStable: boolean }
@@ -155,6 +165,7 @@ function createHarness(testCase: CompanionCoreCase): Harness {
     calls += 1
     if (mode === 'auth') throw new ApplicationError('PROVIDER_AUTH')
     if (mode === 'timeout') throw new ApplicationError('PROVIDER_TIMEOUT')
+    if (mode === 'network') throw new ApplicationError('PROVIDER_NETWORK')
     if (mode === 'hang') {
       await new Promise<void>((_resolve, reject) => {
         const cancel = (): void => reject(new ApplicationError('PROVIDER_CANCELLED'))
@@ -251,6 +262,7 @@ function memoryCountIn(system: string): number {
 async function runCase(testCase: CompanionCoreCase): Promise<CompanionCoreCaseResult> {
   const harness = createHarness(testCase)
   const failures: string[] = []
+  const stepErrors: Array<{ index: number; code: string }> = []
   let lastError: string | null = null
   let conversation = harness.companion.createConversation()
 
@@ -264,14 +276,14 @@ async function runCase(testCase: CompanionCoreCase): Promise<CompanionCoreCaseRe
             conversationId: conversation.id,
             requestId: `00000000-0000-4000-9000-${(stepIndex + 1).toString(16).padStart(12, '0')}`,
             content: step.content ?? '',
-            includeSensitive: false
+            includeSensitive: step.includeSensitive === true
           }, () => undefined)
         } else if (step.type === 'sendAndCancel') {
           const pending = harness.companion.sendChat({
             conversationId: conversation.id,
             requestId: `00000000-0000-4000-9000-${(stepIndex + 1).toString(16).padStart(12, '0')}`,
             content: step.content ?? '',
-            includeSensitive: false
+            includeSensitive: step.includeSensitive === true
           }, () => undefined)
           harness.companion.cancelChat({ conversationId: conversation.id })
           await pending
@@ -283,6 +295,10 @@ async function runCase(testCase: CompanionCoreCase): Promise<CompanionCoreCaseRe
           const id = harness.memoryIds[step.memoryIndex ?? 0]
           if (!id) throw new CompanionCoreEvaluationError('MISSING_MEMORY_INDEX')
           harness.memories.retract(id)
+        } else if (step.type === 'restore') {
+          const id = harness.memoryIds[step.memoryIndex ?? 0]
+          if (!id) throw new CompanionCoreEvaluationError('MISSING_MEMORY_INDEX')
+          harness.memories.restore(id, undefined)
         } else if (step.type === 'delete') {
           const id = harness.memoryIds[step.memoryIndex ?? 0]
           if (!id) throw new CompanionCoreEvaluationError('MISSING_MEMORY_INDEX')
@@ -294,8 +310,9 @@ async function runCase(testCase: CompanionCoreCase): Promise<CompanionCoreCaseRe
           harness.companion.restorePersonality({ version: step.version ?? 1 })
         }
       } catch (error) {
-        lastError = error instanceof ApplicationError ? error.code : 'UNEXPECTED_ERROR'
-        if (testCase.expect.errorCode === undefined) failures.push(`step "${step.type}" threw ${lastError}`)
+        const code = error instanceof ApplicationError ? error.code : 'UNEXPECTED_ERROR'
+        stepErrors.push({ index: stepIndex, code })
+        lastError = code
       }
     }
 
@@ -324,16 +341,54 @@ async function runCase(testCase: CompanionCoreCase): Promise<CompanionCoreCaseRe
           failures.push(`roles mismatch: expected ${expect.roles.join(',')} got ${actual.join(',')}`)
         }
       }
+      if (expect.history) {
+        const actual = request.messages.slice(1, -1).map((message) => ({ role: message.role, content: message.content }))
+        if (actual.length !== expect.history.length) {
+          failures.push(`history length ${actual.length} != ${expect.history.length}`)
+        }
+        const compared = Math.max(actual.length, expect.history.length)
+        for (let index = 0; index < compared; index += 1) {
+          const left = actual[index]
+          const right = expect.history[index]
+          if (!left || !right) continue
+          if (left.role !== right.role || left.content !== right.content) {
+            failures.push(`history ${index} is ${left.role}:"${left.content.slice(0, 40)}" != ${right.role}:"${right.content.slice(0, 40)}"`)
+          }
+        }
+      }
+      for (const needle of expect.excludeContents ?? []) {
+        const hit = request.messages.find((message) => message.content.includes(needle))
+        if (hit) failures.push(`message ${hit.role} still contains "${needle}"`)
+      }
+      if (expect.memoryCount !== undefined) {
+        const actual = memoryCountIn(request.system)
+        if (actual !== expect.memoryCount) failures.push(`memory count ${actual} != ${expect.memoryCount}`)
+      }
       if (expect.maxMessageCount !== undefined && request.messages.length > expect.maxMessageCount) {
         failures.push(`message count ${request.messages.length} exceeds ${expect.maxMessageCount}`)
       }
-    } else if (expect.systemContains || expect.rawContains || expect.roles) {
+    } else if (expect.systemContains || expect.rawContains || expect.roles || expect.history || expect.excludeContents || expect.memoryCount !== undefined) {
       failures.push('no request was captured')
     }
 
-    if (expect.errorCode !== undefined && lastError !== expect.errorCode) {
-      failures.push(`error code expected ${expect.errorCode} got ${lastError ?? 'none'}`)
+    // Failure attribution is strict on purpose. The previous version only
+    // checked the last error seen anywhere in the case, so an unexpected throw
+    // in step 1 was invisible as long as step 3 produced the expected code.
+    if (expect.errorCode === undefined) {
+      for (const error of stepErrors) failures.push(`step ${error.index} (${testCase.steps[error.index]?.type}) threw ${error.code}`)
+    } else if (stepErrors.length === 0) {
+      failures.push(`expected ${expect.errorCode} but no step threw`)
+    } else {
+      if (stepErrors.length > 1) {
+        failures.push(`${stepErrors.length} steps threw: ${stepErrors.map((error) => `${error.index}:${error.code}`).join(',')}`)
+      }
+      const last = stepErrors.at(-1)!
+      if (last.index !== testCase.steps.length - 1) {
+        failures.push(`error came from step ${last.index}, not the final step ${testCase.steps.length - 1}`)
+      }
+      if (last.code !== expect.errorCode) failures.push(`error code expected ${expect.errorCode} got ${last.code}`)
     }
+
     if (expect.storedAssistantCount !== undefined && storedAssistant.length !== expect.storedAssistantCount) {
       failures.push(`stored assistant messages ${storedAssistant.length} != ${expect.storedAssistantCount}`)
     }
@@ -388,21 +443,113 @@ function normalizeDimension(value: unknown, caseId: string): CompanionCoreDimens
   return value as CompanionCoreDimension
 }
 
-export function parseCompanionCoreDataset(value: unknown): CompanionCoreDataset {
-  if (value === null || typeof value !== 'object') throw new CompanionCoreEvaluationError('INVALID_DATASET')
+// A fixture field that the runner never reads is worse than no field at all: it
+// reads like a guarantee while asserting nothing. Every object in the dataset is
+// therefore closed against these lists, and an unrecognised key aborts the run
+// instead of being silently ignored.
+const CASE_KEYS = ['id', 'dimension', 'providerMode', 'cognitive', 'memories', 'personality', 'steps', 'expect'] as const
+const EXPECT_KEYS = [
+  'systemContains', 'systemExcludes', 'rawContains', 'rawExcludes', 'roles', 'history',
+  'excludeContents', 'memoryCount', 'maxMessageCount', 'errorCode',
+  'storedAssistantCount', 'storedUserCount', 'providerCalls', 'cognitive'
+] as const
+const STEP_KEYS = ['type', 'content', 'memoryIndex', 'version', 'personality', 'includeSensitive'] as const
+const MEMORY_KEYS = ['content', 'sensitivity', 'sourceCategory', 'confidence', 'ageDays', 'confirmed'] as const
+const STEP_TYPES = ['newConversation', 'send', 'sendAndCancel', 'correct', 'retract', 'restore', 'delete', 'setPersonality', 'restorePersonality'] as const
+const PROVIDER_MODES = ['ok', 'auth', 'timeout', 'network', 'hang'] as const
+
+function rejectUnknownKeys(value: Record<string, unknown>, allowed: readonly string[], where: string): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.includes(key)) throw new CompanionCoreEvaluationError(`UNKNOWN_FIELD:${where}:${key}`)
+  }
+}
+
+function requireStringArray(value: unknown, where: string): void {
+  if (value === undefined) return
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${where}`)
+  }
+}
+
+function validateExpectation(value: unknown, caseId: string): void {
+  if (value === undefined) return
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}`)
+  }
   const record = value as Record<string, unknown>
+  rejectUnknownKeys(record, EXPECT_KEYS, caseId)
+  for (const key of ['systemContains', 'systemExcludes', 'rawContains', 'rawExcludes', 'excludeContents']) {
+    requireStringArray(record[key], `${caseId}:${key}`)
+  }
+  requireStringArray(record.roles, `${caseId}:roles`)
+  if (record.history !== undefined) {
+    if (!Array.isArray(record.history) || record.history.length === 0) throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}:history`)
+    for (const entry of record.history) {
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}:history`)
+      const message = entry as Record<string, unknown>
+      rejectUnknownKeys(message, ['role', 'content'], `${caseId}:history`)
+      if (typeof message.role !== 'string' || typeof message.content !== 'string') {
+        throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}:history`)
+      }
+    }
+  }
+  for (const key of ['memoryCount', 'maxMessageCount', 'storedAssistantCount', 'storedUserCount', 'providerCalls']) {
+    const candidate = record[key]
+    if (candidate !== undefined && (typeof candidate !== 'number' || !Number.isSafeInteger(candidate) || candidate < 0)) {
+      throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}:${key}`)
+    }
+  }
+  if (record.errorCode !== undefined && typeof record.errorCode !== 'string') throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}:errorCode`)
+  if (record.cognitive !== undefined) {
+    if (record.cognitive === null || typeof record.cognitive !== 'object' || Array.isArray(record.cognitive)) {
+      throw new CompanionCoreEvaluationError(`INVALID_EXPECTATION:${caseId}:cognitive`)
+    }
+    rejectUnknownKeys(record.cognitive as Record<string, unknown>, ['intent', 'strategy'], `${caseId}:cognitive`)
+  }
+}
+
+function validateSteps(value: unknown, caseId: string): void {
+  if (!Array.isArray(value) || value.length === 0) throw new CompanionCoreEvaluationError(`MISSING_STEPS:${caseId}`)
+  for (const entry of value) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) throw new CompanionCoreEvaluationError(`INVALID_STEP:${caseId}`)
+    const step = entry as Record<string, unknown>
+    rejectUnknownKeys(step, STEP_KEYS, `${caseId}:step`)
+    if (typeof step.type !== 'string' || !STEP_TYPES.includes(step.type as typeof STEP_TYPES[number])) {
+      throw new CompanionCoreEvaluationError(`UNKNOWN_STEP_TYPE:${caseId}:${String(step.type)}`)
+    }
+  }
+}
+
+export function parseCompanionCoreDataset(value: unknown): CompanionCoreDataset {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new CompanionCoreEvaluationError('INVALID_DATASET')
+  const record = value as Record<string, unknown>
+  rejectUnknownKeys(record, ['schemaVersion', 'id', 'description', 'cases'], 'dataset')
   if (record.schemaVersion !== 1) throw new CompanionCoreEvaluationError('UNSUPPORTED_SCHEMA')
   if (typeof record.id !== 'string' || !Array.isArray(record.cases) || record.cases.length === 0) {
     throw new CompanionCoreEvaluationError('INVALID_DATASET')
   }
   const seen = new Set<string>()
-  const cases = record.cases.map((entry, index) => {
-    if (entry === null || typeof entry !== 'object') throw new CompanionCoreEvaluationError('INVALID_CASE')
+  const cases = record.cases.map((entry) => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) throw new CompanionCoreEvaluationError('INVALID_CASE')
     const candidate = entry as Record<string, unknown>
     if (typeof candidate.id !== 'string' || candidate.id.length === 0) throw new CompanionCoreEvaluationError('INVALID_CASE_ID')
     if (seen.has(candidate.id)) throw new CompanionCoreEvaluationError(`DUPLICATE_CASE_ID:${candidate.id}`)
     seen.add(candidate.id)
-    if (!Array.isArray(candidate.steps) || candidate.steps.length === 0) throw new CompanionCoreEvaluationError(`MISSING_STEPS:${candidate.id}`)
+    rejectUnknownKeys(candidate, CASE_KEYS, candidate.id)
+    if (candidate.providerMode !== undefined && !PROVIDER_MODES.includes(candidate.providerMode as typeof PROVIDER_MODES[number])) {
+      throw new CompanionCoreEvaluationError(`UNKNOWN_PROVIDER_MODE:${candidate.id}`)
+    }
+    validateSteps(candidate.steps, candidate.id)
+    validateExpectation(candidate.expect, candidate.id)
+    if (candidate.memories !== undefined) {
+      if (!Array.isArray(candidate.memories)) throw new CompanionCoreEvaluationError(`INVALID_MEMORIES:${candidate.id}`)
+      for (const memorySpec of candidate.memories) {
+        if (memorySpec === null || typeof memorySpec !== 'object' || Array.isArray(memorySpec)) {
+          throw new CompanionCoreEvaluationError(`INVALID_MEMORY:${candidate.id}`)
+        }
+        rejectUnknownKeys(memorySpec as Record<string, unknown>, MEMORY_KEYS, `${candidate.id}:memory`)
+      }
+    }
     return {
       ...(candidate as unknown as CompanionCoreCase),
       dimension: normalizeDimension(candidate.dimension, candidate.id)
@@ -436,6 +583,7 @@ export async function runCompanionCoreEvaluation(dataset: CompanionCoreDataset):
 
   return {
     dataset: { id: dataset.id, caseCount: dataset.cases.length },
+    evidenceClass: 'offline_deterministic_stub',
     gate: { passed: failedChecks.length === 0, failedChecks },
     metrics: {
       cases: first.length,

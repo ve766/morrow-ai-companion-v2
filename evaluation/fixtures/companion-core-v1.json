@@ -47,7 +47,31 @@
       "expect": {
         "maxMessageCount": 14,
         "rawExcludes": ["第01轮"],
+        "excludeContents": ["第01轮", "第13轮"],
+        "rawContains": ["第14轮", "第19轮", "第20轮"],
         "providerCalls": 20
+      }
+    },
+    {
+      "id": "ctx-03",
+      "dimension": "multi_turn_context",
+      "steps": [
+        { "type": "send", "content": "第一轮问题。" },
+        { "type": "send", "content": "第二轮问题。" },
+        { "type": "send", "content": "第三轮问题。" }
+      ],
+      "expect": {
+        "roles": ["system", "user", "assistant", "user", "assistant", "user"],
+        "history": [
+          { "role": "user", "content": "第一轮问题。" },
+          { "role": "assistant", "content": "确定性回复 1" },
+          { "role": "user", "content": "第二轮问题。" },
+          { "role": "assistant", "content": "确定性回复 2" }
+        ],
+        "memoryCount": 0,
+        "providerCalls": 3,
+        "storedAssistantCount": 3,
+        "storedUserCount": 3
       }
     },
     {
@@ -91,6 +115,22 @@
       }
     },
     {
+      "id": "corr-02",
+      "dimension": "correction_update",
+      "memories": [{ "content": "我的车牌是 MEM_SENTINEL_OLD_南京A12345", "sensitivity": "personal" }],
+      "steps": [
+        { "type": "correct", "memoryIndex": 0, "content": "我的车牌是 MEM_SENTINEL_NEW_杭州B67890" },
+        { "type": "send", "content": "今天天气不错。" }
+      ],
+      "expect": {
+        "systemContains": ["MEM_SENTINEL_NEW_杭州B67890"],
+        "systemExcludes": ["MEM_SENTINEL_OLD_南京A12345"],
+        "excludeContents": ["MEM_SENTINEL_OLD_南京A12345"],
+        "memoryCount": 1,
+        "providerCalls": 1
+      }
+    },
+    {
       "id": "ret-01",
       "dimension": "retraction_invalidation",
       "memories": [{ "content": "我住在南京。", "sensitivity": "personal" }],
@@ -103,6 +143,35 @@
         "systemExcludes": ["我住在南京。"],
         "systemContains": ["\"memories\":[]"],
         "providerCalls": 2
+      }
+    },
+    {
+      "id": "ret-02",
+      "dimension": "retraction_invalidation",
+      "memories": [{ "content": "我养了一只叫 MEM_SENTINEL_CAT 的猫。", "sensitivity": "personal" }],
+      "steps": [
+        { "type": "retract", "memoryIndex": 0 },
+        { "type": "send", "content": "今天好累。" }
+      ],
+      "expect": {
+        "excludeContents": ["MEM_SENTINEL_CAT"],
+        "memoryCount": 0,
+        "providerCalls": 1
+      }
+    },
+    {
+      "id": "ret-03",
+      "dimension": "retraction_invalidation",
+      "memories": [{ "content": "我养了一只叫 MEM_SENTINEL_CAT 的猫。", "sensitivity": "personal" }],
+      "steps": [
+        { "type": "retract", "memoryIndex": 0 },
+        { "type": "restore", "memoryIndex": 0 },
+        { "type": "send", "content": "今天好累。" }
+      ],
+      "expect": {
+        "systemContains": ["MEM_SENTINEL_CAT"],
+        "memoryCount": 1,
+        "providerCalls": 1
       }
     },
     {
@@ -235,6 +304,17 @@
       }
     },
     {
+      "id": "fail-network",
+      "dimension": "provider_failure",
+      "providerMode": "network",
+      "steps": [{ "type": "send", "content": "你好。" }],
+      "expect": {
+        "errorCode": "PROVIDER_NETWORK",
+        "storedAssistantCount": 0,
+        "storedUserCount": 1
+      }
+    },
+    {
       "id": "fail-cancel",
       "dimension": "provider_failure",
       "providerMode": "hang",
@@ -275,6 +355,82 @@
       "steps": [{ "type": "send", "content": "今天有点累。" }],
       "expect": {
         "systemContains": ["我住在杭州。", "\"match\":\"continuity\"", "background only"],
+        "memoryCount": 1,
+        "providerCalls": 1
+      }
+    },
+    {
+      "id": "cont-01",
+      "dimension": "stale_conflict",
+      "memories": [
+        { "content": "我住在杭州。", "sensitivity": "personal" },
+        { "content": "我养了一只黑猫。", "sensitivity": "personal" },
+        { "content": "我周末去爬山。", "sensitivity": "personal" },
+        { "content": "我喝手冲咖啡。", "sensitivity": "personal" },
+        { "content": "我在学吉他。", "sensitivity": "personal" }
+      ],
+      "steps": [{ "type": "send", "content": "杭州今天下雨吗？" }],
+      "expect": {
+        "systemContains": ["我住在杭州。", "\"match\":\"topic\""],
+        "memoryCount": 4,
+        "providerCalls": 1
+      }
+    },
+    {
+      "id": "prov-01",
+      "dimension": "cross_session_memory",
+      "memories": [
+        { "content": "我住在杭州。", "sensitivity": "personal", "sourceCategory": "user_explicit_input", "confidence": 85, "confirmed": false },
+        { "content": "我可能喜欢安静。", "sensitivity": "personal", "sourceCategory": "model_inferred_confirmed", "confidence": 60, "confirmed": false }
+      ],
+      "steps": [{ "type": "send", "content": "今天好吵。" }],
+      "expect": {
+        "systemContains": [
+          "\"sourceCategory\":\"user_explicit_input\"",
+          "\"sourceCategory\":\"model_inferred_confirmed\"",
+          "\"confidence\":85",
+          "\"confidence\":60"
+        ],
+        "memoryCount": 2,
+        "providerCalls": 1
+      }
+    },
+    {
+      "id": "sens-01",
+      "dimension": "payload_integrity",
+      "cognitive": true,
+      "memories": [{ "content": "我对花生严重过敏。", "sensitivity": "sensitive" }],
+      "steps": [{ "type": "send", "content": "你还记得我对什么过敏吗？" }],
+      "expect": {
+        "cognitive": { "intent": "information_query", "strategy": "retrieve_memory" },
+        "systemContains": ["response route=retrieve_memory", "\"memories\":[]"],
+        "excludeContents": ["花生"],
+        "memoryCount": 0,
+        "providerCalls": 1
+      }
+    },
+    {
+      "id": "sens-02",
+      "dimension": "payload_integrity",
+      "memories": [{ "content": "我对花生严重过敏。", "sensitivity": "sensitive" }],
+      "steps": [{ "type": "send", "content": "我需要你考虑我的过敏情况。", "includeSensitive": true }],
+      "expect": {
+        "systemContains": ["我对花生严重过敏。"],
+        "memoryCount": 1,
+        "providerCalls": 1
+      }
+    },
+    {
+      "id": "sens-03",
+      "dimension": "payload_integrity",
+      "memories": [{ "content": "我对花生严重过敏。", "sensitivity": "sensitive" }],
+      "steps": [
+        { "type": "retract", "memoryIndex": 0 },
+        { "type": "send", "content": "我需要你考虑我的过敏情况。", "includeSensitive": true }
+      ],
+      "expect": {
+        "excludeContents": ["花生"],
+        "memoryCount": 0,
         "providerCalls": 1
       }
     }
