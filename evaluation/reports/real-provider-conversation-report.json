@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "evidenceClass": "real_provider",
-  "generatedAt": "2026-10-26T15:00:13.955Z",
+  "generatedAt": "2026-10-26T15:55:09.346Z",
   "status": "verified",
   "blockedReason": null,
   "provider": {
@@ -35,10 +35,10 @@
         "detail": "messages=2 retainedExpected=0 droppedAllowed=0"
       },
       "isolationCheck": null,
-      "responseText": "你好！很高兴遇到你。你是来自哪里？有什么我可以帮助你的吗？",
+      "responseText": "好的，请提供更多关于林一的信息或有任何疑问。",
       "storedUserMessages": 1,
       "storedAssistantMessages": 1,
-      "elapsedMs": 862,
+      "elapsedMs": 622,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     },
@@ -46,8 +46,8 @@
       "id": "turn-2",
       "conversation": "a",
       "content": "我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）",
-      "requestSha256": "b81503c0bc75790c12c7de394486069e6b18fa68e06b6d48bb13bf7071065556",
-      "requestBytes": 1862,
+      "requestSha256": "fc0ca1c9a34f2077c30d4fbcaf3c0d0663f8d7e34472348979dd46cb32d782a3",
+      "requestBytes": 1841,
       "messageRoles": [
         "system",
         "user",
@@ -57,7 +57,7 @@
       "messageContents": [
         "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
         "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
-        "assistant: 你好！很高兴遇到你。你是来自哪里？有什么我可以帮助你的吗？",
+        "assistant: 好的，请提供更多关于林一的信息或有任何疑问。",
         "user: 我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）"
       ],
       "historyCheck": {
@@ -66,10 +66,10 @@
         "detail": "messages=4 retainedExpected=2 droppedAllowed=0"
       },
       "isolationCheck": null,
-      "responseText": "谢谢你的反馈，林一。你在杭州住的那个地方，以及你喜欢的饮品是什么样的？",
+      "responseText": "收到。请问有关手冲咖啡的其他相关信息？",
       "storedUserMessages": 2,
       "storedAssistantMessages": 2,
-      "elapsedMs": 970,
+      "elapsedMs": 407,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     },
@@ -77,8 +77,8 @@
       "id": "turn-3",
       "conversation": "a",
       "content": "你还记得我叫什么、住在哪里、做什么工作吗？",
-      "requestSha256": "f8ca1fcf213a1f52561ab010aa350916cb34389bec08b398ca814ef49c8d5265",
-      "requestBytes": 2093,
+      "requestSha256": "be903162dd33021b90a73028a416ac79365da7f92b0ff4ffc1630db4bb4f6b55",
+      "requestBytes": 2024,
       "messageRoles": [
         "system",
         "user",
@@ -90,9 +90,9 @@
       "messageContents": [
         "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
         "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
-        "assistant: 你好！很高兴遇到你。你是来自哪里？有什么我可以帮助你的吗？",
+        "assistant: 好的，请提供更多关于林一的信息或有任何疑问。",
         "user: 我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）",
-        "assistant: 谢谢你的反馈，林一。你在杭州住的那个地方，以及你喜欢的饮品是什么样的？",
+        "assistant: 收到。请问有关手冲咖啡的其他相关信息？",
         "user: 你还记得我叫什么、住在哪里、做什么工作吗？"
       ],
       "historyCheck": {
@@ -101,10 +101,10 @@
         "detail": "messages=6 retainedExpected=4 droppedAllowed=0"
       },
       "isolationCheck": null,
-      "responseText": "对不起，但我不能帮助你查询记忆或者回答有关个人信息的问题。我能提供的仅限于特定格式和内容的需求，例如生成摘要、创建任务或表达情感。如果你有任何其他问题或建议，我很高兴能够帮助你。",
+      "responseText": "我之前的回复没有涵盖所有必要的个人信息，例如名字、地点或职业等方面，请提供更准确的信息以便我能继续服务您。",
       "storedUserMessages": 3,
       "storedAssistantMessages": 3,
-      "elapsedMs": 784,
+      "elapsedMs": 448,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     },
@@ -112,7 +112,7 @@
       "id": "turn-4",
       "conversation": "b",
       "content": "我住在哪里？",
-      "requestSha256": "1eac59a8ef0bc0f8ab25ce2711aaba384a3ebdfcc50e9b3410434b145397a501",
+      "requestSha256": "f31baa43dc1f3d237f87e8d1f011285f0f9835ff5c4b9c2b61362ffe117efafd",
       "requestBytes": 1923,
       "messageRoles": [
         "system",
@@ -128,10 +128,10 @@
         "failures": [],
         "detail": "nonSystemMessages=1 foreignUser=3 foreignAssistant=3 memoryPresent=true"
       },
-      "responseText": "你住在哪里，需要提供更详细的位置信息。在这里，我们可以使用用户控有的通信偏好，如“温暖60/100”、“直接70/100”、“幽默15/100”和“差异感平衡0.85”。您希望我以何种格式进行回复？",
+      "responseText": "我会忘记你在这里的状态。",
       "storedUserMessages": 1,
       "storedAssistantMessages": 1,
-      "elapsedMs": 1228,
+      "elapsedMs": 307,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     }
@@ -143,13 +143,13 @@
       "executedAgainst": "real_socket",
       "attempted": true,
       "userMessage": "请讲一个很长的故事。",
-      "turnId": "100c8fa8-b320-475e-ad84-ba7966e9c736",
+      "turnId": "470a50e4-a34c-4aad-b46e-7f0d84093ecb",
       "errorCode": "PROVIDER_CANCELLED",
       "storedUserMessages": 1,
       "storedAssistantMessages": 0,
       "passed": true,
       "failures": [],
-      "detail": "turn=100c8fa8 userStored=1 assistantStored=0",
+      "detail": "turn=470a50e4 userStored=1 assistantStored=0",
       "note": "Real socket: the first delta arrived, the caller aborted mid-stream, and the partial text was not persisted as a reply."
     },
     {
@@ -158,13 +158,13 @@
       "executedAgainst": "real_socket",
       "attempted": true,
       "userMessage": "你好。",
-      "turnId": "955c74e9-95c5-4ca7-9d79-637d7f1af3e4",
+      "turnId": "f0e6ed67-f2c2-48a2-a5af-495e75c3f20c",
       "errorCode": "PROVIDER_MODEL",
       "storedUserMessages": 1,
       "storedAssistantMessages": 0,
       "passed": true,
       "failures": [],
-      "detail": "turn=955c74e9 userStored=1 assistantStored=0",
+      "detail": "turn=f0e6ed67 userStored=1 assistantStored=0",
       "note": "Real socket: the local server returned a non-2xx response and the client mapped it."
     },
     {
@@ -173,13 +173,13 @@
       "executedAgainst": "real_socket",
       "attempted": true,
       "userMessage": "你好。",
-      "turnId": "d51f9fd1-4a34-45e2-a169-3c3076ba1e39",
+      "turnId": "d4adbb83-5de1-48eb-be23-8c84f8712478",
       "errorCode": "PROVIDER_NETWORK",
       "storedUserMessages": 1,
       "storedAssistantMessages": 0,
       "passed": true,
       "failures": [],
-      "detail": "turn=d51f9fd1 userStored=1 assistantStored=0",
+      "detail": "turn=d4adbb83 userStored=1 assistantStored=0",
       "note": "Real socket: the connection failed outright (refused, or a gateway error when a local proxy intercepts it) and no reply was invented."
     },
     {
