@@ -39,7 +39,6 @@ jobs:
         run: |
           npm run evaluate
           npm run evaluate:cognition
-          npm run evaluate:retrieval
 
       - name: Build application bundles
         run: npm run build

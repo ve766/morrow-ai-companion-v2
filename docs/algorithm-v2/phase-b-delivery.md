@@ -36,8 +36,21 @@ Morrow 的记忆检索从「词法 + 置信度 + 新近度」的单层打分，�
 | `src/evaluation/retrieval-benchmark.ts` / `-cli.ts` / `scripts/run-retrieval-benchmark.mjs` | 新增。跑生产算法的对照基准 | 既有 M3 评测器是独立重写的玩具算法，不能作为验收证据 |
 | `evaluation/fixtures/retrieval-benchmark-v1.json` | 新增。12 例固定合成评测集 | 任务 §5 的 12 类场景 |
 | `src/app/retrieval-request-context.integration.test.ts` | 新增。断言**实际下发的请求体** | 任务 §6：只验证数据库记录变化不算闭环 |
-| `package.json` / `.github/workflows/ci.yml` | 新增 `evaluate:retrieval` 并接入 `verify` 与 CI | 保证评测被实际执行，而不是只存在文件 |
+| `package.json` | 新增 `evaluate:retrieval` 并接入 `npm run verify` | 保证评测在本地完整验证中被实际执行 |
 | `docs/algorithm-v2/*` | 新增审计、协议、基准、交付四份文档 | 交付要求 |
+
+### 2.1 未能完成的一处改动：CI 工作流
+
+原计划在 `.github/workflows/ci.yml` 的 `Offline evaluations` 步骤追加 `npm run evaluate:retrieval`。推送时 GitHub 拒绝：
+
+```
+refusing to allow an OAuth App to create or update workflow `.github/workflows/ci.yml`
+without `workflow` scope
+```
+
+当前凭据缺少 `workflow` 作用域。为避免越权，**该文件保持原样**，本次改动被撤回，没有用其他方式绕过。补齐方式：由具备 `workflow` 作用域的账号在 `Offline evaluations` 步骤追加一行 `npm run evaluate:retrieval`。
+
+因此：该基准在本地 `npm run verify` 与 `npm run evaluate:retrieval` 中会执行，但**尚未进入 CI**。这不影响本文件的实测结论（所有数字均为本地实际执行），只影响「以后每次 PR 都自动跑」。
 
 ---
 

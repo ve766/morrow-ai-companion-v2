@@ -43,7 +43,9 @@ node scripts/run-retrieval-benchmark.mjs --dataset retrieval-benchmark-v1.json -
 - `0`：门禁全部通过；
 - `1`：任一门禁失败（stderr 会打印失败项名称）。
 
-该命令同时被 `npm run verify` 与 `.github/workflows/ci.yml` 调用，因此「未执行的测试」不会出现在验收报告里。
+该命令已被 `npm run verify` 调用，因此在本地「完整验证」里不会被漏掉。
+
+> **CI 状态说明**：本轮未能把该命令加入 `.github/workflows/ci.yml`。推送时 GitHub 拒绝了包含工作流文件变更的提交，原因是当前 OAuth token 缺少 `workflow` 作用域。为避免越权，工作流文件保持原样；补上这一步需要具备 `workflow` 作用域的凭据，改动内容为在 `Offline evaluations` 步骤中追加一行 `npm run evaluate:retrieval`。
 
 ---
 
