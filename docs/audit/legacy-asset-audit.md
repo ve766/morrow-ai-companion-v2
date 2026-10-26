@@ -44,7 +44,7 @@ manus、ui、opencode、coilpot、docs/*（旁支或已并入 main）
 
 在尖端分支 `next/v1-product-experience-20261025`（40f70f8）工作树上，本机（Windows 10.0.26200，Node 22.23.2）：
 
-- `npm install`（含 Electron 二进制与 better-sqlite3 原生模块重建）：成功
+- `npm install`（含 Electron 二进制与 better-sqlite3 原生模块重建）：成功。该记录针对**旧仓库工作树**，当时仍使用 `better-sqlite3`；V2 已切换为 Node 内置 `node:sqlite`，不存在原生模块编译步骤。
 - `npx tsc --noEmit`：0 错误
 - `npx vitest run`：32 个文件 231 个测试全部通过
 

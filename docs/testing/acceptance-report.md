@@ -51,7 +51,7 @@
 
 - 全部开发与验证在本机 Windows 10.0.26200 完成（非 CI 例外豁免）。
 - Electron 构建（electron-vite 三段构建）+ 真实启动冒烟通过。
-- better-sqlite3 原生模块：npm 预编译二进制直接可用，无需本地编译工具链。
+- SQLite：使用 Node 内置 `node:sqlite`（要求 Node ≥ 22.13，自 v22.13.0 起无需 `--experimental-sqlite` 标志），**无原生模块、无本地编译工具链**；运行时打印 `ExperimentalWarning` 属预期。
 - 升级路径：v11→v14→v15 迁移在临时库实测（数据保留、置信度回填 80、last_confirmed_at 空）。
 
 ## 6. 安全检查
