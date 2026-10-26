@@ -1,17 +1,21 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { isAbsolute, relative, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import process from 'node:process'
 import {
   CompanionCoreEvaluationError,
   parseCompanionCoreDataset,
   runCompanionCoreEvaluation
 } from './companion-core-evaluation'
+import { ReportPathError, assertNoSymlink, atomicWriteReport, resolveInsideDirectory, resolveReportPath } from './report-path'
 
-const root = process.env.MORROW_EVALUATION_ROOT
-if (!root) throw new CompanionCoreEvaluationError('MISSING_EVALUATION_ROOT')
+/**
+ * Exit codes:
+ *   0  the gate passed
+ *   1  the evaluation could not run (bad argument, unreadable fixture, bad path)
+ *   2  the gate failed
+ */
 
-const fixturesDirectory = resolve(root, 'evaluation', 'fixtures')
-const reportsDirectory = resolve(root, 'evaluation', 'reports')
 const defaultDatasetName = 'companion-core-v1.json'
 const defaultReportName = 'companion-core-report.json'
 
@@ -45,30 +49,8 @@ function parseArguments(args: string[]): Record<string, string | true> {
   return options
 }
 
-function pathInside(directory: string, filename: string): string {
-  if (!filename || isAbsolute(filename)) throw new CompanionCoreEvaluationError('PATH_OUTSIDE_EVALUATION')
-  const base = resolve(directory)
-  const path = resolve(base, filename)
-  const rel = relative(base, path)
-  if (!rel || rel === '..' || rel.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || isAbsolute(rel)) {
-    throw new CompanionCoreEvaluationError('PATH_OUTSIDE_EVALUATION')
-  }
-  return path
-}
-
-function assertNoSymlink(base: string, path: string): void {
-  const rel = relative(base, path)
-  let current = base
-  for (const part of rel.split(/[\\/]/u)) {
-    current = resolve(current, part)
-    if (existsSync(current) && lstatSync(current).isSymbolicLink()) {
-      throw new CompanionCoreEvaluationError('SYMLINK_PATH_NOT_ALLOWED')
-    }
-  }
-}
-
-function readJson(path: string): unknown {
-  assertNoSymlink(resolve(path, '..'), path)
+function readJson(base: string, path: string): unknown {
+  assertNoSymlink(base, path)
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as unknown
   } catch {
@@ -85,35 +67,30 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value)
 }
 
-function atomicWrite(path: string, value: string): void {
-  mkdirSync(reportsDirectory, { recursive: true })
-  assertNoSymlink(resolve(reportsDirectory, '..'), reportsDirectory)
-  assertNoSymlink(reportsDirectory, path)
-  const temporary = resolve(reportsDirectory, `.morrow-companion-${process.pid}-${Date.now()}.tmp`)
-  writeFileSync(temporary, value, { encoding: 'utf8', flag: 'wx' })
-  renameSync(temporary, path)
-}
-
 async function main(): Promise<void> {
+  const root = process.env.MORROW_EVALUATION_ROOT
+  if (!root) throw new CompanionCoreEvaluationError('MISSING_EVALUATION_ROOT')
+
   const options = parseArguments(process.argv.slice(2))
   if (options.help) {
     console.log(usage())
     return
   }
 
+  const fixturesDirectory = resolve(root, 'evaluation', 'fixtures')
+  const reportsDirectory = resolve(root, 'evaluation', 'reports')
   const datasetName = typeof options['--dataset'] === 'string' ? options['--dataset'] : defaultDatasetName
   const outputName = typeof options['--output'] === 'string' ? options['--output'] : defaultReportName
-  if (!outputName.endsWith('.json') || outputName.includes('/') || outputName.includes('\\')) {
-    throw new CompanionCoreEvaluationError('INVALID_REPORT_NAME')
-  }
 
-  const dataset = parseCompanionCoreDataset(readJson(pathInside(fixturesDirectory, datasetName)))
+  const datasetPath = resolveInsideDirectory(fixturesDirectory, datasetName)
+  const dataset = parseCompanionCoreDataset(readJson(fixturesDirectory, datasetPath))
   const report = await runCompanionCoreEvaluation(dataset)
   const reportDigest = createHash('sha256').update(canonicalJson(report)).digest('hex')
-  atomicWrite(pathInside(reportsDirectory, outputName), `${JSON.stringify({ ...report, reportSha256: reportDigest }, null, 2)}\n`)
+  atomicWriteReport(reportsDirectory, outputName, `${JSON.stringify({ ...report, reportSha256: reportDigest }, null, 2)}\n`)
 
   console.log(JSON.stringify({
     passed: report.gate.passed,
+    evidenceClass: report.evidenceClass,
     dataset: report.dataset.id,
     cases: report.metrics.cases,
     passedCases: report.metrics.passed,
@@ -129,7 +106,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const code = error instanceof CompanionCoreEvaluationError ? error.code : 'COMPANION_CORE_EVALUATION_FAILED'
+  const code = error instanceof ReportPathError
+    ? error.code
+    : error instanceof CompanionCoreEvaluationError ? error.code : 'COMPANION_CORE_EVALUATION_FAILED'
   console.error(JSON.stringify({ failed: true, code }))
   process.exitCode = 1
 })

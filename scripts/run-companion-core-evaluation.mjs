@@ -28,8 +28,12 @@ try {
   })
   if (result.error) throw result.error
   process.exitCode = result.status ?? 1
-} catch {
+} catch (error) {
+  // Surface the message, never the payload: a build or spawn failure is worth
+  // reading, and nothing here contains user text.
+  const reason = error instanceof Error ? error.message : String(error)
   process.stderr.write('Companion Core offline runner could not complete; no success report was produced.\n')
+  process.stderr.write(`cause: ${reason}\n`)
   process.exitCode = 1
 } finally {
   await rm(temporaryDirectory, { recursive: true, force: true })
