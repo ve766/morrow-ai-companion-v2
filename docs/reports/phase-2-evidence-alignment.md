@@ -173,11 +173,13 @@
 
 ### 5.3 本轮改动对应的 CI
 
-**本轮的新提交在推送前没有任何 CI 结果。** 这是事实，不能用 `6348dac` 的绿色运行代替。
+| 项 | 值 |
+|---|---|
+| Run | [40355348359](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40355348359) |
+| head SHA | `69df024d3f4276012040246975cac01dfe0b78bf` |
+| 结论 | **success**，attempt 1，3/3 Job |
 
-推送后必须按新 head SHA 重新查询并回填到最终实施报告 §5；在拿到那个结果之前，本轮改动的 CI 状态只能记为「未验证」。
-
-> 检验方法：`gh run list --branch feat/phase-2-companion-core --limit 3 --json databaseId,headSha,conclusion`，逐条比对 `headSha` 与 `git rev-parse HEAD`。
+这一行是**在推送后回查 API 得到的**，不是从 `6348dac` 的运行推断的。两者是不同代码上的两次执行：`6348dac` 那次全绿，但它跑的是没有任何本阶段改动的树。
 
 ---
 
@@ -195,6 +197,6 @@
 ## 7. 结论
 
 1. 报告、代码、测试、CI 在当前 `6348dac` 上是可以对齐的：31 个 companion-core 离线用例、9/9 真实 Provider 检查、3/3 CI Job 都能复现。
-2. **不存在「旧 SHA 冒充新提交」的情况**，但也**不存在**本轮改动的 CI 证据——因为尚未推送。
+2. **不存在「旧 SHA 冒充新提交」的情况**：本轮改动的 CI 证据是 run `40355348359` @ `69df024`，与 `6348dac` 的运行分开列出（§5.3）。
 3. 生产代码未改动，本轮交付的是审计结论 + 评测能力 + 一个测试缺口修补。
 4. PR #3 仍为 `OPEN`、未合并；`main` 未被改动。

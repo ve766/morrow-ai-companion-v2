@@ -42,7 +42,7 @@
 | `scripts/run-context-memory-evaluation.mjs` | esbuild 打包壳（离线） |
 | `scripts/run-context-memory-real.mjs` | esbuild 打包壳（真机） |
 | `evaluation/fixtures/context-memory-v1.json` | 22 用例，覆盖 21 项能力 |
-| `evaluation/reports/context-memory-real-report.json` | 本次真机观测（唯一被 git 跟踪的评测产物，因为模型输出不可复现） |
+| `evaluation/reports/context-memory-real-report.json` | 本次真机观测。已加入 `.gitignore` 白名单，因为它不可复现：同一代码再跑一次，模型输出会不同 |
 | `docs/evaluations/phase-3-context-memory-baseline.md` | 基线说明、覆盖矩阵、局限 |
 
 ### 修改（5）
@@ -215,7 +215,8 @@ Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] ... node_modules/.vitest
 
 ## 8. CI
 
-- 本轮改动的 CI 结果：**见 §10 回填**。在此之前，任何引用都只能指向历史 SHA，不能当作本轮改动的验证。
+- 本轮改动的 CI：[run 40355348359](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40355348359) @ `69df024`，**success，3/3 Job，attempt 1**。详见 §10。
+- 该运行覆盖 §1 全部代码提交与 §2 全部文件；本文档后续的纯文字提交不单独引用。
 - 历史 13 次运行已按 SHA 列在 `phase-2-evidence-alignment.md` §5.1。
 - 两次首轮失败的根因（Windows 持久化用例 5s / 20s 超时）已记录，其中 20s 那次说明 `testTimeout` 提高**未解决根因**。
 
@@ -240,9 +241,26 @@ Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] ... node_modules/.vitest
 
 ## 10. CI 回填
 
-**（待推送后填写：head SHA、run id、每个 Job 的结论。）**
+**结论对象：`69df024`（包含 §1 全部代码提交与四份文档）**
 
-> 在此之前，本报告对「本轮改动」的 CI 状态不作任何结论。
+| 项 | 值 |
+|---|---|
+| Run | [40355348359](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40355348359) |
+| head SHA | `69df024d3f4276012040246975cac01dfe0b78bf` |
+| 尝试 / 结论 | attempt 1 / **success** |
+| Job | `Typecheck, tests, build and smoke (ubuntu-latest)` success<br>`Typecheck, tests, build and smoke (windows-latest)` success<br>`Windows upgrade path (schema migrations under the real app)` success |
+
+CI 内的 `Offline evaluations` 步现在会执行四组评测，包含本轮新增的 `npm run evaluate:context`。这证明契约在**干净容器**里成立，不只在本机。
+
+### 10.1 为什么不再引用更晚的提交
+
+本段文字位于一个纯文档提交中，它不含任何代码或测试改动，且每次补充说明都会产生新的 SHA。引用一个仍在变的 SHA 没有意义，所以本报告只对 `69df024` 这一棵树作出结论——它已经包含 §1 的全部代码与 §2 的全部文件。
+
+### 10.2 不能从这次绿灯推出的事
+
+- 它**不**证明真实模型行为。CI 不含 `verify:real` 与 `verify:context:real`（需要本机 Ollama），那部分证据只在 §6，且只对本机环境有效。
+- 它**不**证明门禁有效。门禁的有效性由 §5 的突变实验证明；一份有缺陷的代码同样能通过 CI（`f579897` 就是先例）。
+- 它**不**覆盖 Windows 持久化用例的偶发超时。该问题仍在 §9 第 1 条。
 
 ---
 

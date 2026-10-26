@@ -59,7 +59,7 @@
 |---|---|
 | 代码位置 | `companion-service.ts:783` 首次 `prepare` → `:785` 授权 → `:794` 用最新历史与设置**再次** `prepare` → `:795` `hashProviderInput(verified.input) !== preview.payloadSha256` 则抛 `CONFLICT` |
 | 分析 | 记忆在授权弹窗打开期间被改，会让第二次 `prepare` 生成不同 payload，哈希不等 → 拒绝发送。这不是「尽力而为」，是**失败关闭** |
-| 测试 | `companion-core.integration.test.ts:646`「refuses to send when the payload changes while the consent dialog is open」 |
+| 测试 | `companion-core.integration.test.ts:675`「refuses to dispatch when the payload changes between the preview and the send」 |
 | 结论 | **代码确认 + 测试确认** |
 
 ### P0-1.5 重启后失效记忆是否仍被排除 —— **本轮发现的覆盖缺口**
@@ -116,7 +116,7 @@
 | 无授权 | `b2b` 第 1 轮；`companion-service.ts:786` `if (!consent) throw FORBIDDEN` |
 | 授权撤销 | `b2b` 第 3 轮 |
 | 会话范围不匹配 | 敏感记忆在**新会话**里仍需重新授权（`b2b` 三轮均为 `newConversation`） |
-| 授权过期 | `provider-policy.ts:101-110`：`expiresAt > now` 且寿命 ≤ 5 分钟；`provider-policy.test.ts` 有边界用例（1ms 两侧） |
+| 授权过期 | `provider-policy.ts:101-110`：`expiresAt > now` 且寿命 ≤ 5 分钟；`provider-policy.test.ts:194`「does not extend an approval past its own lifetime」用 1ms 两侧的边界值验证 |
 
 ---
 
@@ -147,7 +147,7 @@
 
 | 场景 | 机制 | 测试 |
 |---|---|---|
-| 同一会话并发两条 | `companion-service.ts:744` `if (this.locks.has(conversationId)) throw CONFLICT` | `companion-core.integration.test.ts:331` |
+| 同一会话并发两条 | `companion-service.ts:744` `if (this.locks.has(conversationId)) throw CONFLICT` | `companion-core.integration.test.ts:366`「rejects a second concurrent turn in the same conversation instead of interleaving」 |
 | 取消后迟到增量 | `:825` `if (controller.signal.aborted) throw PROVIDER_CANCELLED` —— 在**写助手消息之前** | `companion-core.integration.test.ts`「cancelled turn leaves no partial reply」；`verify:real` 的 `cancel` 真实 socket 场景 |
 | 旧请求晚到覆盖新状态 | 每条请求有独立 `requestId`；助手消息按 `turnId` 查找，不按「最后一条」 | `requestId`/`turnId` 查找见 `:827-832` |
 
