@@ -54,7 +54,7 @@
 
 ### A.2 修复后 CI
 
-**结论对象是本文件所在提交 `b2a16a3`，不是修复前的 `f579897`。**
+**结论对象是 `b2a16a3` —— 第一个「代码 + 报告」都在树上的提交 —— 不是修复前的 `f579897`。**
 
 | 项 | 值 |
 |---|---|
@@ -74,6 +74,25 @@ Job 级结论（3/3 全绿）：
 CI 内的步骤（步骤级结论，逐条核对自 API，不是凭印象）：两个 `Typecheck, tests, build and smoke` Job 均执行 `Install dependencies` → `Typecheck` → `Unit and integration tests` → `Offline evaluations` → `Build application bundles` → `Install Electron binary for smoke` → `Electron smoke (real app, isolated profile, no network egress)`，全部 `success`；`Install xvfb (Linux headless display for Electron)` 在 ubuntu Job 为 `success`、在 windows Job 为 `skipped`（该步骤本就只对 Linux 有意义，跳过属预期，不是失败）。`Windows upgrade path` Job 的 `Migration and persistence test pass (includes v1→v15 upgrade paths)` 为 `success` —— 这条与 §A.1「无 v16、无 schema 变更」的声明互相印证。
 
 **这份 run 是对 `b2a16a3` 的一次独立执行**，覆盖了代码修复（`af91825..7bf2e54`）与本报告提交。CI **不含** `verify:real` —— 真实 Provider 验证需要本机 `ollama serve`，不在 CI 范围内；它的证据在 §D，且只对本机环境有效。
+
+#### A.2.a CI run 序列与一个必须说明的粒度问题
+
+本次修复的提交是**成组推送**的，因此 CI 只跑在组的末端，**没有**对每个代码提交单独执行。这是一段真实的覆盖缺口，不被下面的绿勾掩盖：
+
+| head SHA | 提交内容 | 是否有独立 CI run |
+|---|---|---|
+| `f579897` | 修复前基线（CI success） | 有，[40324745303](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40324745303) |
+| `af91825` | 报告路径守卫 | **无**（随组推送） |
+| `062dfa2` | 真实 Provider 门禁重写 | **无**（随组推送） |
+| `78431ed` | 离线 fixture 封闭 schema | **无**（随组推送） |
+| `7bf2e54` | 记忆/敏感度/授权集成测试 | **无**（随组推送） |
+| `b2a16a3` | 上述四者 + 本报告 | 有，[40334673549](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40334673549) — success |
+| `b10f088` | 报告 §A.2 回填 | 有，[40335743832](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40335743832) — success |
+| `151f123` | 报告措辞修正 | 有，[40335930849](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40335930849) — success |
+
+结论要说准：**能证明的是「`af91825..7bf2e54` 这一串叠加后的树，在 `b2a16a3` 上通过了完整流水线」**，不能证明「链上每一个中间提交各自是绿的」。由于这四段改动彼此不独立（`request-assertions.ts` 只有配上 `062dfa2` 的重写才有调用方），对中间提交单独跑 CI 会大面积出现「引用了尚未提交的模块」的假红，反而降低信号。这一点列入 §E。
+
+> 不要用修复前的 run 40324745303（`f579897`，同样 success）推断修复后的状态。两者是同一条流水线在两份不同代码上的结果，前者证明的是**有缺陷的代码**也能通过 CI —— 这本身说明 CI 只覆盖离线信号，不覆盖真实 Provider 行为。
 
 > 不要用修复前的 run 40324745303（`f579897`，同样 success）推断修复后的状态。两者是同一条流水线在两份不同代码上的结果，前者证明的是**有缺陷的代码**也能通过 CI —— 这本身说明 CI 只覆盖离线信号，不覆盖真实 Provider 行为。
 
@@ -383,6 +402,7 @@ turn-4 非 system 消息**只有 1 条**（当前提问），system 提示词含
 | 9 | `>12` 轮长对话未实测 | 低 | 真实运行只有 3 轮（4 条历史，不触发裁剪）。裁剪边界由离线 `ctx-02`（20 轮）覆盖。 |
 | 10 | 本地 `vitest` 默认并发偶发超时 | 低 | 既有问题（`testTimeout: 20_000` 已在本 PR 前一提交修复）。本轮全部使用 `--maxWorkers=2` 执行。 |
 | 11 | 报告路径守卫的符号链接分支未单测 | 低 | `assertNoSymlink` 只在真实符号链接上触发，Windows 上创建符号链接需要额外权限，本轮只做了「不存在路径不误报」的负向对照。 |
+| 12 | **代码提交成组推送，中间提交没有独立 CI run** | 低 | 未修复（见 §A.2.a）。四个代码提交 `af91825..7bf2e54` 只作为整体在 `b2a16a3` 上被 CI 验证过。**不声称「链上每个提交各自是绿的」**；能证明的仅是叠加后的树通过完整流水线。若需逐提交绿，须拆成四个 PR 分别推送，本轮未做。 |
 
 ---
 
@@ -434,5 +454,6 @@ MORROW_REAL_PROVIDER_ENDPOINT='http://127.0.0.1:9/v1' npm run verify:real  # 期
 | 第 1 版 | 2026-10-26 | 初版，随审计修复提交（代码最后一提交 `7bf2e54`） |
 | 第 2 版 | 2026-10-26 | 回填 §A.2 的真实 CI 证据：run **40334673549** @ `b2a16a3`，3/3 Job success。修正 §A.1 中 `request-assertions.test.ts` 的用例数为 22。本行为纯文档提交，不改变任何代码结论。 |
 | 第 3 版 | 2026-10-26 | 把「本文件所在提交」改为「**首次引入本文件**的提交」。原措辞在后续纯文档提交后必然失真——任何声称「本文件所在提交 = 某 SHA」的句子在写下时即已过期，故只声明引入提交，不声明当前 head。 |
+| 第 4 版 | 2026-10-26 | 新增 §A.2.a：给出完整 run 序列（按 head SHA，逐条核自 API），并明确声明四个代码提交是**成组推送、无独立 run**，只对叠加后的树作出通过结论。§E 新增第 12 条记录该粒度缺口。 |
 
 > 任何提交的 CI 结论都可用 `gh run list --branch feat/phase-2-companion-core --json headSha,conclusion` 按 head SHA 对齐核验；PR #3 的 Checks 页同样按 SHA 分组。本报告只对**已明确写出 SHA 的 run** 作出结论，不对「分支最新」作任何未经核对的推断。
