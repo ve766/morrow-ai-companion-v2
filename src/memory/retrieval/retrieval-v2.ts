@@ -1,6 +1,11 @@
 import type { AssembledMemoryContext, ContextMemory, Sensitivity } from '../../shared/companion'
 import type { MemoryRecord } from '../memory-domain'
-import { RETRIEVAL_ALGORITHM_V2, type RetrievalConfig } from './retrieval-config'
+import {
+  RETRIEVAL_ALGORITHM_V2,
+  RETRIEVAL_ALGORITHM_V3_HYBRID,
+  type RetrievalAlgorithmId,
+  type RetrievalConfig
+} from './retrieval-config'
 import { encodeMemoryContext } from './retrieval-context-format'
 import { lexicalScore, lexicalScoreCeiling, normalizeRetrievalText, retrievalTerms, termOverlap } from './retrieval-lexical'
 import { classifySupersession } from './retrieval-supersession'
@@ -55,7 +60,7 @@ function instantOf(value: string | null | undefined, fallback: string): number {
 }
 
 function zeroFactors(lexical = 0): RetrievalFactors {
-  return { lexical, confidence: 0, provenance: 0, confirmation: 0, recency: 0, timeSensitivity: 0, duplicate: 0, diversity: 0, correction: 0 }
+  return { lexical, confidence: 0, provenance: 0, confirmation: 0, recency: 0, timeSensitivity: 0, semantic: 0, duplicate: 0, diversity: 0, correction: 0 }
 }
 
 interface Prepared {
@@ -64,6 +69,45 @@ interface Prepared {
   terms: Set<string>
   factors: RetrievalFactors
   baseScore: number
+}
+
+/** Candidate after filtering, before fusion decides its relevance term. */
+interface Eligible {
+  record: MemoryRecord
+  lexical: number
+  semantic: number
+  factors: RetrievalFactors
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
+}
+
+/**
+ * 1-based dense ranks for a deterministic ordering (value desc, then id asc).
+ * Ties are broken by id so two runs over the same data always rank identically.
+ */
+function rankBy(items: readonly Eligible[], value: (item: Eligible) => number): Map<string, number> {
+  const ordered = [...items].sort((left, right) => {
+    const difference = value(right) - value(left)
+    if (difference !== 0) return difference
+    return left.record.id.localeCompare(right.record.id)
+  })
+  const ranks = new Map<string, number>()
+  for (const [index, item] of ordered.entries()) ranks.set(item.record.id, index + 1)
+  return ranks
+}
+
+/**
+ * Reciprocal rank fusion normalized to 0..1.
+ *
+ * Rank fusion is scale-free, so it needs no assumption that a cosine
+ * similarity and a term-overlap count are measured in comparable units.
+ */
+function rankFusionScore(lexicalRank: number, semanticRank: number, k: number): number {
+  const raw = 1 / (k + lexicalRank) + 1 / (k + semanticRank)
+  return raw / (2 / (k + 1))
 }
 
 function authorityInstant(record: MemoryRecord): number {
@@ -103,7 +147,14 @@ function beats(candidate: Prepared, score: number, best: Prepared, bestScore: nu
  * memory must still share at least one lexical term with the query.
  */
 export class MultiSignalMemoryRetriever implements RetrievalStrategy {
-  readonly algorithm = RETRIEVAL_ALGORITHM_V2
+  readonly algorithm: RetrievalAlgorithmId
+
+  constructor(algorithm: RetrievalAlgorithmId = RETRIEVAL_ALGORITHM_V2) {
+    if (algorithm !== RETRIEVAL_ALGORITHM_V2 && algorithm !== RETRIEVAL_ALGORITHM_V3_HYBRID) {
+      throw new Error('MultiSignalMemoryRetriever only implements the v2 and v3-hybrid algorithms.')
+    }
+    this.algorithm = algorithm
+  }
 
   retrieve(request: RetrievalRequest): RetrievalResult {
     const { query, records, maximumSensitivity, now, config } = request
@@ -114,8 +165,12 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
     const timeSensitive = isTimeSensitiveQuery(query)
     const nowInstant = Date.parse(now)
 
+    const semanticSignals = this.algorithm === RETRIEVAL_ALGORITHM_V3_HYBRID && config.semantic.enabled
+      ? request.semantic
+      : undefined
+    const semanticApplied = semanticSignals !== undefined
     const candidates: RetrievalCandidateTrace[] = []
-    const prepared: Prepared[] = []
+    const eligible: Eligible[] = []
 
     for (const record of records) {
       const factors = zeroFactors()
@@ -123,12 +178,11 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
         candidates.push({ memoryId: record.id, included: false, rank: null, exclusionReason: reason, factors, finalScore: 0 })
       }
 
+      // Order matters: permission and deletion first, then the correction
+      // chain, and only then relevance. A replaced statement must never become
+      // a candidate just because it scores well on either signal.
       if (record.status !== 'active') { exclude('retracted'); continue }
       if (sensitivityOrder.indexOf(record.sensitivity) > sensitivityLimit) { exclude('sensitivity'); continue }
-
-      const lexical = lexicalScore(record.currentText, queryTerms, phrase)
-      factors.lexical = lexical
-      if (lexical === 0) { exclude('irrelevant'); continue }
 
       const supersession = classifySupersession(record, request.supersededStatements)
       if (supersession === 'resurrected') {
@@ -136,6 +190,20 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
         exclude('superseded_statement')
         continue
       }
+
+      const lexical = lexicalScore(record.currentText, queryTerms, phrase)
+      factors.lexical = lexical
+
+      const rawSemantic = semanticSignals ? semanticSignals.similarity(record.currentText) : null
+      const semanticNorm = rawSemantic === null ? 0 : clamp01((rawSemantic - config.semantic.floor) / (config.semantic.ceiling - config.semantic.floor))
+      factors.semantic = semanticNorm
+
+      // A memory is a candidate if it is lexically related OR semantically
+      // related. The semantic floor is what stops a merely topical neighbour
+      // from entering the context.
+      const lexicallyRelevant = lexical > 0
+      const semanticallyRelevant = rawSemantic !== null && rawSemantic >= config.semantic.candidateFloor
+      if (!lexicallyRelevant && !semanticallyRelevant) { exclude('irrelevant'); continue }
 
       const stability = classifyMemoryStability(record.currentText)
       const ageDays = (nowInstant - instantOf(record.lastConfirmedAt, record.updatedAt)) / 86_400_000
@@ -147,23 +215,37 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
       factors.recency = decay(ageDays, halfLife)
       factors.timeSensitivity = timeSensitive ? decay(ageDays, config.decay.timeSensitiveHalfLifeDays) : 0
 
-      const weights = config.weights
-      const baseScore =
-        weights.lexical * (lexical / ceiling) +
-        weights.confidence * factors.confidence +
-        weights.provenance * factors.provenance +
-        weights.confirmation * factors.confirmation +
-        weights.recency * factors.recency +
-        weights.timeSensitivity * factors.timeSensitivity
-
-      prepared.push({
-        record,
-        key: normalizeRetrievalText(record.currentText).replace(/\s+/gu, ' ').trim(),
-        terms: new Set(retrievalTerms(record.currentText)),
-        factors,
-        baseScore
-      })
+      eligible.push({ record, lexical, semantic: semanticNorm, factors })
     }
+
+    const weights = config.weights
+    // Rank fusion needs both orderings over the same eligible set, so it is
+    // computed once here rather than inside the scoring loop.
+    const lexicalRanks = rankBy(eligible, (item) => item.lexical)
+    const semanticRanks = rankBy(eligible, (item) => item.semantic)
+    const useRankFusion = semanticApplied && config.semantic.fusion === 'rrf'
+
+    const prepared: Prepared[] = eligible.map((item) => {
+      const lexicalNorm = item.lexical / ceiling
+      const relevance = useRankFusion
+        ? weights.lexical * rankFusionScore(lexicalRanks.get(item.record.id) ?? 1, semanticRanks.get(item.record.id) ?? 1, config.semantic.rrfK)
+        : weights.lexical * lexicalNorm + (semanticApplied ? config.semantic.weight * item.semantic : 0)
+      const baseScore =
+        relevance +
+        weights.confidence * item.factors.confidence +
+        weights.provenance * item.factors.provenance +
+        weights.confirmation * item.factors.confirmation +
+        weights.recency * item.factors.recency +
+        weights.timeSensitivity * item.factors.timeSensitivity
+
+      return {
+        record: item.record,
+        key: normalizeRetrievalText(item.record.currentText).replace(/\s+/gu, ' ').trim(),
+        terms: new Set(retrievalTerms(item.record.currentText)),
+        factors: item.factors,
+        baseScore
+      }
+    })
 
     // Exact-content duplicates cannot both be evidence; keep the stronger one
     // and record the rest with an explicit reason instead of letting them
@@ -295,7 +377,7 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
       characterCount: text.length
     }
     const decision: RetrievalDecision = {
-      algorithm: RETRIEVAL_ALGORITHM_V2,
+      algorithm: this.algorithm,
       configVersion: config.configVersion,
       evaluatedAt: now,
       maximumSensitivity,
@@ -308,6 +390,7 @@ export class MultiSignalMemoryRetriever implements RetrievalStrategy {
       contextBudget: config.maxCharacters,
       exclusionCounts: countExclusions(candidates),
       correctionChain: { statements: request.supersededStatements.length, truncated: request.supersededTruncated },
+      semantic: { modelId: semanticSignals?.modelId ?? null, applied: semanticApplied },
       candidates
     }
 

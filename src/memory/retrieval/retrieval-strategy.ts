@@ -3,6 +3,7 @@ import type { MemoryRecord } from '../memory-domain'
 import type { RetrievalAlgorithmId, RetrievalConfig } from './retrieval-config'
 import type { RetrievalDecision } from './retrieval-trace'
 import type { SupersededStatement } from './retrieval-supersession'
+import type { SemanticSignals } from './retrieval-semantic'
 
 /** Fully specified input to a retrieval algorithm. Same inputs must give the same output. */
 export interface RetrievalRequest {
@@ -16,6 +17,12 @@ export interface RetrievalRequest {
    * chain was not fully loaded".
    */
   supersededTruncated: boolean
+  /**
+   * Precomputed semantic signals for this turn. Absent means "no encoder
+   * available", which must fall back to lexical ranking, never to zero
+   * similarity for everything.
+   */
+  semantic?: SemanticSignals
   maximumSensitivity: Sensitivity
   /** Fixed evaluation instant. Never read the wall clock inside an algorithm. */
   now: string

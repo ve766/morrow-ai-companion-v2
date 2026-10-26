@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "morrow-semantic-retrieval-validation",
+  "datasetVersion": "1.0.0",
+  "source": "synthetic",
+  "seed": 41002,
+  "split": "validation",
+  "note": "Synthetic. Used to choose between candidate schemes. Content differs from the development split; labels were written before any model was run.",
+  "requiredScenarios": [
+    "paraphrase",
+    "indirect_expression",
+    "cross_lingual",
+    "lexical_trap",
+    "similar_topic_wrong_memory",
+    "semantic_contradiction",
+    "temporary_need_vs_longterm_preference",
+    "correction_safety",
+    "deletion_safety",
+    "low_confidence_inference",
+    "empty_evidence"
+  ],
+  "cases": [
+    {
+      "id": "val-paraphrase-caffeine",
+      "version": 1,
+      "scenario": "paraphrase",
+      "query": "Can I drink an espresso in the evening?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "The memory constrains caffeine timing; the question names a caffeinated drink and a time. No shared content word.",
+      "memories": [
+        { "id": "caffeine", "text": "I avoid caffeine after noon.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-03-01T00:00:00.000Z", "updatedAt": "2026-09-18T00:00:00.000Z", "lastConfirmedAt": "2026-09-18T00:00:00.000Z" },
+        { "id": "bike", "text": "I ride a folding bike to work.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 82, "createdAt": "2026-03-02T00:00:00.000Z", "updatedAt": "2026-09-02T00:00:00.000Z", "lastConfirmedAt": "2026-09-02T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["caffeine"],
+      "irrelevantIds": ["bike"],
+      "forbiddenIds": [],
+      "requiredOrder": ["caffeine", "bike"],
+      "topics": { "caffeine": "health", "bike": "transport" }
+    },
+    {
+      "id": "val-indirect-sibling",
+      "version": 1,
+      "scenario": "indirect_expression",
+      "query": "Where does my sibling live?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "'Sibling' and 'sister' are different words for the same relation; lexical matching cannot connect them.",
+      "memories": [
+        { "id": "sister", "text": "My sister lives in Lisbon.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-03-03T00:00:00.000Z", "updatedAt": "2026-09-12T00:00:00.000Z", "lastConfirmedAt": "2026-09-12T00:00:00.000Z" },
+        { "id": "laptop", "text": "My laptop is a refurbished model.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-03-04T00:00:00.000Z", "updatedAt": "2026-09-03T00:00:00.000Z", "lastConfirmedAt": "2026-09-03T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["sister"],
+      "irrelevantIds": ["laptop"],
+      "forbiddenIds": [],
+      "requiredOrder": ["sister", "laptop"],
+      "topics": { "sister": "family", "laptop": "device" }
+    },
+    {
+      "id": "val-cross-lingual-zh-query",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "我对什么过敏？",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Chinese question about allergies against an English memory.",
+      "memories": [
+        { "id": "shellfish", "text": "I am allergic to shellfish.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 90, "createdAt": "2026-03-05T00:00:00.000Z", "updatedAt": "2026-09-14T00:00:00.000Z", "lastConfirmedAt": "2026-09-14T00:00:00.000Z" },
+        { "id": "piano", "text": "I played the piano as a child.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 78, "createdAt": "2026-03-06T00:00:00.000Z", "updatedAt": "2026-09-04T00:00:00.000Z", "lastConfirmedAt": "2026-09-04T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["shellfish"],
+      "irrelevantIds": ["piano"],
+      "forbiddenIds": [],
+      "requiredOrder": ["shellfish", "piano"],
+      "topics": { "shellfish": "health", "piano": "hobby" }
+    },
+    {
+      "id": "val-cross-lingual-zh-memory",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "Where do I work?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "English question against a Chinese memory about the workplace.",
+      "memories": [
+        { "id": "work-zh", "text": "我在一家设计公司上班。", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-03-07T00:00:00.000Z", "updatedAt": "2026-09-15T00:00:00.000Z", "lastConfirmedAt": "2026-09-15T00:00:00.000Z" },
+        { "id": "cat", "text": "I adopted a grey cat.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-03-08T00:00:00.000Z", "updatedAt": "2026-09-05T00:00:00.000Z", "lastConfirmedAt": "2026-09-05T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["work-zh"],
+      "irrelevantIds": ["cat"],
+      "forbiddenIds": [],
+      "requiredOrder": ["work-zh", "cat"],
+      "topics": { "work-zh": "work", "cat": "pet" }
+    },
+    {
+      "id": "val-lexical-trap-documentary",
+      "version": 1,
+      "scenario": "lexical_trap",
+      "query": "What do I usually watch?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Both mention documentaries. Only one is a recurring habit; the other is a single past viewing.",
+      "memories": [
+        { "id": "habit-doc", "text": "I usually watch documentaries on Sundays.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-03-09T00:00:00.000Z", "updatedAt": "2026-09-16T00:00:00.000Z", "lastConfirmedAt": "2026-09-16T00:00:00.000Z" },
+        { "id": "volcano-doc", "text": "I watched a documentary about volcanoes last year.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-03-10T00:00:00.000Z", "updatedAt": "2026-09-17T00:00:00.000Z", "lastConfirmedAt": "2026-09-17T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["habit-doc"],
+      "irrelevantIds": ["volcano-doc"],
+      "forbiddenIds": [],
+      "requiredOrder": ["habit-doc", "volcano-doc"],
+      "topics": { "habit-doc": "habit", "volcano-doc": "media" }
+    },
+    {
+      "id": "val-similar-topic-afternoon",
+      "version": 1,
+      "scenario": "similar_topic_wrong_memory",
+      "query": "What do I drink in the afternoon?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Two drink memories differing only in time of day.",
+      "memories": [
+        { "id": "tea-afternoon", "text": "I drink green tea in the afternoon.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-03-11T00:00:00.000Z", "updatedAt": "2026-09-19T00:00:00.000Z", "lastConfirmedAt": "2026-09-19T00:00:00.000Z" },
+        { "id": "coffee-morning", "text": "I drink black coffee every morning.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-03-12T00:00:00.000Z", "updatedAt": "2026-09-20T00:00:00.000Z", "lastConfirmedAt": "2026-09-20T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["tea-afternoon"],
+      "irrelevantIds": ["coffee-morning"],
+      "forbiddenIds": [],
+      "requiredOrder": ["tea-afternoon", "coffee-morning"],
+      "topics": { "tea-afternoon": "drink", "coffee-morning": "drink" }
+    },
+    {
+      "id": "val-semantic-contradiction-gym",
+      "version": 1,
+      "scenario": "semantic_contradiction",
+      "query": "Do I enjoy going to the gym?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected attitude, with the replaced statement re-created. Both are near-identical in meaning to the question.",
+      "memories": [
+        { "id": "gym-new", "text": "I have started to enjoy the gym.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-02-01T00:00:00.000Z", "updatedAt": "2026-08-01T00:00:00.000Z", "lastConfirmedAt": "2026-08-01T00:00:00.000Z" },
+        { "id": "gym-restated", "text": "I hate going to the gym.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-09-08T00:00:00.000Z", "updatedAt": "2026-09-08T00:00:00.000Z", "lastConfirmedAt": "2026-09-08T00:00:00.000Z" }
+      ],
+      "supersededStatements": [
+        { "memoryId": "gym-new", "revision": 1, "text": "I hate going to the gym.", "supersededAt": "2026-08-01T00:00:00.000Z", "supersedingConfirmedAt": "2026-08-01T00:00:00.000Z" }
+      ],
+      "expectedRelevantIds": ["gym-new"],
+      "irrelevantIds": [],
+      "forbiddenIds": ["gym-restated"],
+      "requiredOrder": ["gym-new"],
+      "topics": { "gym-new": "fitness", "gym-restated": "fitness" }
+    },
+    {
+      "id": "val-correction-pet",
+      "version": 1,
+      "scenario": "correction_safety",
+      "query": "What pet do I have?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected pet species, with the replaced statement present as a separate memory.",
+      "memories": [
+        { "id": "pet-new", "text": "I have a dog named Pixel.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-01-05T00:00:00.000Z", "updatedAt": "2026-07-15T00:00:00.000Z", "lastConfirmedAt": "2026-07-15T00:00:00.000Z" },
+        { "id": "pet-restated", "text": "I have a cat named Pixel.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-09-02T00:00:00.000Z", "updatedAt": "2026-09-02T00:00:00.000Z", "lastConfirmedAt": "2026-09-02T00:00:00.000Z" }
+      ],
+      "supersededStatements": [
+        { "memoryId": "pet-new", "revision": 1, "text": "I have a cat named Pixel.", "supersededAt": "2026-07-15T00:00:00.000Z", "supersedingConfirmedAt": "2026-07-15T00:00:00.000Z" }
+      ],
+      "expectedRelevantIds": ["pet-new"],
+      "irrelevantIds": [],
+      "forbiddenIds": ["pet-restated"],
+      "requiredOrder": ["pet-new"],
+      "topics": { "pet-new": "pet", "pet-restated": "pet" }
+    },
+    {
+      "id": "val-deletion-safety",
+      "version": 1,
+      "scenario": "deletion_safety",
+      "query": "What is my salary and my ID document number?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Retracted salary plus a sensitive identifier. Neither may be surfaced by any signal.",
+      "memories": [
+        { "id": "salary-retracted", "text": "My salary is a synthetic figure.", "sourceCategory": "user_explicit_input", "status": "retracted", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-02-10T00:00:00.000Z", "lastConfirmedAt": "2026-01-01T00:00:00.000Z" },
+        { "id": "id-sensitive", "text": "My ID document number is a synthetic value.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "sensitive", "confidence": 85, "createdAt": "2026-02-01T00:00:00.000Z", "updatedAt": "2026-02-01T00:00:00.000Z", "lastConfirmedAt": "2026-02-01T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": [],
+      "forbiddenIds": ["salary-retracted", "id-sensitive"],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "val-low-confidence-instrument",
+      "version": 1,
+      "scenario": "low_confidence_inference",
+      "query": "Can I play any instruments?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A low-confidence inference and an explicit statement about the same subject. Explicit must rank first.",
+      "memories": [
+        { "id": "infer-guitar", "text": "The model infers the user plays the guitar.", "sourceCategory": "model_inferred_confirmed", "status": "active", "sensitivity": "personal", "confidence": 35, "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z", "lastConfirmedAt": "2026-09-01T00:00:00.000Z" },
+        { "id": "explicit-none", "text": "I have never learned to play an instrument.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 92, "createdAt": "2026-09-03T00:00:00.000Z", "updatedAt": "2026-09-03T00:00:00.000Z", "lastConfirmedAt": "2026-09-03T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["explicit-none"],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": ["explicit-none", "infer-guitar"],
+      "topics": { "infer-guitar": "hobby", "explicit-none": "hobby" }
+    },
+    {
+      "id": "val-temporary-vs-longterm",
+      "version": 1,
+      "scenario": "temporary_need_vs_longterm_preference",
+      "query": "Should I work late today?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A standing preference about working hours versus a one-off request today.",
+      "memories": [
+        { "id": "hours-pref", "text": "I prefer to finish work by six.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-02-01T00:00:00.000Z", "updatedAt": "2026-02-01T00:00:00.000Z", "lastConfirmedAt": "2026-02-01T00:00:00.000Z" },
+        { "id": "late-today", "text": "The user wants to finish the report tonight.", "sourceCategory": "turn_derived_confirmed", "status": "active", "sensitivity": "personal", "confidence": 70, "createdAt": "2026-10-24T00:00:00.000Z", "updatedAt": "2026-10-24T00:00:00.000Z", "lastConfirmedAt": "2026-10-24T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["hours-pref", "late-today"],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": { "hours-pref": "work", "late-today": "work" }
+    },
+    {
+      "id": "val-empty-evidence",
+      "version": 1,
+      "scenario": "empty_evidence",
+      "query": "How do I configure a Kubernetes ingress controller?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A technical question with no matching personal memory. Everything here will still have non-zero cosine similarity.",
+      "memories": [
+        { "id": "garden", "text": "I grow tomatoes on my balcony.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 82, "createdAt": "2026-03-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z", "lastConfirmedAt": "2026-09-01T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": ["garden"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {}
+    }
+  ]
+}

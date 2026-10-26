@@ -26,7 +26,7 @@ function rankScore(item: { record: MemoryRecord; score: number }, now: string): 
 }
 
 function zeroFactors(lexical = 0): RetrievalFactors {
-  return { lexical, confidence: 0, provenance: 0, confirmation: 0, recency: 0, timeSensitivity: 0, duplicate: 0, diversity: 0, correction: 0 }
+  return { lexical, confidence: 0, provenance: 0, confirmation: 0, recency: 0, timeSensitivity: 0, semantic: 0, duplicate: 0, diversity: 0, correction: 0 }
 }
 
 export class MemoryContextAssembler implements RetrievalStrategy {
@@ -167,6 +167,7 @@ export class MemoryContextAssembler implements RetrievalStrategy {
       contextBudget: maxCharacters,
       exclusionCounts: countExclusions(candidates),
       correctionChain,
+      semantic: { modelId: null, applied: false },
       candidates
     }
 

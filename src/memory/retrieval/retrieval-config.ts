@@ -11,10 +11,18 @@ import type { MemorySourceCategory } from '../memory-domain'
 
 export const RETRIEVAL_ALGORITHM_V1 = 'memory-retrieval-v1' as const
 export const RETRIEVAL_ALGORITHM_V2 = 'memory-retrieval-v2' as const
+export const RETRIEVAL_ALGORITHM_V3_HYBRID = 'memory-retrieval-v3-hybrid' as const
 
-export type RetrievalAlgorithmId = typeof RETRIEVAL_ALGORITHM_V1 | typeof RETRIEVAL_ALGORITHM_V2
+export type RetrievalAlgorithmId =
+  | typeof RETRIEVAL_ALGORITHM_V1
+  | typeof RETRIEVAL_ALGORITHM_V2
+  | typeof RETRIEVAL_ALGORITHM_V3_HYBRID
 
-export const RETRIEVAL_ALGORITHMS: readonly RetrievalAlgorithmId[] = [RETRIEVAL_ALGORITHM_V1, RETRIEVAL_ALGORITHM_V2]
+export const RETRIEVAL_ALGORITHMS: readonly RetrievalAlgorithmId[] = [
+  RETRIEVAL_ALGORITHM_V1,
+  RETRIEVAL_ALGORITHM_V2,
+  RETRIEVAL_ALGORITHM_V3_HYBRID
+]
 
 /**
  * Version of the parameter set below. Bump it whenever a default changes, so a
@@ -67,6 +75,31 @@ export interface RetrievalDecayPolicy {
   timeSensitiveHalfLifeDays: number
 }
 
+export type SemanticFusion = 'weighted' | 'rrf'
+
+export interface SemanticPolicy {
+  /**
+   * Only the hybrid algorithm consumes semantic signals. Kept in config so a
+   * decision can record exactly which encoder and thresholds were used.
+   */
+  enabled: boolean
+  modelId: string
+  /** Cosine similarity treated as "no semantic relevance". */
+  floor: number
+  /** Cosine similarity treated as fully relevant. */
+  ceiling: number
+  /** Weight of the semantic term under weighted fusion. */
+  weight: number
+  fusion: SemanticFusion
+  /** Rank-fusion constant; larger means gentler rank differences. */
+  rrfK: number
+  /**
+   * Below this similarity a memory is not a candidate at all. Prevents a weak
+   * semantic match from smuggling an unrelated memory into the context.
+   */
+  candidateFloor: number
+}
+
 export interface RetrievalConfig {
   algorithm: RetrievalAlgorithmId
   configVersion: string
@@ -78,6 +111,7 @@ export interface RetrievalConfig {
   provenanceScores: Record<MemorySourceCategory, number>
   /** Term overlap at or above which two memories are treated as near-duplicates. */
   duplicateOverlapThreshold: number
+  semantic: SemanticPolicy
 }
 
 export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = {
@@ -105,7 +139,17 @@ export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = {
     model_inferred_confirmed: 0.6,
     turn_derived_confirmed: 0.45
   },
-  duplicateOverlapThreshold: 0.9
+  duplicateOverlapThreshold: 0.9,
+  semantic: {
+    enabled: false,
+    modelId: 'Xenova/paraphrase-multilingual-MiniLM-L12-v2',
+    floor: 0.2,
+    ceiling: 0.6,
+    weight: 0.5,
+    fusion: 'weighted',
+    rrfK: 20,
+    candidateFloor: 0.28
+  }
 }
 
 const weightKeys: readonly (keyof RetrievalWeights)[] = [
@@ -138,6 +182,7 @@ export type RetrievalConfigOverrides = {
   decay?: Partial<RetrievalDecayPolicy>
   provenanceScores?: Partial<Record<MemorySourceCategory, number>>
   duplicateOverlapThreshold?: number
+  semantic?: Partial<SemanticPolicy>
 }
 
 /**
@@ -161,6 +206,19 @@ export function resolveRetrievalConfig(overrides: RetrievalConfigOverrides = {})
   const provenanceScores = { ...DEFAULT_RETRIEVAL_CONFIG.provenanceScores, ...overrides.provenanceScores }
   for (const category of sourceCategories) bounded(provenanceScores[category], 0, 1)
 
+  const semantic: SemanticPolicy = { ...DEFAULT_RETRIEVAL_CONFIG.semantic, ...overrides.semantic }
+  // Only the hybrid algorithm may consume semantic signals; this keeps the
+  // algorithm id in the trace an honest statement of what actually ran.
+  semantic.enabled = algorithm === RETRIEVAL_ALGORITHM_V3_HYBRID && (overrides.semantic?.enabled ?? true)
+  if (typeof semantic.modelId !== 'string' || semantic.modelId.length === 0 || semantic.modelId.length > 200) fail()
+  bounded(semantic.floor, -1, 1)
+  bounded(semantic.ceiling, -1, 1)
+  if (semantic.ceiling <= semantic.floor) fail()
+  bounded(semantic.weight, 0, 10)
+  if (semantic.fusion !== 'weighted' && semantic.fusion !== 'rrf') fail()
+  bounded(semantic.rrfK, 1, 200)
+  bounded(semantic.candidateFloor, -1, 1)
+
   return {
     algorithm,
     configVersion: RETRIEVAL_CONFIG_VERSION,
@@ -173,6 +231,7 @@ export function resolveRetrievalConfig(overrides: RetrievalConfigOverrides = {})
       overrides.duplicateOverlapThreshold ?? DEFAULT_RETRIEVAL_CONFIG.duplicateOverlapThreshold,
       0.5,
       1
-    )
+    ),
+    semantic
   }
 }

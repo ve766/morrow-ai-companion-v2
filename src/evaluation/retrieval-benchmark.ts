@@ -25,6 +25,7 @@ export const MAX_BENCHMARK_CASES = 60
 /** Two memories whose term sets overlap at least this much count as redundant. */
 export const BENCHMARK_DUPLICATE_OVERLAP = 0.9
 
+/** Scenarios covered by the Phase-A regression set. */
 export const BENCHMARK_SCENARIOS = [
   'repeated_preference_multiturn',
   'explicit_correction',
@@ -40,7 +41,25 @@ export const BENCHMARK_SCENARIOS = [
   'no_evidence_noise'
 ] as const
 
-export type BenchmarkScenario = typeof BENCHMARK_SCENARIOS[number]
+/**
+ * Scenarios that only matter once paraphrasing is in play. Kept separate from
+ * the Phase-A list so the original dataset's coverage gate keeps its meaning.
+ */
+export const SEMANTIC_SCENARIOS = [
+  'paraphrase',
+  'indirect_expression',
+  'cross_lingual',
+  'lexical_trap',
+  'similar_topic_wrong_memory',
+  'semantic_contradiction',
+  'temporary_need_vs_longterm_preference',
+  'correction_safety',
+  'deletion_safety',
+  'low_confidence_inference',
+  'empty_evidence'
+] as const
+
+export type BenchmarkScenario = typeof BENCHMARK_SCENARIOS[number] | typeof SEMANTIC_SCENARIOS[number]
 
 export interface BenchmarkMemory {
   id: string
@@ -64,9 +83,17 @@ export interface BenchmarkCase {
   memories: BenchmarkMemory[]
   supersededStatements: SupersededStatement[]
   expectedRelevantIds: string[]
+  /**
+   * Memories that share surface words with the query but are not about it.
+   * Returning one is not a safety failure (they are not forbidden), but it is a
+   * false relevant hit and is counted as such.
+   */
+  irrelevantIds: string[]
   forbiddenIds: string[]
   requiredOrder: string[]
   topics: Record<string, string>
+  /** Why the expected/forbidden labels are what they are. Auditability, not scoring. */
+  rationale: string
 }
 
 export interface BenchmarkDataset {
@@ -75,6 +102,8 @@ export interface BenchmarkDataset {
   datasetVersion: string
   source: 'synthetic'
   seed: number
+  /** Scenarios this dataset claims to cover; drives the coverage gate. */
+  requiredScenarios: string[]
   cases: BenchmarkCase[]
 }
 
@@ -86,6 +115,7 @@ export interface CaseMetrics {
   reciprocalRank: number
   ndcgAt5: number
   leaks: string[]
+  falseRelevant: string[]
   orderViolations: number
   duplicatePairs: number
   topicCoverage: number
@@ -103,6 +133,8 @@ export interface AlgorithmTotals {
   mrr: number
   ndcgAt5: number
   leakCount: number
+  falseRelevantCount: number
+  falseRelevantRate: number
   orderViolations: number
   duplicatePairs: number
   topicCoverage: number
@@ -145,7 +177,7 @@ export class BenchmarkError extends Error {
 const sourceCategories = new Set<string>(['user_explicit_input', 'model_inferred_confirmed', 'turn_derived_confirmed'])
 const statuses = new Set<string>(['active', 'retracted'])
 const sensitivities = new Set<string>(['normal', 'personal', 'sensitive'])
-const scenarios = new Set<string>(BENCHMARK_SCENARIOS)
+const scenarios = new Set<string>([...BENCHMARK_SCENARIOS, ...SEMANTIC_SCENARIOS])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -232,9 +264,10 @@ export function validateBenchmarkDataset(value: unknown): BenchmarkDataset {
       : []
 
     const expectedRelevantIds = stringArray(raw.expectedRelevantIds)
+    const irrelevantIds = raw.irrelevantIds === undefined ? [] : stringArray(raw.irrelevantIds)
     const forbiddenIds = stringArray(raw.forbiddenIds)
     const requiredOrder = stringArray(raw.requiredOrder)
-    for (const id of [...expectedRelevantIds, ...forbiddenIds, ...requiredOrder]) {
+    for (const id of [...expectedRelevantIds, ...irrelevantIds, ...forbiddenIds, ...requiredOrder]) {
       if (!memoryIds.has(id)) throw new BenchmarkError('UNKNOWN_EXPECTATION_ID')
     }
     if (requiredOrder.length > 1) {
@@ -259,9 +292,11 @@ export function validateBenchmarkDataset(value: unknown): BenchmarkDataset {
       memories,
       supersededStatements,
       expectedRelevantIds,
+      irrelevantIds,
       forbiddenIds,
       requiredOrder,
-      topics
+      topics,
+      rationale: typeof raw.rationale === 'string' ? raw.rationale : ''
     })
   }
 
@@ -271,11 +306,27 @@ export function validateBenchmarkDataset(value: unknown): BenchmarkDataset {
     datasetVersion: value.datasetVersion,
     source: 'synthetic',
     seed: value.seed as number,
+    requiredScenarios: rawRequiredScenarios(value, cases),
     cases
   }
 }
 
-function toMemoryRecords(caseValue: BenchmarkCase): MemoryRecord[] {
+function rawRequiredScenarios(value: Record<string, unknown>, cases: readonly BenchmarkCase[]): string[] {
+  if (value.requiredScenarios === undefined) {
+    // Legacy datasets declared no coverage list; keep their original meaning by
+    // requiring the Phase-A scenario set.
+    return [...BENCHMARK_SCENARIOS]
+  }
+  const declared = stringArray(value.requiredScenarios)
+  const covered = new Set<string>(cases.map((item) => item.scenario))
+  for (const scenario of declared) {
+    if (!scenarios.has(scenario)) throw new BenchmarkError('UNKNOWN_REQUIRED_SCENARIO')
+    if (!covered.has(scenario)) throw new BenchmarkError('MISSING_REQUIRED_SCENARIO')
+  }
+  return declared
+}
+
+export function toMemoryRecords(caseValue: BenchmarkCase): MemoryRecord[] {
   return caseValue.memories.map((memory) => ({
     id: memory.id,
     originalText: memory.text,
@@ -291,7 +342,7 @@ function toMemoryRecords(caseValue: BenchmarkCase): MemoryRecord[] {
   }))
 }
 
-function ndcgAtK(selectedIds: readonly string[], expected: ReadonlySet<string>, k: number): number {
+export function ndcgAtK(selectedIds: readonly string[], expected: ReadonlySet<string>, k: number): number {
   if (expected.size === 0) return 1
   let dcg = 0
   for (let index = 0; index < Math.min(k, selectedIds.length); index += 1) {
@@ -304,14 +355,14 @@ function ndcgAtK(selectedIds: readonly string[], expected: ReadonlySet<string>, 
   return idcg === 0 ? 1 : dcg / idcg
 }
 
-function recallAt(selectedIds: readonly string[], expected: ReadonlySet<string>, k: number): number {
+export function recallAt(selectedIds: readonly string[], expected: ReadonlySet<string>, k: number): number {
   if (expected.size === 0) return 1
   let hits = 0
   for (const id of selectedIds.slice(0, k)) if (expected.has(id)) hits += 1
   return hits / expected.size
 }
 
-function duplicatePairs(caseValue: BenchmarkCase, selectedIds: readonly string[]): number {
+export function duplicatePairs(caseValue: BenchmarkCase, selectedIds: readonly string[]): number {
   const texts = selectedIds.map((id) => {
     const memory = caseValue.memories.find((item) => item.id === id)
     return new Set(retrievalTerms(memory?.text ?? ''))
@@ -325,7 +376,7 @@ function duplicatePairs(caseValue: BenchmarkCase, selectedIds: readonly string[]
   return pairs
 }
 
-function topicCoverage(caseValue: BenchmarkCase, selectedIds: readonly string[]): number {
+export function topicCoverage(caseValue: BenchmarkCase, selectedIds: readonly string[]): number {
   const expectedTopics = new Set(caseValue.expectedRelevantIds.map((id) => caseValue.topics[id]).filter((topic): topic is string => typeof topic === 'string'))
   if (expectedTopics.size === 0) return 1
   const covered = new Set(selectedIds.map((id) => caseValue.topics[id]).filter((topic): topic is string => typeof topic === 'string'))
@@ -334,7 +385,7 @@ function topicCoverage(caseValue: BenchmarkCase, selectedIds: readonly string[])
   return hit / expectedTopics.size
 }
 
-function orderViolations(caseValue: BenchmarkCase, selectedIds: readonly string[]): number {
+export function orderViolations(caseValue: BenchmarkCase, selectedIds: readonly string[]): number {
   if (caseValue.requiredOrder.length < 2) return 0
   let violations = 0
   for (let left = 0; left < caseValue.requiredOrder.length; left += 1) {
@@ -369,6 +420,7 @@ function evaluateCase(caseValue: BenchmarkCase, algorithm: RetrievalAlgorithmId)
     reciprocalRank: firstHit >= 0 ? 1 / (firstHit + 1) : (expected.size === 0 ? 1 : 0),
     ndcgAt5: ndcgAtK(selectedIds, expected, BENCHMARK_NDCG_K),
     leaks: selectedIds.filter((id) => caseValue.forbiddenIds.includes(id)),
+    falseRelevant: selectedIds.filter((id) => caseValue.irrelevantIds.includes(id)),
     orderViolations: orderViolations(caseValue, selectedIds),
     duplicatePairs: duplicatePairs(caseValue, selectedIds),
     topicCoverage: topicCoverage(caseValue, selectedIds),
@@ -378,11 +430,12 @@ function evaluateCase(caseValue: BenchmarkCase, algorithm: RetrievalAlgorithmId)
   }
 }
 
-function compare(v1: CaseMetrics, v2: CaseMetrics): 'v1' | 'v2' | 'tie' {
+export function compare(v1: CaseMetrics, v2: CaseMetrics): 'v1' | 'v2' | 'tie' {
   // Lexicographic preference: fewer leaks, fewer order violations, fewer
   // duplicate pairs, higher recall@5, higher MRR, higher NDCG, better coverage.
   const score = (metrics: CaseMetrics): number[] => [
     -metrics.leaks.length,
+    -metrics.falseRelevant.length,
     -metrics.orderViolations,
     -metrics.duplicatePairs,
     metrics.recallAt5,
@@ -399,7 +452,7 @@ function compare(v1: CaseMetrics, v2: CaseMetrics): 'v1' | 'v2' | 'tie' {
   return 'tie'
 }
 
-function mean(values: readonly number[]): number {
+export function mean(values: readonly number[]): number {
   return values.length === 0 ? 0 : Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(4))
 }
 
@@ -413,6 +466,8 @@ function totals(algorithm: RetrievalAlgorithmId, metrics: readonly CaseMetrics[]
     mrr: mean(metrics.map((item) => item.reciprocalRank)),
     ndcgAt5: mean(metrics.map((item) => item.ndcgAt5)),
     leakCount: metrics.reduce((sum, item) => sum + item.leaks.length, 0),
+    falseRelevantCount: metrics.reduce((sum, item) => sum + item.falseRelevant.length, 0),
+    falseRelevantRate: mean(metrics.map((item) => (item.selectedIds.length === 0 ? 0 : item.falseRelevant.length / item.selectedIds.length))),
     orderViolations: metrics.reduce((sum, item) => sum + item.orderViolations, 0),
     duplicatePairs: metrics.reduce((sum, item) => sum + item.duplicatePairs, 0),
     topicCoverage: mean(metrics.map((item) => item.topicCoverage)),
@@ -421,7 +476,7 @@ function totals(algorithm: RetrievalAlgorithmId, metrics: readonly CaseMetrics[]
   }
 }
 
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
   return JSON.stringify(value)
@@ -471,7 +526,7 @@ export function runRetrievalBenchmark(datasetValue: unknown): BenchmarkReport {
     fewerOrderViolations: v2Totals.orderViolations <= v1Totals.orderViolations,
     fewerDuplicates: v2Totals.duplicatePairs <= v1Totals.duplicatePairs,
     noTopicCoverageRegression: v2Totals.topicCoverage >= v1Totals.topicCoverage,
-    coversEveryScenario: new Set(dataset.cases.map((item) => item.scenario)).size === BENCHMARK_SCENARIOS.length
+    coversEveryScenario: dataset.requiredScenarios.every((scenario) => dataset.cases.some((item) => item.scenario === scenario))
   }
   const failed = Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name)
   const passed = failed.length === 0

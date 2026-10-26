@@ -34,6 +34,8 @@ export interface RetrievalFactors {
   recency: number
   /** Extra freshness weight earned on a time-sensitive turn, 0..1. */
   timeSensitivity: number
+  /** Normalized semantic relevance, 0..1. Zero when no encoder ran. */
+  semantic: number
   /** Near-duplicate penalty applied, 0..1. */
   duplicate: number
   /** Topic-diversity penalty applied, 0..1. */
@@ -75,6 +77,12 @@ export interface RetrievalDecision {
   exclusionCounts: Record<RetrievalExclusionReason, number>
   /** How much of the cross-record correction chain was actually available. */
   correctionChain: { statements: number; truncated: boolean }
+  /**
+   * Whether semantic signals were actually used. `applied: false` with a
+   * non-null modelId means the encoder was configured but produced nothing
+   * usable this turn, which is a different state from "disabled".
+   */
+  semantic: { modelId: string | null; applied: boolean }
   candidates: RetrievalCandidateTrace[]
 }
 
@@ -119,6 +127,7 @@ export function retrievalDecisionEventPayload(decision: RetrievalDecision): Reco
     contextBudget: decision.contextBudget,
     selectedIds: decision.selectedIds.slice(0, 8),
     exclusionCounts: decision.exclusionCounts,
-    correctionChain: decision.correctionChain
+    correctionChain: decision.correctionChain,
+    semantic: decision.semantic
   }
 }

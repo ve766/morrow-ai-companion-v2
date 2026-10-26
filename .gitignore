@@ -22,3 +22,6 @@ evaluation/reports/*
 !evaluation/reports/feeling-synthetic-example.json
 !evaluation/reports/cognitive-alpha-adversarial-report.json
 !evaluation/reports/retrieval-benchmark-v1.json
+
+# Optional local embedding model (fetched explicitly, never committed)
+.models/
