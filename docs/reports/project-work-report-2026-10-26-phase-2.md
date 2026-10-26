@@ -7,14 +7,16 @@
 | 工作分支 | `feat/phase-2-companion-core` |
 | 阶段基线 | `12f83e1`（第一阶段分支 `chore/phase-1-engineering-consistency` 的头提交，其基线为 `main` @ `8b207b7`） |
 | `main` 基线 | `8b207b7` |
-| 本阶段提交 | `137113f` → `4b52731` → `5425653` → `ec53fb8`（源码最后一提交）→ `a8f82ab`（报告初版）→ `aa2642b`（CI 记录）→ 本次抖动记录提交（纯文档） |
+| 本阶段提交 | `137113f` → `4b52731` → `5425653` → `ec53fb8`（核心源码）→ `30b74dd`（`testTimeout` 修复 + 报告修根因）→ `a8f82ab`、`aa2642b`、`d84dcfa`、本次（均为文档） |
 | Pull Request | **#3** — https://github.com/ve766/morrow-ai-companion-v2/pull/3 |
 | PR 状态 | **OPEN / 未合并**（等待人工审查与审计，按任务要求停止） |
 | PR base | `chore/phase-1-engineering-consistency`（**堆叠 PR**，理由见 §15.2） |
 | CI 运行 1 | [run 40321367137](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137) @ `a8f82ab` — **success**（3 / 3 Job） |
-| CI 运行 2 | [run 40321933436](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321933436) @ `aa2642b` — **attempt 1 失败**（windows-latest 1 个 5000ms 超时，290/291）→ **attempt 2 success**（3 / 3 Job，未改代码）。属既有抖动，根因见 §12.4 |
+| CI 运行 2 | [run 40321933436](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321933436) @ `aa2642b` — **attempt 1 失败**（windows-latest 1 个 5000ms 超时，290/291）→ **attempt 2 success**（3 / 3 Job，未改代码） |
+| CI 运行 3 | [run 40322940570](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40322940570) @ `d84dcfa` — **失败**（windows-latest 3 个 5000ms 超时，全在 `migrations.test.ts`，288/291） |
+| CI 运行 4 | [run 40323987426](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40323987426) @ `30b74dd`（修 `testTimeout` 后）— **success**（3 / 3 Job） |
 | CI 实测 | ubuntu-latest **42 文件 / 291 测试通过**；windows-latest **42 文件 / 291 测试通过**；windows 升级路径 6 文件 / 47 测试通过；双平台 smoke `Morrow smoke passed`；`evaluate:companion` 双平台 21/21、`replayStable: true`、`networkCalls: 0` |
-| 已知 CI 缺陷 | **已修**（本阶段内，超出原工作包范围，已披露）：`vitest.config.ts` 未设 `testTimeout`，默认 5000ms 在 Windows 上偶发超时。已设为 `20_000`，**未改任何断言、未跳过任何测试、未降低并发**。证据见 §12.4 |
+| CI 抖动处置 | **已修**：`vitest.config.ts` 设 `testTimeout: 20_000`（原默认 5000ms）。**未改任何断言、未跳过任何测试、未降低并发**。完整失败记录与归因见 §12.4 |
 | CI 覆盖范围 | **仅限 `.github/workflows/ci.yml` 定义的检查项**；**不含**真实 Provider 对话、**不含**安装包打包、**不含**任何质量评估（见 §1.2、§17 Q8） |
 | 真实 Provider 验证 | **已执行并通过**：`status: verified`，4 / 4 轮，9 / 9 项客观检查 |
 | 真实 Provider 环境 | 本机 Ollama `http://127.0.0.1:11434/v1`，模型 `qwen2.5:0.5b`（**0.5B 小参数模型**） |
@@ -524,7 +526,11 @@ $ npx vitest run --no-fsModuleCache src/persistence/migrations.test.ts
 
 这是本阶段**唯一一处超出原工作包 A–F 的代码改动**，已在 §3 与 §14 单独标出。
 
-**不把 rerun 通过写成「一次通过」**，是本报告的基本要求。
+#### 修复后：run `40323987426` @ `30b74dd`
+
+**3 / 3 Job success**（ubuntu-latest、windows-latest、windows 升级路径），windows-latest 上 `42 passed (42)` / `291 passed (291)`。
+
+**不把 rerun 通过写成「一次通过」**，是本报告的基本要求；同理，也不把「修完之后绿了一次」写成「从此不再抖动」——抖动类问题的正确结论只能是**已发生的尝试序列**，而不是一次结果。上面四次运行就是完整序列。
 
 已知告警（非阻塞，属既有债务，本阶段未处理）：`actions/checkout@v4` 与 `actions/setup-node@v4` 触发 Node 20 弃用提示；`ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26。
 
@@ -673,5 +679,6 @@ $ npx vitest run --no-fsModuleCache src/persistence/migrations.test.ts
 | 第 2 版 | 2026-10-26 | 补入 CI 实际结果（`run 40321367137`，3/3 success）；修正 `provider-policy` 测试数量表述（7 项，非「43 项族」）；修正交叉引用编号 |
 | 第 3 版 | 2026-10-26 | 补入 `run 40321933436` 的 **attempt 1 失败**记录（windows-latest 1 个 5000ms 超时，290/291）与 attempt 2 通过；新增根因定位（`vitest.config.ts` 无 `testTimeout`）；§11 新增第 11 条遗留债务；§14 新增两条偏差 |
 | 第 4 版 | 2026-10-26 | 补入 `run 40322940570` **再次失败**；新增频率对比（40 文件 4/4 绿 vs 42 文件 2/4 失败）；**修掉根因**：`vitest.config.ts` 设 `testTimeout: 20_000`，附单测真实耗时测量与「为何不算放宽测试」的论证；§3、§11、§14 同步更新 |
+| 第 5 版 | 2026-10-26 | 补入修复后 `run 40323987426` **3 / 3 success**；表头补齐运行 1–4 的完整序列；明确「抖动类问题只能报尝试序列，不能报单次结果」 |
 
 > 第 2、3 版只补事实与修正表述。**第 4 版新增了一处代码改动**（`vitest.config.ts`），已在该版明确标注并单列理由。
