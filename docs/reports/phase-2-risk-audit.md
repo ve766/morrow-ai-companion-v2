@@ -38,7 +38,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 代码位置 | `src/memory/memory-service.ts:165`（`correct` → `transition`，写 revision 并更新 `current_text`）；`memory-context-assembler.ts:92` 只序列化 `currentText` |
+| 代码位置 | `src/memory/memory-service.ts:165`（`correct` → `transition`，写 revision 并更新 `current_text`）；`memory-context-assembler.ts:90-104` 的 `encode` 只序列化 `currentText` |
 | 复现 | 记忆「住上海」→ `correct` 为「住杭州」→ 发「我现在住在哪？」→ 检查请求 |
 | 测试 | `companion-core.integration.test.ts:212`（纠正后旧文本消失、新文本出现）；`b3-correction`（纠正后 `contextExcludes: ["上海"]`） |
 | 结论 | **代码确认 + 测试确认** |
