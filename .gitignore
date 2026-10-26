@@ -21,3 +21,4 @@ evaluation/reports/*
 !evaluation/reports/cognitive-turn-synthetic-example.json
 !evaluation/reports/feeling-synthetic-example.json
 !evaluation/reports/cognitive-alpha-adversarial-report.json
+!evaluation/reports/real-provider-conversation-report.json
