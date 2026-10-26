@@ -579,7 +579,16 @@ export function runRetrievalBenchmark(datasetValue: unknown): BenchmarkReport {
   const improvements = comparisons.filter((item) => item.winner === 'v2').map((item) => `${item.caseId} (${item.scenario})`)
   const regressions = comparisons.filter((item) => item.winner === 'v1').map((item) => `${item.caseId} (${item.scenario})`)
 
+  // Absolute floors, not just "not worse than v1": a change that quietly made
+  // both arms worse would otherwise pass a purely relative gate.
+  const V2_RECALL_AT_5_FLOOR = 0.9
+  const V2_RECALL_AT_1_FLOOR = 0.6
+
   const checks = {
+    lexicalMatchingIsToken: resolveRetrievalConfig().lexicalMatching === 'token',
+    datasetVersionRecorded: /^\d+\.\d+\.\d+$/u.test(dataset.datasetVersion),
+    v2RecallAt5Floor: v2Totals.recallAt5 >= V2_RECALL_AT_5_FLOOR,
+    v2RecallAt1Floor: v2Totals.recallAt1 >= V2_RECALL_AT_1_FLOOR,
     v2NoLeaks: v2Totals.leakCount === 0,
     v2NoBudgetOverrun: v2Totals.budgetOverruns === 0,
     v2Deterministic: v2Totals.deterministic,

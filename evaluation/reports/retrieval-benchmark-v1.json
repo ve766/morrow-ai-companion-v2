@@ -1,7 +1,7 @@
 {
   "reportVersion": 1,
   "runnerVersion": "2.0.0",
-  "generatedAt": "2026-10-26T05:57:48.971Z",
+  "generatedAt": "2026-10-26T06:55:36.514Z",
   "dataset": {
     "id": "morrow-retrieval-benchmark",
     "version": "1.0.0",
@@ -50,7 +50,27 @@
       "duplicatePairs": 6,
       "topicCoverage": 1,
       "budgetOverruns": 0,
-      "deterministic": true
+      "deterministic": true,
+      "uncertainty": {
+        "cases": 12,
+        "firstRank": {
+          "hits": 8,
+          "proportion": 0.6667,
+          "wilson95": [
+            0.3906,
+            0.8619
+          ]
+        },
+        "leakFree": {
+          "cases": 12,
+          "hits": 11,
+          "proportion": 0.9167,
+          "wilson95": [
+            0.6461,
+            0.9851
+          ]
+        }
+      }
     },
     "v2": {
       "algorithm": "memory-retrieval-v2",
@@ -67,7 +87,27 @@
       "duplicatePairs": 0,
       "topicCoverage": 1,
       "budgetOverruns": 0,
-      "deterministic": true
+      "deterministic": true,
+      "uncertainty": {
+        "cases": 12,
+        "firstRank": {
+          "hits": 9,
+          "proportion": 0.75,
+          "wilson95": [
+            0.4677,
+            0.9111
+          ]
+        },
+        "leakFree": {
+          "cases": 12,
+          "hits": 12,
+          "proportion": 1,
+          "wilson95": [
+            0.7575,
+            1
+          ]
+        }
+      }
     }
   },
   "cases": [
@@ -674,6 +714,10 @@
   "gate": {
     "passed": true,
     "checks": {
+      "lexicalMatchingIsToken": true,
+      "datasetVersionRecorded": true,
+      "v2RecallAt5Floor": true,
+      "v2RecallAt1Floor": true,
       "v2NoLeaks": true,
       "v2NoBudgetOverrun": true,
       "v2Deterministic": true,

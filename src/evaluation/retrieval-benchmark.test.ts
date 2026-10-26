@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   BENCHMARK_SCENARIOS,
   BenchmarkError,
+  canonical,
   runRetrievalBenchmark,
   summarizeReport,
   validateBenchmarkDataset
@@ -51,6 +53,17 @@ describe('benchmark dataset validation', () => {
     const cases = fixture.cases as Array<{ memories: Array<Record<string, unknown>> }>
     cases[0]!.memories[0]!.confidence = 0
     expect(() => validateBenchmarkDataset(fixture)).toThrowError('INVALID_MEMORY')
+  })
+})
+
+describe('benchmark dataset integrity', () => {
+  it('has not been silently edited since it was frozen', () => {
+    // If this fails, the fixture changed. That is allowed, but the pinned hash
+    // must be updated in the same commit and the frozen report re-baselined, so
+    // nobody can quietly move the goalposts.
+    const dataset = validateBenchmarkDataset(loadFixture())
+    const hash = createHash('sha256').update(canonical(dataset)).digest('hex')
+    expect(hash).toBe('5d3cecc8af7d66ff57045813ec10152ed4ff237d078f10466e012ec318545c99')
   })
 })
 
