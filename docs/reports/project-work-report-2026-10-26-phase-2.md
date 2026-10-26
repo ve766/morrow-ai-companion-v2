@@ -20,7 +20,7 @@
 | CI 覆盖范围 | **仅限 `.github/workflows/ci.yml` 定义的检查项**；**不含**真实 Provider 对话、**不含**安装包打包、**不含**任何质量评估（见 §1.2、§17 Q8） |
 | 真实 Provider 验证 | **已执行并通过**：`status: verified`，4 / 4 轮，9 / 9 项客观检查 |
 | 真实 Provider 环境 | 本机 Ollama `http://127.0.0.1:11434/v1`，模型 `qwen2.5:0.5b`（**0.5B 小参数模型**） |
-| 本机测试 | `42` 文件 / `291` 测试通过（`--no-fsModuleCache --maxWorkers=2`） |
+| 本机测试 | `42` 文件 / `291` 测试通过：`--maxWorkers=2` 通过；修 `testTimeout` 后**默认并发连跑两次也通过** |
 | 离线评估 | 3 组全部通过（`evaluate` / `evaluate:cognition` / `evaluate:companion`） |
 | 云端 Provider 真实调用 | **未执行**（无凭据，未产生任何付费请求） |
 | Windows 安装包 | **未执行**（本阶段未打包） |
@@ -365,7 +365,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 ---
 
-## 11. 认知闭环仍然断裂的地方（已知问题，未修）
+## 11. 认知闭环仍然断裂的地方（已知问题）
 
 按严重度排序。前三条是本阶段**新发现**的，后几条是既有债务。
 
@@ -403,6 +403,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 |---|---|---|
 | `npm run typecheck` | **通过**（exit 0） | 无输出即无错误 |
 | `npx vitest run --no-fsModuleCache --maxWorkers=2` | **通过** | `Test Files 42 passed (42)` / `Tests 291 passed (291)` |
+| `npx vitest run --no-fsModuleCache`（**默认并发**，修 `testTimeout` 后连跑 2 次） | **通过** | 两次均 `Test Files 42 passed (42)` / `Tests 291 passed (291)`。修之前默认并发在本机必挂（§12.3） |
 | `npm run evaluate` | **通过** | `candidatePrecision 1`、`candidateRecall 1`、各类 leak 均为 0、`deterministicHash 209d8d37…` |
 | `npm run evaluate:cognition` | **通过** | cognitive 26 用例、feeling 34、alpha 28，各准确率 1.0，`gate.passed: true`，`networkCalls 0` |
 | `npm run evaluate:companion` | **通过** | `21/21`、`replayStable: true`、`stubDispatches: 47`、`networkCalls: 0`、`deterministicHash b41b643d…` |
@@ -449,7 +450,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 ### 12.4 GitHub Actions 实际结果
 
-本阶段有两次 run，**其中一次失败过**，如实记录如下。
+本阶段共 **4 次 run，其中 2 次失败过**，如实记录如下。
 
 #### run `40321367137` @ `a8f82ab`（源码 + 报告初版）
 
@@ -680,5 +681,6 @@ $ npx vitest run --no-fsModuleCache src/persistence/migrations.test.ts
 | 第 3 版 | 2026-10-26 | 补入 `run 40321933436` 的 **attempt 1 失败**记录（windows-latest 1 个 5000ms 超时，290/291）与 attempt 2 通过；新增根因定位（`vitest.config.ts` 无 `testTimeout`）；§11 新增第 11 条遗留债务；§14 新增两条偏差 |
 | 第 4 版 | 2026-10-26 | 补入 `run 40322940570` **再次失败**；新增频率对比（40 文件 4/4 绿 vs 42 文件 2/4 失败）；**修掉根因**：`vitest.config.ts` 设 `testTimeout: 20_000`，附单测真实耗时测量与「为何不算放宽测试」的论证；§3、§11、§14 同步更新 |
 | 第 5 版 | 2026-10-26 | 补入修复后 `run 40323987426` **3 / 3 success**；表头补齐运行 1–4 的完整序列；明确「抖动类问题只能报尝试序列，不能报单次结果」 |
+| 第 6 版 | 2026-10-26 | 一致性校对：§12.4 开头「两次 run」改为「4 次 run，2 次失败」；§11 标题去掉「未修」（第 11 条已修）；§12.2 与表头补入「修后默认并发两次全绿」 |
 
 > 第 2、3 版只补事实与修正表述。**第 4 版新增了一处代码改动**（`vitest.config.ts`），已在该版明确标注并单列理由。
