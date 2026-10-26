@@ -15,8 +15,10 @@
     "smoke": "node scripts/smoke.mjs",
     "evaluate": "node scripts/run-evaluation.mjs",
     "evaluate:cognition": "node scripts/run-cognitive-core-evaluation.mjs",
-    "verify": "npm run typecheck && npm test && npm run evaluate && npm run evaluate:cognition && npm run build && npm run smoke",
-    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never"
+    "verify": "npm run typecheck && npm test && npm run evaluate && npm run evaluate:cognition && npm run evaluate:companion && npm run build && npm run smoke",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "evaluate:companion": "node scripts/run-companion-core-evaluation.mjs",
+    "verify:real": "node scripts/run-real-provider-conversation.mjs"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
