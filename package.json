@@ -15,7 +15,8 @@
     "smoke": "node scripts/smoke.mjs",
     "evaluate": "node scripts/run-evaluation.mjs",
     "evaluate:cognition": "node scripts/run-cognitive-core-evaluation.mjs",
-    "verify": "npm run typecheck && npm test && npm run evaluate && npm run evaluate:cognition && npm run build && npm run smoke",
+    "evaluate:retrieval": "node scripts/run-retrieval-benchmark.mjs",
+    "verify": "npm run typecheck && npm test && npm run evaluate && npm run evaluate:cognition && npm run evaluate:retrieval && npm run build && npm run smoke",
     "package:win": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {

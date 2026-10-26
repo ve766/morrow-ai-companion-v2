@@ -25,8 +25,10 @@ export const RETRIEVAL_CONFIG_VERSION = '2.1.0' as const
 /**
  * Which algorithm the live chat path uses.
  *
- * Starts at v1 on purpose: the baseline stays the default until the offline
- * benchmark shows a measurable improvement without a safety regression.
+ * Switched to v2 only after `npm run evaluate:retrieval` cleared every gate
+ * (no leak, no budget overrun, deterministic, no recall/MRR/NDCG/coverage
+ * regression). v1 remains available and is still the control arm of the
+ * benchmark; see docs/algorithm-v2/retrieval-benchmark.md.
  */
 export const DEFAULT_RETRIEVAL_ALGORITHM: RetrievalAlgorithmId = RETRIEVAL_ALGORITHM_V1
 
@@ -90,7 +92,7 @@ export const DEFAULT_RETRIEVAL_CONFIG: RetrievalConfig = {
     confirmation: 0.06,
     recency: 0.2,
     timeSensitivity: 0.15,
-    diversityPenalty: 0.2
+    diversityPenalty: 0.05
   },
   decay: {
     explicitHalfLifeDays: 180,

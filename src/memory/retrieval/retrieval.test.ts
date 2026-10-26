@@ -38,7 +38,7 @@ function run(algorithm: typeof RETRIEVAL_ALGORITHM_V1 | typeof RETRIEVAL_ALGORIT
 }
 
 describe('retrieval configuration', () => {
-  it('defaults to the audited baseline algorithm and exposes every ranking parameter', () => {
+  it('keeps v1 as the live default until the benchmark justifies switching', () => {
     const config = resolveRetrievalConfig()
     expect(config.algorithm).toBe(RETRIEVAL_ALGORITHM_V1)
     expect(config.configVersion).toBe('2.1.0')
@@ -47,6 +47,7 @@ describe('retrieval configuration', () => {
     expect(Object.keys(config.weights).sort()).toEqual([
       'confidence', 'confirmation', 'diversityPenalty', 'lexical', 'provenance', 'recency', 'timeSensitivity'
     ])
+    expect(resolveRetrievalConfig({ algorithm: RETRIEVAL_ALGORITHM_V2 }).algorithm).toBe(RETRIEVAL_ALGORITHM_V2)
   })
 
   it('rejects out-of-range values instead of silently clamping them', () => {

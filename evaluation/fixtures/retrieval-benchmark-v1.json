@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "morrow-retrieval-benchmark",
+  "datasetVersion": "1.0.0",
+  "source": "synthetic",
+  "seed": 20261025,
+  "note": "All content is synthetic. No real user conversation is included. Each case names the phase-contract scenario it covers.",
+  "cases": [
+    {
+      "id": "repeated-preference-multiturn",
+      "version": 1,
+      "scenario": "repeated_preference_multiturn",
+      "query": "concise answers",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "pref-main", "text": "I prefer concise answers.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 92, "createdAt": "2026-08-01T00:00:00.000Z", "updatedAt": "2026-10-20T00:00:00.000Z", "lastConfirmedAt": "2026-10-20T00:00:00.000Z" },
+        { "id": "pref-echo-1", "text": "I prefer concise answers without long preambles.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-08-05T00:00:00.000Z", "updatedAt": "2026-10-21T00:00:00.000Z", "lastConfirmedAt": "2026-10-21T00:00:00.000Z" },
+        { "id": "pref-echo-2", "text": "I like short direct answers.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-08-09T00:00:00.000Z", "updatedAt": "2026-10-22T00:00:00.000Z", "lastConfirmedAt": "2026-10-22T00:00:00.000Z" },
+        { "id": "pref-unrelated", "text": "The user lives in Suzhou.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 90, "createdAt": "2026-08-10T00:00:00.000Z", "updatedAt": "2026-08-10T00:00:00.000Z", "lastConfirmedAt": "2026-08-10T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["pref-main"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": { "pref-main": "style", "pref-echo-1": "style", "pref-echo-2": "style" }
+    },
+    {
+      "id": "explicit-correction-cross-record",
+      "version": 1,
+      "scenario": "explicit_correction",
+      "query": "what tea do I like",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "tea-corrected", "text": "I prefer black tea now.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-03-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z", "lastConfirmedAt": "2026-09-01T00:00:00.000Z" },
+        { "id": "tea-restated", "text": "I like green tea.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-09-10T00:00:00.000Z", "updatedAt": "2026-09-10T00:00:00.000Z", "lastConfirmedAt": "2026-09-10T00:00:00.000Z" },
+        { "id": "tea-milk", "text": "I take milk in my tea.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 75, "createdAt": "2026-05-01T00:00:00.000Z", "updatedAt": "2026-05-01T00:00:00.000Z", "lastConfirmedAt": "2026-05-01T00:00:00.000Z" }
+      ],
+      "supersededStatements": [
+        { "memoryId": "tea-corrected", "revision": 1, "text": "I like green tea.", "supersededAt": "2026-09-01T00:00:00.000Z", "supersedingConfirmedAt": "2026-09-01T00:00:00.000Z" }
+      ],
+      "expectedRelevantIds": ["tea-corrected"],
+      "forbiddenIds": ["tea-restated"],
+      "requiredOrder": ["tea-corrected", "tea-milk"],
+      "topics": { "tea-corrected": "drink", "tea-restated": "drink", "tea-milk": "drink" }
+    },
+    {
+      "id": "new-over-old-fact-conflict",
+      "version": 1,
+      "scenario": "new_old_conflict",
+      "query": "where do I work",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "work-old", "text": "I work at Northwind Traders in the Berlin office, where I work on logistics.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 95, "createdAt": "2025-06-01T00:00:00.000Z", "updatedAt": "2025-06-01T00:00:00.000Z", "lastConfirmedAt": "2025-06-01T00:00:00.000Z" },
+        { "id": "work-new", "text": "I work at Contoso Labs now.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-09-15T00:00:00.000Z", "updatedAt": "2026-09-15T00:00:00.000Z", "lastConfirmedAt": "2026-09-15T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["work-new", "work-old"],
+      "forbiddenIds": [],
+      "requiredOrder": ["work-new", "work-old"],
+      "topics": { "work-old": "work", "work-new": "work" }
+    },
+    {
+      "id": "stale-versus-recent-role",
+      "version": 1,
+      "scenario": "stale_vs_recent",
+      "query": "what is my role",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "role-stale", "text": "My role is junior analyst on the reporting role rotation.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 92, "createdAt": "2024-11-01T00:00:00.000Z", "updatedAt": "2024-11-01T00:00:00.000Z", "lastConfirmedAt": "2024-11-01T00:00:00.000Z" },
+        { "id": "role-recent", "text": "My role is senior analyst.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-10-01T00:00:00.000Z", "lastConfirmedAt": "2026-10-01T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["role-recent"],
+      "forbiddenIds": [],
+      "requiredOrder": ["role-recent", "role-stale"],
+      "topics": { "role-stale": "work", "role-recent": "work" }
+    },
+    {
+      "id": "longterm-preference-versus-temporary-need",
+      "version": 1,
+      "scenario": "longterm_vs_temporary",
+      "query": "which meals should I eat today",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "food-preference", "text": "I prefer vegetarian meals.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-05-01T00:00:00.000Z", "updatedAt": "2026-05-01T00:00:00.000Z", "lastConfirmedAt": "2026-05-01T00:00:00.000Z" },
+        { "id": "food-temporary", "text": "The user wants something quick to eat tonight.", "sourceCategory": "turn_derived_confirmed", "status": "active", "sensitivity": "personal", "confidence": 70, "createdAt": "2026-10-24T00:00:00.000Z", "updatedAt": "2026-10-24T00:00:00.000Z", "lastConfirmedAt": "2026-10-24T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["food-preference", "food-temporary"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": { "food-preference": "food", "food-temporary": "food" }
+    },
+    {
+      "id": "same-topic-duplicate-cluster",
+      "version": 1,
+      "scenario": "same_topic_many_duplicates",
+      "query": "what coffee do I drink",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "coffee-1", "text": "I drink black coffee every morning.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 90, "createdAt": "2026-06-01T00:00:00.000Z", "updatedAt": "2026-06-01T00:00:00.000Z", "lastConfirmedAt": "2026-06-01T00:00:00.000Z" },
+        { "id": "coffee-2", "text": "I drink black coffee every morning.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-06-02T00:00:00.000Z", "updatedAt": "2026-06-02T00:00:00.000Z", "lastConfirmedAt": "2026-06-02T00:00:00.000Z" },
+        { "id": "coffee-3", "text": "I drink black coffee every morning before work.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 78, "createdAt": "2026-06-03T00:00:00.000Z", "updatedAt": "2026-06-03T00:00:00.000Z", "lastConfirmedAt": "2026-06-03T00:00:00.000Z" },
+        { "id": "coffee-4", "text": "Black coffee is what I drink every morning.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 76, "createdAt": "2026-06-04T00:00:00.000Z", "updatedAt": "2026-06-04T00:00:00.000Z", "lastConfirmedAt": "2026-06-04T00:00:00.000Z" },
+        { "id": "coffee-5", "text": "Every morning I drink black coffee.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 74, "createdAt": "2026-06-05T00:00:00.000Z", "updatedAt": "2026-06-05T00:00:00.000Z", "lastConfirmedAt": "2026-06-05T00:00:00.000Z" },
+        { "id": "coffee-6", "text": "I drink coffee, black, every morning.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 72, "createdAt": "2026-06-06T00:00:00.000Z", "updatedAt": "2026-06-06T00:00:00.000Z", "lastConfirmedAt": "2026-06-06T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["coffee-1"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": { "coffee-1": "drink", "coffee-2": "drink", "coffee-3": "drink", "coffee-4": "drink", "coffee-5": "drink", "coffee-6": "drink" }
+    },
+    {
+      "id": "multi-topic-week-planning",
+      "version": 1,
+      "scenario": "multi_topic_recall",
+      "query": "help me plan my week around work, health and reading",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "plan-work", "text": "I work best in the morning and prefer meetings after lunch.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-04-01T00:00:00.000Z", "updatedAt": "2026-09-20T00:00:00.000Z", "lastConfirmedAt": "2026-09-20T00:00:00.000Z" },
+        { "id": "plan-work-2", "text": "I keep a weekly work review on Fridays.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-04-05T00:00:00.000Z", "updatedAt": "2026-08-01T00:00:00.000Z", "lastConfirmedAt": "2026-08-01T00:00:00.000Z" },
+        { "id": "plan-health", "text": "I go running three times a week for my health.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-04-02T00:00:00.000Z", "updatedAt": "2026-09-25T00:00:00.000Z", "lastConfirmedAt": "2026-09-25T00:00:00.000Z" },
+        { "id": "plan-health-2", "text": "I sleep badly when my health routine slips.", "sourceCategory": "model_inferred_confirmed", "status": "active", "sensitivity": "personal", "confidence": 62, "createdAt": "2026-07-01T00:00:00.000Z", "updatedAt": "2026-07-01T00:00:00.000Z", "lastConfirmedAt": "2026-07-01T00:00:00.000Z" },
+        { "id": "plan-reading", "text": "I read for thirty minutes before bed as my reading habit.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 87, "createdAt": "2026-04-03T00:00:00.000Z", "updatedAt": "2026-09-28T00:00:00.000Z", "lastConfirmedAt": "2026-09-28T00:00:00.000Z" },
+        { "id": "plan-reading-2", "text": "I prefer printed books for long-form reading.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 83, "createdAt": "2026-04-04T00:00:00.000Z", "updatedAt": "2026-08-15T00:00:00.000Z", "lastConfirmedAt": "2026-08-15T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["plan-work", "plan-health", "plan-reading"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": { "plan-work": "work", "plan-work-2": "work", "plan-health": "health", "plan-health-2": "health", "plan-reading": "reading", "plan-reading-2": "reading" }
+    },
+    {
+      "id": "retracted-and-restricted-non-leak",
+      "version": 1,
+      "scenario": "deletion_nonleak",
+      "query": "my address and phone",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "addr-retracted", "text": "My address is 12 Synthetic Street.", "sourceCategory": "user_explicit_input", "status": "retracted", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-02-01T00:00:00.000Z", "lastConfirmedAt": "2026-01-01T00:00:00.000Z" },
+        { "id": "addr-restricted", "text": "My address is 9 Example Road and my phone is a synthetic number.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "sensitive", "confidence": 85, "createdAt": "2026-03-01T00:00:00.000Z", "updatedAt": "2026-03-01T00:00:00.000Z", "lastConfirmedAt": "2026-03-01T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "forbiddenIds": ["addr-retracted", "addr-restricted"],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "low-confidence-inference-versus-explicit",
+      "version": 1,
+      "scenario": "low_confidence_vs_high",
+      "query": "am I a morning person",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "infer-morning", "text": "The model infers the user is a morning person.", "sourceCategory": "model_inferred_confirmed", "status": "active", "sensitivity": "personal", "confidence": 45, "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z", "lastConfirmedAt": "2026-09-01T00:00:00.000Z" },
+        { "id": "explicit-evening", "text": "I am a night owl and definitely not a morning person.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 92, "createdAt": "2026-09-02T00:00:00.000Z", "updatedAt": "2026-09-02T00:00:00.000Z", "lastConfirmedAt": "2026-09-02T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["explicit-evening"],
+      "forbiddenIds": [],
+      "requiredOrder": ["explicit-evening", "infer-morning"],
+      "topics": { "infer-morning": "routine", "explicit-evening": "routine" }
+    },
+    {
+      "id": "context-budget-long-conversation",
+      "version": 1,
+      "scenario": "budget_limit",
+      "query": "project notes",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "notes-01", "text": "Project notes 01: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-01T00:00:00.000Z", "updatedAt": "2026-10-01T00:00:00.000Z", "lastConfirmedAt": "2026-10-01T00:00:00.000Z" },
+        { "id": "notes-02", "text": "Project notes 02: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-02T00:00:00.000Z", "updatedAt": "2026-10-02T00:00:00.000Z", "lastConfirmedAt": "2026-10-02T00:00:00.000Z" },
+        { "id": "notes-03", "text": "Project notes 03: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-03T00:00:00.000Z", "updatedAt": "2026-10-03T00:00:00.000Z", "lastConfirmedAt": "2026-10-03T00:00:00.000Z" },
+        { "id": "notes-04", "text": "Project notes 04: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-04T00:00:00.000Z", "updatedAt": "2026-10-04T00:00:00.000Z", "lastConfirmedAt": "2026-10-04T00:00:00.000Z" },
+        { "id": "notes-05", "text": "Project notes 05: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-10-05T00:00:00.000Z", "lastConfirmedAt": "2026-10-05T00:00:00.000Z" },
+        { "id": "notes-06", "text": "Project notes 06: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-06T00:00:00.000Z", "updatedAt": "2026-10-06T00:00:00.000Z", "lastConfirmedAt": "2026-10-06T00:00:00.000Z" },
+        { "id": "notes-07", "text": "Project notes 07: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-07T00:00:00.000Z", "updatedAt": "2026-10-07T00:00:00.000Z", "lastConfirmedAt": "2026-10-07T00:00:00.000Z" },
+        { "id": "notes-08", "text": "Project notes 08: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-08T00:00:00.000Z", "updatedAt": "2026-10-08T00:00:00.000Z", "lastConfirmedAt": "2026-10-08T00:00:00.000Z" },
+        { "id": "notes-09", "text": "Project notes 09: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-09T00:00:00.000Z", "updatedAt": "2026-10-09T00:00:00.000Z", "lastConfirmedAt": "2026-10-09T00:00:00.000Z" },
+        { "id": "notes-10", "text": "Project notes 10: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-10T00:00:00.000Z", "updatedAt": "2026-10-10T00:00:00.000Z", "lastConfirmedAt": "2026-10-10T00:00:00.000Z" },
+        { "id": "notes-11", "text": "Project notes 11: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-11T00:00:00.000Z", "updatedAt": "2026-10-11T00:00:00.000Z", "lastConfirmedAt": "2026-10-11T00:00:00.000Z" },
+        { "id": "notes-12", "text": "Project notes 12: the synthetic rollout checklist covers staging, review and release gates for project notes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-07-12T00:00:00.000Z", "updatedAt": "2026-10-12T00:00:00.000Z", "lastConfirmedAt": "2026-10-12T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["notes-12"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "no-evidence-noise-query",
+      "version": 1,
+      "scenario": "no_evidence_noise",
+      "query": "quantum chromodynamics lattice spacing",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "noise-1", "text": "I prefer concise answers.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-06-01T00:00:00.000Z", "updatedAt": "2026-06-01T00:00:00.000Z", "lastConfirmedAt": "2026-06-01T00:00:00.000Z" },
+        { "id": "noise-2", "text": "I drink black coffee every morning.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-06-02T00:00:00.000Z", "updatedAt": "2026-06-02T00:00:00.000Z", "lastConfirmedAt": "2026-06-02T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "forbiddenIds": ["noise-1", "noise-2"],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "cross-session-stable-order",
+      "version": 1,
+      "scenario": "cross_session_restart",
+      "query": "how do I like my answers",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "memories": [
+        { "id": "cs-style", "text": "I like direct answers with a clear recommendation.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 90, "createdAt": "2026-05-01T00:00:00.000Z", "updatedAt": "2026-09-30T00:00:00.000Z", "lastConfirmedAt": "2026-09-30T00:00:00.000Z" },
+        { "id": "cs-style-2", "text": "I like answers that list trade-offs explicitly.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-05-02T00:00:00.000Z", "updatedAt": "2026-09-29T00:00:00.000Z", "lastConfirmedAt": "2026-09-29T00:00:00.000Z" },
+        { "id": "cs-noise", "text": "I visited Osaka last spring.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-05-03T00:00:00.000Z", "updatedAt": "2026-05-03T00:00:00.000Z", "lastConfirmedAt": "2026-05-03T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["cs-style", "cs-style-2"],
+      "forbiddenIds": [],
+      "requiredOrder": ["cs-style", "cs-style-2"],
+      "topics": { "cs-style": "style", "cs-style-2": "style" }
+    }
+  ]
+}
