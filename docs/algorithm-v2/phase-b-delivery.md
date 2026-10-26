@@ -115,33 +115,74 @@ without `workflow` scope
 | `npm run evaluate:retrieval` | **通过** | 新增基准，`passed: true`，`failedChecks: []` |
 | `npm run build` | **通过** | electron-vite 主/预加载/渲染三段全部构建成功 |
 
+CI（PR #1，run `40263073672`）：3 个 job 全部通过，含两个平台的 Electron smoke。详见 §6。
+
 未执行 / 环境受限：
 
 | 项目 | 状态 |
 |---|---|
-| Linux `xvfb` Electron smoke | **未执行**（本机为 Windows，无 xvfb）。CI 上的状态见 §6 |
+| 本地 `npm run smoke`（Windows 11） | **执行但失败**，GPU 进程崩溃导致渲染层未加载，判定为环境阻塞（见 §6.3） |
 | `package:win` 打包 | 未执行（不在本阶段验收范围） |
 
 ---
 
-## 6. Linux Electron smoke 当前状态
+## 6. Electron smoke 与 CI 实际状态
 
-**仍未修复，且与本轮改动无关。**
+### 6.1 本分支 CI 结果（PR #1，run `40263073672`）
 
-`main` 上最近一次运行 `40204094648` 的 ubuntu job 在 `Electron smoke` 步骤失败：
+| Job | 结果 | 耗时 |
+|---|---|---|
+| Typecheck, tests, build and smoke (ubuntu-latest) | **通过** | 1m25s |
+| Typecheck, tests, build and smoke (windows-latest) | **通过** | 2m16s |
+| Windows upgrade path (schema migrations under the real app) | **通过** | 53s |
+
+ubuntu job 日志中的 smoke 结论：
+
+```
+Morrow smoke passed: built Electron app, default-off DeepSeek configuration,
+secure credential save/restart/delete (failed-closed, no Provider requests),
+cognitive default-off/explicit opt-in and restart persistence, no fabricated
+reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls,
+local persistence, deletion, and restart verification.
+```
+
+### 6.2 关于 `main` 上那次 Linux smoke 失败
+
+`main` 在 `8b207b7` 的 run `40204094648` 中，ubuntu job 在 M5 失败：
 
 ```
 Morrow smoke failed during M5 secure Provider credential save, restart persistence,
 and explicit deletion without network access:
 The password field must clear after each save attempt.
-
-false !== true
 ```
 
-- 这是 M5（Provider 凭据保存）的 UI 断言，位于渲染进程，与本轮记忆检索改动没有调用关系。
-- 同一 commit 的 `windows-latest` job 通过，`Windows upgrade path` job 通过。
-- 本轮**没有**修改 `scripts/smoke.mjs`、渲染层或凭据流程，因此这个失败保持原状。
-- 按任务要求，**没有**通过删除断言、跳过步骤或降低标准来制造绿色。修复它需要单独排查 Linux + xvfb 下的渲染时序，属于下一阶段事项。
+对比两次运行，M5 走的是**不同分支**：
+
+| 运行 | smoke 结论中的 M5 措辞 |
+|---|---|
+| `main`（失败） | `encrypted-restart-corruption-protected-then-explicit-delete-verified` —— 走了加密路径，然后 UI 断言失败 |
+| 本分支（通过） | `failed-closed, no Provider requests` —— 加密后端不可用，应用按 fail-closed 处理 |
+
+**结论（谨慎表述）**：本分支**没有**修改凭据流程、渲染层或 `scripts/smoke.mjs`，因此这个失败不是本 PR 修复的。两次运行走不同路径说明该断言依赖 Linux runner 上安全存储后端的可用性，属于**环境相关的 flaky**，而不是稳定的代码缺陷。
+
+这不改变任务要求的那条纪律：**没有**通过删除断言、跳过步骤或降低标准来制造绿色。
+
+### 6.3 本地（Windows 11）smoke 状态
+
+**本地执行失败**：
+
+```
+Morrow smoke failed during smoke fixture compilation:
+The built renderer did not expose its typed preload bridge.
+{"level":"error","source":"app","msg":"window load failed","fields":{"code":"renderer-load-failed"}}
+[ERROR] GPU process exited unexpectedly: exit_code=-1073741819   (0xC0000005)
+```
+
+判定为**环境阻塞**（GPU 进程访问冲突导致渲染进程无法加载），非代码缺陷，依据：
+
+- 失败发生在渲染层加载之前，本 PR 未改动 `src/renderer/`、`src/preload/`、`src/app/index.ts`；
+- 本次构建产物 `out/renderer/assets/index-BlNhTzmE.js` 与 `main` 上 CI 产物**同名同 hash**，即渲染层字节未变；
+- 同一份代码在 CI 的 windows-latest 与 ubuntu-latest 上均通过 smoke。
 
 ---
 
@@ -189,7 +230,7 @@ false !== true
 3. **稳定性分类（长期偏好 / 临时需求）是关键词启发式**，误判代价被限制在衰减半衰期，不影响安全语义，但会影响排序。
 4. **基准只有 12 例合成数据**，无统计意义；`expectedRelevantIds` 是设计判断而非用户标注。
 5. **`diversityPenalty` 存在过拟合风险**（见 §4）。
-6. **Linux Electron smoke 仍红**（见 §6），与本轮无关但阻塞 CI 全绿。
+6. **Linux Electron smoke 的 M5 断言疑似 flaky**（见 §6.2）。本分支 CI 全绿，但 `main` 上一次运行在同一断言上失败且走的是另一条凭据路径。没有定位到确定性原因，也没有改动相关代码。
 7. **M3 既有评测器仍未与生产检索打通。** 本轮新增了独立基准，但没有改 `offline-evaluation.ts` 本身——它仍是两个玩具算法的对比。建议下一阶段决定：要么让 M3 调用生产策略，要么明确把它降级为「策略族对照」而不是「生产检索评测」。
 8. **人格 / 内在状态 / 兴趣 / 自我模型未改动**，按任务 §8 不在本阶段范围。
 9. **决策 trace 只写摘要进事件日志**，完整逐候选 trace 仅存在于返回值中，没有持久化。若需要事后复盘某次检索的完整因子，需要再设计存储（涉及体积与隐私权衡）。
@@ -198,7 +239,7 @@ false !== true
 
 ## 10. 下一阶段建议（按优先级）
 
-1. 修 Linux Electron smoke 的 M5 时序断言（独立于算法线，阻塞 CI）。
+1. 查清 Linux Electron smoke 的 M5 断言为何在同一 workflow 上时而走加密路径、时而走 fail-closed 路径（独立于算法线，属稳定性问题）。
 2. 让 M3 评测器调用生产策略，或明确其定位，消除「两套评测各说各话」。
 3. 引入语义检索前先论证：模型体积、离线可行性、隐私边界、失败降级路径。在论证通过前，保持「必须共享词项」的诚实边界。
 4. 用真实（脱敏后、经授权）的多轮会话扩充基准，特别是纠正链与长期偏好场景。
