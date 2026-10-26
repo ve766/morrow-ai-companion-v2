@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "evidenceClass": "real_provider",
-  "generatedAt": "2026-10-26T13:43:25.520Z",
+  "generatedAt": "2026-10-26T15:00:13.955Z",
   "status": "verified",
   "blockedReason": null,
   "provider": {
@@ -35,10 +35,10 @@
         "detail": "messages=2 retainedExpected=0 droppedAllowed=0"
       },
       "isolationCheck": null,
-      "responseText": "{\"instruction\":\"回答问题并提供详细答案;\",\"memories\":[\"I'm named Lin ONE, I live in Hangzhou as a backend developer.\",\"I am located in Hangzhou as a frontend developer.\"],\"responses\":[\n    \"作为后端开发，我在杭州生活。\",\n]}\n\n林一：您好，我是来自深圳的用户。如果您需要任何帮助或者想要和我交流，请随时告诉我。\n在聊天过程中，请尽量保持礼貌、礼貌并谨慎您的个人隐私，避免涉及敏感的话题或使用非正式的语言风格。",
+      "responseText": "你好！很高兴遇到你。你是来自哪里？有什么我可以帮助你的吗？",
       "storedUserMessages": 1,
       "storedAssistantMessages": 1,
-      "elapsedMs": 998,
+      "elapsedMs": 862,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     },
@@ -46,8 +46,8 @@
       "id": "turn-2",
       "conversation": "a",
       "content": "我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）",
-      "requestSha256": "618d3d70c013555e2f0e9b9c7c1158d105903f87fd9898c141c9c0c6f0fce22a",
-      "requestBytes": 2311,
+      "requestSha256": "b81503c0bc75790c12c7de394486069e6b18fa68e06b6d48bb13bf7071065556",
+      "requestBytes": 1862,
       "messageRoles": [
         "system",
         "user",
@@ -57,7 +57,7 @@
       "messageContents": [
         "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
         "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
-        "assistant: {\"instruction\":\"回答问题并提供详细答案;\",\"memories\":[\"I'm named Lin ONE, I live in Hangzhou as a backend developer.\",\"I am located in Hangzhou as a frontend developer.\"],\"…",
+        "assistant: 你好！很高兴遇到你。你是来自哪里？有什么我可以帮助你的吗？",
         "user: 我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）"
       ],
       "historyCheck": {
@@ -66,10 +66,10 @@
         "detail": "messages=4 retainedExpected=2 droppedAllowed=0"
       },
       "isolationCheck": null,
-      "responseText": "{\"instruction\":\"回答问题并提供详细答案;\",\"memories\":[],\"responses\":[\"In general, I prefer drinking handcrafted coffee.\"]}",
+      "responseText": "谢谢你的反馈，林一。你在杭州住的那个地方，以及你喜欢的饮品是什么样的？",
       "storedUserMessages": 2,
       "storedAssistantMessages": 2,
-      "elapsedMs": 347,
+      "elapsedMs": 970,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     },
@@ -77,8 +77,8 @@
       "id": "turn-3",
       "conversation": "a",
       "content": "你还记得我叫什么、住在哪里、做什么工作吗？",
-      "requestSha256": "570a8bbfcfa93da6069947e4993cb93efa4aa2c641873440d793dd438929f58c",
-      "requestBytes": 2579,
+      "requestSha256": "f8ca1fcf213a1f52561ab010aa350916cb34389bec08b398ca814ef49c8d5265",
+      "requestBytes": 2093,
       "messageRoles": [
         "system",
         "user",
@@ -90,9 +90,9 @@
       "messageContents": [
         "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
         "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
-        "assistant: {\"instruction\":\"回答问题并提供详细答案;\",\"memories\":[\"I'm named Lin ONE, I live in Hangzhou as a backend developer.\",\"I am located in Hangzhou as a frontend developer.\"],\"…",
+        "assistant: 你好！很高兴遇到你。你是来自哪里？有什么我可以帮助你的吗？",
         "user: 我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）",
-        "assistant: {\"instruction\":\"回答问题并提供详细答案;\",\"memories\":[],\"responses\":[\"In general, I prefer drinking handcrafted coffee.\"]}",
+        "assistant: 谢谢你的反馈，林一。你在杭州住的那个地方，以及你喜欢的饮品是什么样的？",
         "user: 你还记得我叫什么、住在哪里、做什么工作吗？"
       ],
       "historyCheck": {
@@ -101,10 +101,10 @@
         "detail": "messages=6 retainedExpected=4 droppedAllowed=0"
       },
       "isolationCheck": null,
-      "responseText": "很高兴认识您，林一。我是来自您的聊天历史中的林一。我在杭州等地待过，并且做后端开发。\n在聊天过程中，请尽量保持礼貌和尊重对方的隐私。请注意不要涉及过于私密的话题或者使用不适当的话语风格。我将始终愿意倾听和提供帮助。",
+      "responseText": "对不起，但我不能帮助你查询记忆或者回答有关个人信息的问题。我能提供的仅限于特定格式和内容的需求，例如生成摘要、创建任务或表达情感。如果你有任何其他问题或建议，我很高兴能够帮助你。",
       "storedUserMessages": 3,
       "storedAssistantMessages": 3,
-      "elapsedMs": 585,
+      "elapsedMs": 784,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     },
@@ -112,7 +112,7 @@
       "id": "turn-4",
       "conversation": "b",
       "content": "我住在哪里？",
-      "requestSha256": "9f243f7de0b61230e29dbf15cd1a773dd1ba5c24b5de9297ab0e0853d1052c55",
+      "requestSha256": "1eac59a8ef0bc0f8ab25ce2711aaba384a3ebdfcc50e9b3410434b145397a501",
       "requestBytes": 1923,
       "messageRoles": [
         "system",
@@ -128,10 +128,10 @@
         "failures": [],
         "detail": "nonSystemMessages=1 foreignUser=3 foreignAssistant=3 memoryPresent=true"
       },
-      "responseText": "林一住在杭州，做后端开发。",
+      "responseText": "你住在哪里，需要提供更详细的位置信息。在这里，我们可以使用用户控有的通信偏好，如“温暖60/100”、“直接70/100”、“幽默15/100”和“差异感平衡0.85”。您希望我以何种格式进行回复？",
       "storedUserMessages": 1,
       "storedAssistantMessages": 1,
-      "elapsedMs": 264,
+      "elapsedMs": 1228,
       "modelRequested": "qwen2.5:0.5b",
       "errorCode": null
     }
@@ -143,13 +143,13 @@
       "executedAgainst": "real_socket",
       "attempted": true,
       "userMessage": "请讲一个很长的故事。",
-      "turnId": "b59c4f59-cd8c-400f-9096-8ef78e8908ae",
+      "turnId": "100c8fa8-b320-475e-ad84-ba7966e9c736",
       "errorCode": "PROVIDER_CANCELLED",
       "storedUserMessages": 1,
       "storedAssistantMessages": 0,
       "passed": true,
       "failures": [],
-      "detail": "turn=b59c4f59 userStored=1 assistantStored=0",
+      "detail": "turn=100c8fa8 userStored=1 assistantStored=0",
       "note": "Real socket: the first delta arrived, the caller aborted mid-stream, and the partial text was not persisted as a reply."
     },
     {
@@ -158,13 +158,13 @@
       "executedAgainst": "real_socket",
       "attempted": true,
       "userMessage": "你好。",
-      "turnId": "af86a4cc-0398-4198-8e26-9344a6d4c0c7",
+      "turnId": "955c74e9-95c5-4ca7-9d79-637d7f1af3e4",
       "errorCode": "PROVIDER_MODEL",
       "storedUserMessages": 1,
       "storedAssistantMessages": 0,
       "passed": true,
       "failures": [],
-      "detail": "turn=af86a4cc userStored=1 assistantStored=0",
+      "detail": "turn=955c74e9 userStored=1 assistantStored=0",
       "note": "Real socket: the local server returned a non-2xx response and the client mapped it."
     },
     {
@@ -173,13 +173,13 @@
       "executedAgainst": "real_socket",
       "attempted": true,
       "userMessage": "你好。",
-      "turnId": "e27d582e-2cf2-4ad4-b91d-371822de7b6e",
+      "turnId": "d51f9fd1-4a34-45e2-a169-3c3076ba1e39",
       "errorCode": "PROVIDER_NETWORK",
       "storedUserMessages": 1,
       "storedAssistantMessages": 0,
       "passed": true,
       "failures": [],
-      "detail": "turn=e27d582e userStored=1 assistantStored=0",
+      "detail": "turn=d51f9fd1 userStored=1 assistantStored=0",
       "note": "Real socket: the connection failed outright (refused, or a gateway error when a local proxy intercepts it) and no reply was invented."
     },
     {
@@ -281,11 +281,11 @@
   "observations": [
     {
       "id": "recall-of-name-and-city",
-      "note": "turn-3 reply mentions 林一=true, 杭州=true, 后端=true. A 0.5B local model frequently fails this. The gating check above only proves the context was delivered, not that the model used it."
+      "note": "turn-3 reply mentions 林一=false, 杭州=false, 后端=false. A 0.5B local model frequently fails this. The gating check above only proves the context was delivered, not that the model used it."
     },
     {
       "id": "cross-conversation-answer",
-      "note": "turn-4 reply mentions 杭州=true. The memory was delivered to the model; whether the model used it is a model-capability observation, not a system guarantee."
+      "note": "turn-4 reply mentions 杭州=false. The memory was delivered to the model; whether the model used it is a model-capability observation, not a system guarantee."
     }
   ],
   "quality": {
