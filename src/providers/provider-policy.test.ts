@@ -160,4 +160,43 @@ describe('exact provider egress policy', () => {
     expect(assessProviderRequest(local, loopback, { ...stale, payloadSha256: '0'.repeat(64), approvedAt: now, expiresAt: '2026-10-23T00:02:00.000Z', providerId: 'local-test', includeSensitive: false }, now))
       .toEqual({ allowed: false, reason: 'invalid_consent' })
   })
+
+  it('hands the provider exactly the payload that was previewed, with no field added afterwards', async () => {
+    const value = input({ model: 'deepseek-flash', messages: [{ role: 'user', content: 'hello' }], max_tokens: 10 })
+    const preview = consentPreview('chat', providerMeta, value)
+    expect(preview.payloadSha256).toBe(hashProviderInput(value))
+    expect(preview.model).toBe(providerMeta.model)
+    expect(preview.endpoint).toBe(providerMeta.endpoint)
+    expect(preview.exactPayload).toContain('"content":"hello"')
+
+    const received: unknown[] = []
+    const port: ProviderPort = {
+      profile,
+      generate: async (given) => {
+        received.push(given.requestPayload)
+        return { text: 'ok', modelId: 'deepseek-flash' }
+      }
+    }
+    await dispatchToProvider(port, value, consentFor(value), now)
+    expect(JSON.stringify(received[0])).toBe(JSON.stringify(value.requestPayload))
+  })
+
+  it('binds the approval to the endpoint as well as the messages', () => {
+    const value = input()
+    const consent = consentFor(value)
+    const moved: ProviderInput = { ...value, endpoint: 'http://127.0.0.1:11434/v1/chat/completions' }
+    const local: ProviderProfile = { id: 'deepseek', providerClass: 'local', configured: true }
+    // Same messages, different destination: the approval must not survive.
+    expect(hashProviderInput(moved)).not.toBe(hashProviderInput(value))
+    expect(assessProviderRequest(local, moved, consent, now)).toEqual({ allowed: false, reason: 'invalid_consent' })
+  })
+
+  it('does not extend an approval past its own lifetime', () => {
+    const value = input()
+    const approved = consentFor(value)
+    const justBefore = '2026-10-23T00:01:59.999Z'
+    const justAfter = '2026-10-23T00:02:00.001Z'
+    expect(assessProviderRequest(profile, value, approved, justBefore)).toMatchObject({ allowed: true })
+    expect(assessProviderRequest(profile, value, approved, justAfter)).toEqual({ allowed: false, reason: 'invalid_consent' })
+  })
 })

@@ -107,6 +107,32 @@ describe('bounded memory context assembly', () => {
     expect(result.omitted).toBe(0)
   })
 
+  it('spends a tight budget on the record the question needs, not on background', () => {
+    const topic = memory('00000000-0000-4000-8000-000000000061', '我住在杭州。', 'personal')
+    const background = [0, 1, 2].map((index) =>
+      memory(`00000000-0000-4000-8000-00000000007${index}`, `我有一件与今天无关的事情，编号 ${index}。`, 'personal'))
+
+    const generous = assembler.assemble('杭州天气如何', [topic, ...background], 'personal')
+    expect(generous.selected.map((item) => item.match)).toEqual(['topic', 'continuity', 'continuity', 'continuity'])
+
+    // A budget that fits exactly one entry must be spent on the topic match,
+    // because continuity is background and the current question is not.
+    const oneEntry = assembler.assemble('杭州天气如何', [topic], 'personal', 25, 100_000).characterCount
+    const tight = assembler.assemble('杭州天气如何', [topic, ...background], 'personal', 25, oneEntry)
+    expect(tight.selected).toHaveLength(1)
+    expect(tight.selected[0]?.id).toBe(topic.id)
+    expect(tight.selected[0]?.match).toBe('topic')
+    expect(tight.characterCount).toBeLessThanOrEqual(oneEntry)
+  })
+
+  it('never lists the same record twice under two different reasons', () => {
+    const result = assembler.assemble('杭州', [
+      memory('00000000-0000-4000-8000-000000000081', '我住在杭州。', 'personal')
+    ], 'personal')
+    expect(result.selected).toHaveLength(1)
+    expect(new Set(result.selected.map((item) => item.id)).size).toBe(result.selected.length)
+  })
+
   it('marks an unconfirmed record past the staleness window instead of presenting it as current', () => {
     const now = '2026-10-26T00:00:00.000Z'
     const stale = memory('00000000-0000-4000-8000-000000000051', '我住在南京。', 'personal', 'active', {
