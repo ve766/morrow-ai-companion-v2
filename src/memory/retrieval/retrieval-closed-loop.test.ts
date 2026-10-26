@@ -46,7 +46,7 @@ describe('retrieval decision trace through the memory service', () => {
     expect(event).toBeDefined()
     expect(event?.sourceModule).toBe('memory')
     expect(event?.subjectType).toBe('memory_retrieval')
-    expect(event?.payload).toMatchObject({ algorithm: RETRIEVAL_ALGORITHM_V1, considered: 2, selected: 1 })
+    expect(event?.payload).toMatchObject({ algorithm: RETRIEVAL_ALGORITHM_V2, considered: 2, selected: 1 })
     // The trace must not smuggle memory or query text into the journal.
     const serialized = JSON.stringify(event?.payload)
     expect(serialized).not.toContain('concise')

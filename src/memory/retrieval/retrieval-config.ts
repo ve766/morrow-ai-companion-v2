@@ -30,7 +30,7 @@ export const RETRIEVAL_CONFIG_VERSION = '2.1.0' as const
  * regression). v1 remains available and is still the control arm of the
  * benchmark; see docs/algorithm-v2/retrieval-benchmark.md.
  */
-export const DEFAULT_RETRIEVAL_ALGORITHM: RetrievalAlgorithmId = RETRIEVAL_ALGORITHM_V1
+export const DEFAULT_RETRIEVAL_ALGORITHM: RetrievalAlgorithmId = RETRIEVAL_ALGORITHM_V2
 
 export interface RetrievalWeights {
   /** Relevance of the memory text to the current query. */

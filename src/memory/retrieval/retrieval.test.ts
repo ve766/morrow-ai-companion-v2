@@ -38,16 +38,16 @@ function run(algorithm: typeof RETRIEVAL_ALGORITHM_V1 | typeof RETRIEVAL_ALGORIT
 }
 
 describe('retrieval configuration', () => {
-  it('keeps v1 as the live default until the benchmark justifies switching', () => {
+  it('ships v2 as the live default while keeping v1 selectable as the control arm', () => {
     const config = resolveRetrievalConfig()
-    expect(config.algorithm).toBe(RETRIEVAL_ALGORITHM_V1)
+    expect(config.algorithm).toBe(RETRIEVAL_ALGORITHM_V2)
     expect(config.configVersion).toBe('2.1.0')
     expect(config.maxMemories).toBe(25)
     expect(config.maxCharacters).toBe(3000)
     expect(Object.keys(config.weights).sort()).toEqual([
       'confidence', 'confirmation', 'diversityPenalty', 'lexical', 'provenance', 'recency', 'timeSensitivity'
     ])
-    expect(resolveRetrievalConfig({ algorithm: RETRIEVAL_ALGORITHM_V2 }).algorithm).toBe(RETRIEVAL_ALGORITHM_V2)
+    expect(resolveRetrievalConfig({ algorithm: RETRIEVAL_ALGORITHM_V1 }).algorithm).toBe(RETRIEVAL_ALGORITHM_V1)
   })
 
   it('rejects out-of-range values instead of silently clamping them', () => {
