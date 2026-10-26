@@ -7,12 +7,14 @@
 | 工作分支 | `feat/phase-2-companion-core` |
 | 阶段基线 | `12f83e1`（第一阶段分支 `chore/phase-1-engineering-consistency` 的头提交，其基线为 `main` @ `8b207b7`） |
 | `main` 基线 | `8b207b7` |
-| 本阶段提交 | `137113f` → `4b52731` → `5425653` → `ec53fb8`（源码最后一提交）→ `a8f82ab`（报告初版）→ 本次 CI 记录提交 |
+| 本阶段提交 | `137113f` → `4b52731` → `5425653` → `ec53fb8`（源码最后一提交）→ `a8f82ab`（报告初版）→ `aa2642b`（CI 记录）→ 本次抖动记录提交（纯文档） |
 | Pull Request | **#3** — https://github.com/ve766/morrow-ai-companion-v2/pull/3 |
 | PR 状态 | **OPEN / 未合并**（等待人工审查与审计，按任务要求停止） |
 | PR base | `chore/phase-1-engineering-consistency`（**堆叠 PR**，理由见 §15.2） |
-| CI 运行 | [run 40321367137](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137) — **success**（3 / 3 Job），head `a8f82ab` |
+| CI 运行 1 | [run 40321367137](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137) @ `a8f82ab` — **success**（3 / 3 Job） |
+| CI 运行 2 | [run 40321933436](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321933436) @ `aa2642b` — **attempt 1 失败**（windows-latest 1 个 5000ms 超时，290/291）→ **attempt 2 success**（3 / 3 Job，未改代码）。属既有抖动，根因见 §12.4 |
 | CI 实测 | ubuntu-latest **42 文件 / 291 测试通过**；windows-latest **42 文件 / 291 测试通过**；windows 升级路径 6 文件 / 47 测试通过；双平台 smoke `Morrow smoke passed`；`evaluate:companion` 双平台 21/21、`replayStable: true`、`networkCalls: 0` |
+| 已知 CI 缺陷（**未修**） | `vitest.config.ts` 未设 `testTimeout` / `maxWorkers`，默认 5000ms + 42 个 worker 挤压 I/O 密集型套件，偶发超时。属既有问题，建议在下阶段修（§11 第 11 条、§14） |
 | CI 覆盖范围 | **仅限 `.github/workflows/ci.yml` 定义的检查项**；**不含**真实 Provider 对话、**不含**安装包打包、**不含**任何质量评估（见 §1.2、§17 Q8） |
 | 真实 Provider 验证 | **已执行并通过**：`status: verified`，4 / 4 轮，9 / 9 项客观检查 |
 | 真实 Provider 环境 | 本机 Ollama `http://127.0.0.1:11434/v1`，模型 `qwen2.5:0.5b`（**0.5B 小参数模型**） |
@@ -376,6 +378,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | 8 | 兴趣 / 自我模型无 UI | 低 | 数据有、界面无（既有债务） |
 | 9 | 本地 Electron 冒烟无法在本机验证 | 低 | 见 §12.3，属环境问题，CI 覆盖 |
 | 10 | 记忆写入仍靠显式操作 | 设计约束 | 模型不能自行写记忆，这是刻意的红线；代价是记忆覆盖率取决于用户操作频率 |
+| 11 | **测试并发超时抖动（跨环境）** | 中 | `vitest.config.ts` 无 `testTimeout` / `maxWorkers`，默认 5000ms + 42 worker 挤压 I/O 套件。**本机复现、CI 也复现过**（§12.4）。**未修，越界**。建议下阶段二选一：给 `migrations/backup/cognitive-loop` 三套件单独 `testTimeout: 20000`，或在 CI 上设 `maxWorkers=2`（本机实测该配置 291/291 全绿） |
 
 ---
 
@@ -435,11 +438,17 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 **结论**：同一个 `main` 提交，两次运行一次全绿一次红。失败全部是 **5000ms 超时**，且集中在 I/O 密集型套件（SQLite 迁移、备份文件系统、回环 HTTP 服务）——不是断言失败，是没跑完。**本阶段没有改动这三个文件**。以 `--maxWorkers=2` 运行时 291 个测试全绿。
 
-判定：**本机资源/并发环境问题**，与代码无关。CI 是权威判据。
+判定：**本机资源/并发环境问题**，与代码无关。
+
+**但必须补充一个反向证据**：这个问题**不只在本机出现**。§12.4 记录了同一份纯文档提交在 CI 上 attempt 1 失败、attempt 2 通过。所以准确结论是：**这是一个既有的、跨环境的并发超时抖动**，本机更容易触发（沙箱 + 多核抢占），CI 的 Windows runner 也会偶发触发。它不是本阶段引入的，但本阶段没有修它。详见 §12.4 的根因定位与 §11 第 11 条。
 
 补充一条本机特有的坑：在本沙箱里 `npx vitest run` 会在启动阶段报 `[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]`（文件操作钩子拦截了 vitest 清理 `node_modules/.vitest-cache` 的 97 个文件）。因此本机必须加 `--no-fsModuleCache`。**这是沙箱限制，CI 上不存在，`npm test` 脚本本身未改。**
 
-### 12.4 GitHub Actions 实际结果（`run 40321367137`，head `a8f82ab`）
+### 12.4 GitHub Actions 实际结果
+
+本阶段有两次 run，**其中一次失败过**，如实记录如下。
+
+#### run `40321367137` @ `a8f82ab`（源码 + 报告初版）
 
 | Job | 结果 | 关键输出 |
 |---|---|---|
@@ -447,11 +456,51 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | `Typecheck, tests, build and smoke (windows-latest)` | **success** | `Test Files 42 passed (42)` / `Tests 291 passed (291)`；`evaluate:companion` 同上；`Morrow smoke passed` |
 | `Windows upgrade path (schema migrations under the real app)` | **success** | `Test Files 6 passed (6)` / `Tests 47 passed (47)`（含 v1→v15 升级路径） |
 
-合计 **3 / 3 Job success**，run 结论 `success`。
+合计 **3 / 3 Job success**。
 
-**这个结果对 §12.3 的意义**：CI 跑的是 `npm test`（即 `vitest run`，**默认并发**，没有 `--maxWorkers=2`），两个平台都跑出 291/291 全绿。这进一步确认本地那 3 个 5000ms 超时是本机资源竞争，不是代码或测试本身的问题——**同一个默认并发配置在 CI 上不复现**。
+#### run `40321933436` @ `aa2642b`（仅文档：补入 CI 记录）
+
+**第 1 次尝试：失败。** 失败详情原文摘录：
+
+```
+FAIL src/persistence/migrations.test.ts > versioned local SQLite storage
+     > migrates a v1 database without losing its records or falsely changing their source
+Error: Test timed out in 5000ms.
+ ❯ src/persistence/migrations.test.ts:40:3
+ Test Files  1 failed | 41 passed (42)
+      Tests  1 failed | 290 passed (291)
+ Isolate    42 workers spawned · ~167ms startup each
+```
+
+同一 run 的 ubuntu-latest 与 windows 升级路径 job 均 success，只有 windows-latest 的单元测试 job 因这 1 个超时失败。
+
+**第 2 次尝试（`gh run rerun --failed`，未改任何代码）：3 / 3 Job success。**
+
+#### 结论：这是既有抖动，不是本阶段引入的缺陷
+
+`aa2642b` 是**纯文档提交**（只改 `.md`），两次尝试跑的是**完全相同的代码**，一次红一次绿。这与 §12.3 的本机现象是同一类问题：**5000ms 默认超时 + 高并发 worker + I/O 密集型套件**。
+
+根因定位（`vitest.config.ts` 原文）：
+
+```ts
+export default defineConfig({
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    coverage: { enabled: false }
+  }
+})
+```
+
+配置里**没有 `testTimeout`，也没有 `maxWorkers`**，因此用的是默认值：单测超时 5000ms、按文件 `isolate` 并派生 worker（本次日志显示 `42 workers spawned`，即一个测试文件一个 worker）。`migrations.test.ts`、`backup-service.test.ts`、`cognitive-loop.integration.test.ts` 这三个套件要做真实 SQLite 迁移、真实文件系统读写、真实回环 HTTP 服务，在 2 核 runner 上被 42 个 worker 同时挤压时，偶尔会超过 5 秒。
+
+**这是本阶段之前就存在的配置问题**（§12.3 已在未修改的 `main` 上复现同类超时），不是因为本阶段新增了 2 个测试文件才出现的——但必须承认：文件数从 40 增到 42，worker 数相应增加，**会让这个既有抖动的发生概率略微上升**。
+
+**本阶段未修**，理由与建议见 §14 与 §11 第 11 条。**不把 rerun 通过写成「一次通过」**，是本报告的基本要求。
 
 已知告警（非阻塞，属既有债务，本阶段未处理）：`actions/checkout@v4` 与 `actions/setup-node@v4` 触发 Node 20 弃用提示；`ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26。
+
+> 关于本报告**自身**最后这次（纯文档）提交的 CI 结果：报告无法在不追加新提交的前提下记录自己的 CI 结果，因此以 PR #3 的 checks 列表为准。
 
 ### 12.5 本阶段未执行 / 无法验证的项目
 
@@ -487,6 +536,8 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | **未跑 `npm run smoke`** | 本机环境已知不可用（阶段一已证伪） | 由 CI 覆盖；本报告不声称本地冒烟通过 |
 | **重新生成了 `cognitive-alpha-adversarial-report.json`** | 澄清提示词变长（281→380 字符），该报告记录了 `promptGuidanceCharacters` | 属预期产物更新，门禁仍 `passed: true`；未改任何门槛 |
 | **记忆装配器测试从 3 个扩到 8 个** | 新增行为需要断言，且需要一条「退回旧行为」的退化测试 | 只增不减，**未删除或放宽任何既有断言** |
+| **未修既有测试并发超时抖动** | `vitest.config.ts` 是共享配置，改它会影响全部 42 个文件；本阶段处于待审计状态，不应顺手改基础设施。且任务禁止「为了通过测试而调整」 | CI 出现过 1 次失败（attempt 1），已如实记录并在未改代码的情况下 rerun 通过（§12.4）。**这是一笔遗留债务**，修复建议写在 §11 第 11 条 |
+| **未把 `verify:real` 接入 CI** | 它需要一台跑着 Ollama 的机器；GitHub runner 上装模型不可行，也不该在 CI 里消耗真实推理 | 真实模型验证只能手工执行（本阶段已执行并留档）。**这是真实的覆盖缺口**，不是疏忽 |
 
 ---
 
@@ -529,7 +580,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | 8 | npm 脚本与 CI 接入 | `package.json`、`.github/workflows/ci.yml` |
 | 9 | 本报告 | `docs/reports/project-work-report-2026-10-26-phase-2.md` |
 | 10 | Pull Request #3（未合并） | https://github.com/ve766/morrow-ai-companion-v2/pull/3 |
-| 11 | CI 运行记录（3 / 3 success） | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137 |
+| 11 | CI 运行记录（run 1：3/3 success；run 2：attempt 1 失败 → attempt 2 3/3 success） | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321367137 · https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40321933436 |
 
 ---
 
@@ -592,5 +643,6 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 |---|---|---|
 | 第 1 版 | 2026-10-26 | 初版，随 PR #3 提交（`a8f82ab`） |
 | 第 2 版 | 2026-10-26 | 补入 CI 实际结果（`run 40321367137`，3/3 success）；修正 `provider-policy` 测试数量表述（7 项，非「43 项族」）；修正交叉引用编号 |
+| 第 3 版 | 2026-10-26 | 补入 `run 40321933436` 的 **attempt 1 失败**记录（windows-latest 1 个 5000ms 超时，290/291）与 attempt 2 通过；新增根因定位（`vitest.config.ts` 无 `testTimeout`/`maxWorkers`）；§11 新增第 11 条遗留债务；§14 新增两条偏差 |
 
-> 第 2 版只补事实与修正表述，未改动任何验证结论、未改动任何代码。
+> 第 2、3 版只补事实与修正表述，未改动任何验证结论、未改动任何代码。
