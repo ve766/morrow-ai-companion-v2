@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPreviewOutcome, type BackupRestoreOutcome } from '../shared/contracts'
@@ -7,6 +8,7 @@ import type { ProviderConsent, ProviderConsentPreview } from '../providers/provi
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
+import { createLazySemanticEncoder } from '../memory/retrieval/onnx-semantic-encoder'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
@@ -181,6 +183,14 @@ if (hasSingleInstanceLock) {
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
     const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog)
+    // Semantic retrieval is opt-in by presence of a local model. Nothing here
+    // downloads anything: a missing directory simply means the lexical path.
+    const semanticModelId = process.env.MORROW_SEMANTIC_MODEL_ID ?? 'Xenova/paraphrase-multilingual-MiniLM-L12-v2'
+    const semanticModelDirectory = process.env.MORROW_SEMANTIC_MODEL_DIR ?? join(app.getPath('userData'), 'models')
+    const semanticEncoder = process.env.MORROW_SEMANTIC_DISABLED === '1' || !existsSync(join(semanticModelDirectory, semanticModelId))
+      ? undefined
+      : createLazySemanticEncoder({ modelId: semanticModelId, cacheDirectory: semanticModelDirectory })
+    semanticEncoder?.warmup()
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
@@ -195,7 +205,8 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel }
+      selfModelLoop: { events: eventLog, interests, selfModel },
+      ...(semanticEncoder ? { semanticEncoder } : {})
     })
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)

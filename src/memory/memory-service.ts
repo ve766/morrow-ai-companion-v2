@@ -20,10 +20,11 @@ import {
 
 import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import type { MorrowEvent } from '../persistence/event-log'
-import { resolveRetrievalConfig, type RetrievalConfigOverrides } from './retrieval/retrieval-config'
+import { RETRIEVAL_ALGORITHM_V3_HYBRID, resolveRetrievalConfig, type RetrievalConfigOverrides } from './retrieval/retrieval-config'
 import { selectRetrievalStrategy } from './retrieval/retrieval-registry'
 import type { SupersededStatement } from './retrieval/retrieval-supersession'
 import { retrievalDecisionEventPayload, type RetrievalDecision } from './retrieval/retrieval-trace'
+import { buildSemanticSignals, type SemanticEncoder, type SemanticSignals } from './retrieval/retrieval-semantic'
 
 // Minimal event sink so the memory module never depends on the persistence
 // module's concrete service; tests inject nothing.
@@ -46,7 +47,12 @@ export interface AssembleContextOptions {
   now?: string
   /** Per-call algorithm/parameter overrides. Validated before use. */
   config?: RetrievalConfigOverrides
+  /** Precomputed semantic signals for this query; absent means lexical only. */
+  semantic?: SemanticSignals
 }
+
+/** Budget for one encoder round-trip. Exceeding it degrades to lexical. */
+const SEMANTIC_TIMEOUT_MS = 1500
 
 export interface MemoryCreateOptions {
   sourceCategory?: MemorySourceCategory
@@ -170,25 +176,80 @@ export class MemoryService {
   }
 
   assembleContext(query: string, maximumSensitivity: Sensitivity, options: AssembleContextOptions = {}): AssembledMemoryContext {
+    return this.runRetrieval(query, maximumSensitivity, options).context
+  }
+
+  /**
+   * Retrieval that may use semantic signals.
+   *
+   * The encoder is optional and failure-tolerant by construction: a missing
+   * model, a timeout or a thrown error all degrade to the lexical path, and the
+   * decision trace records that semantic signals were not applied. It never
+   * falls back to "zero similarity for everything", which would silently
+   * reorder results.
+   */
+  async assembleContextWithSemantic(
+    query: string,
+    maximumSensitivity: Sensitivity,
+    options: AssembleContextOptions = {},
+    encoder?: SemanticEncoder
+  ): Promise<AssembledMemoryContext> {
+    if (!encoder) return this.assembleContext(query, maximumSensitivity, options)
+    if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
+    // Having a real encoder is what selects the hybrid algorithm. An explicit
+    // caller choice still wins, so a caller can pin v2 even with an encoder.
+    const overrides: RetrievalConfigOverrides = { algorithm: RETRIEVAL_ALGORITHM_V3_HYBRID, ...options.config }
+    const config = resolveRetrievalConfig(overrides)
+    if (!config.semantic.enabled) return this.assembleContext(query, maximumSensitivity, options)
+
+    const records = this.repository.listActiveForContext(1000)
+    const semantic = await this.withTimeout(
+      buildSemanticSignals(encoder, query, records.map((record) => record.currentText)),
+      SEMANTIC_TIMEOUT_MS
+    )
+    if (!semantic) return this.assembleContext(query, maximumSensitivity, options)
+    return this.runRetrieval(query, maximumSensitivity, { ...options, config: overrides, semantic }, records).context
+  }
+
+  private async withTimeout<T>(work: Promise<T | null>, timeoutMs: number): Promise<T | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        work,
+        new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs) })
+      ])
+    } catch {
+      return null
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  private runRetrieval(
+    query: string,
+    maximumSensitivity: Sensitivity,
+    options: AssembleContextOptions,
+    preloaded?: MemoryRecord[]
+  ): { context: AssembledMemoryContext; decision: RetrievalDecision } {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
     const config = resolveRetrievalConfig(options.config)
     // The evaluation instant comes from the injected clock rather than the wall
-    // clock, so the same data and query replay to the same ranking. This was
-    // the one gap that made the baseline non-reproducible.
+    // clock, so the same data and query replay to the same ranking.
     const now = options.now ?? this.timestamp()
-    const records = this.repository.listActiveForContext(1000)
+    const records = preloaded ?? this.repository.listActiveForContext(1000)
     const chain = this.supersededStatements()
     const result = selectRetrievalStrategy(config.algorithm).retrieve({
       query,
       records,
       supersededStatements: chain.statements,
       supersededTruncated: chain.truncated,
+      ...(options.semantic ? { semantic: options.semantic } : {}),
       maximumSensitivity,
       now,
       config
     })
     this.recordRetrievalDecision(result.decision)
-    return result.context
+    return result
   }
 
   /**
@@ -199,20 +260,7 @@ export class MemoryService {
     context: AssembledMemoryContext
     decision: RetrievalDecision
   } {
-    if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
-    const config = resolveRetrievalConfig(options.config)
-    const now = options.now ?? this.timestamp()
-    const records = this.repository.listActiveForContext(1000)
-    const chain = this.supersededStatements()
-    return selectRetrievalStrategy(config.algorithm).retrieve({
-      query,
-      records,
-      supersededStatements: chain.statements,
-      supersededTruncated: chain.truncated,
-      maximumSensitivity,
-      now,
-      config
-    })
+    return this.runRetrieval(query, maximumSensitivity, options)
   }
 
   private supersededStatements(): { statements: SupersededStatement[]; truncated: boolean } {
