@@ -75,8 +75,10 @@ const defaultPersonality: PersonalityInput = {
   systemRules: ''
 }
 
-const maxHistoryMessages = 12
-const maxHistoryCharacters = 6000
+// Exported so verification code can apply the same bound instead of
+// re-deriving it. A checker with its own copy of these numbers would drift
+// silently the moment the production bound changed.
+export const HISTORY_POLICY = { maxMessages: 12, maxCharacters: 6000 } as const
 const maxMemoryContextCharacters = 3000
 const maxRecentConversations = 50
 const sensitivityOrder: readonly Sensitivity[] = ['normal', 'personal', 'sensitive']
@@ -908,9 +910,9 @@ export class ChatService {
       fixedPrinciples
     ].filter(Boolean).join('\n\n')
     const recent: ConversationMessage[] = []
-    let budget = maxHistoryCharacters
+    let budget = HISTORY_POLICY.maxCharacters
     for (const message of [...history].reverse()) {
-      if (recent.length >= maxHistoryMessages || message.body.length > budget) break
+      if (recent.length >= HISTORY_POLICY.maxMessages || message.body.length > budget) break
       recent.push(message)
       budget -= message.body.length
     }
