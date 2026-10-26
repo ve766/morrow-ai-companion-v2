@@ -41,9 +41,9 @@
 
 | 缺陷 | 修复前（`git show f579897:…`） | 修复后（当前工作树） |
 |---|---|---|
-| 跨会话隔离用字节数 | `:289` `passed: Boolean(crossTurn?.containsMemory) && !(crossTurn?.requestBytes === turnThree?.requestBytes)` | 已删除；改为 `checkCrossSessionIsolation`（`request-assertions.ts:195`） |
+| 跨会话隔离用字节数 | `:289` `passed: Boolean(crossTurn?.containsMemory) && !(crossTurn?.requestBytes === turnThree?.requestBytes)` | 已删除；改为 `checkCrossSessionIsolation`（`request-assertions.ts:189`） |
 | 历史完整性依赖常量 | `:250-251` `containsPreviousUserTurn: true,` / `containsPreviousAssistantTurn: true,` | 字段已不存在；`real-provider-conversation.ts` 中再无 `containsPrevious*` |
-| 失败回复自证 | `:193-194` 写 `responseChars: 0`，`:317-321` 断言 `responseChars === 0` | 字段已删除；改为 `checkFailurePersistence`（`request-assertions.ts:264`）读数据库行 |
+| 失败回复自证 | `:193-194` 写 `responseChars: 0`，`:317-321` 断言 `responseChars === 0` | 字段已删除；改为 `checkFailurePersistence`（`request-assertions.ts:258`）读数据库行 |
 
 核对命令与输出见 §11.2。结论：**三处修复真实存在于 `e944799` 的代码中**，且旧代码的缺陷形态与审计描述一致（`requestBytes` 判据位于 `:289`，两个硬编码 `true` 位于 `:250-251`）。
 
@@ -85,7 +85,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 门禁实现 | `src/evaluation/request-assertions.ts:195` `checkCrossSessionIsolation` |
+| 门禁实现 | `src/evaluation/request-assertions.ts:189` `checkCrossSessionIsolation` |
 | 调用点 | `src/evaluation/real-provider-conversation.ts:331`（turn-4，会话 B） |
 | 哨兵来源 | 用户消息正文内嵌 `SENTINEL-A7F3` / `SENTINEL-B8E1`（`real-provider-conversation.ts:56`） |
 | 期望来源 | 会话 A 的**用户消息来自脚本常量**，**助手回复来自数据库重读**（`:283` 按 `turnId` 取回），不是脚本变量 |
@@ -102,9 +102,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 门禁实现 | `src/evaluation/request-assertions.ts:126` `checkHistoryCompleteness` |
-| 裁剪实现 | `src/evaluation/request-assertions.ts:90` `selectRetainedHistory` → 委托 `companion-service.ts:91` `retainedHistoryTail`（**本次修复后**） |
-| 生产裁剪 | `companion-service.ts:935` `const recent = retainedHistoryTail(history, (message) => message.body.length)` |
+| 门禁实现 | `src/evaluation/request-assertions.ts:120` `checkHistoryCompleteness` |
+| 裁剪实现 | `src/evaluation/request-assertions.ts:91` `selectRetainedHistory` → 委托 `companion-service.ts:94` `retainedHistoryTail`（**本次修复后**） |
+| 生产裁剪 | `companion-service.ts:939` `const recent = retainedHistoryTail(history, (message) => message.body.length)` |
 | 期望来源 | 发送**前**从 SQLite 读该会话消息（`real-provider-conversation.ts:254`），再套生产裁剪 |
 | 测试位置 | `request-assertions.test.ts:50-120`（6 负向）；`history-bound.test.ts`（8 用例，本次新增）；离线 `ctx-02`（20 轮） |
 
@@ -118,7 +118,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 门禁实现 | `src/evaluation/request-assertions.ts:264` `checkFailurePersistence` |
+| 门禁实现 | `src/evaluation/request-assertions.ts:258` `checkFailurePersistence` |
 | 调用点 | `src/evaluation/real-provider-conversation.ts:636`（`failureRecord`） |
 | 记录来源 | `companion.readConversation(...).messages` —— **重新读 SQLite**，不是 catch 块里的对象 |
 | 错误码校验 | `failureRecord` 额外要求 `errorCode === expectedCode`（`:642-644`），防止「没报错也算过」 |
@@ -146,11 +146,11 @@
 
 | 编号 | 注入的缺陷 | 位置 | 预期 | 实际 |
 |---|---|---|---|---|
-| **M-A** | 让 `checkCrossSessionIsolation` 恒返回 `passed: true` | `request-assertions.ts:236` | 隔离类用例变红 | **6 failed / 45 passed**，含端到端 `reports a leak when…` |
-| **M-B** | 历史比较改成**无序多重集**（保留内容、丢失顺序） | `request-assertions.ts:147` | 顺序类用例变红 | **4 failed / 18 passed**，含 `fails when the messages are in the wrong order…` |
-| **M-C** | `checkFailurePersistence` 容忍 1 条助手消息 | `request-assertions.ts:273` | 伪造回复类用例变红 | **2 failed / 49 passed**，含端到端 `reports a fabricated assistant turn…` |
+| **M-A** | 让 `checkCrossSessionIsolation` 恒返回 `passed: true` | `request-assertions.ts:231` | 隔离类用例变红 | **6 failed / 45 passed**，含端到端 `reports a leak when…` |
+| **M-B** | 历史比较改成**无序多重集**（保留内容、丢失顺序） | `request-assertions.ts:142` | 顺序类用例变红 | **4 failed / 18 passed**，含 `fails when the messages are in the wrong order…` |
+| **M-C** | `checkFailurePersistence` 容忍 1 条助手消息 | `request-assertions.ts:267` | 伪造回复类用例变红 | **2 failed / 49 passed**，含端到端 `reports a fabricated assistant turn…` |
 | **M-D** | **生产代码**在 Provider 失败时写一条助手消息 | `companion-service.ts:797` | 集成测试变红 | **3 failed / 26 passed**，含 `propagates an authentication failure…`、`keeps the user turn, drops the partial text…` |
-| **M-E** | 共享裁剪函数 `>=` 改 `>`（少裁一条） | `companion-service.ts:95` | 边界用例变红 | **3 failed / 27 passed**（含 2 个本次新增用例） |
+| **M-E** | 共享裁剪函数 `>=` 改 `>`（少裁一条） | `companion-service.ts:102` | 边界用例变红 | **3 failed / 27 passed**（含 2 个本次新增用例） |
 
 M-D 另做了**真实 Provider** 层面的验证（这是最强的一条，因为它证明真门禁不是自证的）：
 
@@ -351,7 +351,8 @@ evaluation/reports/companion-core-report.json
 | head SHA | Run | 结论 | 说明 |
 |---|---|---|---|
 | `e944799` | [40337895001](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40337895001) | **success**，3/3 Job | 本次审计的代码基线 |
-| 本次修复提交 | 见 PR #3 Checks（按 SHA 分组） | 推送后核对 | §7 的最小修复 + 本报告 |
+| `8d81155` | 随下一行同组推送，无独立 run | — | §7 的最小修复（源码 + 测试） |
+| `dbff261` | [40345324766](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40345324766) | **success**，3/3 Job，**首次 attempt 即绿** | 本次修复 + 本报告 |
 
 `e944799` 的三个 Job：`Typecheck, tests, build and smoke (ubuntu-latest)`、`Typecheck, tests, build and smoke (windows-latest)`、`Windows upgrade path (schema migrations under the real app)` 全部 success；步骤级：`Typecheck` / `Unit and integration tests` / `Offline evaluations` / `Build application bundles` / `Electron smoke` 均 success，`Install xvfb` 在 Windows Job 为 `skipped`（该步骤仅对 Linux 有意义）。
 
@@ -370,7 +371,7 @@ evaluation/reports/companion-core-report.json
 | 位置 | 生产 `companion-service.ts:912-919`（修复前）与校验 `request-assertions.ts:90-103`（修复前）各有一段**结构相同但彼此独立**的裁剪循环 |
 | 成因 | 上一轮只把 **常量** `HISTORY_POLICY` 提为 export，注释写成「so this cannot silently drift」，但**算法本体仍是两份**。常量一致、循环不一致时，门禁会拿一个生产永远不会产生的窗口去比对 |
 | 当前是否已产生错误结论 | **否**。两段循环逐行等价（同为「从最新往回、超预算即停、反转」），所以今天的行为一致。这是**可维护性缺陷**，不是当前的行为 bug——这一点必须说清楚，不能夸大成「已发生漂移」 |
-| 修复 | 把循环提成 `companion-service.ts:91` 的 `retainedHistoryTail<T>(history, sizeOf, policy)`，`prepare()` 与 `selectRetainedHistory()` 都调用它；校验侧改为委托 |
+| 修复 | 把循环提成 `companion-service.ts:94` 的 `retainedHistoryTail<T>(history, sizeOf, policy)`，`prepare()` 与 `selectRetainedHistory()` 都调用它；校验侧改为委托 |
 | 新增测试 | `src/evaluation/history-bound.test.ts`，8 用例：6 个语义用例（含「不跳过超预算消息去取更旧的」「预算按字符不按字节」）+ 1 个两组入口在 11 种形状上的一致性对照 + 1 个空历史 |
 | 如何证明该测试能失败 | 突变 **M-E**（`>=` 改 `>`）：**3 failed / 27 passed**，其中 2 个是本次新增用例 |
 | 行为是否有变化 | **无**。`prepare()` 的入参、出参、循环语义完全一致；`npm run typecheck` 0、全量 359 用例全绿、离线 31/31 与 `resultHash 9e192774…` 未变 |
@@ -501,3 +502,4 @@ git grep -n "tryRecord(" e944799 -- src/   # 仅 app 生命周期、记忆、感
 | 版本 | 日期 | 说明 |
 |---|---|---|
 | 第 1 版 | 2026-10-26 | 独立复验初版。基线 `e944799`；含 5 组突变证据、1 个缺陷修复（裁剪实现去重）、11 条残余风险、第三阶段 7 项评测基线 |
+| 第 2 版 | 2026-10-26 | 回填 §6.5 的真实 CI：`dbff261` 的 run 40345324766，3/3 Job success，首次 attempt 即绿。统一全文行号为最终代码位置（修复后 `request-assertions.ts` 三个门禁分别在 120/189/258 行）。本行为纯文档提交，不改变任何结论 |
