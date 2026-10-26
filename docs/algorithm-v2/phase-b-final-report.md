@@ -233,6 +233,9 @@ $ git show HEAD:.github/workflows/ci.yml | grep -c evaluate:retrieval → 0
 | `npm run build` | **通过**；`out/main/index.js` 保留了对可选运行时的动态 import |
 | `npm run smoke`（本地 Windows） | **执行但失败**：GPU 进程访问冲突 → `renderer-load-failed`，属环境阻塞（与上一轮同一现象） |
 | Electron 主进程探针 | **通过**：`ELECTRON_OK dim=384` |
+| **CI run `40274455249`（HEAD `f4c80b3`）** | **3/3 通过**：ubuntu verify 1m12s（`317 passed \| 6 skipped`，Electron smoke 通过）、windows verify 2m12s、Windows upgrade path 1m11s |
+
+CI 的 `317 passed | 6 skipped` 是重要证据：跳过的正是 6 个需要真实模型的用例，说明它们**不会**在没有模型的环境里被 stub 顶替成"通过"。
 
 未执行：`package:win` 打包（不在本阶段验收范围，且运行时不进生产依赖）。
 
