@@ -232,6 +232,41 @@ describe('companion core: memory actually reaches the request', () => {
     }
   })
 
+  // The restart case above covers a sensitive memory that stays out until the
+  // user widens the bound. It does not cover the state that matters most for
+  // data correctness: a record the user already retracted must stay retracted
+  // after the process restarts. A retraction that only lives in memory would
+  // pass every same-process test and leak on the next launch.
+  it('keeps a retracted memory out of the request after a restart', async () => {
+    const first = createHarness()
+    let databasePath = ''
+    try {
+      databasePath = first.databasePath
+      const record = first.memories.create('我养了一只叫豆豆的猫。', 'personal')
+      first.memories.retract(record.id)
+      // Same process, fresh turn: the retraction already holds here.
+      const conversation = first.companion.createConversation()
+      await turn(first.companion, conversation.id, '我今天在家。')
+      expect(first.captured.at(-1)!.raw).not.toContain('豆豆')
+      expect(first.captured.at(-1)!.system).toContain('"memories":[]')
+    } finally {
+      first.database.close()
+    }
+
+    const second = createHarness({ databasePath })
+    try {
+      const conversations = second.companion.listConversations()
+      expect(conversations).toHaveLength(1)
+      // No retraction call after the restart: the persisted status is the only
+      // thing keeping the record out.
+      await turn(second.companion, conversations[0]!.id, '我今天还在家。')
+      expect(second.captured.at(-1)!.raw).not.toContain('豆豆')
+      expect(second.captured.at(-1)!.system).toContain('"memories":[]')
+    } finally {
+      second.database.close()
+    }
+  })
+
   it('never upgrades a model-inferred statement into a user-confirmed fact', async () => {
     const ctx = createHarness()
     try {
