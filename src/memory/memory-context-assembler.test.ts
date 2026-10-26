@@ -53,4 +53,74 @@ describe('bounded memory context assembly', () => {
     expect(result.omitted).toBe(1)
     expect(result.characterCount).toBeLessThanOrEqual(500)
   })
+
+  it('keeps a bounded continuity layer so a zero-overlap turn is not treated as a first meeting', () => {
+    const result = assembler.assemble('今天有点累', [
+      memory('00000000-0000-4000-8000-000000000011', '我住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000012', '我常喝手冲咖啡。', 'personal')
+    ], 'personal')
+
+    expect(result.selected.map((item) => item.id)).toEqual([
+      '00000000-0000-4000-8000-000000000011',
+      '00000000-0000-4000-8000-000000000012'
+    ])
+    expect(result.selected.every((item) => item.match === 'continuity')).toBe(true)
+    expect(result.text).toContain('"match":"continuity"')
+  })
+
+  it('labels term-matched records as topic matches and ranks them before continuity records', () => {
+    const result = assembler.assemble('杭州天气如何', [
+      memory('00000000-0000-4000-8000-000000000021', '我住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000022', '我养了一只黑猫。', 'personal')
+    ], 'personal')
+
+    expect(result.selected.map((item) => item.id)).toEqual([
+      '00000000-0000-4000-8000-000000000021',
+      '00000000-0000-4000-8000-000000000022'
+    ])
+    expect(result.selected.map((item) => item.match)).toEqual(['topic', 'continuity'])
+  })
+
+  it('caps continuity entries and never revives a retracted or still-sensitive record', () => {
+    const bounded = new MemoryContextAssembler(1)
+    const records = [
+      memory('00000000-0000-4000-8000-000000000031', '我住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000032', '我常喝手冲咖啡。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000033', '我撤回过的旧地址。', 'personal', 'retracted'),
+      memory('00000000-0000-4000-8000-000000000034', '我的病史。', 'sensitive')
+    ]
+    const result = bounded.assemble('今天有点累', records, 'personal')
+
+    expect(result.selected).toHaveLength(1)
+    expect(result.selected[0]?.id).toBe('00000000-0000-4000-8000-000000000031')
+    expect(result.text).not.toContain('我撤回过的旧地址')
+    expect(result.text).not.toContain('我的病史')
+  })
+
+  it('preserves the previous lexical-only behaviour when continuity is disabled', () => {
+    const lexicalOnly = new MemoryContextAssembler(0)
+    const result = lexicalOnly.assemble('今天有点累', [
+      memory('00000000-0000-4000-8000-000000000041', '我住在杭州。', 'personal')
+    ], 'personal')
+
+    expect(result.selected).toEqual([])
+    expect(result.omitted).toBe(0)
+  })
+
+  it('marks an unconfirmed record past the staleness window instead of presenting it as current', () => {
+    const now = '2026-10-26T00:00:00.000Z'
+    const stale = memory('00000000-0000-4000-8000-000000000051', '我住在南京。', 'personal', 'active', {
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      lastConfirmedAt: null
+    })
+    const fresh = memory('00000000-0000-4000-8000-000000000052', '我住在杭州。', 'personal', 'active', {
+      updatedAt: '2026-10-20T00:00:00.000Z',
+      lastConfirmedAt: '2026-10-20T00:00:00.000Z'
+    })
+    const result = assembler.assemble('住在哪里', [stale, fresh], 'personal', 25, 3000, now)
+
+    const encoded = JSON.parse(result.text) as { memories: Array<{ id: string; stale: boolean }> }
+    expect(encoded.memories.find((item) => item.id.endsWith('51'))?.stale).toBe(true)
+    expect(encoded.memories.find((item) => item.id.endsWith('52'))?.stale).toBe(false)
+  })
 })
