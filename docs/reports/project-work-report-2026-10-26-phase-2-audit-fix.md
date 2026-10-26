@@ -22,7 +22,8 @@
 | 修复前 SHA | `f57989714b52ad2c695649e90ee141a4357eea0d` |
 | 修复前 CI | [run 40324745303](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40324745303) — **success，3/3 Job** |
 | 修复后 SHA（代码最后一提交） | `7bf2e54` |
-| 修复后 CI | 见 §A.2（本报告提交后回填） |
+| 报告提交 SHA（本文件所在提交） | `b2a16a3` |
+| 修复后 CI | [run 40334673549](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40334673549) @ `b2a16a3` — **success，3/3 Job** |
 | 规模 | 17 文件，+2280 / −230 |
 
 ### A.1 本次实际修改的文件
@@ -53,7 +54,28 @@
 
 ### A.2 修复后 CI
 
-本报告提交后会触发 CI。实际结论回填在 §I 修订记录中；在此之前请**不要**用修复前的 run 结果推断修复后的状态。
+**结论对象是本文件所在提交 `b2a16a3`，不是修复前的 `f579897`。**
+
+| 项 | 值 |
+|---|---|
+| Run | [40334673549](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40334673549) |
+| head SHA | `b2a16a34c369877f0c52189db2e49768a31d494f` |
+| 事件 / 分支 | `pull_request` / `feat/phase-2-companion-core` |
+| 结论 | **success**（`completed`，2026-10-26T13:56:16Z） |
+
+Job 级结论（3/3 全绿）：
+
+| Job | 结论 |
+|---|---|
+| `Windows upgrade path (schema migrations under the real app)` | success |
+| `Typecheck, tests, build and smoke (ubuntu-latest)` | success |
+| `Typecheck, tests, build and smoke (windows-latest)` | success |
+
+CI 内的步骤（步骤级结论，逐条核对自 API，不是凭印象）：两个 `Typecheck, tests, build and smoke` Job 均执行 `Install dependencies` → `Typecheck` → `Unit and integration tests` → `Offline evaluations` → `Build application bundles` → `Install Electron binary for smoke` → `Electron smoke (real app, isolated profile, no network egress)`，全部 `success`；`Install xvfb (Linux headless display for Electron)` 在 ubuntu Job 为 `success`、在 windows Job 为 `skipped`（该步骤本就只对 Linux 有意义，跳过属预期，不是失败）。`Windows upgrade path` Job 的 `Migration and persistence test pass (includes v1→v15 upgrade paths)` 为 `success` —— 这条与 §A.1「无 v16、无 schema 变更」的声明互相印证。
+
+**这份 run 是对 `b2a16a3` 的一次独立执行**，覆盖了代码修复（`af91825..7bf2e54`）与本报告提交。CI **不含** `verify:real` —— 真实 Provider 验证需要本机 `ollama serve`，不在 CI 范围内；它的证据在 §D，且只对本机环境有效。
+
+> 不要用修复前的 run 40324745303（`f579897`，同样 success）推断修复后的状态。两者是同一条流水线在两份不同代码上的结果，前者证明的是**有缺陷的代码**也能通过 CI —— 这本身说明 CI 只覆盖离线信号，不覆盖真实 Provider 行为。
 
 ---
 
@@ -410,3 +432,6 @@ MORROW_REAL_PROVIDER_ENDPOINT='http://127.0.0.1:9/v1' npm run verify:real  # 期
 | 版本 | 日期 | 说明 |
 |---|---|---|
 | 第 1 版 | 2026-10-26 | 初版，随审计修复提交（代码最后一提交 `7bf2e54`） |
+| 第 2 版 | 2026-10-26 | 回填 §A.2 的真实 CI 证据：run **40334673549** @ `b2a16a3`，3/3 Job success。修正 §A.1 中 `request-assertions.test.ts` 的用例数为 22。本行为纯文档提交，不改变任何代码结论。 |
+
+> 任何提交的 CI 结论都可用 `gh run list --branch feat/phase-2-companion-core --json headSha,conclusion` 按 head SHA 对齐核验；PR #3 的 Checks 页同样按 SHA 分组。本报告只对**已明确写出 SHA 的 run** 作出结论，不对「分支最新」作任何未经核对的推断。
