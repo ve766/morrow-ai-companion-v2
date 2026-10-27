@@ -640,6 +640,43 @@ export const migrations: readonly Migration[] = [
         UPDATE interests SET sensitivity = 'sensitive' WHERE ${backfill};
       `)
     }
+  },
+  {
+    version: 17,
+    name: 'persona-feedback-candidates',
+    up(database) {
+      // Feedback about how Morrow should behave is not a memory and must not be
+      // applied automatically. Candidates are recorded with a short excerpt and
+      // traceable references; the full turn is never copied here.
+      database.exec(`
+        CREATE TABLE persona_feedback_candidates (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          kind TEXT NOT NULL CHECK (kind IN ('interaction_preference', 'tone', 'boundary', 'other')),
+          source TEXT NOT NULL CHECK (source IN ('user_explicit', 'model_inferred')),
+          evidence_hash TEXT NOT NULL CHECK (length(evidence_hash) = 64),
+          evidence_excerpt TEXT NOT NULL CHECK (length(trim(evidence_excerpt)) BETWEEN 1 AND 500 AND instr(evidence_excerpt, char(0)) = 0),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'supported', 'rejected', 'withdrawn', 'applied')),
+          decision_reason TEXT,
+          applied_personality_version INTEGER,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX persona_feedback_evidence_uq ON persona_feedback_candidates(evidence_hash);
+        CREATE INDEX persona_feedback_status_idx ON persona_feedback_candidates(status, created_at DESC);
+
+        CREATE TABLE persona_feedback_evidence (
+          candidate_id TEXT NOT NULL REFERENCES persona_feedback_candidates(id) ON DELETE CASCADE,
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          message_id TEXT,
+          evidence_hash TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (candidate_id, conversation_id, evidence_hash)
+        ) STRICT;
+        CREATE INDEX persona_feedback_evidence_conversation_idx ON persona_feedback_evidence(conversation_id);
+      `)
+    }
   }
 ]
 

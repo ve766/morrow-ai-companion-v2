@@ -335,4 +335,31 @@ describe('foreign implementation-line databases', () => {
     expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
     connection.close()
   })
+
+  it('adds the feedback candidate tables at v17 without touching existing rows', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-feedback-candidates-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    expect(applyMigrations(connection, 16)).toBe(16)
+    connection.prepare(`
+      INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, sensitivity)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('00000000-0000-4000-8000-000000000301', '天文', 'active', 3, 2, 0.5, 70,
+      '00000000-0000-4000-8000-000000000401', '00000000-0000-4000-8000-000000000501', timestamp, timestamp, timestamp, '["天文"]', 'normal')
+
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    const tables = connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'persona_feedback%' ORDER BY name").all()
+    expect(tables).toEqual([{ name: 'persona_feedback_candidates' }, { name: 'persona_feedback_evidence' }])
+    // Existing data is untouched by the new tables.
+    expect(connection.prepare('SELECT label, sensitivity FROM interests').get()).toEqual({ label: '天文', sensitivity: 'normal' })
+    // The evidence hash is unique: the same claim cannot fork into two rows.
+    const insert = connection.prepare(`
+      INSERT INTO persona_feedback_candidates(id, kind, source, evidence_hash, evidence_excerpt, confidence, sensitivity, status, created_at, updated_at)
+      VALUES (?, 'tone', 'user_explicit', ?, 'be brief', 70, 'normal', 'pending', ?, ?)
+    `)
+    insert.run('00000000-0000-4000-8000-000000000601', 'a'.repeat(64), timestamp, timestamp)
+    expect(() => insert.run('00000000-0000-4000-8000-000000000602', 'a'.repeat(64), timestamp, timestamp)).toThrow()
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    connection.close()
+  })
 })

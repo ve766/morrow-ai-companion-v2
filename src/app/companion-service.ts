@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { classifyInterestIntent } from '../self-model/interest-intent'
+import type { FeedbackCandidateService } from '../self-model/feedback-candidate-service'
 import type {
   AssembledMemoryContext,
   ChatPreview,
@@ -625,6 +626,7 @@ export class CompanionService {
   readonly feelings: CognitiveFeelingService
   readonly chat: ChatService
   readonly memorySuggestions: MemorySuggestionService
+  private readonly feedback: FeedbackCandidateService | undefined
 
   constructor(options: {
     database: SqliteDatabase
@@ -636,7 +638,9 @@ export class CompanionService {
     id?: () => string
     providerFactory?: (config: ProviderConfigRecord) => ProviderPort
     selfModelLoop?: SelfModelLoopServices
+    feedback?: FeedbackCandidateService
   }) {
+    this.feedback = options.feedback
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
     this.providers = new ProviderConfigService(options.database, options.secrets, options.authorize, clock, options.providerFactory)
@@ -696,7 +700,16 @@ export class CompanionService {
   createConversation(): ConversationRecord { return this.chat.createConversation() }
   listConversations(): ConversationRecord[] { return this.chat.listConversations() }
   readConversation(request: { conversationId: string }): ReturnType<ConversationService['read']> { return this.chat.readConversation(request.conversationId) }
-  deleteConversation(request: { conversationId: string }): void { this.chat.deleteConversation(request.conversationId) }
+  deleteConversation(request: { conversationId: string }): void {
+    // Withdraw first: if the delete fails, a candidate is gone rather than
+    // left pointing at a conversation the user asked to remove.
+    try {
+      this.feedback?.withdrawForConversation(request.conversationId, 'conversation_deleted')
+    } catch {
+      // Candidate bookkeeping must not block the user's delete.
+    }
+    this.chat.deleteConversation(request.conversationId)
+  }
   getPersonality(): PersonalityProfile { return this.personality.get() }
   savePersonality(request: PersonalityInput): PersonalityProfile { return this.personality.save(request) }
   personalityHistory(): PersonalityRevision[] { return this.personality.history() }
