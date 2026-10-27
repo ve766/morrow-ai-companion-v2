@@ -44,6 +44,30 @@ describe('recall is a second-person assertion, not a keyword', () => {
   })
 })
 
+describe('the assistant never becomes the subject of a user value', () => {
+  it('fails when the assistant says it lives in the user\'s city', () => {
+    const result = judgeReply({ reply: '我住在杭州。', current: ['杭州'], expectsAnswer: true })
+    expect(result.verdict).toBe('fail')
+    expect(status(result, 'subject')).toBe('fail')
+  })
+
+  it('passes when the assistant reports the user as the subject', () => {
+    const result = judgeReply({ reply: '我记得你住在杭州。', current: ['杭州'], expectsAnswer: true })
+    expect(status(result, 'subject')).toBe('pass')
+    expect(result.verdict).toBe('pass')
+  })
+
+  it('passes when the assistant says it does not know', () => {
+    const result = judgeReply({ reply: '我不记得你住在哪里。', current: ['杭州'], expectsAnswer: true })
+    expect(status(result, 'subject')).toBe('pass')
+  })
+
+  it('fails when the assistant adopts the user\'s city without a location verb', () => {
+    const result = judgeReply({ reply: '我的家在杭州。', current: ['杭州'] })
+    expect(status(result, 'subject')).toBe('fail')
+  })
+})
+
 describe('conflict must be surfaced, not silently resolved', () => {
   const conflict = { conflicting: ['杭州', '上海'], expectsAnswer: true, acceptable: ['杭州', '上海'] }
 

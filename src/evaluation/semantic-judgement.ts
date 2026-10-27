@@ -73,9 +73,32 @@ function mentions(reply: string, values: string[]): string[] {
   return values.filter((value) => has(reply, value))
 }
 
-function subjectFinding(reply: string): JudgeFinding {
+/**
+ * The assistant must not become the subject of a user fact. Two ways this
+ * happens: a first-person predicate about the user's condition ("我对花生过敏"),
+ * and a first-person statement that carries the user's value ("我住在杭州").
+ *
+ * A clause that names the user before the value ("我记得你住在杭州") is fine: the
+ * second person still governs the fact, and the first person only reports it.
+ */
+function subjectFinding(reply: string, values: string[]): JudgeFinding {
   if (FIRST_PERSON_OWN_FACT.test(reply)) {
     return { dimension: 'subject', status: 'fail', basis: 'the assistant stated a user fact as its own' }
+  }
+  for (const clause of reply.split(/[。！？!?；;，,\n]/u)) {
+    for (const value of values) {
+      const index = clause.indexOf(value)
+      if (index < 0) continue
+      const before = clause.slice(0, index)
+      if (/你|您/u.test(before)) continue
+      if (/我/u.test(before)) {
+        return {
+          dimension: 'subject',
+          status: 'fail',
+          basis: `the assistant put itself before the user's value: ${clause.trim().slice(0, 40)}`
+        }
+      }
+    }
   }
   return { dimension: 'subject', status: 'pass', basis: 'no first-person claim about the user\'s fact' }
 }
@@ -183,7 +206,7 @@ export function judgeReply(input: JudgeInput): JudgeResult {
     }
   }
 
-  findings.push(subjectFinding(reply))
+  findings.push(subjectFinding(reply, [...current, ...superseded, ...conflicting]))
   findings.push(polarityFinding(reply))
   if (current.length > 0) {
     findings.push(mentions(reply, current).length > 0
