@@ -107,7 +107,7 @@ describe('authorisation and data governance', () => {
     feedback.record({ kind: 'boundary', source: 'user_explicit', conversationId: conversationA, claim: '不要提我的病情。', confidence: 90, sensitivity: 'sensitive' })
     const [candidate] = feedback.list()
     const before = personality.get().version
-    expect(() => feedback.apply(candidate!.id, { includeSensitive: false, baseVersion: 1, apply: () => 2 })).toThrowError(
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: false, baseVersion: 1, currentVersion: 1, apply: () => 2 })).toThrowError(
       expect.objectContaining({ code: 'FORBIDDEN' })
     )
     expect(personality.get().version).toBe(before)
@@ -137,10 +137,34 @@ describe('authorisation and data governance', () => {
       feedback
     })
     const conversation = companion.createConversation()
-    record(feedback, conversation.id)
+    feedback.record({
+      kind: 'tone',
+      source: 'user_explicit',
+      conversationId: conversation.id,
+      messageId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      claim: '请简短一点。',
+      confidence: 70,
+      sensitivity: 'normal'
+    })
     companion.deleteConversation({ conversationId: conversation.id })
-    expect(feedback.list()[0]?.status).toBe('withdrawn')
-    expect(feedback.list()[0]?.evidenceExcerpt).toBe('[withdrawn]')
+
+    // Query the database directly: an API result alone is not evidence that the
+    // rows actually changed.
+    const evidence = database.connection.prepare(
+      'SELECT status, withdrawn_at FROM persona_feedback_evidence WHERE conversation_id = ?'
+    ).all(conversation.id) as Array<{ status: string; withdrawn_at: string | null }>
+    expect(evidence).toHaveLength(1)
+    expect(evidence[0]?.status).toBe('withdrawn')
+    expect(evidence[0]?.withdrawn_at).not.toBeNull()
+
+    const candidate = database.connection.prepare(
+      'SELECT status, evidence_excerpt FROM persona_feedback_candidates'
+    ).get() as { status: string; evidence_excerpt: string }
+    expect(candidate.status).toBe('withdrawn')
+    expect(candidate.evidence_excerpt).toBe('[withdrawn]')
+
+    // A repeated withdrawal is a no-op, not a second mutation.
+    expect(feedback.withdrawForConversation(conversation.id, 'conversation_deleted')).toBe(0)
   })
 
   it('cannot apply a rejected candidate', () => {
@@ -148,7 +172,7 @@ describe('authorisation and data governance', () => {
     record(feedback, conversationA)
     const [candidate] = feedback.list()
     feedback.reject(candidate!.id, 'not a stable preference')
-    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, apply: () => 2 })).toThrowError(
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, currentVersion: 1, apply: () => 2 })).toThrowError(
       expect.objectContaining({ code: 'CONFLICT' })
     )
   })
@@ -164,7 +188,7 @@ describe('apply and rollback stay auditable', () => {
 
     const applied = feedback.apply(candidate!.id, {
       includeSensitive: true,
-      baseVersion: personality.get().version,
+      baseVersion: personality.get().version, currentVersion: personality.get().version,
       apply: () => personality.save({ ...before, warmth: Math.min(100, before.warmth + 5), systemRules: 'Be brief.' }).version
     })
     expect(applied.status).toBe('applied')
@@ -254,8 +278,8 @@ describe('application is at most once and recoverable', () => {
     record(feedback, conversationA)
     record(feedback, conversationB)
     const [candidate] = feedback.list()
-    feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, apply: () => 2 })
-    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 2, apply: () => 3 })).toThrowError(
+    feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, currentVersion: 1, apply: () => 2 })
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 2, currentVersion: 2, apply: () => 3 })).toThrowError(
       expect.objectContaining({ code: 'CONFLICT' })
     )
   })
@@ -268,10 +292,49 @@ describe('application is at most once and recoverable', () => {
     expect(() => feedback.apply(candidate!.id, {
       includeSensitive: true,
       baseVersion: 1,
+      currentVersion: 1,
       apply: () => { throw new Error('save failed') }
     })).toThrow('save failed')
     expect(feedback.get(candidate!.id)?.status).toBe('supported')
     expect(feedback.applicationFor(candidate!.id)?.status).toBe('failed')
+  })
+
+  it('refuses to write on top of a stale personality version', () => {
+    const { feedback, personality } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    const before = personality.get().version
+    expect(() => feedback.apply(candidate!.id, {
+      includeSensitive: true,
+      baseVersion: before,
+      currentVersion: before + 1,
+      apply: () => before + 2
+    })).toThrowError(expect.objectContaining({ code: 'CONFLICT' }))
+    expect(feedback.get(candidate!.id)?.status).toBe('supported')
+    expect(feedback.applicationFor(candidate!.id)).toBeNull()
+    expect(personality.get().version).toBe(before)
+  })
+
+  it('keeps the application record after a rollback', () => {
+    const { feedback, personality } = setup()
+    const before = personality.get()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    const applied = feedback.apply(candidate!.id, {
+      includeSensitive: true,
+      baseVersion: personality.get().version,
+      currentVersion: personality.get().version,
+      apply: () => personality.save({ ...before, warmth: Math.min(100, before.warmth + 5) }).version
+    })
+    const appliedVersion = applied.appliedPersonalityVersion!
+    personality.restore(1)
+    const recordAfter = feedback.applicationFor(candidate!.id)
+    expect(recordAfter?.status).toBe('applied')
+    expect(recordAfter?.appliedPersonalityVersion).toBe(appliedVersion)
+    // The applied version is still visible in the personality history.
+    expect(personality.history().some((revision) => revision.version === appliedVersion)).toBe(true)
   })
 
   it('blocks retry on an interrupted applying row and marks it for review', () => {
@@ -284,7 +347,7 @@ describe('application is at most once and recoverable', () => {
       VALUES (?, ?, 'applying', 1, NULL, ?, ?)
     `).run('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', candidate!.id, clock(), clock())
 
-    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, apply: () => 2 })).toThrowError(
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, currentVersion: 1, apply: () => 2 })).toThrowError(
       expect.objectContaining({ code: 'CONFLICT' })
     )
     expect(feedback.recoverInterruptedApplications()).toBe(1)

@@ -265,12 +265,15 @@ export class FeedbackCandidateService {
    * transactions, so this is not a single atomic commit; the window and its
    * recovery are documented rather than described as "atomic".
    */
-  apply(id: string, options: { includeSensitive: boolean; baseVersion: number; apply: (candidate: FeedbackCandidate) => number }): FeedbackCandidate {
+  apply(id: string, options: { includeSensitive: boolean; baseVersion: number; currentVersion: number; apply: (candidate: FeedbackCandidate) => number }): FeedbackCandidate {
     const candidate = this.get(id)
     if (!candidate) throw new ApplicationError('NOT_FOUND')
     if (candidate.status !== 'pending' && candidate.status !== 'supported') throw new ApplicationError('CONFLICT')
     if (candidate.sensitivity === 'sensitive' && !options.includeSensitive) throw new ApplicationError('FORBIDDEN')
     if (!Number.isSafeInteger(options.baseVersion) || options.baseVersion < 1) throw new ApplicationError('INVALID_INPUT')
+    // Writing on top of a version the caller did not see would silently discard
+    // an intervening edit or rollback.
+    if (options.baseVersion !== options.currentVersion) throw new ApplicationError('CONFLICT')
     if (this.applicationFor(id)) throw new ApplicationError('CONFLICT')
 
     const applicationId = this.makeId().toLowerCase()

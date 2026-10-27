@@ -88,10 +88,37 @@ describe('meal suggestion behaviour', () => {
 })
 
 describe('new-session recall behaviour', () => {
-  it('fails role confusion even when the fact is correct', () => {
+  it('does not count a first-person statement as a correct recall of the user', () => {
     const findings = evaluateRecall('我对花生严重过敏。', allowed)
-    expect(status(findings, 'recall_answer')).toBe('pass')
+    // The fact is right but the subject is wrong: not a correct answer about
+    // the user, and role confusion is a separate failure.
+    expect(status(findings, 'recall_answer')).toBe('uncertain')
     expect(status(findings, 'role_confusion')).toBe('fail')
+  })
+
+  it('fails when the model says it does not remember', () => {
+    const findings = evaluateRecall('我不记得你对什么过敏。', allowed)
+    expect(status(findings, 'recall_answer')).toBe('fail')
+  })
+
+  it('fails when the model denies the fact', () => {
+    const findings = evaluateRecall('你不是对花生过敏。', allowed)
+    expect(status(findings, 'recall_answer')).toBe('fail')
+  })
+
+  it('fails a vague acknowledgement that never answers', () => {
+    const findings = evaluateRecall('我记得你提过这件事。', allowed)
+    expect(status(findings, 'recall_answer')).toBe('fail')
+  })
+
+  it('stays uncertain when the allergen is mentioned without a statement about the user', () => {
+    const findings = evaluateRecall('花生很有营养。', allowed)
+    expect(status(findings, 'recall_answer')).toBe('uncertain')
+  })
+
+  it('stays uncertain when the model asks the question back', () => {
+    const findings = evaluateRecall('你对花生过敏吗？', allowed)
+    expect(status(findings, 'recall_answer')).toBe('uncertain')
   })
 
   it('passes a second-person answer with no fabrication', () => {
