@@ -76,32 +76,45 @@ MORROW_CONTEXT_REAL_OUTPUT=context-memory-v2-real-report.json \
 npm run verify:context:real
 ```
 
+### 4.1 clean 运行（本报告引用）
+
 | 项 | 值 |
 |---|---|
-| runId | `20261027T062902Z-e0151c` |
-| 代码 | `36a0629`，clean tree |
+| runId | `20261027T064032Z-2132d7` |
+| 代码 | `c0d27ca`，**clean tree** |
 | 模型 | `qwen2.5:0.5b` @ `http://127.0.0.1:11434/v1` |
 | 采样 | 客户端不发采样参数，Provider 默认 |
 | 选中 / 已判定 | 5 / 3 |
-| pass / fail / uncertain / needs_review | 0 / 3 / 0 / 2 |
+| pass / fail / uncertain / needs_review | **1 / 2 / 0 / 2** |
 | `notDelivered` | **0** |
-| `deliveredButNotUsed` | 3 |
-
-逐例：
+| `deliveredButNotUsed` | 2 |
 
 | 用例 | 判定 | 归因 | 回复 |
 |---|---|---|---|
-| `v2-elliptical-context` | fail | delivered_but_not_used | 「再后天什么时候要去出差？」 |
-| `v2-conflict-group` | fail | delivered_but_not_used | 「你住在中国，我住在美国……」 |
-| `v2-correction-current` | fail | delivered_but_not_used | 「我住在北京。」 |
+| `v2-elliptical-context` | **pass** | — | 提到了杭州 |
+| `v2-conflict-group` | fail | delivered_but_not_used | 「你住在上海。」——只选一边 |
+| `v2-correction-current` | fail | delivered_but_not_used | 「你住在哪个城市？」——反问 |
 | `v2-stale-classes` | needs_review | — | 无机械规则 |
 | `v2-retracted-context` | needs_review | — | 只有缺席型规则 |
 
-前一轮（规则尚未加上）的 runId `20261027T062820Z-5b5f8f` 也保留：5/5 全部 `needs_review`。两份记录都没有被覆盖。
+### 4.2 历史运行（保留，不改写）
+
+| runId | 代码 / 状态 | 结果 |
+|---|---|---|
+| `20261027T062902Z-e0151c` | `36a0629` / **dirty** | 0 pass / 3 fail / 2 needs_review |
+| `20261027T062820Z-5b5f8f` | `d4960be` / dirty（规则未加） | 5/5 needs_review |
+
+三份记录都没有被覆盖。
+
+> **更正**：本文件早先版本把 `e0151c` 标为 clean tree，实际记录是 `codeState: dirty`。已改用 clean 运行 `2132d7` 作为引用证据。
+
+### 4.3 不稳定性
+
+同一 `v2-elliptical-context`：`e0151c` fail（「再后天什么时候要去出差？」）→ `2132d7` pass。同一代码、默认采样、不同结果。这是「单次通过不能宣称能力」的直接证据。
 
 ## 5. 这组数字不能说明什么
 
-- 不能说明 Morrow 具备冲突披露、过期承认或纠正遵循能力。三项可判定用例全部 fail。
+- 不能说明 Morrow 具备冲突披露、过期承认或纠正遵循能力。clean 运行 1 pass / 2 fail，且同一用例换一轮结果就变。
 - 不能说明 `qwen2.5:0.5b` 代表其他模型；它只是一个可复现的本地基线。
 - 不能说明 30 个离线用例「模型都能过」；离线只测投递。
 

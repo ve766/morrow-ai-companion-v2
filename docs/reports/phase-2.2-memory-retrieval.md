@@ -83,15 +83,24 @@ v1 的 hash 未变很重要：它说明新层没有改变既有 22 个场景的�
 
 ### 3.4 真实模型（`qwen2.5:0.5b`）
 
-runId `20261027T062902Z-e0151c`（代码 `36a0629`，clean tree）：
+| 运行 | 代码 / 状态 | 结果 |
+|---|---|---|
+| `20261027T064032Z-2132d7`（**clean**） | `c0d27ca` / clean | 1 pass / 2 fail / 2 needs_review |
+| `20261027T062902Z-e0151c`（dirty） | `36a0629` / dirty | 0 pass / 3 fail / 2 needs_review |
+
+clean 运行逐例：
 
 | 用例 | 归因 | 判定 | 回复摘要 |
 |---|---|---|---|
-| `v2-elliptical-context` | `delivered_but_not_used` | fail | 「再后天什么时候要去出差？」——未提杭州 |
-| `v2-conflict-group` | `delivered_but_not_used` | fail | 「你住在中国，我住在美国……」——两个城市都没提 |
-| `v2-correction-current` | `delivered_but_not_used` | fail | 「我住在北京。」——既没提杭州，也没提上海 |
+| `v2-elliptical-context` | — | **pass** | 提到了杭州 |
+| `v2-conflict-group` | `delivered_but_not_used` | fail | 「你住在上海。」——只选一边 |
+| `v2-correction-current` | `delivered_but_not_used` | fail | 「你住在哪个城市？」——反问，未用纠正值 |
 
-`notDelivered = 0`。也就是说：**系统把该送的东西送对了，模型没有用。** 这正是必须分开报告的两层。
+两次运行 `notDelivered = 0`。也就是说：**系统把该送的东西送对了，模型没有用。** 这正是必须分开报告的两层。
+
+同一 `v2-elliptical-context` 在 `e0151c` 里 fail、在 `2132d7` 里 pass，说明单次结果不能当作能力证据。
+
+> **更正**：本节早先版本把 `e0151c` 写成 "clean tree"，实际是 `codeState: dirty`。已改用 clean 运行 `2132d7`，并保留 dirty 记录。
 
 ## 4. 残余风险
 

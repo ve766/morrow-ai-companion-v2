@@ -3,8 +3,8 @@
 - 仓库：`ve766/morrow-ai-companion-v2`
 - 分支：`feat/phase-2.2-memory-reliability`
 - 起点：`a57a55f`（父提交 `e252d06`，即 PR #3 head）
-- 代码与报告结束：`20628d5`
-- 本报告所在提交：仅新增文档
+- 代码与阶段报告结束：`c0d27ca`
+- 本报告所在提交：仅更新文档（真实模型 run 与措辞更正）
 - PR：[#4](https://github.com/ve766/morrow-ai-companion-v2/pull/4)，base `feat/phase-2-companion-core`（堆叠在未合并的 PR #3 上），OPEN，未合并
 
 ## 0. 一页结论
@@ -84,27 +84,34 @@ Git 传输说明：本机代理对 `github.com` 返回 502，读取与推送通�
 
 ### 5.1 多轮与跨会话（`npm run verify:real`）
 
-- runId：`20261027T062752Z-09bbd9`
-- 报告：`evaluation/reports/real-provider-conversation-report.20261027T062752Z-09bbd9.json`
-- 结果：
-  - 第 3 轮同会话回忆：`林一=false, 杭州=false, 后端=false`（未使用）
-  - 第 4 轮跨会话：`杭州=true`（使用）
-  - 网络失败场景：通过（用户消息 1、助手消息 0、错误码 `PROVIDER_NETWORK`）
-  - auth / timeout：`not_exercised`
+| 运行 | 代码 / 状态 | 结果 |
+|---|---|---|
+| `20261027T064002Z-651742`（**clean**） | `3fa6a40` / clean | 4 轮请求，3 完成，1 失败（第 2 轮空回复 `PROVIDER_RESPONSE`，assistant 未落库）；第 3 轮 `林一=true, 杭州=false, 后端=false`；第 4 轮 `杭州=false` |
+| `20261027T062752Z-09bbd9`（dirty） | `d4960be` / dirty | 第 3 轮三项全 false；第 4 轮 `杭州=true`；网络失败场景通过 |
+
+两次运行的第 4 轮结论相反（true / false），同一代码、默认采样——这正是不能用单次通过宣称能力的直接证据。空回复被记为错误且不落库，没有被伪装成 assistant 回复。
 
 ### 5.2 语境数据集子集（`npm run verify:context:real`）
 
-- runId：`20261027T062902Z-e0151c`，代码 `36a0629`，clean tree
-- 报告：`evaluation/reports/context-memory-v2-real-report.20261027T062902Z-e0151c.json`
-- 5 例选中，3 例可判定：**0 pass / 3 fail**；2 例 `needs_review`
-- `notDelivered = 0`，`deliveredButNotUsed = 3`
-- 前一轮 `20261027T062820Z-5b5f8f`（规则未加）保留，5/5 `needs_review`
+| 运行 | 代码 / 状态 | 判定 |
+|---|---|---|
+| `20261027T064032Z-2132d7`（**clean**） | `c0d27ca` / clean | **1 pass / 2 fail / 2 needs_review**；`notDelivered=0`，`deliveredButNotUsed=2` |
+| `20261027T062902Z-e0151c`（dirty） | `36a0629` / dirty | 0 pass / 3 fail / 2 needs_review；`notDelivered=0` |
+| `20261027T062820Z-5b5f8f`（dirty，规则未加） | `d4960be` / dirty | 5/5 needs_review |
+
+clean 运行的逐例：
 
 | 用例 | 判定 | 回复 |
 |---|---|---|
-| `v2-elliptical-context` | fail | 「再后天什么时候要去出差？」 |
-| `v2-conflict-group` | fail | 「你住在中国，我住在美国……」 |
-| `v2-correction-current` | fail | 「我住在北京。」 |
+| `v2-elliptical-context` | **pass** | 提到了杭州 |
+| `v2-conflict-group` | fail | 「你住在上海。」——只选一边 |
+| `v2-correction-current` | fail | 「你住在哪个城市？」——反问，未使用纠正值 |
+| `v2-stale-classes` | needs_review | 无机械规则 |
+| `v2-retracted-context` | needs_review | 只有缺席型规则 |
+
+同一用例在两轮之间从 fail 变 pass（elliptical），说明 0.5B 的行为不稳定；这本身是证据，不是噪声。
+
+> **更正**：本报告早先版本把 `e0151c` 写成 "clean tree"，实际记录是 `codeState: dirty`。原因是我没有核对 runner 写入的 `codeState` 字段。现在引用 clean 运行 `2132d7`，并保留 dirty 运行作为历史记录，不删除、不改写。
 
 ### 5.3 未运行
 
@@ -155,15 +162,17 @@ Git 传输说明：本机代理对 `github.com` 返回 502，读取与推送通�
 
 ## 9. 已知问题、未完成与风险
 
-1. **模型层失败**：冲突披露、纠正遵循、省略轮使用上下文三项可判定用例全部 fail。
-2. **评测器盲点仍在**：a4 假通过、a6 假失败，只被固定，未被修复。
-3. **无语义检索**：零词面重叠的语用关联仍不召回（能力边界）。
-4. **长对话未验证**：20–30 轮行为没有 harness。
-5. **`self_model_entries` 无敏感度列**：逐字通道整体受 `includeSensitive` 门禁，但撤回主记忆不会撤回对应自我条目。
-6. **冲突分组是词面启发式**：可能漏分同义改写，也可能误分共享词多的不同主题。
-7. **无真实人工复核**：复核文件 `reviewer.kind` 仍是 agent。
-8. **本地 smoke 未运行**：CI 为权威，但不冒充本地通过。
-9. **回滚 v16 需恢复备份**：代码回退后旧版本会 fail-closed 拒绝打开 v16 库。
+1. **模型层失败**：clean 运行里冲突披露、纠正遵循两项 fail；省略轮在另一轮 fail、这一轮 pass。
+2. **模型行为不稳定**：同一 `v2-elliptical-context` 两轮之间 fail → pass；跨会话「杭州」在两轮之间 true → false。默认采样下不能把单次结果当作能力。
+3. **偶发空回复**：`651742` 的第 2 轮返回 `PROVIDER_RESPONSE`，assistant 未落库（处理正确），但说明本地模型会偶发空响应。
+4. **评测器盲点仍在**：a4 假通过、a6 假失败，只被固定，未被修复。
+5. **无语义检索**：零词面重叠的语用关联仍不召回（能力边界）。
+6. **长对话未验证**：20–30 轮行为没有 harness。
+7. **`self_model_entries` 无敏感度列**：逐字通道整体受 `includeSensitive` 门禁，但撤回主记忆不会撤回对应自我条目。
+8. **冲突分组是词面启发式**：可能漏分同义改写，也可能误分共享词多的不同主题。
+9. **无真实人工复核**：复核文件 `reviewer.kind` 仍是 agent。
+10. **本地 smoke 未运行**：CI 为权威，但不冒充本地通过。
+11. **回滚 v16 需恢复备份**：代码回退后旧版本会 fail-closed 拒绝打开 v16 库。
 
 ## 10. 提交与 PR
 
@@ -174,6 +183,10 @@ Git 传输说明：本机代理对 `github.com` 返回 502，读取与推送通�
 | `d4960be` | context-memory v2 + 评测器盲点固定 |
 | `36a0629` | v2 真实模型正向规则 |
 | `20628d5` | 四份阶段报告 |
+| `de12870` | 本报告初版 |
+| `3fa6a40` | 归档真实模型 run 报告 + `.gitignore` 白名单 |
+| `c0d27ca` | clean tree 真实运行记录（含空回复失败） |
+| 本提交 | 更正 clean/dirty 表述并补 clean 运行证据 |
 
 PR：[#4](https://github.com/ve766/morrow-ai-companion-v2/pull/4)
 
@@ -203,17 +216,17 @@ npm run verify:context:real
 | 检索改进未破坏撤回/删除/授权 | **通过** | `v2-retracted-context` 等 |
 | 冲突/过期/纠正有系统层回归 | **通过** | 单测 + v2 |
 | 评测器用历史假通过/假失败验证 | **通过（验证=固定，非修复）** | `verdict.test.ts` 两条 |
-| 真实模型实验完整留档 | **通过** | 3 份 run，失败未删 |
+| 真实模型实验完整留档 | **通过** | 5 份 run（含 2 份 clean），失败未删 |
 | 自动/人工/模型表现区分 | **通过** | 报告与 verdict 分层 |
-| CI 通过且无未解释回归 | **通过** | run `40461677187` 3/3 |
+| CI 通过且无未解释回归 | **通过** | run `40461677187` 3/3；后续 docs/evidence 提交见 PR checks |
 | 残余风险说明 | **通过** | §9 |
-| 模型层具备冲突披露/过期承认 | **未通过 / 未验证** | 3 fail，2 needs_review |
+| 模型层具备冲突披露/过期承认 | **未通过 / 未验证** | clean 运行 1 pass / 2 fail，2 needs_review |
 | 20–30 轮长对话 | **未验证** | 无 harness |
 
 ## 13. 三层证据声明
 
 - **代码已实现**：检索三层、冲突分组、波动性过期、兴趣敏感度与 v16 迁移。
 - **自动化测试通过**：452 用例、四个离线评估、构建、CI 3/3。
-- **真实模型验证通过**：**没有**。可判定的 3 个行为用例全部失败；跨会话 1 次命中、1 次未命中。
+- **真实模型验证通过**：**没有**。clean 运行 3 个可判定用例中 1 pass、2 fail；换一轮同一用例结果又不同（fail → pass），跨会话命中 true → false。
 
 本报告不宣称 Morrow 已达到可靠 AI 伴侣水平。
