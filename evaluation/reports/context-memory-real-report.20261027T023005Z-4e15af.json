@@ -1,0 +1,674 @@
+{
+  "schemaVersion": 2,
+  "evidenceClass": "real_provider_behaviour",
+  "measures": "model_behaviour",
+  "dataset": "context-memory-v1",
+  "generatedAt": "2026-10-27T02:30:05.512Z",
+  "reproduction": {
+    "runId": "20261027T023005Z-4e15af",
+    "codeCommit": "af4f0b108519af79cff8d11f031dfae588d47362",
+    "codeState": "clean",
+    "sampling": "provider-default"
+  },
+  "status": "checked",
+  "blockedReason": null,
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "reachable": true
+  },
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32-x64",
+    "durationMs": 12389
+  },
+  "summary": {
+    "casesInDataset": 22,
+    "casesSelected": 12,
+    "casesChecked": 12,
+    "casesPassed": 7,
+    "casesFailed": 5,
+    "casesNotChecked": 0,
+    "turnsExecuted": 20
+  },
+  "attribution": {
+    "notDelivered": 0,
+    "deliveredButNotUsed": 5,
+    "ruleNotSatisfied": 0
+  },
+  "cases": [
+    {
+      "id": "a1-pronoun-cat",
+      "capability": "A1_reference_resolution",
+      "title": "代词的指代对象仍在上下文中",
+      "status": "failed",
+      "rule": "substring: +[豆豆] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我收养了一只叫豆豆的橘猫。",
+          "reply": "很高兴听到您收养了这只橘猫，豆豆！您在照顾它时有什么需要注意的事情吗？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1517
+          },
+          "durationMs": 600
+        },
+        {
+          "index": 1,
+          "content": "它现在多大了？",
+          "reply": "我没有这个信息，因为我只是一个AI模型，无法获取或看到实时的数据。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 2,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1706
+          },
+          "durationMs": 381
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:豆豆",
+          "passed": false,
+          "detail": "absent from reply (我没有这个信息，因为我只是一个AI模型，无法获取或看到实时的数据。)"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:豆豆: absent from reply (我没有这个信息，因为我只是一个AI模型，无法获取或看到实时的数据。)"
+    },
+    {
+      "id": "a3-switch-to-guitar",
+      "capability": "A3_topic_switch",
+      "title": "切换话题后，旧话题记忆不再被当作本轮主题",
+      "status": "failed",
+      "rule": "substring: +[] -[豆豆]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "豆豆今天打翻了水杯。",
+          "reply": "用户最近在学吉他？ (untrusted evidence only)",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "continuity"
+            ],
+            "bytes": 2115
+          },
+          "durationMs": 368
+        },
+        {
+          "index": 1,
+          "content": "帮我看看这个吉他谱的和弦怎么按。",
+          "reply": "用户养了一只叫豆豆的猫，你最近在哪学吉他呢，请问你的学习兴趣是什么样呢？（untrusted evidence only）",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 2,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "continuity"
+            ],
+            "bytes": 2279
+          },
+          "durationMs": 491
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustNotMention:豆豆",
+          "passed": false,
+          "detail": "present in reply (用户养了一只叫豆豆的猫，你最近在哪学吉他呢，请问你的学习兴趣是什么样呢？（untrusted evidence only）)"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustNotMention:豆豆: present in reply (用户养了一只叫豆豆的猫，你最近在哪学吉他呢，请问你的学习兴趣是什么样呢？（untrusted evidence only）)"
+    },
+    {
+      "id": "a4-revisit-cat",
+      "capability": "A4_topic_revisit",
+      "title": "旧话题被重新提起时重新成为本轮主题",
+      "status": "failed",
+      "rule": "substring: +[豆豆] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "豆豆今天打翻了水杯。",
+          "reply": "你的语气不温和，需要帮助改善一下。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "continuity"
+            ],
+            "bytes": 2115
+          },
+          "durationMs": 359
+        },
+        {
+          "index": 1,
+          "content": "吉他的和弦好难。",
+          "reply": "好的，那你可能感到困惑或不满，请试试轻松愉快的吉他弹奏吧。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 2,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "continuity"
+            ],
+            "bytes": 2253
+          },
+          "durationMs": 433
+        },
+        {
+          "index": 2,
+          "content": "说回豆豆，它是不是生病了？",
+          "reply": "用户最近在学吉他，说明他可能还没有经历这种情况。建议他继续学习正确的吉他弹奏技巧和姿势。如果你真的担心这个话题，请告诉我更多。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 4,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "continuity"
+            ],
+            "bytes": 2442
+          },
+          "durationMs": 459
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:豆豆",
+          "passed": false,
+          "detail": "absent from reply (用户最近在学吉他，说明他可能还没有经历这种情况。建议他继续学习正确的吉他弹奏技巧和姿势。如果你真的担心这个话题，请告诉我更多。)"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:豆豆: absent from reply (用户最近在学吉他，说明他可能还没有经历这种情况。建议他继续学习正确的吉他弹奏技巧和姿势。如果你真的担心这个话题，请告诉我更多。)"
+    },
+    {
+      "id": "a5-two-sessions",
+      "capability": "A5_same_sentence_two_contexts",
+      "title": "同一句“她”在不同会话里没有共同前提",
+      "status": "checked",
+      "rule": "clarifying_question",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我女朋友叫小满。",
+          "reply": "我最近记得，我们在学校里有第一次偶一起玩。有什么不开心的事情需要分享的吗？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1502
+          },
+          "durationMs": 435
+        },
+        {
+          "index": 1,
+          "content": "她最近怎么样？",
+          "reply": "她最近应该一切都好。你希望保持什么类型的交流？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1499
+          },
+          "durationMs": 321
+        }
+      ],
+      "checks": [
+        {
+          "rule": "clarifying_question",
+          "passed": true,
+          "detail": "reply contains a question mark"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "a6-insufficient",
+      "capability": "A6_clarify_when_insufficient",
+      "title": "信息不足时不确定性指令仍然到位",
+      "status": "checked",
+      "rule": "clarifying_question",
+      "turns": [
+        {
+          "index": 0,
+          "content": "帮我订一下。",
+          "reply": "你好，我可以帮您预订呢，请问有特定的餐厅或景点推荐吗？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1496
+          },
+          "durationMs": 336
+        }
+      ],
+      "checks": [
+        {
+          "rule": "clarifying_question",
+          "passed": true,
+          "detail": "reply contains a question mark"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b1-recall-in-session",
+      "capability": "B1_in_session_recall",
+      "title": "同会话内可回忆仍在窗口内的事实",
+      "status": "checked",
+      "rule": "substring: +[成都] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我下周三要去成都参加一个婚礼。",
+          "reply": "你好！很高兴听到你计划于下周三去成都度过这次重要的日子。关于婚礼的筹备情况，是否有什么具体的问题或者需要了解的信息？例如：\n\n1. 是否已经有详细的婚礼计划和预算？\n2. 预计的日程安排有哪些重点或需要注意的部分？\n3. 有没有其他想要添加的信息或建议吗？\n\n如果有更多信息，我可以为你提供更具体的帮助。如果没有，请尽情讲述你打算中的场景吧！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1523
+          },
+          "durationMs": 794
+        },
+        {
+          "index": 1,
+          "content": "这两天有点忙。",
+          "reply": "好的，那感觉确实忙碌呀！请问有什么具体的事情让你感到压力或者需要分享吗？例如工作、学习或者其他生活方面的困扰？这样的信息可以帮助我更好地理解和帮助你。如果你对这个问题有其他想法或疑问，比如如何减轻压力、寻找平衡还是提升效率，也可以告诉我哦。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 2,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 2096
+          },
+          "durationMs": 569
+        },
+        {
+          "index": 2,
+          "content": "我下周要去哪来着？",
+          "reply": "很抱歉，关于你的具体行程和去向没有更多我可以提供的信息。但是，在你计划的日期附近应该能找到成都的相关信息或者活动。\n\n如果你对成都感兴趣的话，我可以在未来为你提供相关的建议，希望能帮助你在未来的生活中更加顺利愉快地度过每一个周末和节假日！\n\n这样，如果在未来我有可以分享的内容，我会给你更详细的资讯推荐哦!",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 4,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 2546
+          },
+          "durationMs": 604
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:成都",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b2-recall-new-session",
+      "capability": "B2_cross_session_recall",
+      "title": "新会话通过已保存记忆回忆事实",
+      "status": "checked",
+      "rule": "substring: +[成都] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我下周要去哪来着？",
+          "reply": "用户需要具体指出去往成都的地点，以便我能提供有效的帮助。请告诉我一下目的地。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 1816
+          },
+          "durationMs": 394
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:成都",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b3-correction",
+      "capability": "B3_correction_is_current",
+      "title": "纠正后旧事实不再出现在请求里",
+      "status": "checked",
+      "rule": "substring: +[杭州] -[上海]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我上个月搬到杭州了。",
+          "reply": "用户住在中国的杭州，这话题与个人关系不大，因此无需继续对话。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 1803
+          },
+          "durationMs": 416
+        },
+        {
+          "index": 1,
+          "content": "我现在住在哪？",
+          "reply": "用户现在住在杭州，但这不直接影响本次对话，我们继续讨论其他事务。如果在杭州是否有其他人可以联系，也可以告诉我。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 2,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 1972
+          },
+          "durationMs": 417
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:杭州",
+          "passed": true,
+          "detail": "present in reply"
+        },
+        {
+          "rule": "mustNotMention:上海",
+          "passed": true,
+          "detail": "absent from reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b7-conflict",
+      "capability": "B7_conflict_both_visible",
+      "title": "相互矛盾的记忆同时可见，并附带冲突指令",
+      "status": "failed",
+      "rule": "substring: +[杭州|上海] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我到底住在哪？",
+          "reply": "用户住在上海。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "topic"
+            ],
+            "bytes": 2080
+          },
+          "durationMs": 287
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:杭州",
+          "passed": false,
+          "detail": "absent from reply (用户住在上海。)"
+        },
+        {
+          "rule": "mustMention:上海",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:杭州: absent from reply (用户住在上海。)"
+    },
+    {
+      "id": "b8-miss",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "检索未命中时记忆被降级为背景而不是答案",
+      "status": "checked",
+      "rule": "substring: +[] -[三月十二]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "今天天气怎么样？",
+          "reply": "更新的用户数据：{\"updateTime\":\"2026-10-27T09:38:00.459Z\",\"location\":\"北京\",\"currentweather\":\"多云\",\"temperature\":\"24℃ | 温度\":38,\"windspeed\":\"6公里/小时|风力\":55,\"sunrise\":\"2026-10-27 11:58\",\"sunset\":\"2026-10-27 21:19\"}",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 1818
+          },
+          "durationMs": 1083
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustNotMention:三月十二",
+          "passed": true,
+          "detail": "absent from reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b9-bounded",
+      "capability": "B9_irrelevant_memory_bounded",
+      "title": "无关记忆最多三条，且不晋升为本轮主题",
+      "status": "checked",
+      "rule": "substring: +[] -[驾照]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "推荐一部电影。",
+          "reply": "推荐《摔跤吧！爸爸》这部电影，这是一部非常值得一看的印度电影，讲述了父亲如何将摔跤作为儿子兴趣转正的故事。如果你对印度文化或者演员有更深的兴趣，也可以看看另一部类似类型的电影：《泰坦尼克号》。它也是经典，口碑也很好。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 3,
+            "memoryMatches": [
+              "continuity",
+              "continuity",
+              "continuity"
+            ],
+            "bytes": 2404
+          },
+          "durationMs": 565
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustNotMention:驾照",
+          "passed": true,
+          "detail": "absent from reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "c4-uncertain",
+      "capability": "C4_conflict_uncertainty_delivered",
+      "title": "新旧证据冲突时不确定性与过期标记同时到位",
+      "status": "failed",
+      "rule": "substring: +[杭州|上海] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我住在哪个城市？",
+          "reply": "用户住在杭州。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "topic"
+            ],
+            "bytes": 2082
+          },
+          "durationMs": 312
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:杭州",
+          "passed": true,
+          "detail": "present in reply"
+        },
+        {
+          "rule": "mustMention:上海",
+          "passed": false,
+          "detail": "absent from reply (用户住在杭州。)"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:上海: absent from reply (用户住在杭州。)"
+    }
+  ],
+  "quality": {
+    "assessed": false,
+    "note": "This run measures whether a small local model used context it was given. It is not a product-quality verdict and must not be quoted as one."
+  },
+  "limitations": [
+    "Only cases whose fixture declares a mechanical rule are scored. The rest are recorded as not_checked; they need human review, not a substring.",
+    "mustMention/mustNotMention are lexical. A correct paraphrase that avoids the literal string fails the check; the raw reply is kept so a reviewer can see the difference.",
+    "clarifying_question only looks for a question mark. A declarative clarification (\"我需要知道订什么\") is scored as a failure.",
+    "The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it."
+  ]
+}
