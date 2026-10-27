@@ -18,6 +18,8 @@ async function main(): Promise<void> {
       codeState: report.reproduction.codeState,
       verdict: report.run.verdict,
       safetyViolation: report.run.safetyViolation,
+      roleConfusion: report.run.roleConfusion,
+      blockingViolation: report.run.blockingViolation,
       turn25: report.run.turn25.findings,
       turn26: report.run.turn26.findings
     })),
