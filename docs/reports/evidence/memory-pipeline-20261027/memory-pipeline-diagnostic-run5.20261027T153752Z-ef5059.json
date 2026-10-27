@@ -1,0 +1,596 @@
+{
+  "schemaVersion": 2,
+  "evidenceClass": "real_provider_behaviour",
+  "measures": "model_behaviour",
+  "dataset": "memory-pipeline-diagnostic-20261027",
+  "generatedAt": "2026-10-27T15:37:52.789Z",
+  "reproduction": {
+    "runId": "20261027T153752Z-ef5059",
+    "codeCommit": "1bd5468d81460b3c0138d945e59df8a81a4cfd88",
+    "codeState": "dirty",
+    "sampling": "provider-default"
+  },
+  "status": "checked",
+  "blockedReason": null,
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "reachable": true,
+    "modelInCatalog": true
+  },
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32-x64",
+    "durationMs": 8462
+  },
+  "summary": {
+    "casesInDataset": 5,
+    "casesSelected": 5,
+    "casesChecked": 5,
+    "casesPassed": 0,
+    "casesFailed": 3,
+    "casesNotChecked": 0,
+    "casesUncertain": 2,
+    "casesNeedsReview": 0,
+    "turnsExecuted": 6
+  },
+  "attribution": {
+    "notDelivered": 0,
+    "deliveredButNotUsed": 3,
+    "ruleNotSatisfied": 0
+  },
+  "cases": [
+    {
+      "id": "diag-cross-session-blue",
+      "capability": "B2_cross_session_recall",
+      "title": "Persistent project code recall without old history",
+      "status": "failed",
+      "verdict": "fail",
+      "verdictRationale": "failed content: the expected value never appears",
+      "verdictCaveat": "Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.",
+      "rule": "substring: +[BLUE-731] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我的项目代号是 BLUE-731。",
+          "reply": "你，现在的话题是这个项目代号是什么？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 2398
+          },
+          "durationMs": 1105
+        },
+        {
+          "index": 1,
+          "content": "你还记得我的项目代号吗？",
+          "reply": "你记住我有项目代号“蓝色731”了吗？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 2401
+          },
+          "durationMs": 1066
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:BLUE-731",
+          "passed": false,
+          "detail": "absent from reply (你记住我有项目代号“蓝色731”了吗？)"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:BLUE-731: absent from reply (你记住我有项目代号“蓝色731”了吗？)",
+      "judgement": {
+        "verdict": "fail",
+        "findings": [
+          {
+            "dimension": "subject",
+            "status": "pass",
+            "basis": "no first-person claim about the user's fact"
+          },
+          {
+            "dimension": "polarity",
+            "status": "uncertain",
+            "basis": "the reply asks instead of asserting"
+          },
+          {
+            "dimension": "content",
+            "status": "fail",
+            "basis": "the expected value never appears"
+          },
+          {
+            "dimension": "answers_question",
+            "status": "uncertain",
+            "basis": "the reply never names the asked-for value"
+          }
+        ],
+        "rationale": "failed content: the expected value never appears"
+      },
+      "diagnostics": {
+        "expectedInRequest": [
+          "BLUE-731"
+        ],
+        "deliveredInRequest": [
+          "BLUE-731"
+        ],
+        "retractedLeaked": [],
+        "requestContradictory": false,
+        "stages": [
+          {
+            "stage": "stored",
+            "ok": true,
+            "detail": "fixture declares 1 required and 0 forbidden value(s)"
+          },
+          {
+            "stage": "retrieved",
+            "ok": true,
+            "detail": "the required value reached the request"
+          },
+          {
+            "stage": "serialized",
+            "ok": true,
+            "detail": "1/1 required value(s) present; 0 retracted value(s) leaked"
+          },
+          {
+            "stage": "answered",
+            "ok": true,
+            "detail": "a reply was obtained and is stored verbatim"
+          },
+          {
+            "stage": "evaluated",
+            "ok": true,
+            "detail": "verdict fail"
+          }
+        ],
+        "failureClass": "MODEL_MISINTERPRETATION"
+      }
+    },
+    {
+      "id": "diag-correction-osaka",
+      "capability": "B3_correction_is_current",
+      "title": "Osaka replaces Hangzhou",
+      "status": "failed",
+      "verdict": "fail",
+      "verdictRationale": "failed content: the expected value never appears",
+      "verdictCaveat": "Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.",
+      "rule": "substring: +[大阪] -[杭州]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我现在住在哪里？",
+          "reply": "你，请告诉我。我目前是在线的，不能回答这个问题。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 2408
+          },
+          "durationMs": 792
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:大阪",
+          "passed": false,
+          "detail": "absent from reply (你，请告诉我。我目前是在线的，不能回答这个问题。)"
+        },
+        {
+          "rule": "mustNotMention:杭州",
+          "passed": true,
+          "detail": "absent from reply"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:大阪: absent from reply (你，请告诉我。我目前是在线的，不能回答这个问题。)",
+      "judgement": {
+        "verdict": "fail",
+        "findings": [
+          {
+            "dimension": "subject",
+            "status": "pass",
+            "basis": "no first-person claim about the user's fact"
+          },
+          {
+            "dimension": "polarity",
+            "status": "pass",
+            "basis": "no denial, quotation or question in place of an assertion"
+          },
+          {
+            "dimension": "content",
+            "status": "fail",
+            "basis": "the expected value never appears"
+          },
+          {
+            "dimension": "correction",
+            "status": "uncertain",
+            "basis": "neither value appears, so adherence cannot be read"
+          },
+          {
+            "dimension": "answers_question",
+            "status": "uncertain",
+            "basis": "the reply never names the asked-for value"
+          }
+        ],
+        "rationale": "failed content: the expected value never appears"
+      },
+      "diagnostics": {
+        "expectedInRequest": [
+          "大阪"
+        ],
+        "deliveredInRequest": [
+          "大阪"
+        ],
+        "retractedLeaked": [],
+        "requestContradictory": false,
+        "stages": [
+          {
+            "stage": "stored",
+            "ok": true,
+            "detail": "fixture declares 1 required and 0 forbidden value(s)"
+          },
+          {
+            "stage": "retrieved",
+            "ok": true,
+            "detail": "the required value reached the request"
+          },
+          {
+            "stage": "serialized",
+            "ok": true,
+            "detail": "1/1 required value(s) present; 0 retracted value(s) leaked"
+          },
+          {
+            "stage": "answered",
+            "ok": true,
+            "detail": "a reply was obtained and is stored verbatim"
+          },
+          {
+            "stage": "evaluated",
+            "ok": true,
+            "detail": "verdict fail"
+          }
+        ],
+        "failureClass": "MODEL_MISINTERPRETATION"
+      }
+    },
+    {
+      "id": "diag-conflict-cities",
+      "capability": "B7_conflict_both_visible",
+      "title": "Conflict must be disclosed",
+      "status": "failed",
+      "verdict": "fail",
+      "verdictRationale": "failed conflict: only 大阪 was asserted; the other value was never surfaced",
+      "verdictCaveat": "Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.",
+      "rule": "substring: +[杭州|大阪] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我住在哪里？",
+          "reply": "你住在大阪。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "topic"
+            ],
+            "bytes": 2922
+          },
+          "durationMs": 512
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:杭州",
+          "passed": false,
+          "detail": "absent from reply (你住在大阪。)"
+        },
+        {
+          "rule": "mustMention:大阪",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:杭州: absent from reply (你住在大阪。)",
+      "judgement": {
+        "verdict": "fail",
+        "findings": [
+          {
+            "dimension": "subject",
+            "status": "pass",
+            "basis": "no first-person claim about the user's fact"
+          },
+          {
+            "dimension": "polarity",
+            "status": "pass",
+            "basis": "no denial, quotation or question in place of an assertion"
+          },
+          {
+            "dimension": "conflict",
+            "status": "fail",
+            "basis": "only 大阪 was asserted; the other value was never surfaced"
+          },
+          {
+            "dimension": "answers_question",
+            "status": "pass",
+            "basis": "the reply names the value the question asked for"
+          }
+        ],
+        "rationale": "failed conflict: only 大阪 was asserted; the other value was never surfaced"
+      },
+      "diagnostics": {
+        "expectedInRequest": [
+          "杭州",
+          "大阪"
+        ],
+        "deliveredInRequest": [
+          "杭州",
+          "大阪"
+        ],
+        "retractedLeaked": [],
+        "requestContradictory": false,
+        "stages": [
+          {
+            "stage": "stored",
+            "ok": true,
+            "detail": "fixture declares 2 required and 0 forbidden value(s)"
+          },
+          {
+            "stage": "retrieved",
+            "ok": true,
+            "detail": "the required value reached the request"
+          },
+          {
+            "stage": "serialized",
+            "ok": true,
+            "detail": "2/2 required value(s) present; 0 retracted value(s) leaked"
+          },
+          {
+            "stage": "answered",
+            "ok": true,
+            "detail": "a reply was obtained and is stored verbatim"
+          },
+          {
+            "stage": "evaluated",
+            "ok": true,
+            "detail": "verdict fail"
+          }
+        ],
+        "failureClass": "MODEL_IGNORED_INSTRUCTION"
+      }
+    },
+    {
+      "id": "diag-retraction-blue",
+      "capability": "B4_retracted_not_used",
+      "title": "Retracted project code is not used",
+      "status": "checked",
+      "verdict": "uncertain",
+      "verdictRationale": "no failure, but answers_question could not be read: no expected value was declared, so an answer cannot be verified",
+      "verdictCaveat": "A dimension could not be read, so this is not counted as a pass.",
+      "rule": "substring: +[] -[BLUE-731]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我的项目代号是什么？",
+          "reply": "抱歉，我无法确定您的具体项目代号或您的知识领域。如果您需要更多信息，建议您尝试问其他专业人士或者查阅相关资料以获得准确的答案。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1911
+          },
+          "durationMs": 816
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustNotMention:BLUE-731",
+          "passed": true,
+          "detail": "absent from reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null,
+      "judgement": {
+        "verdict": "uncertain",
+        "findings": [
+          {
+            "dimension": "subject",
+            "status": "pass",
+            "basis": "no first-person claim about the user's fact"
+          },
+          {
+            "dimension": "polarity",
+            "status": "pass",
+            "basis": "no denial, quotation or question in place of an assertion"
+          },
+          {
+            "dimension": "retraction",
+            "status": "pass",
+            "basis": "the retracted value is not used"
+          },
+          {
+            "dimension": "answers_question",
+            "status": "uncertain",
+            "basis": "no expected value was declared, so an answer cannot be verified"
+          }
+        ],
+        "rationale": "no failure, but answers_question could not be read: no expected value was declared, so an answer cannot be verified"
+      },
+      "diagnostics": {
+        "expectedInRequest": [],
+        "deliveredInRequest": [],
+        "retractedLeaked": [],
+        "requestContradictory": false,
+        "stages": [
+          {
+            "stage": "stored",
+            "ok": true,
+            "detail": "fixture declares 0 required and 1 forbidden value(s)"
+          },
+          {
+            "stage": "retrieved",
+            "ok": true,
+            "detail": "the required value reached the request"
+          },
+          {
+            "stage": "serialized",
+            "ok": true,
+            "detail": "0/0 required value(s) present; 0 retracted value(s) leaked"
+          },
+          {
+            "stage": "answered",
+            "ok": true,
+            "detail": "a reply was obtained and is stored verbatim"
+          },
+          {
+            "stage": "evaluated",
+            "ok": true,
+            "detail": "verdict uncertain"
+          }
+        ],
+        "failureClass": "INSUFFICIENT_EVIDENCE"
+      }
+    },
+    {
+      "id": "diag-no-memory-code",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "No stored project code",
+      "status": "checked",
+      "verdict": "uncertain",
+      "verdictRationale": "no failure, but answers_question could not be read: the reply never names the asked-for value",
+      "verdictCaveat": "A dimension could not be read, so this is not counted as a pass.",
+      "rule": "substring: +[] -[BLUE-731]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "你还记得我的项目代号吗？",
+          "reply": "抱歉，我没有相关的信息。你是否需要知道这个项目的详细信息或其他关于你的帮助需求的详细信息？比如，你是想要了解一个特定的功能、解决方案或行业趋势，请告诉我具体是什么？如果你的问题不解决或者涉及到个人隐私，我会很乐意帮忙提出各种各样的想法和建议。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 0,
+            "memoryMatches": [],
+            "bytes": 1917
+          },
+          "durationMs": 779
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustNotMention:BLUE-731",
+          "passed": true,
+          "detail": "absent from reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null,
+      "judgement": {
+        "verdict": "uncertain",
+        "findings": [
+          {
+            "dimension": "subject",
+            "status": "pass",
+            "basis": "no first-person claim about the user's fact"
+          },
+          {
+            "dimension": "polarity",
+            "status": "pass",
+            "basis": "no denial, quotation or question in place of an assertion"
+          },
+          {
+            "dimension": "answers_question",
+            "status": "uncertain",
+            "basis": "the reply never names the asked-for value"
+          }
+        ],
+        "rationale": "no failure, but answers_question could not be read: the reply never names the asked-for value"
+      },
+      "diagnostics": {
+        "expectedInRequest": [],
+        "deliveredInRequest": [],
+        "retractedLeaked": [],
+        "requestContradictory": false,
+        "stages": [
+          {
+            "stage": "stored",
+            "ok": true,
+            "detail": "fixture declares 0 required and 0 forbidden value(s)"
+          },
+          {
+            "stage": "retrieved",
+            "ok": true,
+            "detail": "the required value reached the request"
+          },
+          {
+            "stage": "serialized",
+            "ok": true,
+            "detail": "0/0 required value(s) present; 0 retracted value(s) leaked"
+          },
+          {
+            "stage": "answered",
+            "ok": true,
+            "detail": "a reply was obtained and is stored verbatim"
+          },
+          {
+            "stage": "evaluated",
+            "ok": true,
+            "detail": "verdict uncertain"
+          }
+        ],
+        "failureClass": "INSUFFICIENT_EVIDENCE"
+      }
+    }
+  ],
+  "quality": {
+    "assessed": false,
+    "note": "This run measures whether a small local model used context it was given. It is not a product-quality verdict and must not be quoted as one."
+  },
+  "limitations": [
+    "Only cases whose fixture declares a mechanical rule are scored. The rest are recorded as not_checked; they need human review, not a substring.",
+    "A verdict of pass requires a positive requirement (mustMention) to be satisfied. Absence-only and question-mark rules report uncertain when they pass, because a non-answer satisfies them too.",
+    "mustMention/mustNotMention are lexical. A correct paraphrase that avoids the literal string fails the check; the raw reply is kept so a reviewer can see the difference.",
+    "clarifying_question only looks for a question mark. A declarative clarification (\"我需要知道订什么\") is scored as a failure.",
+    "The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it."
+  ]
+}
