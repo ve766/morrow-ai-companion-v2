@@ -866,7 +866,13 @@
           }
         }
       ],
-      "realModel": null
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州"
+        ],
+        "note": "Positive check only: the reply names the city. Whether it used the prior turn or guessed cannot be told apart mechanically."
+      }
     },
     {
       "id": "v2-conflict-group",
@@ -897,7 +903,14 @@
           }
         }
       ],
-      "realModel": null
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州",
+          "上海"
+        ],
+        "note": "Both sides must be present; the rule cannot tell whether the reply called them a conflict."
+      }
     },
     {
       "id": "v2-stale-classes",
@@ -1042,7 +1055,16 @@
           }
         }
       ],
-      "realModel": null
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州"
+        ],
+        "mustNotMention": [
+          "上海"
+        ],
+        "note": "The corrected value must appear and the replaced value must not be presented as current."
+      }
     },
     {
       "id": "v2-no-evidence",
