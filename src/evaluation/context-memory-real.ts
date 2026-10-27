@@ -432,13 +432,21 @@ async function runCase(
     const judgement = rule?.judge && finalReply !== null
       ? judgeReply({ reply: finalReply, ...rule.judge })
       : undefined
+    // When a fixture declares semantic dimensions, the judge decides. The
+    // substring checks stay in `checks` as supporting evidence, but they no
+    // longer veto a pass: an absence-only rule such as mustNotMention can never
+    // prove anything, so letting it veto turned two correct "I have no record"
+    // answers into uncertain. The judge is conservative on its own terms - any
+    // dimension it cannot read makes the verdict uncertain.
     const decision = judgement === undefined
       ? baseDecision
-      : judgement.verdict === 'fail'
-        ? { verdict: 'fail' as const, rationale: judgement.rationale, caveat: 'Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.' }
-        : judgement.verdict === 'pass' && baseDecision.verdict === 'pass'
-          ? { verdict: 'pass' as const, rationale: judgement.rationale, caveat: baseDecision.caveat }
-          : { verdict: 'uncertain' as const, rationale: judgement.rationale, caveat: 'The dimensions could not all be read, so this is not counted as a pass.' }
+      : judgement.verdict === 'pass'
+        ? { verdict: 'pass' as const, rationale: judgement.rationale, caveat: baseDecision.caveat }
+        : judgement.verdict === 'uncertain'
+          ? { verdict: 'uncertain' as const, rationale: judgement.rationale, caveat: 'A dimension could not be read, so this is not counted as a pass.' }
+          : judgement.verdict === 'fail'
+            ? { verdict: 'fail' as const, rationale: judgement.rationale, caveat: 'Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.' }
+            : { verdict: 'needs_review' as const, rationale: judgement.rationale, caveat: 'No dimension was declared for this case.' }
 
     // The chain is built from what was observed, not from what should have
     // happened: stored -> retrieved -> serialized -> answered -> evaluated.
