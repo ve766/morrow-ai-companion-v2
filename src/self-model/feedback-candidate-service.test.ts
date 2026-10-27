@@ -107,7 +107,7 @@ describe('authorisation and data governance', () => {
     feedback.record({ kind: 'boundary', source: 'user_explicit', conversationId: conversationA, claim: '不要提我的病情。', confidence: 90, sensitivity: 'sensitive' })
     const [candidate] = feedback.list()
     const before = personality.get().version
-    expect(() => feedback.apply(candidate!.id, { includeSensitive: false, apply: () => 2 })).toThrowError(
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: false, baseVersion: 1, apply: () => 2 })).toThrowError(
       expect.objectContaining({ code: 'FORBIDDEN' })
     )
     expect(personality.get().version).toBe(before)
@@ -146,7 +146,7 @@ describe('authorisation and data governance', () => {
     record(feedback, conversationA)
     const [candidate] = feedback.list()
     feedback.reject(candidate!.id, 'not a stable preference')
-    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, apply: () => 2 })).toThrowError(
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, apply: () => 2 })).toThrowError(
       expect.objectContaining({ code: 'CONFLICT' })
     )
   })
@@ -162,6 +162,7 @@ describe('apply and rollback stay auditable', () => {
 
     const applied = feedback.apply(candidate!.id, {
       includeSensitive: true,
+      baseVersion: personality.get().version,
       apply: () => personality.save({ ...before, warmth: Math.min(100, before.warmth + 5), systemRules: 'Be brief.' }).version
     })
     expect(applied.status).toBe('applied')
@@ -180,5 +181,110 @@ describe('apply and rollback stay auditable', () => {
     const withdrawn = feedback.withdraw(candidate!.id, 'user changed their mind')
     expect(withdrawn.status).toBe('withdrawn')
     expect(withdrawn.decisionReason).toBe('user changed their mind')
+  })
+})
+
+describe('candidate identity is not evidence identity', () => {
+  it('keeps the same sentence separate for different kinds', () => {
+    const { feedback } = setup()
+    const tone = feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationA, claim: '请简短一点。', confidence: 70, sensitivity: 'normal' })
+    const boundary = feedback.record({ kind: 'boundary', source: 'user_explicit', conversationId: conversationA, claim: '请简短一点。', confidence: 70, sensitivity: 'normal' })
+    expect(tone.candidate.id).not.toBe(boundary.candidate.id)
+    expect(feedback.list()).toHaveLength(2)
+  })
+
+  it('escalates sensitivity and never downgrades it', () => {
+    const { feedback } = setup()
+    feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationA, claim: '别用那种语气。', confidence: 60, sensitivity: 'normal' })
+    const [first] = feedback.list()
+    const raised = feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationA, claim: '别用那种语气。', confidence: 60, sensitivity: 'sensitive' })
+    expect(raised.candidate.id).toBe(first!.id)
+    expect(raised.candidate.sensitivity).toBe('sensitive')
+    const lowered = feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationA, claim: '别用那种语气。', confidence: 60, sensitivity: 'normal' })
+    expect(lowered.candidate.sensitivity).toBe('sensitive')
+  })
+
+  it('escalates the candidate source but keeps each evidence row attributed', () => {
+    const { feedback } = setup()
+    feedback.record({ kind: 'tone', source: 'model_inferred', conversationId: conversationA, claim: '可能希望更简短。', confidence: 50, sensitivity: 'normal' })
+    const [first] = feedback.list()
+    const raised = feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationB, claim: '可能希望更简短。', confidence: 80, sensitivity: 'normal' })
+    expect(raised.candidate.source).toBe('user_explicit')
+    expect(feedback.listEvidence(first!.id).map((item) => item.source).sort()).toEqual(['model_inferred', 'user_explicit'])
+  })
+})
+
+describe('evidence lifecycle governs support', () => {
+  it('recomputes support when one conversation is deleted', () => {
+    const { feedback } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    expect(feedback.list()[0]?.status).toBe('supported')
+    feedback.withdrawForConversation(conversationB, 'conversation_deleted')
+    const candidate = feedback.list()[0]!
+    expect(candidate.distinctConversations).toBe(1)
+    expect(candidate.status).toBe('pending')
+  })
+
+  it('withdraws the candidate when its last evidence is withdrawn', () => {
+    const { feedback } = setup()
+    record(feedback, conversationA)
+    feedback.withdrawForConversation(conversationA, 'conversation_deleted')
+    expect(feedback.list()[0]?.status).toBe('withdrawn')
+    expect(feedback.listEvidence(feedback.list()[0]!.id).every((item) => item.status === 'withdrawn')).toBe(true)
+  })
+
+  it('withdraws a single message without touching the other conversation', () => {
+    const { feedback } = setup()
+    const first = feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationA, messageId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', claim: '请简短一点。', confidence: 70, sensitivity: 'normal' })
+    feedback.record({ kind: 'tone', source: 'user_explicit', conversationId: conversationB, claim: '请简短一点。', confidence: 70, sensitivity: 'normal' })
+    expect(feedback.get(first.candidate.id)?.status).toBe('supported')
+    feedback.withdrawEvidenceForMessage('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'message_deleted')
+    expect(feedback.get(first.candidate.id)?.status).toBe('pending')
+    expect(feedback.get(first.candidate.id)?.distinctConversations).toBe(1)
+  })
+})
+
+describe('application is at most once and recoverable', () => {
+  it('refuses a second application of the same candidate', () => {
+    const { feedback } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, apply: () => 2 })
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 2, apply: () => 3 })).toThrowError(
+      expect.objectContaining({ code: 'CONFLICT' })
+    )
+  })
+
+  it('records a failed application and leaves the candidate supported', () => {
+    const { feedback } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    expect(() => feedback.apply(candidate!.id, {
+      includeSensitive: true,
+      baseVersion: 1,
+      apply: () => { throw new Error('save failed') }
+    })).toThrow('save failed')
+    expect(feedback.get(candidate!.id)?.status).toBe('supported')
+    expect(feedback.applicationFor(candidate!.id)?.status).toBe('failed')
+  })
+
+  it('blocks retry on an interrupted applying row and marks it for review', () => {
+    const { feedback, database } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    database.connection.prepare(`
+      INSERT INTO persona_feedback_applications(id, candidate_id, status, base_personality_version, applied_personality_version, created_at, updated_at)
+      VALUES (?, ?, 'applying', 1, NULL, ?, ?)
+    `).run('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', candidate!.id, clock(), clock())
+
+    expect(() => feedback.apply(candidate!.id, { includeSensitive: true, baseVersion: 1, apply: () => 2 })).toThrowError(
+      expect.objectContaining({ code: 'CONFLICT' })
+    )
+    expect(feedback.recoverInterruptedApplications()).toBe(1)
+    expect(feedback.applicationFor(candidate!.id)?.status).toBe('needs_review')
   })
 })

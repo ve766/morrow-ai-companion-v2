@@ -677,6 +677,40 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX persona_feedback_evidence_conversation_idx ON persona_feedback_evidence(conversation_id);
       `)
     }
+  },
+  {
+    version: 18,
+    name: 'feedback-identity-and-evidence-lifecycle',
+    up(database) {
+      // Identity is (evidence hash, kind): the same sentence can legitimately be
+      // a tone request and a boundary request, and those must not share a row.
+      // Evidence keeps its own source, sensitivity and lifecycle so a merge can
+      // never downgrade protection.
+      database.exec(`
+        DROP INDEX IF EXISTS persona_feedback_evidence_uq;
+        CREATE UNIQUE INDEX persona_feedback_candidate_identity_uq
+          ON persona_feedback_candidates(evidence_hash, kind);
+
+        ALTER TABLE persona_feedback_evidence ADD COLUMN source TEXT NOT NULL DEFAULT 'user_explicit'
+          CHECK (source IN ('user_explicit', 'model_inferred'));
+        ALTER TABLE persona_feedback_evidence ADD COLUMN sensitivity TEXT NOT NULL DEFAULT 'normal'
+          CHECK (sensitivity IN ('normal', 'personal', 'sensitive'));
+        ALTER TABLE persona_feedback_evidence ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'withdrawn'));
+        ALTER TABLE persona_feedback_evidence ADD COLUMN withdrawn_at TEXT;
+        CREATE INDEX persona_feedback_evidence_status_idx ON persona_feedback_evidence(status);
+
+        CREATE TABLE persona_feedback_applications (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          candidate_id TEXT NOT NULL UNIQUE REFERENCES persona_feedback_candidates(id) ON DELETE CASCADE,
+          status TEXT NOT NULL CHECK (status IN ('applying', 'applied', 'failed', 'needs_review')),
+          base_personality_version INTEGER NOT NULL CHECK (base_personality_version >= 1),
+          applied_personality_version INTEGER,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+      `)
+    }
   }
 ]
 

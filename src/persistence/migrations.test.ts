@@ -349,7 +349,11 @@ describe('foreign implementation-line databases', () => {
 
     expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
     const tables = connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'persona_feedback%' ORDER BY name").all()
-    expect(tables).toEqual([{ name: 'persona_feedback_candidates' }, { name: 'persona_feedback_evidence' }])
+    expect(tables).toEqual([
+      { name: 'persona_feedback_applications' },
+      { name: 'persona_feedback_candidates' },
+      { name: 'persona_feedback_evidence' }
+    ])
     // Existing data is untouched by the new tables.
     expect(connection.prepare('SELECT label, sensitivity FROM interests').get()).toEqual({ label: '天文', sensitivity: 'normal' })
     // The evidence hash is unique: the same claim cannot fork into two rows.
@@ -360,6 +364,38 @@ describe('foreign implementation-line databases', () => {
     insert.run('00000000-0000-4000-8000-000000000601', 'a'.repeat(64), timestamp, timestamp)
     expect(() => insert.run('00000000-0000-4000-8000-000000000602', 'a'.repeat(64), timestamp, timestamp)).toThrow()
     expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    connection.close()
+  })
+
+  it('upgrades feedback identity to (hash, kind) and adds evidence lifecycle columns', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-feedback-identity-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    expect(applyMigrations(connection, 17)).toBe(17)
+    const hash = 'b'.repeat(64)
+    connection.prepare(`
+      INSERT INTO persona_feedback_candidates(id, kind, source, evidence_hash, evidence_excerpt, confidence, sensitivity, status, created_at, updated_at)
+      VALUES (?, 'tone', 'user_explicit', ?, 'be brief', 70, 'normal', 'pending', ?, ?)
+    `).run('00000000-0000-4000-8000-000000000701', hash, timestamp, timestamp)
+    connection.prepare(`
+      INSERT INTO persona_feedback_evidence(candidate_id, conversation_id, message_id, evidence_hash, created_at)
+      VALUES (?, ?, NULL, ?, ?)
+    `).run('00000000-0000-4000-8000-000000000701', '00000000-0000-4000-8000-000000000801', hash, timestamp)
+
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    expect(connection.prepare('SELECT source, sensitivity, status FROM persona_feedback_evidence').get())
+      .toEqual({ source: 'user_explicit', sensitivity: 'normal', status: 'active' })
+    expect(connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'persona_feedback_applications'").get())
+      .toEqual({ name: 'persona_feedback_applications' })
+
+    const insert = connection.prepare(`
+      INSERT INTO persona_feedback_candidates(id, kind, source, evidence_hash, evidence_excerpt, confidence, sensitivity, status, created_at, updated_at)
+      VALUES (?, ?, 'user_explicit', ?, 'be brief', 70, 'normal', 'pending', ?, ?)
+    `)
+    // Same sentence, different kind: a separate candidate is legitimate now.
+    insert.run('00000000-0000-4000-8000-000000000702', 'boundary', hash, timestamp, timestamp)
+    // Same sentence and same kind: still one identity.
+    expect(() => insert.run('00000000-0000-4000-8000-000000000703', 'tone', hash, timestamp, timestamp)).toThrow()
     connection.close()
   })
 })

@@ -48,10 +48,13 @@ describe('bounded memory context assembly', () => {
   it('does not let an oversized candidate crowd out later memories that fit the context budget', () => {
     const oversized = memory('00000000-0000-4000-8000-000000000006', `coffee ${'x'.repeat(1200)}`, 'normal')
     const compact = memory('00000000-0000-4000-8000-000000000007', 'coffee', 'normal')
-    const result = assembler.assemble('coffee', [oversized, compact], 'personal', 25, 500)
+    // 620 rather than 500 because the block now carries an explicit
+    // `subject:"user"` declaration; the point of the case is that the compact
+    // record still fits after the oversized one is skipped.
+    const result = assembler.assemble('coffee', [oversized, compact], 'personal', 25, 620)
     expect(result.selected.map((item) => item.id)).toEqual(['00000000-0000-4000-8000-000000000007'])
     expect(result.omitted).toBe(1)
-    expect(result.characterCount).toBeLessThanOrEqual(500)
+    expect(result.characterCount).toBeLessThanOrEqual(620)
   })
 
   it('keeps a bounded continuity layer so a zero-overlap turn is not treated as a first meeting', () => {
@@ -238,6 +241,16 @@ describe('bounded memory context assembly', () => {
     expect(bySuffix('b2')?.volatility).toBe('stable')
     expect(bySuffix('b3')?.volatility).toBeUndefined()
     expect(bySuffix('b1')?.ageDays).toBe(298)
+  })
+
+  it('declares that every saved memory describes the user, not the assistant', () => {
+    const result = assembler.assemble('杭州', [
+      memory('00000000-0000-4000-8000-0000000000c1', '我住在杭州。', 'personal')
+    ], 'personal')
+    const encoded = JSON.parse(result.text) as { subject?: string; instruction: string }
+    expect(encoded.subject).toBe('user')
+    expect(encoded.instruction).toContain('never yours')
+    expect(encoded.instruction).toContain('say "you", never "I"')
   })
 
   it('eventually flags a stable preference once it passes its own window', () => {
