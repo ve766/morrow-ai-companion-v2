@@ -228,6 +228,7 @@
       "realModel": {
         "check": "substring",
         "mustMention": ["成都"],
+        "mustNotMention": ["不存在实际居住地址"],
         "note": "新会话里能否说出成都，是跨会话回忆的行为证据。"
       }
     },

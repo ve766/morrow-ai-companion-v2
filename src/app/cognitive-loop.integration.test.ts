@@ -169,6 +169,58 @@ describe('cognitive closed loop over a real loopback provider', () => {
     }
   })
 
+  it('withholds verbatim user statements unless the turn is authorised for sensitive content', async () => {
+    const server = startLocalModelServer()
+    const url = await listen(server.raw)
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-selfmodel-gate-'))
+    directories.push(directory)
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    databases.push(database)
+    const stack = buildStack(database)
+    try {
+      stack.companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint: url, model: 'loop-model', enabled: true })
+      stack.companion.saveCognitiveSettings({ enabled: true })
+      // The raw text a user would keep out by leaving "allow sensitive
+      // memories" unchecked. It reaches the self-model verbatim because
+      // `explicitSelfFact` matches "我确诊", and it carries no sensitivity label.
+      const statement = '我确诊了抑郁症，正在服药，不想让任何模型知道'
+      stack.selfModel.record({ kind: 'fact', statement, confidence: 55 })
+      // Three observations across two conversations, which is what promotion
+      // requires; a single candidate would leave the block empty and the
+      // assertion below vacuous.
+      const firstConversation = stack.companion.createConversation()
+      const secondConversation = stack.companion.createConversation()
+      for (const [index, conversationId] of [firstConversation.id, secondConversation.id, firstConversation.id].entries()) {
+        stack.interests.observe({
+          conversationId,
+          messageId: randomUUID(),
+          occurredAt: new Date(Date.parse('2026-10-25T10:00:00.000Z') + index * 60_000).toISOString(),
+          topicText: '天文学最近很有意思'
+        })
+      }
+      expect(stack.interests.list().some((record) => record.status === 'active')).toBe(true)
+
+      const conversation = stack.companion.createConversation()
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '今天感觉怎么样？', includeSensitive: false }, () => {})
+      const withoutConsent = server.requests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
+      // The verbatim channel is closed, and closing it did not close the
+      // derived-topic channel as a side effect.
+      expect(withoutConsent).not.toContain('抑郁症')
+      expect(withoutConsent).not.toContain('Unconfirmed user statements')
+      expect(withoutConsent).toContain('Bounded long-term attention signal')
+
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '今天感觉怎么样？', includeSensitive: true }, () => {})
+      const withConsent = server.requests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
+      // With consent the statement is present, and it is labelled as quoted
+      // user text rather than as the companion's own self-knowledge.
+      expect(withConsent).toContain('抑郁症')
+      expect(withConsent).toContain('not self-knowledge')
+      expect(withConsent).not.toContain('self-knowledge awaiting user confirmation')
+    } finally {
+      await server.close()
+    }
+  })
+
   it('restores interests, self-model and journal across restart without duplicating evidence', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-cognitive-restart-'))
     directories.push(directory)

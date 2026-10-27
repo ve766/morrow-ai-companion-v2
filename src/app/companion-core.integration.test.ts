@@ -818,3 +818,61 @@ describe('companion core: a cancelled turn leaves no partial reply behind', () =
     }
   })
 })
+
+describe('memory lifecycle: what the system must NOT do on its own', () => {
+  it('does not silently rewrite a memory when the user denies it in conversation', async () => {
+    // The user denying a saved fact is the highest-value moment to get right:
+    // rewriting automatically would make the companion's memory follow
+    // whatever was said last, including a joke or a misremembering; doing
+    // nothing at all leaves a wrong fact in place. The chosen behaviour is to
+    // keep the record, keep the request honest about it, and hand the decision
+    // to an explicit control. This test pins that, so a future "auto-correct
+    // on denial" change has to be deliberate.
+    const ctx = createHarness()
+    ctx.companion.saveCognitiveSettings({ enabled: true })
+    try {
+      const conversation = ctx.companion.createConversation()
+      const saved = ctx.memories.create('用户住在杭州，做后端开发')
+      const before = ctx.memories.list().find((record) => record.id === saved.id)!
+
+      await turn(ctx.companion, conversation.id, '你记错了，我不住在杭州，那不是我的信息。')
+
+      const after = ctx.memories.list().find((record) => record.id === saved.id)!
+      expect(after).toEqual(before)
+      expect(after.revision).toBe(1)
+      expect(after.status).toBe('active')
+
+      const request = ctx.captured.at(-1)!
+      // The wrong fact is still delivered, and the request says why it may be
+      // wrong instead of pretending the system already knows better.
+      expect(request.system).toContain('杭州')
+      expect(request.system).toContain('Do not silently edit stored memory')
+      // And the denial itself reached the model as the newest statement.
+      expect(request.messages.at(-1)?.content).toContain('那不是我的信息')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not change the personality because of one negative message', async () => {
+    const ctx = createHarness()
+    ctx.companion.saveCognitiveSettings({ enabled: true })
+    try {
+      const conversation = ctx.companion.createConversation()
+      const before = ctx.companion.getPersonality()
+      await turn(ctx.companion, conversation.id, '谢谢你的回答，不过我不满意这个风格。')
+      const after = ctx.companion.getPersonality()
+      expect(after.version).toBe(before.version)
+      expect(after.warmth).toBe(before.warmth)
+      expect(after.directness).toBe(before.directness)
+      // The request still declares the same version, so the model cannot think
+      // the style changed behind its back either.
+      expect(ctx.captured.at(-1)!.system).toContain(`version ${before.version}`)
+      expect(ctx.captured.at(-1)!.system).toContain('not as sufficient evidence to change long-term personality')
+      // The rule that makes the guarantee structural rather than behavioural.
+      expect(ctx.captured.at(-1)!.system).toContain('silently change the saved personality')
+    } finally {
+      ctx.database.close()
+    }
+  })
+})
