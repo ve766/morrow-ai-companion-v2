@@ -136,7 +136,10 @@ describe('every assertion the fixture can express is actually executed', () => {
   })
 
   it('fails a case whose excluded content is still present', async () => {
-    const report = await runCompanionCoreEvaluation(dataset({ memories: [{ content: 'MEM_PROBE_LEAK 在这里。' }] }, { excludeContents: ['MEM_PROBE_LEAK'] }))
+    const report = await runCompanionCoreEvaluation(dataset({
+      memories: [{ content: 'MEM_PROBE_LEAK 在这里。' }],
+      steps: [{ type: 'send', content: 'MEM_PROBE_LEAK 是什么？' }]
+    }, { excludeContents: ['MEM_PROBE_LEAK'] }))
     expect(report.cases[0]!.passed).toBe(false)
     expect(report.cases[0]!.failures.join('\n')).toContain('still contains')
   })

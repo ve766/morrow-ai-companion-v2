@@ -79,7 +79,8 @@ const topicCues: ReadonlyArray<RegExp> = [
   /(?:项目|代号|产品名)/u,
   /(?:喜欢|偏好|讨厌|习惯|决定方式)/u,
   /(?:学习|在学|学会|课程|软件)/u,
-  /(?:工作|职业|公司|从事|工程师|开发|设计|后端|前端)/u
+  /(?:工作|职业|公司|从事|工程师|开发|设计|后端|前端)/u,
+  /(?:猫|狗|宠物|养了)/u
 ]
 
 function sharesTopicCue(query: string, content: string): boolean {

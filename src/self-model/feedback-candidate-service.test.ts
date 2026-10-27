@@ -424,9 +424,9 @@ describe('deletion is transactional across evidence, memory and the conversation
     const message = conversations.appendMessage(conversation.id, 'user', '我对花生过敏。', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1').messages[0]!
     const memory = memories.create('用户对花生过敏。', 'sensitive')
     database.connection.prepare(`
-      INSERT INTO memory_suggestions(id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content)
-      VALUES (?, ?, ?, ?, 'sensitive', 'accepted', 'test', ?, ?, ?, ?, ?)
-    `).run('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', conversation.id, message.id, '用户对花生过敏。', 'a'.repeat(64), clock(), clock(), memory.id, '用户对花生过敏。')
+      INSERT INTO memory_suggestions(id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content)
+      VALUES (?, ?, ?, ?, 'fact', 'user', 'model_proposal', 70, lower(trim(?)), 'sensitive', 'accepted', '[]', 'test', ?, ?, ?, ?, ?)
+    `).run('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', conversation.id, message.id, '用户对花生过敏。', '用户对花生过敏。', 'a'.repeat(64), clock(), clock(), memory.id, '用户对花生过敏。')
 
     expect(memories.assembleContext("花生", "sensitive").text).toContain('花生')
     companion.deleteMessage({ conversationId: conversation.id, messageId: message.id })

@@ -143,16 +143,17 @@ describe('companion core: multi-turn context', () => {
 })
 
 describe('companion core: memory actually reaches the request', () => {
-  it('injects a saved memory even when the current turn shares no terms with it', async () => {
+  it('injects a saved memory when the current turn has topical evidence', async () => {
     const ctx = createHarness()
     try {
       ctx.memories.create('我住在杭州，常喝手冲咖啡。', 'personal')
       const conversation = ctx.companion.createConversation()
-      await turn(ctx.companion, conversation.id, '今天有点累。')
+      await turn(ctx.companion, conversation.id, '杭州天气怎么样？')
 
       const system = ctx.captured.at(-1)!.system
       expect(system).toContain('杭州')
-      expect(system).toContain('"match":"continuity"')
+      expect(system).toContain('"match":"topic"')
+      expect(system).not.toContain('豆豆')
     } finally {
       ctx.database.close()
     }
@@ -161,14 +162,14 @@ describe('companion core: memory actually reaches the request', () => {
   it('reuses a memory written in one conversation inside a brand new conversation', async () => {
     const ctx = createHarness()
     try {
-      ctx.memories.create('回答尽量简洁，不要客套开场。', 'normal')
+      ctx.memories.create('我的项目代号是 BLUE-731。', 'personal')
       const first = ctx.companion.createConversation()
       await turn(ctx.companion, first.id, '你好。')
       const second = ctx.companion.createConversation()
-      await turn(ctx.companion, second.id, '今天帮我看看这个思路。')
+      await turn(ctx.companion, second.id, '我的项目代号是什么？')
 
       const system = ctx.captured.at(-1)!.system
-      expect(system).toContain('回答尽量简洁')
+      expect(system).toContain('BLUE-731')
       // A new conversation starts with no history, so the memory is the only
       // reason the companion is not meeting the user for the first time.
       expect(ctx.captured.at(-1)!.messages.filter((message) => message.role !== 'system')).toHaveLength(1)
@@ -215,16 +216,16 @@ describe('companion core: memory actually reaches the request', () => {
     try {
       const record = ctx.memories.create('我住在南京。', 'personal')
       const conversation = ctx.companion.createConversation()
-      await turn(ctx.companion, conversation.id, '我今天在家。')
+      await turn(ctx.companion, conversation.id, '我住在哪里？')
       expect(ctx.captured.at(-1)!.raw).toContain('南京')
 
       ctx.memories.correct(record.id, '我住在杭州。')
-      await turn(ctx.companion, conversation.id, '我今天在家。')
+      await turn(ctx.companion, conversation.id, '我住在哪里？')
       expect(ctx.captured.at(-1)!.raw).toContain('杭州')
       expect(ctx.captured.at(-1)!.raw).not.toContain('南京')
 
       ctx.memories.retract(record.id)
-      await turn(ctx.companion, conversation.id, '我今天在家。')
+      await turn(ctx.companion, conversation.id, '我住在哪里？')
       expect(ctx.captured.at(-1)!.raw).not.toContain('杭州')
       expect(ctx.captured.at(-1)!.raw).not.toContain('南京')
       expect(ctx.captured.at(-1)!.system).not.toContain('"currentFacts"')
@@ -273,7 +274,7 @@ describe('companion core: memory actually reaches the request', () => {
     try {
       ctx.memories.create('用户可能喜欢安静的环境。', 'personal', { sourceCategory: 'model_inferred_confirmed', confidence: 60 })
       const conversation = ctx.companion.createConversation()
-      await turn(ctx.companion, conversation.id, '今天好吵。')
+      await turn(ctx.companion, conversation.id, '我喜欢安静的环境吗？')
 
       const system = ctx.captured.at(-1)!.system
       expect(system).toContain('model_inferred_confirmed')
@@ -451,11 +452,11 @@ describe('companion core: memory status filtering holds on every route', () => {
     try {
       const record = ctx.memories.create('我的车牌是 MEM_SENTINEL_OLD_苏A11111。', 'personal')
       const conversation = ctx.companion.createConversation()
-      await turn(ctx.companion, conversation.id, '今天天气不错。')
+      await turn(ctx.companion, conversation.id, '我的车牌是什么？')
       expect(memoryContents(ctx.captured.at(-1)!.system).join('|')).toContain('MEM_SENTINEL_OLD_苏A11111')
 
       ctx.memories.correct(record.id, '我的车牌是 MEM_SENTINEL_NEW_浙B22222。')
-      await turn(ctx.companion, conversation.id, '今天天气不错。')
+      await turn(ctx.companion, conversation.id, '我的车牌是什么？')
       const corrected = memoryContents(ctx.captured.at(-1)!.system).join('|')
       expect(corrected).toContain('MEM_SENTINEL_NEW_浙B22222')
       expect(corrected).not.toContain('MEM_SENTINEL_OLD_苏A11111')
@@ -524,11 +525,11 @@ describe('companion core: memory status filtering holds on every route', () => {
       const record = ctx.memories.create('我养了一只叫 MEM_SENTINEL_CAT 的猫。', 'personal')
       ctx.memories.retract(record.id)
       const conversation = ctx.companion.createConversation()
-      await turn(ctx.companion, conversation.id, '今天好累。')
+      await turn(ctx.companion, conversation.id, '我的猫呢？')
       expect(memoryContents(ctx.captured.at(-1)!.system).join('|')).not.toContain('MEM_SENTINEL_CAT')
 
       ctx.memories.restore(record.id)
-      await turn(ctx.companion, conversation.id, '今天好累。')
+      await turn(ctx.companion, conversation.id, '我的猫呢？')
       expect(memoryContents(ctx.captured.at(-1)!.system).join('|')).toContain('MEM_SENTINEL_CAT')
     } finally {
       ctx.database.close()
@@ -603,8 +604,9 @@ describe('companion core: the sensitivity ceiling is enforced on every route', (
       await turn(second.companion, conversation.id, '花生能吃吗？')
       const afterRestart = memoryContents(second.captured.at(-1)!.system).join('|')
       expect(afterRestart).not.toContain('花生')
-      expect(afterRestart).toContain('杭州')
-      await turn(second.companion, conversation.id, '今天有点累。')
+      await turn(second.companion, conversation.id, '我住在哪里？')
+      expect(memoryContents(second.captured.at(-1)!.system).join('|')).toContain('杭州')
+      await turn(second.companion, conversation.id, '花生能吃吗？')
       expect(memoryContents(second.captured.at(-1)!.system).join('|')).not.toContain('花生')
     } finally {
       second.database.close()
@@ -613,7 +615,7 @@ describe('companion core: the sensitivity ceiling is enforced on every route', (
 })
 
 describe('companion core: continuity is labelled background, not an assertion', () => {
-  it('labels a zero-overlap record as continuity and ranks a topic match first', async () => {
+  it('labels a term-matched record as topic and does not add an unrelated cat', async () => {
     const ctx = createHarness()
     try {
       ctx.memories.create('我住在杭州。', 'personal')
@@ -623,9 +625,9 @@ describe('companion core: continuity is labelled background, not an assertion', 
 
       const system = ctx.captured.at(-1)!.system
       const parsed = memoryBlock(system)
+      expect(parsed.memories).toHaveLength(1)
       expect(parsed.memories[0]?.content).toContain('杭州')
       expect(parsed.memories[0]?.match).toBe('topic')
-      expect(parsed.memories.slice(1).every((memory) => memory.match === 'continuity')).toBe(true)
       expect(system).toContain('background only')
     } finally {
       ctx.database.close()
@@ -668,10 +670,10 @@ describe('companion core: continuity is labelled background, not an assertion', 
   it('preserves provenance so an inferred statement is never presented as user-confirmed', async () => {
     const ctx = createHarness()
     try {
-      ctx.memories.create('我住在杭州。', 'personal', { sourceCategory: 'user_explicit_input', confidence: 85 })
+      ctx.memories.create('我喜欢热闹。', 'personal', { sourceCategory: 'user_explicit_input', confidence: 85 })
       ctx.memories.create('我可能喜欢安静。', 'personal', { sourceCategory: 'model_inferred_confirmed', confidence: 60 })
       const conversation = ctx.companion.createConversation()
-      await turn(ctx.companion, conversation.id, '今天好吵。')
+      await turn(ctx.companion, conversation.id, '我喜欢安静吗？')
       const system = ctx.captured.at(-1)!.system
       expect(system).toContain('"sourceCategory":"user_explicit_input"')
       expect(system).toContain('"sourceCategory":"model_inferred_confirmed"')
