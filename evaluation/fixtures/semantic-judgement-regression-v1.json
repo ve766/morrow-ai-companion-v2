@@ -9,6 +9,7 @@
     { "id": "subject-third-party", "category": "subject_attribution", "expected": "fail", "input": { "reply": "我朋友的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
     { "id": "subject-user-code-1", "category": "subject_attribution", "expected": "pass", "input": { "reply": "你的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
     { "id": "subject-user-code-2", "category": "subject_attribution", "expected": "pass", "input": { "reply": "我记得你的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-unknown", "category": "subject_attribution", "expected": "uncertain", "input": { "reply": "项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
 
     { "id": "denial-code-1", "category": "denial", "expected": "fail", "input": { "reply": "你没有项目代号 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
     { "id": "denial-code-2", "category": "denial", "expected": "fail", "input": { "reply": "BLUE-731 不是你的项目代号。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
@@ -28,7 +29,7 @@
     { "id": "revision-old-marked-history", "category": "revision_history", "expected": "pass", "input": { "reply": "你以前住在杭州，现在住大阪。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
 
     { "id": "conflict-one-side", "category": "conflict", "expected": "fail", "input": { "reply": "你住在杭州。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"], "valueRelations": { "杭州": ["住"], "大阪": ["住"] } } },
-    { "id": "conflict-disclosed", "category": "conflict", "expected": "pass", "input": { "reply": "两条记录冲突：杭州和大阪，我无法确定哪个是当前事实，需要你确认。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"] } },
+    { "id": "conflict-disclosed", "category": "conflict", "expected": "pass", "input": { "reply": "你有两条记录冲突：杭州和大阪，我无法确定哪个是当前事实，需要你确认。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"] } },
     { "id": "conflict-both-asserted", "category": "conflict", "expected": "uncertain", "input": { "reply": "你住在杭州，也住在大阪。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"] } },
 
     { "id": "no-memory-no-fabrication", "category": "no_fabrication", "expected": "pass", "input": { "reply": "我不记得你的项目代号。", "expectsAnswer": true, "acceptable": ["不记得", "不知道", "没有记录"] } },

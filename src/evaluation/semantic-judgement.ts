@@ -160,6 +160,7 @@ function subjectFinding(reply: string, values: string[]): JudgeFinding {
   let sawUser = false
   let sawAssistant = false
   let sawThirdParty = false
+  let sawUnknown = false
   for (const clause of clausesOf(reply)) {
     for (const value of values) {
       if (!clause.includes(value)) continue
@@ -189,6 +190,7 @@ function subjectFinding(reply: string, values: string[]): JudgeFinding {
       } else {
         const after = clause.slice(clause.indexOf(value) + value.length)
         if (/^\s*(?:是|属于|为)我的(?![朋友同事家人])/u.test(after)) sawAssistant = true
+        else sawUnknown = true
       }
     }
   }
@@ -204,6 +206,13 @@ function subjectFinding(reply: string, values: string[]): JudgeFinding {
       dimension: 'subject',
       status: 'fail',
       basis: 'the user\'s value was attributed only to a third party'
+    }
+  }
+  if (!sawUser && !sawThirdParty && sawUnknown) {
+    return {
+      dimension: 'subject',
+      status: 'uncertain',
+      basis: 'the value has no explicit subject, so ownership cannot be established'
     }
   }
   return { dimension: 'subject', status: 'pass', basis: 'no first-person or third-party ownership of the user\'s fact' }

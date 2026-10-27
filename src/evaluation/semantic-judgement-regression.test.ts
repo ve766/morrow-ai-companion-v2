@@ -99,7 +99,7 @@ describe('A1 semantic-judgement regression fixture', () => {
     expect(matrix).toEqual({
       pass: { pass: 13 },
       fail: { fail: 20 },
-      uncertain: { uncertain: 3 }
+      uncertain: { uncertain: 4 }
     })
   })
 })

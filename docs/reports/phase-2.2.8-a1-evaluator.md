@@ -55,7 +55,7 @@
 - `evaluation/fixtures/semantic-judgement-regression-v1.json`
 - `src/evaluation/semantic-judgement-regression.test.ts`
 
-共 **36 个案例、12 个类别**，每类至少包含正向和反向期望。主体归属、否认、同回复矛盾各至少 3 种表达。
+共 **37 个案例、12 个类别**，每类至少包含正向和反向期望。主体归属、否认、同回复矛盾各至少 3 种表达。
 
 类别：主体归属、否认、同回复矛盾、更正、修订历史、冲突、不编造、明确未知、是否记得问句、长对话、引用、关键词重合。
 
@@ -65,7 +65,7 @@
 |---|---:|---:|---:|
 | pass | **13** | 0 | 0 |
 | fail | **0** | **20** | 0 |
-| uncertain | 0 | 0 | **3** |
+| uncertain | 0 | 0 | **4** |
 
 已知三个假通过均为 fail，没有用 uncertain 代替。
 
