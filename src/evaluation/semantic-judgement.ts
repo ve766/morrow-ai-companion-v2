@@ -37,6 +37,11 @@ export interface JudgeResult {
   rationale: string
 }
 
+export interface JudgeConversationTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface JudgeInput {
   reply: string
   /** Values the user currently holds, newest first. */
@@ -51,6 +56,15 @@ export interface JudgeInput {
   acceptable?: string[]
   /** True when the reply should answer a factual question about the user. */
   expectsAnswer?: boolean
+  /**
+   * Optional predicates that must bind the value to the asked attribute.
+   * Without this, a keyword-only reply ("你在大阪有朋友") can look identical
+   * to an answer ("你住在大阪"). This is deliberately supplied by the caller
+   * instead of guessed from a value, so the rule can say what it checked.
+   */
+  valueRelations?: Record<string, string[]>
+  /** Prior turns, used to keep an earlier correction/denial in force. */
+  conversation?: JudgeConversationTurn[]
 }
 
 // The assistant claiming a user fact as its own. `我不能判断你的过敏` is not a claim.
@@ -65,10 +79,18 @@ const QUOTED = /(?:你说过|你提到过|你问我|你曾|你之前说|你说)[
 // A question can end with a question mark or with the Chinese yes/no particle;
 // clause splitting drops the punctuation, so the particle is what identifies a
 // question inside a single clause.
-const QUESTION_FORM = /(?:[?？]|吗)\s*$/u
 // "我不确定你是否对花生过敏" doubts the fact; "我不确定现在是否还准确" doubts
 // only how fresh it is and still states it. Only the first is a polarity issue.
 const HEDGE_ABOUT_FACT = /(?:不确定|不记得|不知道|没印象)(?:你|您)?(?:是否|是不是|有没有)/u
+const QUOTED_SPAN = /“[^”]{0,80}(?:我|你|您)[^”]{0,80}”|「[^」]{0,80}(?:我|你|您)[^」]{0,80}」|『[^』]{0,80}(?:我|你|您)[^』]{0,80}』/u
+// delivered it is still a refusal to use it. This covers arbitrary attributes,
+// not only the original allergy/residence vocabulary.
+const DENIES_RECALL = /(?:不记得|不知道|不确定|没有印象|没印象)/u
+// Any morphology that negates the value, regardless of attribute name.
+const NEGATES_VALUE = /(?:不是|并非|没有|没|不叫|不再|不住|不在|不喜欢|已经不|不存在|否认|不对|不准确)/u
+const HYPOTHETICAL = /(?:如果|假如|假设|要是|万一|若是)/u
+const HISTORICAL_PREFIX = /(?:以前|之前|原来|曾经|过去|原先)(?![^，。！？!?]{0,8}(?:告诉我|说过|提到|问我))[^，。！？!?]{0,10}$/u
+const CURRENT_PREFIX = /(?:现在|目前|如今|当前)[^，。！？!?]{0,10}$/u
 // Markers that a value is being described as old rather than current.
 const SUPERSEDED_MARKER = /(?:之前|原来|以前|曾经|原先|过去|已(?:经)?改|改成|更新为|现在是|不再)/u
 // Markers that two values are being presented as a conflict rather than as one fact.
@@ -80,6 +102,47 @@ const has = (text: string, value: string): boolean => text.includes(value)
 
 function mentions(reply: string, values: string[]): string[] {
   return values.filter((value) => has(reply, value))
+}
+
+function clausesOf(reply: string): string[] {
+  return reply.split(/[。！？!?；;\n]/u).map((clause) => clause.trim()).filter((clause) => clause.length > 0)
+}
+
+type ClauseSubject = 'user' | 'assistant' | 'third_party' | 'unknown'
+
+/**
+ * Who owns the value inside this clause? The closest explicit subject before
+ * the value wins. "我记得你住在大阪" is the user's fact; "我住在大阪" is the
+ * assistant adopting it; "我朋友住在大阪" belongs to a third party.
+ */
+function subjectOfClause(clause: string, value: string): ClauseSubject {
+  const index = clause.indexOf(value)
+  if (index < 0) return 'unknown'
+  const before = clause.slice(0, index)
+  const positions: Array<{ subject: ClauseSubject; at: number }> = []
+  for (const match of before.matchAll(/我|Morrow|莫罗/gu)) positions.push({ subject: 'assistant', at: match.index })
+  for (const match of before.matchAll(/你|您|用户|对方/gu)) positions.push({ subject: 'user', at: match.index })
+  for (const match of before.matchAll(/他|她|朋友|同事|家人|第三方/gu)) positions.push({ subject: 'third_party', at: match.index })
+  if (positions.length === 0) return 'unknown'
+  positions.sort((left, right) => right.at - left.at)
+  return positions[0]!.subject
+}
+
+function isQuestionClause(clause: string): boolean {
+  return /[?？]\s*$/u.test(clause) || /吗\s*$/u.test(clause)
+}
+
+function relationFor(value: string, relations: Record<string, string[]> | undefined): string[] {
+  return relations?.[value] ?? []
+}
+
+/** The asked attribute must be predicated of the value, not merely co-occur. */
+function relationSatisfied(clause: string, value: string, relations: Record<string, string[]> | undefined): boolean {
+  const expected = relationFor(value, relations)
+  if (expected.length === 0) return true
+  const index = clause.indexOf(value)
+  const before = index >= 0 ? clause.slice(Math.max(0, index - 16), index) : ''
+  return expected.some((relation) => before.includes(relation) || clause.slice(index + value.length).includes(relation))
 }
 
 /**
@@ -94,43 +157,106 @@ function subjectFinding(reply: string, values: string[]): JudgeFinding {
   if (FIRST_PERSON_OWN_FACT.test(reply)) {
     return { dimension: 'subject', status: 'fail', basis: 'the assistant stated a user fact as its own' }
   }
-  for (const clause of reply.split(/[。！？!?；;，,\n]/u)) {
+  let sawUser = false
+  let sawAssistant = false
+  let sawThirdParty = false
+  for (const clause of clausesOf(reply)) {
     for (const value of values) {
-      const index = clause.indexOf(value)
-      if (index < 0) continue
-      const before = clause.slice(0, index)
-      if (/你|您/u.test(before)) continue
-      // A first person that merely mentions the value is not a claim about it:
-      // "我会特别留意并避免推荐含花生的内容" is the assistant's own action, and
-      // scoring it as role confusion was a false fail on a real reply. The
-      // pronoun has to be the subject of a predicate that takes the value.
-      if (/(?:我的[^。！？!?]{0,6}|我(?:也|就|一直|现在|目前|从小|确实)?[^。！？!?]{0,2}(?:住在|住|来自|属于|是|在|对|有))$/u.test(before)) {
-        return {
-          dimension: 'subject',
-          status: 'fail',
-          basis: `the assistant put itself before the user's value: ${clause.trim().slice(0, 40)}`
+      if (!clause.includes(value)) continue
+      if (QUOTED.test(clause) && QUOTED_SPAN.test(clause)) continue
+      const subject = subjectOfClause(clause, value)
+      if (subject === 'assistant') {
+        const index = clause.indexOf(value)
+        const before = clause.slice(0, index).trimEnd()
+        const after = clause.slice(index + value.length)
+        // "BLUE-731 是我的项目代号" carries the same ownership after the value.
+        if (/^\s*(?:是|属于|为)我的(?![朋友同事家人])/u.test(after)) {
+          sawAssistant = true
+          continue
         }
+        // A first-person report such as "我记得你住在杭州" still names the
+        // user after the assistant verb; it is not ownership. Only an
+        // assistant predicate/possessive that reaches the value is.
+        const lastUser = Math.max(before.lastIndexOf('你'), before.lastIndexOf('您'))
+        const lastAssistant = Math.max(before.lastIndexOf('我'), before.lastIndexOf('Morrow'), before.lastIndexOf('莫罗'))
+        if (lastAssistant > lastUser && /(?:我的[^。！？!?]{0,20}|(?:是|为|叫|住在|住|来自|属于|有|对|喜欢|讨厌|正在|开始|学习|在学|项目代号(?:是|为)|代号(?:是|为)))$/u.test(before)) {
+          sawAssistant = true
+        }
+      } else if (subject === 'user') {
+        sawUser = true
+      } else if (subject === 'third_party') {
+        sawThirdParty = true
+      } else {
+        const after = clause.slice(clause.indexOf(value) + value.length)
+        if (/^\s*(?:是|属于|为)我的(?![朋友同事家人])/u.test(after)) sawAssistant = true
       }
     }
   }
-  return { dimension: 'subject', status: 'pass', basis: 'no first-person claim about the user\'s fact' }
+  if (sawAssistant) {
+    return {
+      dimension: 'subject',
+      status: 'fail',
+      basis: 'the assistant put itself before the user\'s value'
+    }
+  }
+  if (!sawUser && sawThirdParty) {
+    return {
+      dimension: 'subject',
+      status: 'fail',
+      basis: 'the user\'s value was attributed only to a third party'
+    }
+  }
+  return { dimension: 'subject', status: 'pass', basis: 'no first-person or third-party ownership of the user\'s fact' }
 }
 
 function polarityFinding(reply: string, current: string[]): JudgeFinding {
   if (DENIES_FACT.test(reply)) {
     return { dimension: 'polarity', status: 'fail', basis: 'the reply denies the remembered fact' }
   }
-  const clauses = reply.split(/[。！？!?；;\n]/u).map((clause) => clause.trim()).filter((clause) => clause.length > 0)
+  const clauses = clausesOf(reply)
   const valueClauses = clauses.filter((clause) => current.some((value) => clause.includes(value)))
-  // Polarity is decided per clause: stating the fact and then asking a
-  // follow-up question is an assertion, not an evasion.
-  const asserts = valueClauses.some((clause) =>
-    !QUOTED.test(clause) && !QUESTION_FORM.test(clause) && !HEDGE_ABOUT_FACT.test(clause))
-  if (asserts) {
+  const negatedValue = valueClauses.find((clause) => {
+    if (isQuestionClause(clause)) return false
+    for (const value of current) {
+      if (!clause.includes(value)) continue
+      const index = clause.indexOf(value)
+      const before = clause.slice(Math.max(0, index - 14), index)
+      const after = clause.slice(index + value.length)
+      if (NEGATES_VALUE.test(before) || /^\s*(?:是错的|不存在|不对|不准确|已经不|不再是|不是|并非)/u.test(after)) return true
+    }
+    return false
+  })
+  if (negatedValue) {
+    return { dimension: 'polarity', status: 'fail', basis: `the value is negated: ${negatedValue.slice(0, 60)}` }
+  }
+  const recallDenials = valueClauses.filter((clause) => DENIES_RECALL.test(clause) && !isQuestionClause(clause))
+  const assertiveValues = valueClauses.filter((clause) =>
+    !QUOTED.test(clause) &&
+    !isQuestionClause(clause) &&
+    !HEDGE_ABOUT_FACT.test(clause) &&
+    !HYPOTHETICAL.test(clause) &&
+    !DENIES_RECALL.test(clause) &&
+    !(HISTORICAL_PREFIX.test(clause.slice(0, clause.indexOf(current.find((value) => clause.includes(value)) ?? ''))) && !CURRENT_PREFIX.test(clause))
+  )
+  // "我不记得你住在大阪，但你现在住在大阪" is one reply contradicting
+  // itself. It must fail even though its second clause asserts the value.
+  if (recallDenials.length > 0 && current.length > 0) {
+    return {
+      dimension: 'polarity',
+      status: 'fail',
+      basis: recallDenials.length > 0 && assertiveValues.length > 0
+        ? 'the reply both denies recollection and asserts the same delivered fact'
+        : 'the reply claims not to remember a fact that was delivered'
+    }
+  }
+  if (assertiveValues.length > 0) {
     return { dimension: 'polarity', status: 'pass', basis: 'the fact is asserted in a declarative clause' }
   }
-  if (valueClauses.some((clause) => HEDGE_ABOUT_FACT.test(clause))) {
-    return { dimension: 'polarity', status: 'uncertain', basis: 'the reply hedges the fact itself rather than stating it' }
+  if (valueClauses.some((clause) => HEDGE_ABOUT_FACT.test(clause) || HYPOTHETICAL.test(clause))) {
+    return { dimension: 'polarity', status: 'uncertain', basis: 'the reply hedges or frames the fact hypothetically rather than asserting it' }
+  }
+  if (valueClauses.some((clause) => HISTORICAL_PREFIX.test(clause.slice(0, clause.indexOf(current.find((value) => clause.includes(value)) ?? ''))) && !CURRENT_PREFIX.test(clause))) {
+    return { dimension: 'polarity', status: 'uncertain', basis: 'the value appears only as a historical statement, not as the current fact' }
   }
   if (ADMITS_UNKNOWN.test(reply)) {
     // With nothing to remember, admitting it is the correct answer; with the
@@ -142,7 +268,7 @@ function polarityFinding(reply: string, current: string[]): JudgeFinding {
   if (QUOTED.test(reply) && !SUPERSEDED_MARKER.test(reply)) {
     return { dimension: 'polarity', status: 'uncertain', basis: 'the fact appears only inside a quotation, so it may not be asserted' }
   }
-  if (QUESTION_FORM.test(reply.trim())) {
+  if (isQuestionClause(reply.trim())) {
     return { dimension: 'polarity', status: 'uncertain', basis: 'the reply asks instead of asserting' }
   }
   return { dimension: 'polarity', status: 'pass', basis: 'no denial, quotation or question in place of an assertion' }
@@ -207,18 +333,72 @@ function retractionFinding(reply: string, retracted: string[]): JudgeFinding | n
   return { dimension: 'retraction', status: 'fail', basis: `the retracted value is still asserted as current: ${present.join(',')}` }
 }
 
-function answerFinding(reply: string, expected: string[], expectsAnswer: boolean): JudgeFinding | null {
+function contentFinding(reply: string, current: string[], relations: Record<string, string[]> | undefined): JudgeFinding | null {
+  if (current.length === 0) return null
+  const bound = clausesOf(reply).flatMap((clause) =>
+    current.filter((value) => clause.includes(value) && relationSatisfied(clause, value, relations)))
+  if (bound.length > 0) {
+    return { dimension: 'content', status: 'pass', basis: 'the expected value is bound to the asked attribute' }
+  }
+  const mentioned = mentions(reply, current)
+  return mentioned.length > 0
+    ? {
+        dimension: 'content',
+        status: 'fail',
+        basis: `the value is only a keyword co-occurrence, not bound to the asked attribute: ${mentioned.join(',')}`
+      }
+    : { dimension: 'content', status: 'fail', basis: 'the expected value never appears' }
+}
+
+function answerFinding(
+  reply: string,
+  expected: string[],
+  expectsAnswer: boolean,
+  relations: Record<string, string[]> | undefined,
+  hasDeliveredEvidence: boolean
+): JudgeFinding | null {
   if (!expectsAnswer) return null
-  if (ADMITS_UNKNOWN.test(reply)) {
+  if (ADMITS_UNKNOWN.test(reply) && !hasDeliveredEvidence) {
     return { dimension: 'answers_question', status: 'pass', basis: 'the reply says it does not know instead of inventing an answer' }
   }
   if (expected.length === 0) {
     return { dimension: 'answers_question', status: 'uncertain', basis: 'no expected value was declared, so an answer cannot be verified' }
   }
-  if (mentions(reply, expected).length > 0) {
-    return { dimension: 'answers_question', status: 'pass', basis: 'the reply names the value the question asked for' }
+  const bound = clausesOf(reply).flatMap((clause) =>
+    expected.filter((value) => clause.includes(value) && relationSatisfied(clause, value, relations)))
+  if (bound.length > 0) {
+    return { dimension: 'answers_question', status: 'pass', basis: 'the reply binds the value to the asked attribute' }
   }
-  return { dimension: 'answers_question', status: 'uncertain', basis: 'the reply never names the asked-for value' }
+  return { dimension: 'answers_question', status: 'uncertain', basis: 'the reply never gives a value bound to the asked attribute' }
+}
+
+/**
+ * A correction or denial stated in an earlier user turn still governs the
+ * latest reply. The final answer alone cannot tell whether the old value was
+ * superseded; this check makes the conversation part of the evidence.
+ */
+function conversationFinding(
+  reply: string,
+  conversation: JudgeConversationTurn[] | undefined,
+  superseded: string[]
+): JudgeFinding | null {
+  if (!conversation || conversation.length === 0 || superseded.length === 0) return null
+  const userText = conversation.filter((turn) => turn.role === 'user').map((turn) => turn.content).join('\n')
+  const deniedEarlier = superseded.filter((value) => {
+    if (!userText.includes(value)) return false
+    const clauses = clausesOf(userText).filter((clause) => clause.includes(value))
+    return clauses.some((clause) => NEGATES_VALUE.test(clause) || /(?:不再|已经不住|搬走|搬离)/u.test(clause))
+  })
+  if (deniedEarlier.length === 0) return null
+  const assertedAgain = clausesOf(reply).some((clause) =>
+    deniedEarlier.some((value) => clause.includes(value)) && !SUPERSEDED_MARKER.test(clause))
+  return assertedAgain
+    ? {
+        dimension: 'correction',
+        status: 'fail',
+        basis: `an earlier user denial/correction still applies to ${deniedEarlier.join(',')}`
+      }
+    : null
 }
 
 export function judgeReply(input: JudgeInput): JudgeResult {
@@ -240,18 +420,23 @@ export function judgeReply(input: JudgeInput): JudgeResult {
 
   findings.push(subjectFinding(reply, [...current, ...superseded, ...conflicting]))
   findings.push(polarityFinding(reply, current))
-  if (current.length > 0) {
-    findings.push(mentions(reply, current).length > 0
-      ? { dimension: 'content', status: 'pass', basis: 'the expected value appears' }
-      : { dimension: 'content', status: 'fail', basis: 'the expected value never appears' })
-  }
+  const content = contentFinding(reply, current, input.valueRelations)
+  if (content) findings.push(content)
   const conflict = conflictFinding(reply, conflicting)
   if (conflict) findings.push(conflict)
+  const conversation = conversationFinding(reply, input.conversation, superseded)
   const correction = correctionFinding(reply, current, superseded)
-  if (correction) findings.push(correction)
+  if (conversation) findings.push(conversation)
+  else if (correction) findings.push(correction)
   const retraction = retractionFinding(reply, retracted)
   if (retraction) findings.push(retraction)
-  const answer = answerFinding(reply, [...current, ...(input.acceptable ?? [])], input.expectsAnswer ?? false)
+  const answer = answerFinding(
+    reply,
+    [...current, ...(input.acceptable ?? [])],
+    input.expectsAnswer ?? false,
+    input.valueRelations,
+    current.length > 0
+  )
   if (answer) findings.push(answer)
 
   const failed = findings.filter((finding) => finding.status === 'fail')
