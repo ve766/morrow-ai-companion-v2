@@ -25,7 +25,8 @@ import type {
 import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, THIRD_PARTY_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ThirdPartyProviderConfigInput, type ProviderConfigInput } from '../shared/companion'
 import { isHttpsEndpoint, isLoopbackEndpoint, isValidRemoteModelId, normalizeOpenAIBaseUrl, isValidLocalModelName } from '../security/url-gate'
 import { COGNITIVE_ANALYZER_VERSION, withCognitiveContextEvidence, type CognitiveCoreSettings, type CognitiveHistoryMessage, type CognitiveTurnAnalysis, type CognitiveTurnRecord } from '../cognition/cognition'
-import { validateMemoryText } from '../memory/memory-domain'
+import { validateMemoryText, normalizedMemoryKey, significantMemoryTerms, sharedTermCount } from '../memory/memory-domain'
+import { classifyMemorySensitivity, extractFormationCandidates, sharesFactAttribute } from '../memory/memory-formation-domain'
 import type { SqliteDatabase } from '../persistence/database'
 import type { MemoryService } from '../memory/memory-service'
 import type { ConversationService } from '../conversation/conversation-service'
@@ -141,8 +142,15 @@ interface SuggestionRow {
   conversation_id: string
   source_message_id: string
   claim: string
+  candidate_kind: 'fact' | 'preference' | 'goal' | 'project' | 'correction'
+  subject: 'user'
+  evidence_type: 'user_explicit_statement' | 'user_explicit_correction' | 'model_proposal'
+  confidence: number
+  claim_key: string
   sensitivity: Sensitivity
-  status: 'pending' | 'accepted' | 'rejected'
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+  conflict_with_json: string
+  correction_target_id: string | null
   provider_model: string
   created_at: string
   reviewed_at: string | null
@@ -176,14 +184,34 @@ function maxSensitivity(base: Sensitivity, selected: Sensitivity[]): Sensitivity
   return selected.reduce<Sensitivity>((current, item) => sensitivityOrder.indexOf(item) > sensitivityOrder.indexOf(current) ? item : current, base)
 }
 
+function hintedContains(hint: string, text: string): boolean {
+  const normalizedHint = normalizedMemoryKey(hint)
+  const normalizedText = normalizedMemoryKey(text)
+  return normalizedHint.length > 0 &&
+    (normalizedText.includes(normalizedHint) || normalizedHint.includes(normalizedText))
+}
+
 function mapSuggestion(row: SuggestionRow): MemorySuggestion {
+  let conflictWith: string[] = []
+  try {
+    const parsed = JSON.parse(row.conflict_with_json) as unknown
+    if (Array.isArray(parsed)) conflictWith = parsed.filter((value): value is string => typeof value === 'string')
+  } catch {
+    conflictWith = []
+  }
   return {
     id: row.id,
     conversationId: row.conversation_id,
     sourceMessageId: row.source_message_id,
     claim: row.claim,
+    candidateKind: row.candidate_kind,
+    subject: row.subject,
+    evidenceType: row.evidence_type,
+    confidence: row.confidence,
     sensitivity: row.sensitivity,
     status: row.status,
+    conflictWith,
+    correctionTargetId: row.correction_target_id,
     providerModel: row.provider_model,
     createdAt: row.created_at,
     reviewedAt: row.reviewed_at,
@@ -208,7 +236,7 @@ function parseSuggestions(text: string): Array<{ claim: string; sensitivity: Sen
       validateMemoryText(claim)
       if (claim.length > 1000 || seen.has(claim.toLocaleLowerCase())) throw new Error()
       seen.add(claim.toLocaleLowerCase())
-      return { claim, sensitivity: 'sensitive' as const }
+      return { claim, sensitivity: classifyMemorySensitivity(claim) }
     })
   } catch {
     throw new ApplicationError('PROVIDER_RESPONSE')
@@ -829,8 +857,8 @@ export class CompanionService {
           }
         }
       : undefined
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, this.memorySuggestions)
   }
 
   getProvider(request?: { providerId?: ProviderId }): ProviderConfigRecord | null {
@@ -907,6 +935,10 @@ export class CompanionService {
   shutdown(): void { this.chat.shutdown() }
 }
 
+export interface MemoryFormationHook {
+  observeTurn(input: { conversationId: string; userMessageId: string; occurredAt: string; content: string }): void
+}
+
 export interface SelfModelLoopHooks {
   /** Bounded context block describing long-term interests and unverified self-knowledge. */
   contextBlock(maximumSensitivity: Sensitivity): string
@@ -935,7 +967,8 @@ export class ChatService {
     private readonly makeId: () => string = () => randomUUID(),
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => providers.createAdapter(config),
-    private readonly selfModel?: SelfModelLoopHooks
+    private readonly selfModel?: SelfModelLoopHooks,
+    private readonly memoryFormation?: MemoryFormationHook
   ) {}
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
@@ -1088,6 +1121,23 @@ export class ChatService {
           console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
         }
       }
+      if (this.memoryFormation) {
+        const formationInput = {
+          conversationId,
+          userMessageId: userMessage.id,
+          occurredAt: this.now(),
+          content: request.content.trim()
+        }
+        // Candidate formation is local and deterministic, and deferred so even
+        // a storage hiccup cannot delay or fail the completed reply.
+        queueMicrotask(() => {
+          try {
+            this.memoryFormation!.observeTurn(formationInput)
+          } catch {
+            console.warn('Memory candidate formation was unavailable; the chat result is unaffected.')
+          }
+        })
+      }
       return { conversation: this.conversations.read(conversationId).conversation, userMessage, assistantMessage, includedMemoryCount: verified.memory.selected.length }
     } finally {
       this.controllers.delete(conversationId)
@@ -1211,10 +1261,70 @@ export class MemorySuggestionService {
   list(conversationId: string): MemorySuggestion[] {
     const id = normalizedUuid(conversationId)
     const rows = this.database.connection.prepare(`
-      SELECT id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
+      SELECT id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+        confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+        provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
       FROM memory_suggestions WHERE conversation_id = ? ORDER BY created_at DESC, id
     `).all(id) as unknown as SuggestionRow[]
     return rows.map(mapSuggestion)
+  }
+
+  /**
+   * Called after a completed turn. Deterministic, local and bounded: it writes
+   * at most one pending candidate and never creates a memory. A failure here is
+   * contained by the chat caller and cannot change the reply.
+   */
+  observeTurn(input: { conversationId: string; userMessageId: string; occurredAt: string; content: string }): void {
+    const candidates = extractFormationCandidates(input.content)
+    if (candidates.length === 0) return
+    const conversationId = normalizedUuid(input.conversationId)
+    const sourceMessageId = normalizedUuid(input.userMessageId)
+    const active = this.memories.list().filter((memory) => memory.status === 'active')
+    const evidenceHash = createHash('sha256').update(input.content).digest('hex')
+    this.database.transaction(() => {
+      for (const candidate of candidates) {
+        const duplicate = this.database.connection.prepare(`
+          SELECT id FROM memory_suggestions
+          WHERE claim_key = ? AND status IN ('pending', 'accepted') LIMIT 1
+        `).get(candidate.claimKey) as unknown as { id: string } | undefined
+        if (duplicate) continue
+        const candidateTerms = significantMemoryTerms(candidate.claim)
+        const conflicts = active.filter((memory) =>
+          normalizedMemoryKey(memory.currentText) !== candidate.claimKey &&
+          (sharedTermCount(candidateTerms, significantMemoryTerms(memory.currentText)) >= 2 ||
+            sharesFactAttribute(candidate.claim, memory.currentText)))
+        let correctionTargetId: string | null = null
+        if (candidate.correctionHint && conflicts.length > 0) {
+          const hinted = candidate.supersededHint
+            ? conflicts.find((memory) => hintedContains(candidate.supersededHint!, memory.currentText))
+            : undefined
+          correctionTargetId = (hinted ?? [...conflicts].sort((left, right) =>
+            sharedTermCount(candidateTerms, significantMemoryTerms(right.currentText)) -
+            sharedTermCount(candidateTerms, significantMemoryTerms(left.currentText)))[0])?.id ?? null
+        }
+        this.database.connection.prepare(`
+          INSERT OR IGNORE INTO memory_suggestions(
+            id, conversation_id, source_message_id, claim, candidate_kind, subject,
+            evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json,
+            correction_target_id, provider_model, evidence_hash, created_at
+          ) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, 'pending', ?, ?, 'local-rule-v1', ?, ?)
+        `).run(
+          normalizedUuid(this.makeId()),
+          conversationId,
+          sourceMessageId,
+          candidate.claim,
+          candidate.kind,
+          candidate.evidenceType,
+          candidate.confidence,
+          candidate.claimKey,
+          candidate.sensitivity,
+          JSON.stringify(conflicts.slice(0, 5).map((memory) => memory.id)),
+          correctionTargetId,
+          evidenceHash,
+          input.occurredAt
+        )
+      }
+    })
   }
 
   preview(request: MemoryProposalRequest): MemoryProposalPreview {
@@ -1247,9 +1357,22 @@ export class MemorySuggestionService {
     this.database.transaction(() => {
       for (const candidate of candidates) {
         this.database.connection.prepare(`
-          INSERT OR IGNORE INTO memory_suggestions(id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, evidence_hash, created_at)
-          VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-        `).run(normalizedUuid(this.makeId()), prepared.conversationId, prepared.source.id, candidate.claim, candidate.sensitivity, prepared.provider.model, evidenceHash, now)
+          INSERT OR IGNORE INTO memory_suggestions(
+            id, conversation_id, source_message_id, claim, candidate_kind, subject,
+            evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json,
+            provider_model, evidence_hash, created_at
+          ) VALUES (?, ?, ?, ?, 'fact', 'user', 'model_proposal', 70, ?, ?, 'pending', '[]', ?, ?, ?)
+        `).run(
+          normalizedUuid(this.makeId()),
+          prepared.conversationId,
+          prepared.source.id,
+          candidate.claim,
+          normalizedMemoryKey(candidate.claim),
+          candidate.sensitivity,
+          prepared.provider.model,
+          evidenceHash,
+          now
+        )
       }
     })
     return this.list(prepared.conversationId)
@@ -1258,16 +1381,19 @@ export class MemorySuggestionService {
   review(request: MemorySuggestionReviewRequest): MemorySuggestion[] {
     const id = normalizedUuid(request.id)
     const row = this.database.connection.prepare(`
-      SELECT id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
+      SELECT id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+        confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+        provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
       FROM memory_suggestions WHERE id = ?
     `).get(id) as unknown as SuggestionRow | undefined
     if (!row) throw new ApplicationError('NOT_FOUND')
     if (row.status !== 'pending') throw new ApplicationError('CONFLICT')
     const reviewedAt = this.now()
-    if (request.decision === 'reject') {
+    if (request.decision === 'reject' || request.decision === 'withdraw') {
+      const status = request.decision === 'reject' ? 'rejected' : 'withdrawn'
       const updated = this.database.connection.prepare(`
-        UPDATE memory_suggestions SET status = 'rejected', reviewed_at = ? WHERE id = ? AND status = 'pending'
-      `).run(reviewedAt, id)
+        UPDATE memory_suggestions SET status = ?, reviewed_at = ? WHERE id = ? AND status = 'pending'
+      `).run(status, reviewedAt, id)
       if (updated.changes !== 1) throw new ApplicationError('CONFLICT')
       return this.list(row.conversation_id)
     }
@@ -1275,27 +1401,32 @@ export class MemorySuggestionService {
     validateMemoryText(request.content)
     const sensitivity = request.sensitivity ?? row.sensitivity
     if (!sensitivityOrder.includes(sensitivity)) throw new ApplicationError('INVALID_INPUT')
-    // An accepted suggestion is model-inferred memory the user explicitly
-    // reviewed and approved — provenance is distinct from directly typed
-    // input, and the suggestion id is the correlation id for the audit trail.
-    const memory = this.memories.create(request.content.trim(), sensitivity, {
-      sourceCategory: 'model_inferred_confirmed',
-      confidence: 70,
-      correlationId: id
+    const content = request.content.trim()
+    return this.database.transaction(() => {
+      const target = row.correction_target_id
+        ? this.memories.list().find((memory) => memory.id === row.correction_target_id)
+        : null
+      // A correction to an existing active record keeps its revision lineage.
+      // If the target disappeared before review, a reviewed claim still becomes
+      // a new memory rather than silently rewriting an unrelated record.
+      const memory = target && target.status === 'active'
+        ? this.memories.correct(target.id, content, id)
+        : this.memories.create(content, sensitivity, {
+            sourceCategory: 'model_inferred_confirmed',
+            confidence: Math.max(50, row.confidence),
+            correlationId: id
+          })
+      try {
+        this.memories.detectConflicts(memory.id)
+      } catch {
+        // Conflict flagging is advisory; never block the user's acceptance.
+      }
+      const updated = this.database.connection.prepare(`
+        UPDATE memory_suggestions SET status = 'accepted', sensitivity = ?, reviewed_at = ?, accepted_memory_id = ?, accepted_content = ? WHERE id = ? AND status = 'pending'
+      `).run(sensitivity, reviewedAt, memory.id, content, id)
+      if (updated.changes !== 1) throw new ApplicationError('CONFLICT')
+      return this.list(row.conversation_id)
     })
-    try {
-      this.memories.detectConflicts(memory.id)
-    } catch {
-      // Conflict flagging is advisory; never block the user's acceptance.
-    }
-    const updated = this.database.connection.prepare(`
-      UPDATE memory_suggestions SET status = 'accepted', sensitivity = ?, reviewed_at = ?, accepted_memory_id = ?, accepted_content = ? WHERE id = ? AND status = 'pending'
-    `).run(sensitivity, reviewedAt, memory.id, request.content.trim(), id)
-    if (updated.changes !== 1) {
-      this.memories.delete(memory.id)
-      throw new ApplicationError('CONFLICT')
-    }
-    return this.list(row.conversation_id)
   }
 
   private prepare(request: MemoryProposalRequest): { conversationId: string; provider: ProviderConfigRecord; source: ConversationMessage; input: ProviderInput } {

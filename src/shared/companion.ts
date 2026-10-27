@@ -17,7 +17,9 @@ export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
 export type PersonalityDisagreementStyle = 'gentle' | 'balanced' | 'direct'
-export type MemorySuggestionStatus = 'pending' | 'accepted' | 'rejected'
+export type MemorySuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+export type MemoryCandidateKind = 'fact' | 'preference' | 'goal' | 'project' | 'correction'
+export type MemoryCandidateEvidenceType = 'user_explicit_statement' | 'user_explicit_correction' | 'model_proposal'
 
 export interface ConversationRecord {
   id: string
@@ -216,8 +218,14 @@ export interface MemorySuggestion {
   conversationId: string
   sourceMessageId: string
   claim: string
+  candidateKind: MemoryCandidateKind
+  subject: 'user'
+  evidenceType: MemoryCandidateEvidenceType
+  confidence: number
   sensitivity: Sensitivity
   status: MemorySuggestionStatus
+  conflictWith: string[]
+  correctionTargetId: string | null
   providerModel: string
   createdAt: string
   reviewedAt: string | null
@@ -227,7 +235,7 @@ export interface MemorySuggestion {
 
 export interface MemorySuggestionReviewRequest {
   id: string
-  decision: 'accept' | 'reject'
+  decision: 'accept' | 'reject' | 'withdraw'
   content?: string
   sensitivity?: Sensitivity
 }

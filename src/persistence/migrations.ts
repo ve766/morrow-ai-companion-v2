@@ -787,6 +787,67 @@ export const migrations: readonly Migration[] = [
         CREATE UNIQUE INDEX provider_profiles_one_active ON provider_profiles(active) WHERE active = 1;
       `)
     }
+  },
+  {
+    version: 22,
+    name: 'memory-formation-candidates',
+    up(database) {
+      // A reviewable candidate is not a memory. These columns record why the
+      // candidate exists, which subject it describes, how sensitive it is and
+      // whether it would correct or conflict with an existing record. The old
+      // table had no room for any of that and could not represent withdrawal.
+      database.exec(`
+        ALTER TABLE memory_suggestions RENAME TO memory_suggestions_v21;
+        DROP INDEX IF EXISTS memory_suggestions_conversation_created_idx;
+        DROP INDEX IF EXISTS memory_suggestions_source_idx;
+        DROP INDEX IF EXISTS memory_suggestions_status_idx;
+        DROP INDEX IF EXISTS memory_suggestions_source_claim_uq;
+        CREATE TABLE memory_suggestions (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          conversation_id TEXT NOT NULL,
+          source_message_id TEXT NOT NULL,
+          claim TEXT NOT NULL CHECK (length(trim(claim)) BETWEEN 1 AND 1000 AND instr(claim, char(0)) = 0),
+          candidate_kind TEXT NOT NULL CHECK (candidate_kind IN ('fact', 'preference', 'goal', 'project', 'correction')),
+          subject TEXT NOT NULL CHECK (subject = 'user'),
+          evidence_type TEXT NOT NULL CHECK (evidence_type IN ('user_explicit_statement', 'user_explicit_correction', 'model_proposal')),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          claim_key TEXT NOT NULL CHECK (length(claim_key) BETWEEN 1 AND 1000),
+          sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'withdrawn')),
+          conflict_with_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(conflict_with_json)),
+          correction_target_id TEXT REFERENCES memories(id) ON DELETE SET NULL,
+          provider_model TEXT NOT NULL,
+          evidence_hash TEXT NOT NULL CHECK (length(evidence_hash) = 64),
+          created_at TEXT NOT NULL,
+          reviewed_at TEXT,
+          accepted_memory_id TEXT REFERENCES memories(id) ON DELETE CASCADE,
+          accepted_content TEXT CHECK (accepted_content IS NULL OR length(trim(accepted_content)) BETWEEN 1 AND 4000),
+          FOREIGN KEY (source_message_id, conversation_id)
+            REFERENCES messages(id, conversation_id) ON DELETE CASCADE,
+          CHECK ((status = 'pending') = (reviewed_at IS NULL)),
+          CHECK ((status = 'accepted') = (accepted_memory_id IS NOT NULL)),
+          CHECK ((status = 'accepted') = (accepted_content IS NOT NULL))
+        ) STRICT;
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject,
+          evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json,
+          correction_target_id, provider_model, evidence_hash, created_at, reviewed_at,
+          accepted_memory_id, accepted_content
+        )
+          SELECT id, conversation_id, source_message_id, claim, 'fact', 'user',
+            'model_proposal', 70, lower(trim(claim)), sensitivity, status, '[]',
+            NULL, provider_model, evidence_hash, created_at, reviewed_at,
+            accepted_memory_id, accepted_content
+          FROM memory_suggestions_v21;
+        CREATE INDEX memory_suggestions_conversation_created_idx ON memory_suggestions(conversation_id, created_at DESC);
+        CREATE INDEX memory_suggestions_source_idx ON memory_suggestions(source_message_id, created_at);
+        CREATE INDEX memory_suggestions_status_idx ON memory_suggestions(status, created_at DESC);
+        CREATE UNIQUE INDEX memory_suggestions_source_claim_uq
+          ON memory_suggestions(source_message_id, claim_key, candidate_kind);
+        CREATE INDEX memory_suggestions_claim_key_idx ON memory_suggestions(claim_key, status);
+        DROP TABLE memory_suggestions_v21;
+      `)
+    }
   }
 ]
 

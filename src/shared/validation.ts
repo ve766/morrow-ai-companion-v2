@@ -301,12 +301,12 @@ export function parseMemoryProposalRequest(value: unknown): { conversationId: st
 
 export function parseMemorySuggestionReviewRequest(value: unknown): {
   id: string
-  decision: 'accept' | 'reject'
+  decision: 'accept' | 'reject' | 'withdraw'
   content?: string
   sensitivity?: 'normal' | 'personal' | 'sensitive'
 } {
   const input = parseObject(value, ['id', 'decision', 'content', 'sensitivity'], 'Memory suggestion review')
-  if (input.decision !== 'accept' && input.decision !== 'reject') throw new InputValidationError('Memory suggestion decision is invalid.')
+  if (input.decision !== 'accept' && input.decision !== 'reject' && input.decision !== 'withdraw') throw new InputValidationError('Memory suggestion decision is invalid.')
   if (input.sensitivity !== undefined && input.sensitivity !== 'normal' && input.sensitivity !== 'personal' && input.sensitivity !== 'sensitive') {
     throw new InputValidationError('Memory sensitivity is invalid.')
   }
