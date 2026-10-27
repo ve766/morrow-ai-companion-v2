@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "id": "long-conversation-v1",
+  "description": "26-turn in-session retention of an early allergy constraint plus one new-session recall. Delivery is deterministic; the model reply is observed separately.",
+  "cases": [
+    {
+      "id": "long-26-turn-constraint",
+      "capability": "B1_in_session_recall",
+      "title": "An early constraint survives 26 turns and a new session",
+      "claims": "The allergy stated in turn 1 is still delivered as a memory at turn 25 and is retrieved as a topic in a fresh conversation at turn 26; whether the model uses it is reported separately.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我对花生严重过敏。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "请记住：我对花生严重过敏，任何建议都不要含花生。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "今天地铁有点挤。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "午饭吃了面条。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "下午开了两个会。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "窗外在下小雨。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "我把书桌整理了一下。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "晚上想早点睡。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "同事推荐了一部电影。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "我最近在学做菜。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "周末打算去公园走走。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "手机电量不太够了。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "楼下的咖啡店换了招牌。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "今天走了八千步。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "我把旧衣服捐了。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "最近在读一本小说。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "天气开始变凉了。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "我换了一个新水杯。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "早上差点睡过头。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "阳台的植物长高了。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "晚饭想清淡一点。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "我在整理旅行照片。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "今天工作效率还不错。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "晚上听了一会儿播客。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "准备洗个热水澡。",
+          "expect": {
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "中午吃什么好？",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "花生",
+                "match": "continuity"
+              }
+            ],
+            "memoryEntriesAtMost": 3
+          }
+        },
+        {
+          "content": "你还记得我有什么食物过敏吗？",
+          "newConversation": true,
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "花生",
+                "match": "topic"
+              }
+            ],
+            "memoryEntries": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "花生"
+        ],
+        "note": "Positive check only: the reply names the allergen. Whether it avoided suggesting peanuts is a reading question."
+      }
+    }
+  ]
+}

@@ -601,6 +601,22 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, maxi
   return lines.join('\n')
 }
 
+/**
+ * A question is not a disclosure. "抑郁症怎么治？" tells us the user asked about
+ * a topic; it does not tell us the user has the condition. `InterestService`
+ * therefore refuses to create an interest from a question — it may only add
+ * evidence to a topic the user already stated.
+ *
+ * The trade-off is deliberate: an interest expressed only as a question
+ * ("我对天文学很感兴趣，有推荐吗？") is missed. Missing an interest is
+ * recoverable; inventing a sensitive attribute is not.
+ */
+export function isQuestionTurn(content: string): boolean {
+  const text = content.trim()
+  if (/[?？]\s*$/u.test(text)) return true
+  return /^(?:吗|呢|什么|怎么|为什么|哪|谁|多少|如何|是否|能不能|可不可以|请问)/u.test(text)
+}
+
 export class CompanionService {
   readonly providers: ProviderConfigService
   readonly personality: PersonalityService
@@ -643,7 +659,8 @@ export class CompanionService {
                 conversationId: input.conversationId,
                 messageId: input.userMessageId,
                 occurredAt: input.occurredAt,
-                topicText: input.content
+                topicText: input.content,
+                source: isQuestionTurn(input.content) ? 'question' : 'statement'
               })
               selfModelLoop.interests.archiveStale(input.occurredAt)
               if (input.analysis?.signals.explicitSelfFact) {

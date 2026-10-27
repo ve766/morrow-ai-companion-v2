@@ -29,6 +29,13 @@ export interface InterestObservation {
   messageId: string
   occurredAt: string
   topicText: string
+  /**
+   * A question may reinforce a topic the user already disclosed, but it must
+   * never be the first evidence for one. Asking "抑郁症怎么治？" is a search,
+   * not an attribute; counting it as a new interest would turn curiosity into
+   * a personal fact.
+   */
+  source?: 'statement' | 'question'
 }
 
 interface InterestRow {
@@ -157,6 +164,9 @@ export class InterestService {
       .map((record) => ({ record, shared: sharedTermCount(record.terms, terms) }))
       .filter((item) => item.shared >= INTEREST_MATCH_MIN_SHARED_TERMS)
       .sort((left, right) => right.shared - left.shared)[0]?.record
+    // A question is evidence of curiosity, not of the attribute itself. It can
+    // only add evidence to a topic the user already stated; it cannot start one.
+    if (!existing && observation.source === 'question') return null
     if (!existing) {
       const created: InterestRecord = {
         id: this.makeId().toLowerCase(),

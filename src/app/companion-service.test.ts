@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
-import { CompanionService } from './companion-service'
+import { CompanionService, isQuestionTurn } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
 import { SqliteDatabase } from '../persistence/database'
@@ -525,5 +525,15 @@ describe('DeepSeek companion vertical slice', () => {
     } finally {
       ctx.database.close()
     }
+  })
+})
+
+describe('question detection', () => {
+  it('recognises a trailing question mark and an interrogative opener', () => {
+    expect(isQuestionTurn('抑郁症一般怎么治疗？')).toBe(true)
+    expect(isQuestionTurn('什么咖啡豆比较好')).toBe(true)
+    expect(isQuestionTurn('怎么选咖啡豆')).toBe(true)
+    expect(isQuestionTurn('我最近抑郁得厉害。')).toBe(false)
+    expect(isQuestionTurn('我住在杭州。')).toBe(false)
   })
 })

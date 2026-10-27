@@ -246,3 +246,45 @@ describe('interest sensitivity (task 4)', () => {
     }
   })
 })
+
+describe('a question cannot create an interest (task 2)', () => {
+  const conversation = '11111111-1111-4111-8111-111111111111'
+
+  it('returns null for a question with no prior statement', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const asked = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111111',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '抑郁症一般怎么治疗？',
+      source: 'question'
+    })
+    expect(asked).toBeNull()
+    expect(interests.list()).toEqual([])
+  })
+
+  it('lets a question reinforce a topic the user already stated', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const stated = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111111',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '我最近抑郁得厉害。',
+      source: 'statement'
+    })
+    expect(stated).not.toBeNull()
+    const before = interests.list()[0]!
+    const reinforced = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111112',
+      occurredAt: '2026-10-25T10:05:00.000Z',
+      topicText: '最近抑郁又犯了，怎么办？',
+      source: 'question'
+    })
+    expect(reinforced?.id).toBe(before.id)
+    expect(reinforced?.evidenceCount).toBe(before.evidenceCount + 1)
+    expect(interests.list()).toHaveLength(1)
+  })
+})

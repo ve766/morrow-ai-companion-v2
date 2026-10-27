@@ -323,3 +323,21 @@ describe('the phase 2.2 dataset stays complete and green', () => {
     expect(report.cases.filter((testCase) => testCase.assertions === 0)).toEqual([])
   })
 })
+
+describe('the long-conversation fixture keeps the early constraint delivered', () => {
+  const fixture = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'evaluation', 'fixtures', 'long-conversation-v1.json'), 'utf8')
+  ) as unknown
+
+  it('still carries the memory at turn 25 and retrieves it as a topic in a new session', async () => {
+    const report = await runContextMemoryEvaluation(parseContextMemoryDataset(fixture))
+    const turns = report.cases[0]!.turns
+    expect(turns).toHaveLength(26)
+    // Turn 25 (index 24) is an ordinary turn: the early constraint is background.
+    expect(turns[24]!.passed).toBe(true)
+    expect(turns[24]!.request.memoryMatches).toContain('continuity')
+    // Turn 26 (index 25) starts a new conversation and asks about it directly.
+    expect(turns[25]!.passed).toBe(true)
+    expect(turns[25]!.request.memoryMatches).toContain('topic')
+  })
+})

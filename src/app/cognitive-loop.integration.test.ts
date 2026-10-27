@@ -265,6 +265,32 @@ describe('cognitive closed loop over a real loopback provider', () => {
     }
   })
 
+  it('does not turn a question about a topic into a personal interest', async () => {
+    const server = startLocalModelServer()
+    const url = await listen(server.raw)
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-question-interest-'))
+    directories.push(directory)
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    databases.push(database)
+    const stack = buildStack(database)
+    try {
+      stack.companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint: url, model: 'loop-model', enabled: true })
+      stack.companion.saveCognitiveSettings({ enabled: true })
+      const conversation = stack.companion.createConversation()
+      // Asking about a condition is not having it. No interest row may appear.
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '抑郁症一般怎么治疗？', includeSensitive: false }, () => {})
+      expect(stack.interests.list()).toEqual([])
+
+      // A declarative statement about the user still forms a sensitive topic.
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '我最近抑郁得厉害。', includeSensitive: false }, () => {})
+      const recorded = stack.interests.list()
+      expect(recorded).toHaveLength(1)
+      expect(recorded[0]?.sensitivity).toBe('sensitive')
+    } finally {
+      await server.close()
+    }
+  })
+
   it('restores interests, self-model and journal across restart without duplicating evidence', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-cognitive-restart-'))
     directories.push(directory)
