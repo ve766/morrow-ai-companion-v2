@@ -129,3 +129,34 @@ describe('echoesRequest', () => {
     expect(decision.verdict).toBe('fail')
   })
 })
+
+/**
+ * These two pin the evaluator's known blind spots from the Phase 2.1 real-model
+ * run. They are not assertions that the verdict is correct; they are assertions
+ * that the limitation is still visible and still carries its caveat, so a later
+ * edit cannot quietly turn the blind spot into an unqualified pass.
+ */
+describe('known misjudgements stay labelled', () => {
+  it('a third-person restatement still passes a mustMention rule, with the "mention is not use" caveat', () => {
+    // a4 in the 2026-10-27 run: the reply names 豆豆 but restates the user in
+    // the third person instead of answering the question.
+    const decision = decideVerdict(
+      { check: 'substring', mustMention: ['豆豆'] },
+      '用户提到豆豆，是不是生病了呢？',
+      [{ rule: 'mustMention:豆豆', passed: true, detail: 'present in reply' }]
+    )
+    expect(decision.verdict).toBe('pass')
+    expect(decision.caveat).toContain('not a use')
+  })
+
+  it('a declarative clarification still fails a question-mark rule, with the rule caveat', () => {
+    // a6 in the same run: the reply is a valid clarification without a "？".
+    const decision = decideVerdict(
+      { check: 'clarifying_question' },
+      '请告诉我预订的具体需求和时间。',
+      [{ rule: 'clarifying_question', passed: false, detail: 'no question mark' }]
+    )
+    expect(decision.verdict).toBe('fail')
+    expect(decision.caveat).toContain('may be the rule rather than the model')
+  })
+})

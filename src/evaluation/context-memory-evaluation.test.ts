@@ -300,3 +300,26 @@ describe('the committed fixture stays complete', () => {
     }
   })
 })
+
+describe('the phase 2.2 dataset stays complete and green', () => {
+  const fixture = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'evaluation', 'fixtures', 'context-memory-v2.json'), 'utf8')
+  ) as unknown
+
+  it('is the v2 dataset and covers every declared capability', () => {
+    const parsed = parseContextMemoryDataset(fixture)
+    expect(parsed.id).toBe('context-memory-v2')
+    const covered = new Set(parsed.cases.map((testCase) => testCase.capability))
+    expect(CONTEXT_MEMORY_CAPABILITIES.filter((capability) => !covered.has(capability))).toEqual([])
+  })
+
+  it('passes the gate with every case executing at least one assertion', async () => {
+    const report = await runContextMemoryEvaluation(parseContextMemoryDataset(fixture))
+    expect(report.gate.failedChecks).toEqual([])
+    expect(report.gate.passed).toBe(true)
+    // A green gate that ran nothing is not evidence; this pins that the added
+    // cases actually assert something.
+    expect(report.metrics.assertionsExecuted).toBeGreaterThan(100)
+    expect(report.cases.filter((testCase) => testCase.assertions === 0)).toEqual([])
+  })
+})
