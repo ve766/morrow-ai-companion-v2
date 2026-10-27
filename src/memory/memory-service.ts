@@ -5,6 +5,8 @@ import {
   MEMORY_SOURCE_CATEGORY,
   MEMORY_SOURCE_CATEGORIES,
   normalizedMemoryKey,
+  sharedTermCount,
+  significantMemoryTerms,
   transitionMemory,
   validateMemoryConfidence,
   validateMemorySearchQuery,
@@ -44,23 +46,6 @@ export interface MemoryConflictReport {
 // Terms significant enough that sharing several of them suggests two memories
 // talk about the same subject; used for conservative conflict flagging.
 const CONFLICT_MIN_SHARED_TERMS = 2
-
-function significantTerms(text: string): Set<string> {
-  const normalized = text.normalize('NFKC').toLocaleLowerCase()
-  const result = new Set<string>()
-  for (const token of normalized.match(/[\p{L}\p{N}]{2,}/gu) ?? []) {
-    result.add(token)
-    // CJK runs have no word separators; overlapping character bigrams are the
-    // smallest honest unit for "same subject" comparisons.
-    const characters = Array.from(token)
-    if (characters.some((character) => /\p{Script=Han}/u.test(character))) {
-      for (let index = 0; index < characters.length - 1; index += 1) {
-        result.add(characters[index]! + characters[index + 1]!)
-      }
-    }
-  }
-  return result
-}
 
 export class MemoryService {
   private readonly contextAssembler = new MemoryContextAssembler()
@@ -116,13 +101,12 @@ export class MemoryService {
   detectConflicts(id: string): MemoryConflictReport {
     const record = this.repository.get(id)
     if (!record) throw new ApplicationError('NOT_FOUND')
-    const terms = significantTerms(record.currentText)
+    const terms = significantMemoryTerms(record.currentText)
     const conflictsWith = this.repository.listActiveForContext(1000).filter((other) => {
       if (other.id === id) return false
-      const otherTerms = significantTerms(other.currentText)
-      let shared = 0
-      for (const term of terms) if (otherTerms.has(term)) shared += 1
-      return shared >= CONFLICT_MIN_SHARED_TERMS && normalizedMemoryKey(other.currentText) !== normalizedMemoryKey(record.currentText)
+      const otherTerms = significantMemoryTerms(other.currentText)
+      return sharedTermCount(terms, otherTerms) >= CONFLICT_MIN_SHARED_TERMS &&
+        normalizedMemoryKey(other.currentText) !== normalizedMemoryKey(record.currentText)
     })
     if (conflictsWith.length > 0) {
       this.events?.tryRecord({
@@ -151,9 +135,24 @@ export class MemoryService {
     return this.repository.search(query.trim())
   }
 
-  assembleContext(query: string, maximumSensitivity: Sensitivity): AssembledMemoryContext {
+  /**
+   * `conversationContext` is recent prior turns, not the current one. It is
+   * only used to decide whether a memory that shares nothing with this turn is
+   * still about the conversation; it never relaxes status or sensitivity
+   * filtering.
+   */
+  assembleContext(query: string, maximumSensitivity: Sensitivity, conversationContext = ''): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
-    return this.contextAssembler.assemble(query, this.repository.listActiveForContext(1000), maximumSensitivity)
+    if (typeof conversationContext !== 'string' || conversationContext.length > 20_000) throw new ApplicationError('INVALID_INPUT')
+    return this.contextAssembler.assemble(
+      query,
+      this.repository.listActiveForContext(1000),
+      maximumSensitivity,
+      25,
+      3000,
+      this.timestamp(),
+      conversationContext
+    )
   }
 
   history(id: string): MemoryRevisionRecord[] {

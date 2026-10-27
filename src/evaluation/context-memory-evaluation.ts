@@ -93,7 +93,7 @@ export interface ContextMemoryTurnExpectation {
   /** Exact number of entries tagged match="topic". */
   memoryTopicCount?: number
   /** At least one entry matching `contentContains` must carry this match reason. */
-  memoryMatchFor?: Array<{ contentContains: string; match: 'topic' | 'continuity'; stale?: boolean }>
+  memoryMatchFor?: Array<{ contentContains: string; match: 'topic' | 'context' | 'continuity'; stale?: boolean }>
   /**
    * If an entry containing this text is delivered at all, it must not be
    * promoted to match="topic". This is the assertion behind "an unrelated
@@ -614,7 +614,7 @@ const MATCH_KEYS = ['contentContains', 'match', 'stale'] as const
 const AFTER_KEYS = ['personalityVersionStable', 'activeMemoryCount', 'storedAssistantCount', 'storedUserCount'] as const
 const REAL_KEYS = ['check', 'mustMention', 'mustNotMention', 'note'] as const
 const REAL_CHECKS = ['substring', 'clarifying_question'] as const
-const MATCH_VALUES = ['topic', 'continuity'] as const
+const MATCH_VALUES = ['topic', 'context', 'continuity'] as const
 
 function rejectUnknownKeys(value: Record<string, unknown>, allowed: readonly string[], where: string): void {
   for (const key of Object.keys(value)) {

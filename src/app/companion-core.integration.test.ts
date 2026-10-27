@@ -468,9 +468,13 @@ describe('companion core: memory status filtering holds on every route', () => {
       await turn(ctx.companion, conversation.id, '南京远吗？')
       expect(memoryContents(ctx.captured.at(-1)!.system).join('|')).toContain('MEM_SENTINEL_CITY_南京')
 
-      // Continuity route: no overlap at all, so only the continuity layer could carry it.
+      // Background route: this turn shares no words with the record. Because
+      // the previous turn named 南京, the record is still on-topic for the
+      // conversation and is labelled `context` rather than `continuity`
+      // (Phase 2.2 added that tier). The point of the case is that the record
+      // is delivered here and then removed once retracted, not the label.
       await turn(ctx.companion, conversation.id, '今天有点累。')
-      expect(ctx.captured.at(-1)!.system).toContain('"match":"continuity"')
+      expect(ctx.captured.at(-1)!.system).toContain('"match":"context"')
 
       ctx.memories.retract(record.id)
 

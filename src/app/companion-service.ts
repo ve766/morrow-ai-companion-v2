@@ -919,7 +919,13 @@ export class ChatService {
         // made the companion meet the user again on each ordinary message.
         // The explicit recall route only widens the query with the referenced
         // message and the previous user turn.
-        memory = this.memories.assembleContext(retrievalQuery, max)
+        //
+        // A pronoun or an elliptical turn ("那后天呢？") shares no words with
+        // the memory that answers it. Recent prior turns are passed separately
+        // so such a memory can still be recognised as on-topic, and labelled
+        // `context` rather than `topic` so the distinction stays honest.
+        const conversationContext = history.slice(-4).map((message) => message.body).join('\n').slice(-2000)
+        memory = this.memories.assembleContext(retrievalQuery, max, conversationContext)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         const stateView = this.feelings.snapshot(evaluationAt)
@@ -943,7 +949,10 @@ export class ChatService {
       }
     }
 
-    if (!memory) memory = this.memories.assembleContext(content, max)
+    if (!memory) {
+      const fallbackContext = history.slice(-4).map((message) => message.body).join('\n').slice(-2000)
+      memory = this.memories.assembleContext(content, max, fallbackContext)
+    }
     const system = [
       `User-controlled communication preferences, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}.`,
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
