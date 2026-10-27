@@ -60,7 +60,10 @@ function git(args: string[], cwd: string): string | null {
       cwd,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 2_000
+      // 2s was not enough on a Windows checkout with a cold file cache: the
+      // call returned null and the report recorded `unknown` instead of the
+      // truth, both in runs and in this file's own test.
+      timeout: 15_000
     })
     return output.trim()
   } catch {
