@@ -176,3 +176,50 @@ describe('bounded reflection', () => {
     expect(reflection.run('startup')).toEqual({ skipped: 'rate_limited' })
   })
 })
+
+describe('interest sensitivity (task 4)', () => {
+  const first = '11111111-1111-4111-8111-111111111111'
+  const second = '33333333-3333-4111-8111-111111111111'
+
+  function promote(interests: InterestService, topicText: string, at: string): string {
+    // Three observations across two conversations is the real promotion path,
+    // so the test does not bypass the lifecycle just to reach 'active'.
+    interests.observe({ conversationId: first, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: at, topicText })
+    interests.observe({ conversationId: first, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: at, topicText })
+    interests.observe({ conversationId: second, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: at, topicText })
+    const record = interests.list().find((item) => item.status === 'active')
+    expect(record).toBeDefined()
+    return record!.id
+  }
+
+  it('classifies a sensitive topic and withholds it above the turn ceiling', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const sensitiveId = promote(interests, '抑郁症让我很难受', '2026-10-25T10:00:00.000Z')
+    const record = interests.list().find((item) => item.id === sensitiveId)
+    expect(record?.sensitivity).toBe('sensitive')
+    expect(interests.activeForContext(5, 'personal')).toEqual([])
+    expect(interests.activeForContext(5, 'sensitive').map((item) => item.id)).toEqual([sensitiveId])
+    // The default ceiling is the widest one, so old callers keep their behaviour.
+    expect(interests.activeForContext(5).map((item) => item.id)).toEqual([sensitiveId])
+  })
+
+  it('keeps an ordinary topic available without consent', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const normalId = promote(interests, '天文学最近很有意思', '2026-10-25T10:00:00.000Z')
+    expect(interests.list().find((item) => item.id === normalId)?.sensitivity).toBe('normal')
+    expect(interests.activeForContext(5, 'personal').map((item) => item.id)).toEqual([normalId])
+  })
+
+  it('never downgrades a sensitive interest after a neutral turn', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const id = promote(interests, '抑郁症让我很难受', '2026-10-25T10:00:00.000Z')
+    // Shares 最近/得厉/厉害 with the stored terms but contains no marker.
+    interests.observe({ conversationId: first, messageId: '22222222-2222-4111-8111-111111111112', occurredAt: '2026-10-26T10:00:00.000Z', topicText: '最近得厉害' })
+    const record = interests.list().find((item) => item.id === id)
+    expect(record?.sensitivity).toBe('sensitive')
+    expect(interests.activeForContext(5, 'personal')).toEqual([])
+  })
+})

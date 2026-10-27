@@ -615,6 +615,31 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
       `)
     }
+  },
+  {
+    version: 16,
+    name: 'interest-sensitivity',
+    up(database) {
+      // Interests are derived topic labels, not memories, so they never had a
+      // sensitivity class and were therefore always eligible for the prompt.
+      // The marker list is inlined here on purpose: a migration must keep doing
+      // what it did on the day it shipped, even if the runtime classifier is
+      // refined later. Existing rows are backfilled from the label and the
+      // stored term set, which is the only evidence a v15 row still carries.
+      const sensitiveMarkers = [
+        '抑郁', '焦虑', '自杀', '自残', '癌', '艾滋', '确诊', '疾病', '生病',
+        '住院', '吃药', '药物', '精神', '创伤', '家暴', '虐待', '离婚', '债务',
+        '欠款', '负债', '工资', '薪', '怀孕', '性取向', '性生活', '性侵', '宗教', '政治'
+      ]
+      const backfill = sensitiveMarkers
+        .map((marker) => `instr(lower(label || ' ' || terms_json), '${marker}') > 0`)
+        .join(' OR ')
+      database.exec(`
+        ALTER TABLE interests ADD COLUMN sensitivity TEXT NOT NULL DEFAULT 'normal'
+          CHECK (sensitivity IN ('normal', 'personal', 'sensitive'));
+        UPDATE interests SET sensitivity = 'sensitive' WHERE ${backfill};
+      `)
+    }
   }
 ]
 

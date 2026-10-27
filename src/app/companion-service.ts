@@ -587,7 +587,7 @@ export interface SelfModelLoopServices {
  * on self_model_entries, not a looser predicate here.
  */
 export function buildSelfModelContextBlock(services: SelfModelLoopServices, maximumSensitivity: Sensitivity): string {
-  const interests = services.interests.activeForContext(3)
+  const interests = services.interests.activeForContext(3, maximumSensitivity)
   const facts = maximumSensitivity === 'sensitive' ? services.selfModel.activeStatementsForContext(3) : []
   const lines: string[] = []
   if (interests.length > 0) {
