@@ -77,9 +77,9 @@ describe('a restore cannot resurrect data deleted after the backup', () => {
     const allergy = memories.create('用户对花生过敏。', 'sensitive')
     const city = memories.create('用户住在杭州。', 'personal')
     database.connection.prepare(`
-      INSERT INTO memory_suggestions(id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content)
-      VALUES (?, ?, ?, ?, 'sensitive', 'accepted', 'test', ?, ?, ?, ?, ?)
-    `).run('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', conversationA.id, messageA.id, '用户对花生过敏。', 'c'.repeat(64), clock(), clock(), allergy.id, '用户对花生过敏。')
+      INSERT INTO memory_suggestions(id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content)
+      VALUES (?, ?, ?, ?, 'fact', 'user', 'model_proposal', 70, lower(trim(?)), 'sensitive', 'accepted', '[]', 'test', ?, ?, ?, ?, ?)
+    `).run('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', conversationA.id, messageA.id, '用户对花生过敏。', '用户对花生过敏。', 'c'.repeat(64), clock(), clock(), allergy.id, '用户对花生过敏。')
 
     const tone = feedback.list().find((candidate) => candidate.kind === 'tone')!
     const boundary = feedback.list().find((candidate) => candidate.kind === 'boundary')!

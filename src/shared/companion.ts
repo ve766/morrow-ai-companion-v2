@@ -17,7 +17,9 @@ export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
 export type PersonalityDisagreementStyle = 'gentle' | 'balanced' | 'direct'
-export type MemorySuggestionStatus = 'pending' | 'accepted' | 'rejected'
+export type MemorySuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+export type MemoryCandidateKind = 'fact' | 'preference' | 'goal' | 'project' | 'correction'
+export type MemoryCandidateEvidenceType = 'user_explicit_statement' | 'user_explicit_correction' | 'model_proposal'
 
 export interface ConversationRecord {
   id: string
@@ -72,11 +74,24 @@ export interface ContextMemory {
   conflictGroup?: number
 }
 
+export interface MemoryRetrievalDecision {
+  memoryId: string
+  included: boolean
+  match: 'topic' | 'context' | 'continuity' | null
+  lexicalScore: number
+  contextScore: number
+  /** Null means no semantic measurement exists; it is not zero similarity. */
+  semanticScore: number | null
+  reason: 'selected' | 'inactive' | 'unauthorized' | 'below_relevance_threshold' | 'budget_excluded'
+}
+
 export interface AssembledMemoryContext {
   text: string
   selected: ContextMemory[]
   omitted: number
   characterCount: number
+  /** Explainable selection outcome for every candidate record. */
+  decisions?: MemoryRetrievalDecision[]
 }
 
 export interface ProviderConfigRecord {
@@ -216,8 +231,14 @@ export interface MemorySuggestion {
   conversationId: string
   sourceMessageId: string
   claim: string
+  candidateKind: MemoryCandidateKind
+  subject: 'user'
+  evidenceType: MemoryCandidateEvidenceType
+  confidence: number
   sensitivity: Sensitivity
   status: MemorySuggestionStatus
+  conflictWith: string[]
+  correctionTargetId: string | null
   providerModel: string
   createdAt: string
   reviewedAt: string | null
@@ -227,7 +248,7 @@ export interface MemorySuggestion {
 
 export interface MemorySuggestionReviewRequest {
   id: string
-  decision: 'accept' | 'reject'
+  decision: 'accept' | 'reject' | 'withdraw'
   content?: string
   sensitivity?: Sensitivity
 }

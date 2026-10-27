@@ -257,7 +257,7 @@ describe('a controlled failure during the upgrade leaves the original intact', (
     openDatabases.push(degraded)
     expect(degraded.schemaVersion).toBe(20)
 
-    const backups = readdirSync(directory).filter((name) => name.startsWith('morrow.sqlite3.pre-v20-to-v21-') && name.endsWith('.bak'))
+    const backups = readdirSync(directory).filter((name) => name.startsWith(`morrow.sqlite3.pre-v20-to-v${CURRENT_SCHEMA_VERSION}-`) && name.endsWith('.bak'))
     expect(backups).toHaveLength(1)
     const snapshot = join(directory, backups[0]!)
     expect(statSync(snapshot).size).toBeGreaterThan(0)

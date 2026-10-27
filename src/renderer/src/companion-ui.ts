@@ -153,8 +153,26 @@ export function initializeCompanion(): void {
     }
     const items = suggestions.map((suggestion) => {
       const card = node('article', 'suggestion-card')
-      const heading = node('div', 'suggestion-heading', `${suggestion.status === 'pending' ? '待审核' : suggestion.status === 'accepted' ? '已保存' : '已拒绝'} · ${sensitivityName(suggestion.sensitivity)} · ${formatTime(suggestion.createdAt)}`)
+      const statusLabel = suggestion.status === 'pending'
+        ? '待审核'
+        : suggestion.status === 'accepted'
+          ? '已保存'
+          : suggestion.status === 'withdrawn' ? '已撤回' : '已拒绝'
+      const kindLabel = suggestion.candidateKind === 'correction'
+        ? '更正'
+        : suggestion.candidateKind === 'preference'
+          ? '偏好'
+          : suggestion.candidateKind === 'goal'
+            ? '目标'
+            : suggestion.candidateKind === 'project' ? '项目' : '事实'
+      const heading = node('div', 'suggestion-heading', `${statusLabel} · ${kindLabel} · ${sensitivityName(suggestion.sensitivity)} · ${formatTime(suggestion.createdAt)}`)
       card.append(heading)
+      if (suggestion.conflictWith.length > 0) {
+        card.append(node('p', 'companion-muted', `与 ${suggestion.conflictWith.length} 条现有记忆可能存在冲突；保存后仍需你确认哪条是当前事实。`))
+      }
+      if (suggestion.correctionTargetId) {
+        card.append(node('p', 'companion-muted', `这是一条更正候选，确认后会保留原记忆的修订历史（目标 ${suggestion.correctionTargetId}）。`))
+      }
       if (suggestion.status === 'pending') {
         const input = node('textarea', 'suggestion-edit')
         input.value = suggestion.claim
@@ -191,7 +209,18 @@ export function initializeCompanion(): void {
             reject.disabled = false
           }
         })
-        actions.append(accept, reject)
+        const withdraw = button('撤回候选', 'button button-quiet button-small', async () => {
+          withdraw.disabled = true
+          try {
+            unwrap(await window.morrow.memorySuggestions.review({ id: suggestion.id, decision: 'withdraw' }))
+            setStatus('候选已撤回，不会进入记忆或后续上下文。')
+            await loadSuggestions()
+          } catch (error) {
+            setStatus(errorText(error), true)
+            withdraw.disabled = false
+          }
+        })
+        actions.append(accept, reject, withdraw)
         card.append(input, sensitivity, actions)
       } else {
         card.append(node('p', 'suggestion-claim', suggestion.acceptedContent ?? suggestion.claim))

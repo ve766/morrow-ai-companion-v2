@@ -77,15 +77,15 @@
     {
       "id": "xmem-01",
       "dimension": "cross_session_memory",
-      "memories": [{ "content": "回答尽量简洁，不要客套开场。", "sensitivity": "normal" }],
+      "memories": [{ "content": "我偏好简洁回答。", "sensitivity": "normal" }],
       "steps": [
         { "type": "send", "content": "你好。" },
         { "type": "newConversation" },
-        { "type": "send", "content": "今天帮我看看这个思路。" }
+        { "type": "send", "content": "请按我的偏好回答。" }
       ],
       "expect": {
         "roles": ["system", "user"],
-        "systemContains": ["回答尽量简洁", "\"match\":\"continuity\""],
+        "systemContains": ["我偏好简洁回答。", "\"match\":\"topic\""],
         "providerCalls": 2
       }
     },
@@ -93,7 +93,7 @@
       "id": "xmem-02",
       "dimension": "cross_session_memory",
       "memories": [{ "content": "用户可能喜欢安静的工作环境。", "sourceCategory": "model_inferred_confirmed", "confidence": 60, "confirmed": false }],
-      "steps": [{ "type": "send", "content": "今天有点吵。" }],
+      "steps": [{ "type": "send", "content": "我喜欢安静的工作环境吗？" }],
       "expect": {
         "systemContains": ["model_inferred_confirmed", "\"confidence\":60"],
         "providerCalls": 1
@@ -104,9 +104,9 @@
       "dimension": "correction_update",
       "memories": [{ "content": "我住在南京。", "sensitivity": "personal" }],
       "steps": [
-        { "type": "send", "content": "我今天在家。" },
+        { "type": "send", "content": "我住在哪里？" },
         { "type": "correct", "memoryIndex": 0, "content": "我住在杭州。" },
-        { "type": "send", "content": "我今天在家。" }
+        { "type": "send", "content": "我住在哪里？" }
       ],
       "expect": {
         "systemContains": ["我住在杭州。"],
@@ -120,7 +120,7 @@
       "memories": [{ "content": "我的车牌是 MEM_SENTINEL_OLD_南京A12345", "sensitivity": "personal" }],
       "steps": [
         { "type": "correct", "memoryIndex": 0, "content": "我的车牌是 MEM_SENTINEL_NEW_杭州B67890" },
-        { "type": "send", "content": "今天天气不错。" }
+        { "type": "send", "content": "我的车牌是什么？" }
       ],
       "expect": {
         "systemContains": ["MEM_SENTINEL_NEW_杭州B67890"],
@@ -166,7 +166,7 @@
       "steps": [
         { "type": "retract", "memoryIndex": 0 },
         { "type": "restore", "memoryIndex": 0 },
-        { "type": "send", "content": "今天好累。" }
+        { "type": "send", "content": "我的猫呢？" }
       ],
       "expect": {
         "systemContains": ["MEM_SENTINEL_CAT"],
@@ -340,7 +340,7 @@
       "id": "integ-02",
       "dimension": "payload_integrity",
       "memories": [{ "content": "我偏好简洁回答。", "sensitivity": "normal" }],
-      "steps": [{ "type": "send", "content": "随便聊聊。" }],
+      "steps": [{ "type": "send", "content": "请按我的偏好回答。" }],
       "expect": {
         "rawContains": ["\"model\":\"deepseek-flash\""],
         "rawExcludes": ["evaluation-only-secret"],
@@ -352,9 +352,9 @@
       "id": "integ-03",
       "dimension": "payload_integrity",
       "memories": [{ "content": "我住在杭州。", "sensitivity": "personal" }],
-      "steps": [{ "type": "send", "content": "今天有点累。" }],
+      "steps": [{ "type": "send", "content": "我住在哪里？" }],
       "expect": {
-        "systemContains": ["我住在杭州。", "\"match\":\"continuity\"", "continuity=background"],
+        "systemContains": ["我住在杭州。", "\"match\":\"topic\"", "continuity=background"],
         "memoryCount": 1,
         "providerCalls": 1
       }
@@ -372,7 +372,7 @@
       "steps": [{ "type": "send", "content": "杭州今天下雨吗？" }],
       "expect": {
         "systemContains": ["我住在杭州。", "\"match\":\"topic\""],
-        "memoryCount": 4,
+        "memoryCount": 1,
         "providerCalls": 1
       }
     },
@@ -380,10 +380,10 @@
       "id": "prov-01",
       "dimension": "cross_session_memory",
       "memories": [
-        { "content": "我住在杭州。", "sensitivity": "personal", "sourceCategory": "user_explicit_input", "confidence": 85, "confirmed": false },
+        { "content": "我喜欢热闹。", "sensitivity": "personal", "sourceCategory": "user_explicit_input", "confidence": 85, "confirmed": false },
         { "content": "我可能喜欢安静。", "sensitivity": "personal", "sourceCategory": "model_inferred_confirmed", "confidence": 60, "confirmed": false }
       ],
-      "steps": [{ "type": "send", "content": "今天好吵。" }],
+      "steps": [{ "type": "send", "content": "我喜欢安静吗？" }],
       "expect": {
         "systemContains": [
           "\"sourceCategory\":\"user_explicit_input\"",

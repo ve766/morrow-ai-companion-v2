@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "semantic-judgement-regression-v1",
+  "description": "A1 regression set. Each case declares an expected verdict before execution; known false passes cannot be satisfied by uncertain.",
+  "cases": [
+    { "id": "subject-assistant-code-1", "category": "subject_attribution", "expected": "fail", "input": { "reply": "我现在的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-assistant-code-2", "category": "subject_attribution", "expected": "fail", "input": { "reply": "我的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-assistant-code-3", "category": "subject_attribution", "expected": "fail", "input": { "reply": "BLUE-731 是我的项目代号。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-third-party", "category": "subject_attribution", "expected": "fail", "input": { "reply": "我朋友的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-user-code-1", "category": "subject_attribution", "expected": "pass", "input": { "reply": "你的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-user-code-2", "category": "subject_attribution", "expected": "pass", "input": { "reply": "我记得你的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "subject-unknown", "category": "subject_attribution", "expected": "uncertain", "input": { "reply": "项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+
+    { "id": "denial-code-1", "category": "denial", "expected": "fail", "input": { "reply": "你没有项目代号 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "denial-code-2", "category": "denial", "expected": "fail", "input": { "reply": "BLUE-731 不是你的项目代号。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "denial-code-3", "category": "denial", "expected": "fail", "input": { "reply": "我不记得你的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "denial-positive", "category": "denial", "expected": "pass", "input": { "reply": "你的项目代号确实是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "denial-wrong-value", "category": "denial", "expected": "fail", "input": { "reply": "你的项目代号不是 BLUE-731，而是 RED-1。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+
+    { "id": "contradiction-1", "category": "intra_reply_contradiction", "expected": "fail", "input": { "reply": "我不记得你住在大阪，但你现在住在大阪。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"] } } },
+    { "id": "contradiction-2", "category": "intra_reply_contradiction", "expected": "fail", "input": { "reply": "你现在不住在大阪；不过你现在住在大阪。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"] } } },
+    { "id": "contradiction-3", "category": "intra_reply_contradiction", "expected": "fail", "input": { "reply": "你住在大阪。其实我也不确定你是不是住在大阪。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"] } } },
+    { "id": "contradiction-positive", "category": "intra_reply_contradiction", "expected": "pass", "input": { "reply": "你住在大阪，不过这条记录很久没有确认了。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"] } } },
+
+    { "id": "correction-old", "category": "correction", "expected": "fail", "input": { "reply": "你住在杭州。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
+    { "id": "correction-new", "category": "correction", "expected": "pass", "input": { "reply": "你现在住在大阪。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
+
+    { "id": "revision-old-not-current", "category": "revision_history", "expected": "fail", "input": { "reply": "你住在杭州。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
+    { "id": "revision-old-marked-history", "category": "revision_history", "expected": "pass", "input": { "reply": "你以前住在杭州，现在住大阪。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
+
+    { "id": "conflict-one-side", "category": "conflict", "expected": "fail", "input": { "reply": "你住在杭州。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"], "valueRelations": { "杭州": ["住"], "大阪": ["住"] } } },
+    { "id": "conflict-disclosed", "category": "conflict", "expected": "pass", "input": { "reply": "你有两条记录冲突：杭州和大阪，我无法确定哪个是当前事实，需要你确认。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"] } },
+    { "id": "conflict-both-asserted", "category": "conflict", "expected": "uncertain", "input": { "reply": "你住在杭州，也住在大阪。", "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"] } },
+
+    { "id": "no-memory-no-fabrication", "category": "no_fabrication", "expected": "pass", "input": { "reply": "我不记得你的项目代号。", "expectsAnswer": true, "acceptable": ["不记得", "不知道", "没有记录"] } },
+    { "id": "no-memory-retracted-leak", "category": "no_fabrication", "expected": "fail", "input": { "reply": "你的项目代号是 BLUE-731。", "retracted": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+
+    { "id": "unknown-explicit", "category": "explicit_unknown", "expected": "pass", "input": { "reply": "我不确定你的项目代号，因为目前没有记录。", "expectsAnswer": true, "acceptable": ["不记得", "不知道", "没有记录", "不确定"] } },
+    { "id": "unknown-despite-delivered", "category": "explicit_unknown", "expected": "fail", "input": { "reply": "我不知道你的项目代号。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+
+    { "id": "remember-question-not-confirmation", "category": "remember_question", "expected": "uncertain", "input": { "reply": "你还记得你的项目代号是 BLUE-731 吗？", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+    { "id": "remember-confirmed", "category": "remember_question", "expected": "pass", "input": { "reply": "是的，你的项目代号是 BLUE-731。", "current": ["BLUE-731"], "expectsAnswer": true, "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+
+    { "id": "long-earlier-correction", "category": "long_conversation", "expected": "fail", "input": { "reply": "你住在杭州。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "conversation": [{ "role": "user", "content": "我不再住杭州了，现在住大阪。" }, { "role": "assistant", "content": "知道了。" }], "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
+    { "id": "long-correction-retained", "category": "long_conversation", "expected": "pass", "input": { "reply": "你现在住在大阪。", "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true, "conversation": [{ "role": "user", "content": "我不再住杭州了，现在住大阪。" }], "valueRelations": { "大阪": ["住"], "杭州": ["住"] } } },
+    { "id": "long-earlier-project-denial", "category": "long_conversation", "expected": "fail", "input": { "reply": "你的项目代号是 BLUE-731。", "superseded": ["BLUE-731"], "expectsAnswer": true, "conversation": [{ "role": "user", "content": "我不再使用项目代号 BLUE-731。" }], "valueRelations": { "BLUE-731": ["项目代号", "代号"] } } },
+
+    { "id": "quotation-not-endorsement", "category": "quotation", "expected": "uncertain", "input": { "reply": "你说过“我住在大阪”，但这不等于我确认这是真的。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"] } } },
+    { "id": "reported-user-fact", "category": "quotation", "expected": "pass", "input": { "reply": "你之前告诉我你住在大阪。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住"] } } },
+
+    { "id": "keyword-friend-in-city", "category": "keyword_only", "expected": "fail", "input": { "reply": "你在大阪有很多朋友。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住", "住在", "居住", "家"] } } },
+    { "id": "keyword-weather", "category": "keyword_only", "expected": "fail", "input": { "reply": "大阪的天气不错。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住", "住在", "居住", "家"] } } },
+    { "id": "keyword-bound-answer", "category": "keyword_only", "expected": "pass", "input": { "reply": "你住在大阪。", "current": ["大阪"], "expectsAnswer": true, "valueRelations": { "大阪": ["住", "住在", "居住", "家"] } } }
+  ]
+}

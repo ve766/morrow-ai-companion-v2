@@ -54,6 +54,62 @@ function containsPhrase(normalizedContent: string, phrase: string): boolean {
   return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, 'u').test(normalizedContent)
 }
 
+// Bigrams made only of function characters carry almost no topical evidence.
+// The production false positive "给我一个完全无关的问题" matched "我一直住在杭州"
+// solely through the accidental bigram "我一".
+const functionCharacter = /[我你您他她它的了吗呢吧啊是在有和就都而及与着一个]/u
+function isWeakCjkTerm(term: string): boolean {
+  // Only the leading character decides function status. A blanket check would
+  // discard a content word such as 吉他 merely because its second character
+  // happens to be 他.
+  return /\p{Script=Han}/u.test(term) && functionCharacter.test(Array.from(term)[0] ?? '')
+}
+
+function hasStrongOverlap(content: string, queryTerms: string[]): boolean {
+  const normalized = normalize(content)
+  const tokens = tokensOf(normalized)
+  return queryTerms.some((term) => {
+    if (isWeakCjkTerm(term)) return false
+    return termMatches(term, normalized, tokens)
+  })
+}
+
+const topicCues: ReadonlyArray<RegExp> = [
+  /(?:住在|居住|搬家|搬到|地址|地点|城市)/u,
+  /(?:项目|代号|产品名)/u,
+  /(?:喜欢|偏好|讨厌|习惯|决定方式)/u,
+  /(?:学习|在学|学会|课程|软件)/u,
+  /(?:工作|职业|公司|从事|工程师|开发|设计|后端|前端)/u,
+  /(?:猫|狗|宠物|养了)/u
+]
+
+function sharesTopicCue(query: string, content: string): boolean {
+  return topicCues.some((cue) => cue.test(query) && cue.test(content))
+}
+
+/**
+ * A safety constraint has a real relationship to a food/meal question even
+ * when the two sentences share no vocabulary. This is the only non-topic path
+ * allowed into continuity; arbitrary recency is not evidence.
+ */
+function sharesSafetyConstraint(query: string, content: string): boolean {
+  return /(?:过敏|不能吃|忌口|禁忌)/u.test(content) &&
+    /(?:吃|餐|饭|食物|菜|饮|外卖|零食)/u.test(query)
+}
+
+/**
+ * Topic evidence is not "any character collided". It requires a phrase, a
+ * content-bearing overlap, or the same explicit fact family (residence,
+ * project, preference, learning, work). Contradictory values in the same
+ * family are deliberately relevant: the conflict must reach the model.
+ */
+function hasTopicEvidence(query: string, content: string, queryTerms: string[], phrase: string): boolean {
+  const normalized = normalize(content)
+  return containsPhrase(normalized, phrase) ||
+    hasStrongOverlap(content, queryTerms) ||
+    sharesTopicCue(normalize(query), normalized)
+}
+
 function score(content: string, queryTerms: string[], phrase: string): number {
   const normalized = normalize(content)
   const tokens = tokensOf(normalized)
@@ -89,7 +145,7 @@ function continuityOrder(left: { record: MemoryRecord }, right: { record: Memory
   return left.record.id.localeCompare(right.record.id)
 }
 
-const defaultContinuityLimit = 3
+const defaultContinuityLimit = 1
 // A memory that shares nothing with this turn but is still about the recent
 // conversation is stronger evidence than background, so it gets its own tier
 // with its own (still small) bound.
@@ -297,23 +353,35 @@ export class MemoryContextAssembler {
         contextScore: contextTerms.length > 0 ? score(record.currentText, contextTerms, contextPhrase) : 0
       }))
     const matched = candidates
-      .filter((item) => item.score > 0)
+      .filter((item) => hasTopicEvidence(query, item.record.currentText, queryTerms, phrase))
       .sort((left, right) =>
         rankScore(right, now) - rankScore(left, now) ||
         right.record.updatedAt.localeCompare(left.record.updatedAt) ||
         left.record.id.localeCompare(right.record.id))
+    const matchedIds = new Set(matched.map((item) => item.record.id))
     const contextMatched = this.contextLimit > 0 && contextTerms.length > 0
       ? candidates
-          .filter((item) => item.score === 0 && item.contextScore > 0)
+          .filter((item) =>
+            !matchedIds.has(item.record.id) &&
+            item.score === 0 &&
+            item.contextScore > 0 &&
+            hasTopicEvidence(contextText, item.record.currentText, contextTerms, contextPhrase))
           .sort((left, right) =>
             (right.contextScore + rankScore(right, now)) - (left.contextScore + rankScore(left, now)) ||
             right.record.updatedAt.localeCompare(left.record.updatedAt) ||
             left.record.id.localeCompare(right.record.id))
           .slice(0, this.contextLimit)
       : []
+    const contextIds = new Set(contextMatched.map((item) => item.record.id))
     const continuity = this.continuityLimit > 0
       ? candidates
-          .filter((item) => item.score === 0 && item.contextScore === 0)
+          .filter((item) =>
+            !matchedIds.has(item.record.id) &&
+            !contextIds.has(item.record.id) &&
+            item.score === 0 &&
+            item.contextScore === 0 &&
+            (sharesTopicCue(normalize(query), normalize(item.record.currentText)) ||
+              sharesSafetyConstraint(normalize(query), normalize(item.record.currentText))))
           .sort(continuityOrder)
           .slice(0, this.continuityLimit)
       : []
@@ -365,6 +433,28 @@ export class MemoryContextAssembler {
       text = encode(selected, superseded.filter((entry) => keep.has(entry.memoryId)))
     }
 
-    return { text, selected, omitted: eligible.length - selected.length, characterCount: text.length }
+    const decisions = records.map((record) => {
+      const selectedItem = selected.find((item) => item.id === record.id)
+      const match = selectedItem?.match ?? null
+      const lexicalScore = selectedItem?.score ?? 0
+      const contextScore = contextMatched.find((item) => item.record.id === record.id)?.contextScore ?? 0
+      let reason: 'selected' | 'inactive' | 'unauthorized' | 'below_relevance_threshold' | 'budget_excluded'
+      if (record.status !== 'active') reason = 'inactive'
+      else if (order.indexOf(record.sensitivity) > order.indexOf(maximumSensitivity)) reason = 'unauthorized'
+      else if (selectedItem) reason = 'selected'
+      else if (eligible.some((item) => item.item.record.id === record.id)) reason = 'budget_excluded'
+      else reason = 'below_relevance_threshold'
+      return {
+        memoryId: record.id,
+        included: reason === 'selected',
+        match,
+        lexicalScore,
+        contextScore,
+        semanticScore: null,
+        reason
+      }
+    })
+
+    return { text, selected, omitted: eligible.length - selected.length, characterCount: text.length, decisions }
   }
 }

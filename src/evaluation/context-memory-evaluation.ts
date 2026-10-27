@@ -170,7 +170,9 @@ export interface ContextMemoryCase {
       superseded?: string[]
       retracted?: string[]
       conflicting?: string[]
+      acceptable?: string[]
       expectsAnswer?: boolean
+      valueRelations?: Record<string, string[]>
     }
   } | null
 }
@@ -631,7 +633,7 @@ const EXPECT_KEYS = [
 const MATCH_KEYS = ['contentContains', 'match', 'stale'] as const
 const AFTER_KEYS = ['personalityVersionStable', 'activeMemoryCount', 'storedAssistantCount', 'storedUserCount'] as const
 const REAL_KEYS = ['check', 'mustMention', 'mustNotMention', 'note', 'judge'] as const
-const JUDGE_KEYS = ['current', 'superseded', 'retracted', 'conflicting', 'acceptable', 'expectsAnswer'] as const
+const JUDGE_KEYS = ['current', 'superseded', 'retracted', 'conflicting', 'acceptable', 'expectsAnswer', 'valueRelations'] as const
 const REAL_CHECKS = ['substring', 'clarifying_question'] as const
 const MATCH_VALUES = ['topic', 'context', 'continuity'] as const
 
@@ -771,6 +773,15 @@ function validateCase(candidate: Record<string, unknown>, seen: Set<string>): Co
       }
       if (judge.expectsAnswer !== undefined && typeof judge.expectsAnswer !== 'boolean') {
         throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+      }
+      if (judge.valueRelations !== undefined) {
+        if (judge.valueRelations === null || typeof judge.valueRelations !== 'object' || Array.isArray(judge.valueRelations)) {
+          throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+        }
+        for (const [value, relations] of Object.entries(judge.valueRelations as Record<string, unknown>)) {
+          if (value.length === 0) throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+          requireStrings(relations, `${candidate.id}:realModel:judge:valueRelations:${value}`)
+        }
       }
       // A judge with no dimension would silently pass everything.
       const declared = ['current', 'superseded', 'retracted', 'conflicting']

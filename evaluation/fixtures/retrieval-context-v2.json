@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "retrieval-context-v2",
+  "description": "Chinese false-recall and relevance gates added after the memory-pipeline diagnosis. Continuity is not counted as a retrieval hit.",
+  "cases": [
+    {
+      "id": "unrelated-chinese-bigram-trap",
+      "query": "给我一个完全无关的问题。",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我一直住在杭州。", "sensitivity": "personal" },
+        { "id": "blender", "content": "我最近开始学习 Blender。", "sensitivity": "personal" },
+        { "id": "preference", "content": "我喜欢独自研究新技术，不喜欢别人替我做决定。", "sensitivity": "personal" }
+      ],
+      "relevant": [],
+      "note": "The old CJK bigram rule matched 我一直住在杭州 only through the accidental bigram 我一."
+    },
+    {
+      "id": "residence-paraphrase",
+      "query": "我现在住在哪里？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我一直住在杭州。", "sensitivity": "personal" },
+        { "id": "blender", "content": "我最近开始学习 Blender。", "sensitivity": "personal" },
+        { "id": "cat", "content": "我养了一只猫。", "sensitivity": "personal" }
+      ],
+      "relevant": ["hangzhou"],
+      "note": "Residence cue plus 住在/杭州 evidence."
+    },
+    {
+      "id": "preference-paraphrase",
+      "query": "你记得我喜欢怎样做决定吗？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "preference", "content": "我喜欢独自研究新技术，不喜欢别人替我做决定。", "sensitivity": "personal" },
+        { "id": "hangzhou", "content": "我一直住在杭州。", "sensitivity": "personal" }
+      ],
+      "relevant": ["preference"]
+    },
+    {
+      "id": "learning-paraphrase",
+      "query": "我最近在学什么软件？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "blender", "content": "我最近开始学习 Blender。", "sensitivity": "personal" },
+        { "id": "hangzhou", "content": "我一直住在杭州。", "sensitivity": "personal" }
+      ],
+      "relevant": ["blender"]
+    },
+    {
+      "id": "elliptical-context",
+      "query": "那后来呢？",
+      "conversationContext": "我最近开始学习 Blender。",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "blender", "content": "我最近开始学习 Blender。", "sensitivity": "personal" },
+        { "id": "hangzhou", "content": "我一直住在杭州。", "sensitivity": "personal" },
+        { "id": "cat", "content": "我养了一只猫。", "sensitivity": "personal" }
+      ],
+      "relevant": ["blender"],
+      "note": "Only the conversation-context evidence may retrieve Blender."
+    },
+    {
+      "id": "conflict-both-relevant",
+      "query": "我住在哪里？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我住在杭州。", "sensitivity": "personal" },
+        { "id": "osaka", "content": "我住在大阪。", "sensitivity": "personal" }
+      ],
+      "relevant": ["hangzhou", "osaka"],
+      "note": "A conflict must not be silently resolved by ordering."
+    },
+    {
+      "id": "retracted-excluded",
+      "query": "我的项目代号是什么？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "blue", "content": "我的项目代号是 BLUE-731。", "sensitivity": "personal" },
+        { "id": "old", "content": "我的旧项目代号是 RED-2。", "sensitivity": "personal", "status": "retracted" }
+      ],
+      "relevant": ["blue"],
+      "mustNotRecall": ["old"]
+    },
+    {
+      "id": "sensitive-denied",
+      "query": "我对什么过敏？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "allergy", "content": "我对花生严重过敏。", "sensitivity": "sensitive" }
+      ],
+      "relevant": [],
+      "mustNotRecall": ["allergy"]
+    },
+    {
+      "id": "english-token-boundary",
+      "query": "What pet do I have?",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "dog", "content": "I have a dog named Pixel.", "sensitivity": "normal" }
+      ],
+      "relevant": [],
+      "note": "do must not match inside dog."
+    }
+  ]
+}

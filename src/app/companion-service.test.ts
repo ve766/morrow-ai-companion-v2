@@ -182,7 +182,7 @@ describe('DeepSeek companion vertical slice', () => {
       const request = { conversationId: ctx.conversation.id, sourceMessageId: source.id }
       const suggestions = await ctx.companion.proposeMemorySuggestions(request)
       expect(suggestions).toHaveLength(1)
-      expect(suggestions[0]).toMatchObject({ status: 'pending', claim: 'Prefers printed books for long-form reading.', sensitivity: 'sensitive', acceptedMemoryId: null })
+      expect(suggestions[0]).toMatchObject({ status: 'pending', claim: 'Prefers printed books for long-form reading.', sensitivity: 'personal', acceptedMemoryId: null })
       expect(ctx.memories.list()).toEqual([])
 
       const pending = suggestions[0]!
