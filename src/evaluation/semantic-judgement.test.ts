@@ -25,10 +25,18 @@ describe('recall is a second-person assertion, not a keyword', () => {
     expect(status(result, 'polarity')).toBe('fail')
   })
 
-  it('fails when the assistant says it does not remember', () => {
+  it('fails when the assistant says it does not remember a delivered fact', () => {
     const result = judgeReply({ reply: '我不记得你对什么过敏。', ...allergy })
     expect(result.verdict).toBe('fail')
     expect(status(result, 'polarity')).toBe('fail')
+  })
+
+  it('does not fail an admission when there was nothing to remember', () => {
+    // The judge used to score "我不记得" as a denial even with no memory, which
+    // turned the correct answer into a failure.
+    const result = judgeReply({ reply: '我不记得你的生日。', expectsAnswer: true })
+    expect(status(result, 'polarity')).toBe('pass')
+    expect(result.verdict).not.toBe('fail')
   })
 
   it('does not pass a question back to the user', () => {

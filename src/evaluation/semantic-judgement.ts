@@ -55,8 +55,11 @@ export interface JudgeInput {
 
 // The assistant claiming a user fact as its own. `我不能判断你的过敏` is not a claim.
 const FIRST_PERSON_OWN_FACT = /我(?:也|曾|一直|确实|真的|从小)?(?:对[^，。！？?]{0,12})?过敏|我(?:有|患有|得了|确诊)[^，。！？?]{0,8}(?:过敏|抑郁|焦虑|疾病)/u
-// Denial of the remembered fact: the content is present but negated.
-const DENIAL = /(?:不是|并非|没有|没)(?:对)?[^，。！？?]{0,6}(?:过敏|住在|喜欢|讨厌)|(?:不记得|没印象|记不清|不知道你|无法确认你)/u
+// Denial of the remembered fact: the content is present but negated. Saying
+// "I do not remember" is a different act and is handled separately - it is the
+// right answer when there is nothing to remember and a failure when the fact
+// was delivered.
+const DENIES_FACT = /(?:不是|并非|没有|没)(?:对)?[^，。！？?]{0,6}(?:过敏|住在|喜欢|讨厌)/u
 // A quotation or a question is not an assertion.
 const QUOTED = /(?:你说过|你提到过|你问我|你曾|你之前说|你说)[^。！？!?]{0,20}/u
 const QUESTION_FORM = /[?？]\s*$/u
@@ -103,9 +106,16 @@ function subjectFinding(reply: string, values: string[]): JudgeFinding {
   return { dimension: 'subject', status: 'pass', basis: 'no first-person claim about the user\'s fact' }
 }
 
-function polarityFinding(reply: string): JudgeFinding {
-  if (DENIAL.test(reply)) {
+function polarityFinding(reply: string, current: string[]): JudgeFinding {
+  if (DENIES_FACT.test(reply)) {
     return { dimension: 'polarity', status: 'fail', basis: 'the reply denies the remembered fact' }
+  }
+  if (ADMITS_UNKNOWN.test(reply)) {
+    // With nothing to remember, admitting it is the correct answer; with the
+    // fact in hand it is a refusal to use what was delivered.
+    return current.length > 0
+      ? { dimension: 'polarity', status: 'fail', basis: 'the reply claims not to remember a fact that was delivered' }
+      : { dimension: 'polarity', status: 'pass', basis: 'the reply admits it has no record' }
   }
   if (QUOTED.test(reply) && !SUPERSEDED_MARKER.test(reply)) {
     return { dimension: 'polarity', status: 'uncertain', basis: 'the fact appears inside a quotation, so it may not be asserted' }
@@ -207,7 +217,7 @@ export function judgeReply(input: JudgeInput): JudgeResult {
   }
 
   findings.push(subjectFinding(reply, [...current, ...superseded, ...conflicting]))
-  findings.push(polarityFinding(reply))
+  findings.push(polarityFinding(reply, current))
   if (current.length > 0) {
     findings.push(mentions(reply, current).length > 0
       ? { dimension: 'content', status: 'pass', basis: 'the expected value appears' }
