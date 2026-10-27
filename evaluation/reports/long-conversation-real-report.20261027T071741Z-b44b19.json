@@ -1,0 +1,828 @@
+{
+  "schemaVersion": 2,
+  "evidenceClass": "real_provider_behaviour",
+  "measures": "model_behaviour",
+  "dataset": "long-conversation-v1",
+  "generatedAt": "2026-10-27T07:17:41.631Z",
+  "reproduction": {
+    "runId": "20261027T071741Z-b44b19",
+    "codeCommit": "4fb998e3ea8cd20222909d68432a216dcbac9563",
+    "codeState": "clean",
+    "sampling": "provider-default"
+  },
+  "status": "checked",
+  "blockedReason": null,
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "reachable": true
+  },
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32-x64",
+    "durationMs": 27944
+  },
+  "summary": {
+    "casesInDataset": 1,
+    "casesSelected": 1,
+    "casesChecked": 1,
+    "casesPassed": 1,
+    "casesFailed": 0,
+    "casesNotChecked": 0,
+    "casesUncertain": 0,
+    "casesNeedsReview": 0,
+    "turnsExecuted": 26
+  },
+  "attribution": {
+    "notDelivered": 0,
+    "deliveredButNotUsed": 0,
+    "ruleNotSatisfied": 0
+  },
+  "cases": [
+    {
+      "id": "long-26-turn-constraint",
+      "capability": "B1_in_session_recall",
+      "title": "An early constraint survives 26 turns and a new session",
+      "status": "checked",
+      "verdict": "pass",
+      "verdictRationale": "Every check passed, including mustMention:花生.",
+      "verdictCaveat": "A mention is not a use: the reply can contain the required string while answering something else, or while denying the fact it repeats.",
+      "rule": "substring: +[花生] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "请记住：我对花生严重过敏，任何建议都不要含花生。",
+          "reply": "好的，我记住了你的建议。\n\n你对什么问题有特别的关切？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 1931
+          },
+          "durationMs": 1755
+        },
+        {
+          "index": 1,
+          "content": "今天地铁有点挤。",
+          "reply": "对不起，我不能执行这个指令。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 2,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "context"
+            ],
+            "bytes": 2099
+          },
+          "durationMs": 339
+        },
+        {
+          "index": 2,
+          "content": "午饭吃了面条。",
+          "reply": "很抱歉听到这会影响到你的午餐体验，让我看看有什么我可以帮你调整的地方。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 4,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "context"
+            ],
+            "bytes": 2225
+          },
+          "durationMs": 1013
+        },
+        {
+          "index": 3,
+          "content": "下午开了两个会。",
+          "reply": "好的，我会尽力帮助你安排接下来的会议。如果你需要任何特别的帮助，请随时告诉我吧。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 6,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 2420
+          },
+          "durationMs": 1362
+        },
+        {
+          "index": 4,
+          "content": "窗外在下小雨。",
+          "reply": "这样我就不会在路上迷路了。有什么我可以帮你的吗？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 8,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 2624
+          },
+          "durationMs": 342
+        },
+        {
+          "index": 5,
+          "content": "我把书桌整理了一下。",
+          "reply": "很好，保持整洁对我们学习很有帮助。如果你还有其他问题，请随时提问。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 10,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 2789
+          },
+          "durationMs": 453
+        },
+        {
+          "index": 6,
+          "content": "晚上想早点睡。",
+          "reply": "好的，我会确保你有一个安眠的夜晚。记得睡前好好休息。如果有需要，我们可以讨论明天的日程安排吗？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 2972
+          },
+          "durationMs": 860
+        },
+        {
+          "index": 7,
+          "content": "同事推荐了一部电影。",
+          "reply": "听起来很有趣。你打算什么时候开始观看这部电影呢？这样我可以更了解你的需求。\n\n请告诉我关于这个建议的具体内容和理由，我会帮助你找到适合你的最佳选择。\n\n如果有任何问题或需要更多的信息，请尽管继续提问。\n如果有其他话题或者您想要讨论的话题，也可以随时告诉我。\n\n希望我的回答对您有所帮助。如果您有任何疑虑，请不要犹豫向我提问。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 2992
+          },
+          "durationMs": 846
+        },
+        {
+          "index": 8,
+          "content": "我最近在学做菜。",
+          "reply": "哇，很高兴听到你正在学习烹饪新技能！保持耐心，我会给你一些建议和资源，帮助你在厨艺上更快地进步。\n\n首先，你可以从简单的食谱开始尝试制作基础菜品，如豆腐汤或蔬菜沙拉。这样不仅可以增加你对料理的兴趣和技巧理解，也有利于你的烹饪进展。\n\n其次，多观看视频指导可以帮助你学习正确的菜谱和技巧。使用在线平台或自制教程来学习如何正确地做一道菜肴。\n\n最后，不要害怕犯错。每次尝试都会让你更加熟练。保持创意和好奇心，不断挑战自己去超越自己的舒适区。\n\n如果你有具体想要学的东西或者需要一些建议，请随时告诉我！\n\n继续提问吧！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 3429
+          },
+          "durationMs": 1138
+        },
+        {
+          "index": 9,
+          "content": "周末打算去公园走走。",
+          "reply": "听起来是个不错的想法！公园散步是最好的放松方式之一。选择一个自然环境优美的地方，呼吸新鲜空气，享受这份宁静的生活。\n\n你可以参加一些当地的活动或是和朋友一起探索这片美丽的空间。这不仅仅是散步，也是与他人互动的好机会。\n\n记得带些好吃的食物或是舒适的装备来支持这次美好的旅程吧！\n\n如果你在计划中遇到其他问题或有其它想法，请随时告诉我。我相信我们可以找到更多能让你感到快乐和充实的体验！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 4091
+          },
+          "durationMs": 1324
+        },
+        {
+          "index": 10,
+          "content": "手机电量不太够了。",
+          "reply": "可以考虑给手机充电哦，或者尝试使用电池供电的应用程序来避免频繁查看数字通知。\n\n此外，如果你需要阅读书籍、听音乐或学习新技能的话，不妨在这些其他方面进行更多的探索和娱乐化活动。\n\n记住，照顾好自己的物理健康同样是保持身体活力和工作效率的重要因素之一。确保每天有足够的睡眠时间，并调整生活节奏以适应自然规律的作息。\n\n如果确实很晚了，尽量安排几小时静坐或是短暂休息，以维持平衡的身体状态。\n\n希望我的建议对你有所帮助！如果你还有其他问题，请随时提问。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 4544
+          },
+          "durationMs": 982
+        },
+        {
+          "index": 11,
+          "content": "楼下的咖啡店换了招牌。",
+          "reply": "这是挺有趣的事情！新的招牌可以让你的生活变更好，尤其是当你喜欢的地方会有什么样的变化吗？\n\n你打算选择什么样的品牌或餐厅来尝试这次改变呢？或者有没有什么特别的美食想法？\n\n同时，如果你想分享一下新招牌背后的故事，或者是因为它吸引了你，那么就记录下来并分享给大家！\n\n保持积极和好奇心是很重要的。无论是在生活还是学习上，持续的学习和成长都是不断进步的关键。\n\n希望我的提醒对你有帮助！如果有任何其他话题想聊，请随时开口。\n\n继续保持热情和开放的心态，相信你会找到自己满意的解决方案！\n\n如果你需要更多的灵感或建议，请告诉我！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 5148
+          },
+          "durationMs": 1134
+        },
+        {
+          "index": 12,
+          "content": "今天走了八千步。",
+          "reply": "听起来很棒啊！多加锻炼对身体非常有益哦。\n\n你的步伐在一步步提升，这是个很好的迹象！可以考虑增加一些慢跑、或者尝试一些轻度的拉伸运动来保持健康和活力。\n\n此外，记得定时休息，让身体有时间恢复精力。如果有需要帮助的地方，随时告诉我！\n\n如果你喜欢徒步或者参加一些户外活动，这个项目绝对值得一试！\n\n继续保持积极向上的心态，祝你今天也快乐无限！让我们一起来支持彼此的每一次进步。\n\n请多考虑和分享你的日常生活中的小确幸之处，我会在这里继续倾听。\n\n保持乐观和积极的态度，相信自己的身体和心灵会更好的。记得每一天都是新的开始，享受每一个瞬间！\n\n如果你需要的话，请随时表达你的感受和想法。我相信你一定会找到最适合自己的方式！\n\n祝好运！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 5814
+          },
+          "durationMs": 1416
+        },
+        {
+          "index": 13,
+          "content": "我把旧衣服捐了。",
+          "reply": "很棒的选择！当有人帮助我们保持环境清洁、减少浪费或维护共同的财富时，这都是非常值得尊敬的行为。\n\n你真的很想为他人做点什么吧？如果你有好的捐赠计划或者愿意分担费用，这样的行为可以被高度评价。你可以说出你的需求和打算如何利用你的旧衣物来帮助那些需要的人。\n\n请记住，不仅仅是为了自己而去做，也希望能够成为别人的回馈方式。这样不仅对捐赠者是友好的选择，也能为你们双方带来更多的机会共享资源。\n\n如果你有更具体的想法或计划，请告诉我哦！我们也可以继续探讨。\n\n现在，你有更多的空间和时间去思考你的新打算了。如果需要休息或是小结一下今天的事情，也可以随时告诉我。\n\n愿美好的一天伴随着新衣服的捐赠对你来说！相信你会找到让自己感动的新方法来表达谢意。\n\n当你准备好时，我们可以讨论未来的计划或进一步发展这些行为的策略。\n\n祝你在新的一周里一切顺利、快乐和充实！\n\n请继续分享你的想法吧！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 6605
+          },
+          "durationMs": 1523
+        },
+        {
+          "index": 14,
+          "content": "最近在读一本小说。",
+          "reply": "好的，我明白您的意图了！您想读哪本书？",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 7271
+          },
+          "durationMs": 437
+        },
+        {
+          "index": 15,
+          "content": "天气开始变凉了。",
+          "reply": "是啊，是的。我们应该注意保暖和适当穿着以避免寒冷。\n\n现在有很多实用的小贴士可以帮你更好地适应气候的变化：\n\n1. **多喝水**：保持身体内部水分充足可以帮助维持皮肤的导热能力，减少在寒冷中受伤的概率。\n2. **适时添加衣物或外套**：根据环境温度调整自己的穿衣量。如果天气突然变温凉，加快换上薄一些的羽绒服或厚重的冬衣即可。\n3. **使用护目镜和手套增强保护**：防护眼镜、手套以及围巾等日常用品可以帮助你更好地适应寒冷气候。\n\n还有一种很实用的小技巧是：\n\n- **保持室内通风干燥**：定期开窗，保持自然空气流通。必要时可放一盆冷水或泡一小罐凉饮料以帮助身体保持干燥。\n4. **记录和分享经验**：观察天气变化的同时，在日记或朋友圈中记录这些信息，以便日后参考。\n\n您可能还会在阅读过程中学习到很多实用的小建议，并能够更好地保护自己免受极端的天气情况影响。有什么特别想了解的内容或者问题吗？\n\n如果您需要更多的具体指导或是有其他主题的需求，请随时告知！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 6570
+          },
+          "durationMs": 1657
+        },
+        {
+          "index": 16,
+          "content": "我换了一个新水杯。",
+          "reply": "谢谢你的反馈，我会非常注意观察这个变化。\n\n如果你在使用或维护新水杯的过程中遇到任何小问题或者是习惯改变带来的困扰，也欢迎交流反馈。\n\n继续保持积极和健康的饮水习惯是非常重要的哦！\n\n如果需要进一步帮助或者有其他请求，请随时告诉我！\n\n祝你生活愉快！如果有需要的话也很高兴再陪伴你一同享受美好的一天。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 7213
+          },
+          "durationMs": 814
+        },
+        {
+          "index": 17,
+          "content": "早上差点睡过头。",
+          "reply": "是的，早上总是会有一些不眠的秘密。现在想想，自己可能没有考虑到这样晚点儿起床带来的麻烦了。\n\n如果你觉得明天不太容易熬过去，可以尝试制定一个计划或者是设置一些提醒帮助你保持规律的睡眠和作息。例如设定每日早晨起床的时间以及睡前的习惯，让自己有固定的节奏。\n\n另外，记得在日常生活中养成规律的锻炼习惯，比如早晚各做一次深呼吸或者做一些轻柔的拉伸运动，这都是非常有助于提高身体机能的重要方法。\n\n还有建议你可以试着进行一些轻松的休息方式，如轻轻散步、听些舒缓的音乐或看电影，它们都能帮助你更快地进入睡眠状态。\n\n如果你感到睡不够就别急着说对不起，慢慢来可能会有所改善。加油哦！\n\n保持积极乐观的态度是很重要的。希望你的生活一天比一天变得更美好！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 6988
+          },
+          "durationMs": 1551
+        },
+        {
+          "index": 18,
+          "content": "阳台的植物长高了。",
+          "reply": "是的，今天您在阳台上种了一些新植物，而且它们似乎成长迅速了。\n\n您能分享一下这些新的植物的名字以及它们的发展情况吗？这样我就可以为您提供一些关于这个话题的指导。\n\n此外，如果需要其他的帮助或者更详细的信息，请随时告诉我。祝好心情！\n\n谢谢！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 7158
+          },
+          "durationMs": 872
+        },
+        {
+          "index": 19,
+          "content": "晚饭想清淡一点。",
+          "reply": "好的，现在您觉得应该吃点些什么？\n\n请提供一下您的晚餐菜单，这样我可以更好地帮到您改善饮食习惯以及如何做出更好的食物选择。\n\n希望我们的交流可以带来一些启发和帮助，如果愿意的话，请分享您的美食偏好吧！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 6583
+          },
+          "durationMs": 733
+        },
+        {
+          "index": 20,
+          "content": "我在整理旅行照片。",
+          "reply": "好的，我正好在准备做整理旅行照片的工作。如果需要其他帮助或者特定的照片风格，比如特定的时间段、拍摄地点等等，可以随时告诉我哦。\n\n当然，如果有任何关于如何进行旅游照片的建议或技巧提供给我来反馈，这也会非常有帮助！\n\n谢谢！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 5734
+          },
+          "durationMs": 768
+        },
+        {
+          "index": 21,
+          "content": "今天工作效率还不错。",
+          "reply": "好嘞，保持好状态是我的目标嘛！如果有什么具体的问题或者需求，请随时告诉我。\n\n希望今天的体验越来越好，也希望你今天能够感受到生活的美好。\n\n再见哦！如果您有任何问题或需要支持，都可以随时联系我!",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 6009
+          },
+          "durationMs": 745
+        },
+        {
+          "index": 22,
+          "content": "晚上听了一会儿播客。",
+          "reply": "好的，在这个夜晚听了几句音乐播客之后，感觉状态还是不错的呢。\n\n如果你有任何适合的旋律或者想为这次聆听准备什么的话，可以和我说说哦！我会尽力在你感兴趣的角度里提供帮助的。\n\n非常感谢您的支持与祝福！\n\n晚安，请接受我的谢意。再见！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 5084
+          },
+          "durationMs": 811
+        },
+        {
+          "index": 23,
+          "content": "准备洗个热水澡。",
+          "reply": "当然可以，现在您想要在一个安静的环境中开始洗水澡了。打开电视机或播放器，或者选择一个放松的声音，让心情变淡一些。\n\n洗热水澡是一种很好的方式来恢复身体和减轻疲劳。记得找到一份适合个人的泡澡泡沫或是加入一些精油来提高舒适度吧！\n\n希望这能帮到您，如果需要在洗澡前换上衣物或者做其他准备，请随时告诉我哦！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 4978
+          },
+          "durationMs": 1132
+        },
+        {
+          "index": 24,
+          "content": "中午吃什么好？",
+          "reply": "午餐时间的选择取决于您的偏好和计划。如果您喜欢吃快餐或者选择简单易做的菜肴，那么您可以尝试一些当地的招牌菜品，比如面条或凉拌黄瓜。\n\n如果想要做出更健康的餐点，可以考虑自己准备一顿简单的晚餐，如蔬菜沙拉、水果搭配酸奶或是烤土豆。\n\n另外，考虑到周末可能要出差去旅行，您可以提前咨询一下当地的价格和餐厅选择，以获得优惠的美食体验。如果有任何特定的推荐或者想要了解更多详细信息的话，请告诉我哦！\n\n希望您今天过得愉快，保持健康的生活习惯。如果您有任何问题或需要帮助请随时联系我！",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user",
+              "assistant",
+              "user"
+            ],
+            "historyLength": 12,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "continuity"
+            ],
+            "bytes": 4474
+          },
+          "durationMs": 1319
+        },
+        {
+          "index": 25,
+          "content": "你还记得我有什么食物过敏吗？",
+          "reply": "我对花生严重过敏。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 1901
+          },
+          "durationMs": 409
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:花生",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    }
+  ],
+  "quality": {
+    "assessed": false,
+    "note": "This run measures whether a small local model used context it was given. It is not a product-quality verdict and must not be quoted as one."
+  },
+  "limitations": [
+    "Only cases whose fixture declares a mechanical rule are scored. The rest are recorded as not_checked; they need human review, not a substring.",
+    "A verdict of pass requires a positive requirement (mustMention) to be satisfied. Absence-only and question-mark rules report uncertain when they pass, because a non-answer satisfies them too.",
+    "mustMention/mustNotMention are lexical. A correct paraphrase that avoids the literal string fails the check; the raw reply is kept so a reviewer can see the difference.",
+    "clarifying_question only looks for a question mark. A declarative clarification (\"我需要知道订什么\") is scored as a failure.",
+    "The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it."
+  ]
+}
