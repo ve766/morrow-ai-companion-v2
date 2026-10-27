@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "phase-2.2.3-scenarios",
+  "description": "Conflict, correction and retraction scenarios for repeated real-model runs. Delivery is asserted deterministically; model behaviour is judged by positive rules where possible.",
+  "cases": [
+    {
+      "id": "conflict-both-sides",
+      "capability": "B7_conflict_both_visible",
+      "title": "Two conflicting values must both be surfaced",
+      "claims": "Both conflicting records are delivered, and the reply must mention both values; picking one silently fails.",
+      "setup": {
+        "memories": [
+          { "content": "我住在杭州。", "sensitivity": "personal" },
+          { "content": "我住在上海。", "sensitivity": "personal" }
+        ]
+      },
+      "turns": [
+        { "content": "我住在哪里？", "expect": { "memoryEntries": 2 } }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": ["杭州", "上海"],
+        "note": "Both values must appear; the rule cannot tell whether the reply called them a conflict."
+      }
+    },
+    {
+      "id": "correction-follows-new-value",
+      "capability": "B3_correction_is_current",
+      "title": "A correction replaces the old value",
+      "claims": "After an explicit correction the new value is delivered and the old value is absent; the reply must use the new value.",
+      "setup": {
+        "memories": [
+          { "content": "我住在上海。", "sensitivity": "personal" }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": { "type": "correct", "memoryIndex": 0, "content": "我住在杭州。" },
+          "expect": { "contextContains": ["杭州"], "contextExcludes": ["上海"] }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": ["杭州"],
+        "mustNotMention": ["上海"],
+        "note": "The corrected value must appear and the replaced value must not be presented as current."
+      }
+    },
+    {
+      "id": "retracted-not-used",
+      "capability": "B4_retracted_not_used",
+      "title": "A retracted fact is not delivered",
+      "claims": "A retracted record is not delivered at all; a reply that repeats it fails.",
+      "setup": {
+        "memories": [
+          { "content": "我住在南京。", "sensitivity": "personal" }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": { "type": "retract", "memoryIndex": 0 },
+          "expect": { "contextExcludes": ["南京"], "memoryEntries": 0 }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": ["南京"],
+        "note": "Absence-only rule: satisfying it is reported as uncertain, never pass."
+      }
+    }
+  ]
+}
