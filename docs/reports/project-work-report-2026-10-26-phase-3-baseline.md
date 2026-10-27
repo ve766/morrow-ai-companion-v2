@@ -218,8 +218,9 @@ Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] ... node_modules/.vitest
 
 ## 8. CI
 
-- 本轮改动的 CI：[run 40355348359](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40355348359) @ `69df024`，**success，3/3 Job，attempt 1**。详见 §10。
-- 该运行覆盖 §1 全部代码提交与 §2 全部文件；本文档后续的纯文字提交不单独引用。
+- 代码树的 CI：[run 40355348359](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40355348359) @ `69df024`，**success，3/3 Job，attempt 1**。该 SHA 是本分支**最后一个含代码或测试改动的提交**，覆盖 §1 全部代码提交与 §2 全部文件。
+- 分支头的 CI：截至撰写为 `bb7f926`，[run 40357066330](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40357066330)，同样 **3/3、attempt 1**。此后的提交只改文档，代码树不变。
+- 两者的关系与不可引用的边界见 §10。
 - 历史 13 次运行已按 SHA 列在 `phase-2-evidence-alignment.md` §5.1。
 - 两次首轮失败的根因（Windows 持久化用例 5s / 20s 超时）已记录，其中 20s 那次说明 `testTimeout` 提高**未解决根因**。
 
@@ -244,7 +245,11 @@ Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] ... node_modules/.vitest
 
 ## 10. CI 回填
 
-**结论对象：`69df024`（包含 §1 全部代码提交与四份文档）**
+两个事实分开记，因为它们的寿命不同：一个是**代码树**的绿灯（稳定），一个是**分支头**的绿灯（会漂）。
+
+### 10.1 代码树的绿灯
+
+**结论对象：`69df024`，本分支最后一个含代码或测试改动的提交。**
 
 | 项 | 值 |
 |---|---|
@@ -255,11 +260,29 @@ Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] ... node_modules/.vitest
 
 CI 内的 `Offline evaluations` 步现在会执行四组评测，包含本轮新增的 `npm run evaluate:context`。这证明契约在**干净容器**里成立，不只在本机。
 
-### 10.1 为什么不再引用更晚的提交
+**为什么这个 SHA 可以长期引用**：`69df024` 之后到撰写时的每一次提交，都只触及 `docs/reports/` 下的 Markdown。这个判断不依赖记忆，任何人可当场复核：
 
-本段文字位于一个纯文档提交中，它不含任何代码或测试改动，且每次补充说明都会产生新的 SHA。引用一个仍在变的 SHA 没有意义，所以本报告只对 `69df024` 这一棵树作出结论——它已经包含 §1 的全部代码与 §2 的全部文件。
+```
+$ git diff --name-only 69df024..HEAD | grep -v '^docs/'
+（无输出）
+```
 
-### 10.2 不能从这次绿灯推出的事
+代码树没变，所以那次绿灯对当前代码树的结论仍然成立，不需要随着文档措辞的修正而去追新的 SHA。若将来有人在此分支上改了 `src/`、`scripts/` 或 `evaluation/`，上一条 grep 就会有输出——那时本文的结论即失效，必须重新引用新 SHA 的运行。
+
+### 10.2 分支头的绿灯（会漂移）
+
+截至撰写，分支头是 `bb7f926`（本身也是一个纯文档提交），它同样一次通过：
+
+| 项 | 值 |
+|---|---|
+| Run | [40357066330](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40357066330) |
+| head SHA | `bb7f9269917e1e6ce5bc831072eec58db34fa218` |
+| 尝试 / 结论 | attempt 1 / **success** |
+| Job | 3/3 success；Windows 16:13:48→16:16:42（2m54s），Ubuntu 1m25s，升级路径 58s |
+
+这一行会随任何新提交过期。它记录的是「截至某时刻 HEAD 也是绿的」，不是「分支永远绿」。要判断**当前**是否绿，请看 `gh run list --branch feat/phase-2-companion-core --limit 1`，而不是引用本表。
+
+### 10.3 不能从这些绿灯推出的事
 
 - 它**不**证明真实模型行为。CI 不含 `verify:real` 与 `verify:context:real`（需要本机 Ollama），那部分证据只在 §6，且只对本机环境有效。
 - 它**不**证明门禁有效。门禁的有效性由 §5 的突变实验证明；一份有缺陷的代码同样能通过 CI（`f579897` 就是先例）。
