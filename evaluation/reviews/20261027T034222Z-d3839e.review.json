@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "human_review",
+  "runId": "20261027T034222Z-d3839e",
+  "reviewedAt": "2026-10-27T03:55:00.000Z",
+  "reviewer": {
+    "kind": "agent",
+    "name": "morrow-audit-agent"
+  },
+  "cases": [
+    {
+      "caseId": "a1-pronoun-cat",
+      "verdict": "fail",
+      "note": "认出是猫（\"这隻橘猫\"）但没有使用名字，也没有回答年龄。规则判 fail 与人工一致：部分消解不等于消解。"
+    },
+    {
+      "caseId": "a3-switch-to-guitar",
+      "verdict": "fail",
+      "note": "问的是和弦怎么按，回的是记忆清单，并把猫带了进来。规则判 fail 与人工一致，且比规则描述更糟：不是\"顺带提到\"，而是整条回复被记忆占据。"
+    },
+    {
+      "caseId": "a4-revisit-cat",
+      "verdict": "fail",
+      "note": "自动判 pass，因为回复含\"豆豆\"。人工判 fail：以第三人称复述记忆，然后反问用户要更多信息，没有回答\"是不是生病了\"。这正是词面命中掩盖的非回答，也是自动侧唯一的假通过。"
+    },
+    {
+      "caseId": "a5-two-sessions",
+      "verdict": "uncertain",
+      "note": "把问题原样抛回（\"她的情绪是如何的？\"），不是澄清。有问号但没有澄清行为，自动的 uncertain 恰好准确。"
+    },
+    {
+      "caseId": "a6-insufficient",
+      "verdict": "pass",
+      "note": "自动判 fail，因为回复里没有问号。人工判 pass：\"请告诉我预订的具体需求和时间\"是声明式澄清，正确答案被规则判错。自动侧唯一的假失败。"
+    },
+    {
+      "caseId": "b1-recall-in-session",
+      "verdict": "fail",
+      "note": "反问用户本周要去哪，而该信息在请求里。记忆送达但未被使用。"
+    },
+    {
+      "caseId": "b2-recall-new-session",
+      "verdict": "fail",
+      "note": "答\"婚礼\"但没有城市，且以第三人称提问。跨会话回忆未成立。"
+    },
+    {
+      "caseId": "b3-correction",
+      "verdict": "pass",
+      "note": "答\"杭州\"，未使用被纠正的旧值。第三人称，但事实正确，可作纠正生效的证据。"
+    },
+    {
+      "caseId": "b7-conflict",
+      "verdict": "fail",
+      "note": "两条冲突记忆都在请求里，回复只给\"上海\"，从不说明冲突。与另外三次运行一致，是稳定缺陷而非采样噪声。"
+    },
+    {
+      "caseId": "b8-miss",
+      "verdict": "uncertain",
+      "note": "回复是一段退化的结构化片段（\"suggestion\":\"informative|...\"），既没答天气，也没提生日。规则只能确认\"没提生日\"，不能说明别的，uncertain 准确。"
+    },
+    {
+      "caseId": "b9-bounded",
+      "verdict": "fail",
+      "note": "自动判 uncertain（只查是否提到驾照）。人工判 fail：没有给出任何推荐，且把《星球大战》与《钢铁是怎样炼成的》混成一个不存在的片名。无关记忆没泄漏，但这一轮什么也没做成。"
+    },
+    {
+      "caseId": "c4-uncertain",
+      "verdict": "fail",
+      "note": "在存在冲突/过期证据时直接断言\"用户住在上海\"。三次运行分别给出杭州、上海、杭州——城市在变，\"确定\"不变。"
+    }
+  ]
+}
