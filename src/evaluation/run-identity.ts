@@ -76,12 +76,19 @@ function git(args: string[], cwd: string): string | null {
 export function readCodeProvenance(cwd: string = process.cwd()): Pick<RealRunReproduction, 'codeCommit' | 'codeState'> {
   const commit = git(['rev-parse', 'HEAD'], cwd)
   if (commit === null || !/^[0-9a-f]{40}$/u.test(commit)) return { codeCommit: null, codeState: 'unknown' }
-  // Untracked files count. A run whose code is not fully committed cannot be
-  // rebuilt from the commit id, so calling that tree "clean" would make the
-  // commit a label that does not describe what actually ran.
-  const status = git(['status', '--porcelain'], cwd)
+  // Untracked files count, because a run whose code is not fully committed
+  // cannot be rebuilt from the commit id. The reports directory is the
+  // exception: those files are this evaluation's own output, and counting them
+  // would mark every run after the first as dirty for producing evidence.
+  const status = git(['status', '--porcelain', '--untracked-files=all'], cwd)
   if (status === null) return { codeCommit: commit, codeState: 'unknown' }
-  return { codeCommit: commit, codeState: status.length === 0 ? 'clean' : 'dirty' }
+  // `--untracked-files=all` is required: the default collapses a new directory
+  // to `?? evaluation/reports/`, which names no file and cannot be classified.
+  const changed = status
+    .split('\n')
+    .map((line) => line.slice(3).replace(/^.* -> /u, '').trim().replace(/\/+$/u, ''))
+    .filter((path) => path.length > 0 && path !== 'evaluation/reports' && !path.startsWith('evaluation/reports/'))
+  return { codeCommit: commit, codeState: changed.length === 0 ? 'clean' : 'dirty' }
 }
 
 export function buildReproduction(generatedAt: string, evidenceSeed: string, cwd?: string): RealRunReproduction {

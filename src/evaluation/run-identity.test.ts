@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -70,6 +70,28 @@ describe('code provenance', () => {
 
     expect(readCodeProvenance(directory).codeState).toBe('clean')
     writeFileSync(join(directory, 'file.txt'), 'changed\n', 'utf8')
+    expect(readCodeProvenance(directory).codeState).toBe('dirty')
+  })
+
+  it('does not call the tree dirty because the evaluation wrote its own evidence', () => {
+    const directory = scratchDirectory()
+    const git = (args: string[]): void => {
+      execFileSync('git', args, { cwd: directory, stdio: 'ignore' })
+    }
+    git(['init', '-q'])
+    git(['config', 'user.email', 'evaluation@example.invalid'])
+    git(['config', 'user.name', 'evaluation'])
+    writeFileSync(join(directory, 'file.txt'), 'first\n', 'utf8')
+    git(['add', '.'])
+    git(['commit', '-q', '-m', 'first'])
+
+    mkdirSync(join(directory, 'evaluation', 'reports'), { recursive: true })
+    writeFileSync(join(directory, 'evaluation', 'reports', 'run.json'), '{}\n', 'utf8')
+    expect(readCodeProvenance(directory).codeState).toBe('clean')
+
+    // An untracked source file is different: the commit no longer describes
+    // the code that ran, so that tree is dirty.
+    writeFileSync(join(directory, 'uncommitted.ts'), 'export {}\n', 'utf8')
     expect(readCodeProvenance(directory).codeState).toBe('dirty')
   })
 })
