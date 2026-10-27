@@ -18,7 +18,7 @@
 | CI 实测 | ubuntu-latest **42 文件 / 291 测试通过**；windows-latest **42 文件 / 291 测试通过**；windows 升级路径 6 文件 / 47 测试通过；双平台 smoke `Morrow smoke passed`；`evaluate:companion` 双平台 21/21、`replayStable: true`、`networkCalls: 0` |
 | CI 抖动处置 | **已修**：`vitest.config.ts` 设 `testTimeout: 20_000`（原默认 5000ms）。**未改任何断言、未跳过任何测试、未降低并发**。完整失败记录与归因见 §12.4 |
 | CI 覆盖范围 | **仅限 `.github/workflows/ci.yml` 定义的检查项**；**不含**真实 Provider 对话、**不含**安装包打包、**不含**任何质量评估（见 §1.2、§17 Q8） |
-| 真实 Provider 验证 | **已执行并通过**：`status: verified`，4 / 4 轮，9 / 9 项客观检查 |
+| 真实 Provider 验证 | **已执行并通过**：`status: verified`，4 / 4 轮，9 / 9 项客观检查（运行 `20261026T120635Z-7f6c41`；`verified` 指请求结构全对，**不指模型回答正确**） |
 | 真实 Provider 环境 | 本机 Ollama `http://127.0.0.1:11434/v1`，模型 `qwen2.5:0.5b`（**0.5B 小参数模型**） |
 | 本机测试 | `42` 文件 / `291` 测试通过：`--maxWorkers=2` 通过；修 `testTimeout` 后**默认并发连跑两次也通过** |
 | 离线评估 | 3 组全部通过（`evaluate` / `evaluate:cognition` / `evaluate:companion`） |
@@ -26,6 +26,16 @@
 | Windows 安装包 | **未执行**（本阶段未打包） |
 
 本报告中的每一条事实都对应一次本次实际执行的命令输出。凡未执行、失败或无法验证的项目，均在 §12.5 与 §14 单独列明，**不与通过项混写**。模型自己说的话不作为记忆、情绪或人格的证据——所有关于「记忆是否进入请求」「人格是否进入请求」的结论，都来自**被拦截并序列化的请求体本身**，不来自模型自述。
+
+> ### ⚠ 证据版本更正（2026-10-27 审计）
+>
+> 本报告 §7.4、§8.3、§17 引用的 turn-4 回复「我住在杭州，做后端开发。」是**真实输出**，来自运行 `20261026T120635Z-7f6c41`（`generatedAt: 2026-10-26T12:06:35.483Z`）。
+>
+> 问题在于：该运行之后又有 4 次 `verified` 运行写到了**同一个文件名**，最后落盘的是一次 `20261026T155509Z-4aee35`，它的 turn-4 回复是「我会忘记你在这里的状态。」。因此本报告当时指向的那个路径，读者今天打开会看到相反结论。
+>
+> 这是**证据归档缺陷**（固定文件名 + 报告没有运行 ID 可引），不是伪造，也没有任何模型输出被改写。五次运行都是真的，模型在同一问题上给出过不同答案。
+>
+> 处置：五次运行已按运行 ID 各自恢复为独立文件（与各自提交逐字节一致），写入逻辑改为「文件名带运行 ID + 禁止覆盖」。本报告受影响的引用已改为指向具体运行 ID，逐条对照见 `docs/reports/phase-2-evidence-alignment.md` §6。**「一次通过」不等于「稳定能力」**——这句原本就在 §7.5，本更正把它落到了具体数字上：同一问题在 5 次运行中只有 2 次提到杭州。
 
 ---
 
@@ -57,7 +67,7 @@ CI 全绿的准确含义见 §1.2。
 
 | 证据类型 | 是否设门禁 | 内容 | 存放位置 |
 |---|---|---|---|
-| **客观检查（checks）** | **是**，任一失败即 `status: failed` | 请求是否到达服务端、是否携带上一轮原文、是否携带记忆、是否声明了配置的模型、请求体是否含凭据、失败时是否伪造回复 | `evaluation/reports/real-provider-conversation-report.json` |
+| **客观检查（checks）** | **是**，任一失败即 `status: failed` | 请求是否到达服务端、是否携带上一轮原文、是否携带记忆、是否声明了配置的模型、请求体是否含凭据、失败时是否伪造回复 | `evaluation/reports/real-provider-conversation-report.20261026T120635Z-7f6c41.json` |
 | **观察项（observations）** | **否**，只记录不判定 | 模型是否复述了人名 / 城市 | 同上 |
 | **质量结论（quality）** | **不产出** | `assessed: false` + 说明为什么小模型不能作为质量证据 | 同上 |
 
@@ -154,7 +164,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 | `evaluation/fixtures/companion-core-v1.json` | **新增** | 21 个用例 / 10 维度 |
 | `scripts/run-companion-core-evaluation.mjs` | **新增** | `npm run evaluate:companion` |
 | `scripts/run-real-provider-conversation.mjs` | **新增** | `npm run verify:real` |
-| `evaluation/reports/real-provider-conversation-report.json` | **新增** | 真实请求 SHA-256、字节数、消息角色、回复原文 |
+| `evaluation/reports/real-provider-conversation-report.20261026T120635Z-7f6c41.json` | **新增** | 真实请求 SHA-256、字节数、消息角色、回复原文 |
 | `evaluation/reports/cognitive-alpha-adversarial-report.json` | 重新生成 | 澄清提示词变长（281→380 字符），报告记录该事实，门禁仍 `passed: true` |
 | `package.json` | 修改 | 新增 `evaluate:companion`、`verify:real`，`verify` 链加入第三组评估 |
 | `.github/workflows/ci.yml` | 修改 | 离线评估步骤加入 `npm run evaluate:companion` |
@@ -279,6 +289,8 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 ### 7.2 逐轮请求证据（来自被拦截的真实请求体）
 
+> 下表是运行 `20261026T120635Z-7f6c41` 的字节数与回复字符数。**字节数会随代码改动变化**：后续同题运行的 turn-2 请求分别是 2069 / 2311 / 1862 / 1841 字节，turn-3 是 2356 / 2579 / 2093 / 2024 字节。引用这几个数字时务必带上运行 ID，否则它描述的是一次你手上没有的运行。
+
 | 轮 | 会话 | 用户输入 | 请求字节 | 消息角色 | 含记忆 | 回复字符 |
 |---|---|---|---|---|---|---|
 | 1 | a | 我叫林一，住在杭州，做后端开发。 | 1621 | `system,user` | 否 | 57 |
@@ -306,8 +318,9 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 
 | 观察 | 实际内容 |
 |---|---|
-| 同会话回忆 | turn-3 模型回复：「对不起，我现在不支持用户记忆用户的隐私。我们可以使用更高级的隐私设置或创建一个完全信任的关系来保护您的隐私……」——**未提到林一 / 杭州 / 后端任何一项**，尽管这三项都在它收到的请求体里 |
-| 跨会话回答 | turn-4（新会话，无历史、只有记忆）模型回复：「**我住在杭州，做后端开发。**」——正确使用了注入的记忆 |
+| 同会话回忆 | turn-3 模型回复：「对不起，我现在不支持用户记忆用户的隐私。我们可以使用更高级的隐私设置或创建一个完全信任的关系来保护您的隐私……」——**未提到林一 / 杭州 / 后端任何一项**，尽管这三项都在它收到的请求体里（运行 `20261026T120635Z-7f6c41`） |
+| 跨会话回答 | turn-4（新会话，无历史、只有记忆）在运行 `20261026T120635Z-7f6c41` 中回复：「**我住在杭州，做后端开发。**」——使用了注入的记忆 |
+| 跨会话回答（复测） | 同一问题在之后 4 次运行中只有 1 次再提到杭州，其余 3 次未提及（其中一次答「我会忘记你在这里的状态。」）。合计 **2 / 5**。**单次成功不等于稳定能力**，见顶部更正块与 §8.3 |
 
 这两条并列出现，恰好说明了为什么要分级：同一套系统，同一次运行里，模型在一次回忆上失败、在另一次上成功。**系统侧（请求组装）两次都是对的。**
 
@@ -329,7 +342,7 @@ payloadHasHangzhou=true    // 仅显式回忆轮次
 |---|---|---|
 | **记忆是否进入请求** | **是，已确证** | 真实请求体含「林一住在杭州」（turn-4）；集成测试在 4 种场景下断言 `exactPayload` 含记忆原文；离线评估 `xmem-01/02` |
 | **记忆是否在模型可见的位置** | **是** | 记忆位于 `messages[0]` 的 system 内容中，不仅是「在某个字段里」；`messageRoles` 与 SHA-256 记录了完整载荷 |
-| **模型是否据此改变了回复内容** | **部分确证** | turn-4 回复「我住在杭州，做后端开发」直接来自记忆，且该会话无任何历史 → 这个回答的**唯一**信息来源就是记忆。而 turn-3 失败，说明不是必然 |
+| **模型是否据此改变了回复内容** | **单次确证，稳定性未确证** | 运行 `20261026T120635Z-7f6c41` 的 turn-4 回复「我住在杭州，做后端开发」直接来自记忆，且该会话无任何历史 → 那次回答的**唯一**信息来源就是记忆。但同一问题在 5 次运行中只有 2 次提到杭州，所以正确的表述是「模型有能力使用，但不稳定」，不是「模型会使用」。而 turn-3 失败说明它甚至不是「多数情况会用」 |
 
 **关键区分**：本阶段能保证的是「记忆被正确、稳定、可审计地送达模型」；**不能**保证「模型一定用」。后者是模型能力，换模型才可能改变。
 
@@ -611,7 +624,7 @@ $ npx vitest run --no-fsModuleCache src/persistence/migrations.test.ts
 | 4 | 新评估集（21 用例 / 10 维度） | `evaluation/fixtures/companion-core-v1.json` |
 | 5 | 评估执行器 + 自测 + CLI | `src/evaluation/companion-core-evaluation{,.test}.ts`、`companion-core-cli.ts` |
 | 6 | 真实 Provider 验证器 + CLI | `src/evaluation/real-provider-conversation.ts`、`real-provider-cli.ts` |
-| 7 | 真实 Provider 验证记录 | `evaluation/reports/real-provider-conversation-report.json` |
+| 7 | 真实 Provider 验证记录 | `evaluation/reports/real-provider-conversation-report.20261026T120635Z-7f6c41.json` |
 | 8 | npm 脚本与 CI 接入 | `package.json`、`.github/workflows/ci.yml` |
 | 9 | 本报告 | `docs/reports/project-work-report-2026-10-26-phase-2.md` |
 | 10 | Pull Request #3（未合并） | https://github.com/ve766/morrow-ai-companion-v2/pull/3 |
@@ -648,7 +661,7 @@ $ npx vitest run --no-fsModuleCache src/persistence/migrations.test.ts
 
 **Q3 · 记忆是否真的影响后续回复？**
 
-记忆**确实进入了请求**，这一层已确证。模型**是否据此改变回答**，在跨会话场景拿到了正面证据（turn-4 回答「我住在杭州，做后端开发」，该会话无任何历史，唯一信息来源就是记忆），在同会话场景拿到了反面证据（turn-3 忽略已送达的历史）。所以准确表述是：**系统已能可靠送达，模型的使用是概率性的，取决于模型能力。**
+记忆**确实进入了请求**，这一层已确证。模型**是否据此改变回答**，在跨会话场景拿到过一次正面证据（运行 `20261026T120635Z-7f6c41` 的 turn-4 回答「我住在杭州，做后端开发」，该会话无任何历史，唯一信息来源就是记忆），在同会话场景拿到了反面证据（同一次运行的 turn-3 忽略已送达的历史）。把这两个观察合起来看，准确表述是：**系统已能可靠送达；模型的使用是概率性的，5 次运行 2 次命中，取决于模型能力而不是投递。**
 
 **Q4 · 人格是否进入请求并跨会话保持？**
 

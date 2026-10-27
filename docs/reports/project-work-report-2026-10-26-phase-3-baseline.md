@@ -42,7 +42,7 @@
 | `scripts/run-context-memory-evaluation.mjs` | esbuild 打包壳（离线） |
 | `scripts/run-context-memory-real.mjs` | esbuild 打包壳（真机） |
 | `evaluation/fixtures/context-memory-v1.json` | 22 用例，覆盖 21 项能力 |
-| `evaluation/reports/context-memory-real-report.json` | 本次真机观测。已加入 `.gitignore` 白名单，因为它不可复现：同一代码再跑一次，模型输出会不同 |
+| `evaluation/reports/context-memory-real-report.json` | 本次真机观测。已加入 `.gitignore` 白名单，因为它不可复现：同一代码再跑一次，模型输出会不同。**2026-10-27 起改名为 `context-memory-real-report.<runId>.json`**（见 `project-work-report-2026-10-27-evidence-calibration.md`） |
 | `docs/reports/phase-2-evidence-alignment.md` | 证据对齐（PR/SHA/CI/代码四者对应，区分历史与当前） |
 | `docs/reports/phase-2-risk-audit.md` | P0/P1 审计（代码位置、复现、修复、测试、失败能力、遗留） |
 | `docs/evaluations/phase-3-context-memory-baseline.md` | 基线说明、覆盖矩阵、局限 |
