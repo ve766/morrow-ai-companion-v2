@@ -1,0 +1,13 @@
+{
+  "name": "@morrow/cognitive-update-pack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated, dependency-free reference algorithms and cognitive operators for later evaluation and extraction.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
