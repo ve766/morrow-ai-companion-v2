@@ -143,6 +143,7 @@ v11 起点没有 `sensitivity` / `confidence` / `local-openai` 行，测试按�
 | 五个离线评估 | 全部通过 |
 | `npm run build` | 通过 |
 | CI @ `60fb039` | [40523638237](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40523638237) **success**（3 个 job 全部 success） |
+| CI @ `aec9d33`（报告补 CI 链接） | [40524274149](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40524274149) **success** |
 | 失败用例 | 无 |
 
 ## 8. 逐项验收
