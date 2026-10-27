@@ -62,13 +62,16 @@ const FIRST_PERSON_OWN_FACT = /我(?:也|曾|一直|确实|真的|从小)?(?:对
 const DENIES_FACT = /(?:不是|并非|没有|没)(?:对)?[^，。！？?]{0,6}(?:过敏|住在|喜欢|讨厌)/u
 // A quotation or a question is not an assertion.
 const QUOTED = /(?:你说过|你提到过|你问我|你曾|你之前说|你说)[^。！？!?]{0,20}/u
-const QUESTION_FORM = /[?？]\s*$/u
+// A question can end with a question mark or with the Chinese yes/no particle;
+// clause splitting drops the punctuation, so the particle is what identifies a
+// question inside a single clause.
+const QUESTION_FORM = /(?:[?？]|吗)\s*$/u
 // Markers that a value is being described as old rather than current.
 const SUPERSEDED_MARKER = /(?:之前|原来|以前|曾经|原先|过去|已(?:经)?改|改成|更新为|现在是|不再)/u
 // Markers that two values are being presented as a conflict rather than as one fact.
 const CONFLICT_MARKER = /(?:冲突|矛盾|不一致|对不上|两个|分别|哪个|哪一个|不确定|哪一个是|哪个才是|哪个更)/u
 // Markers that the reply admits it does not know, which is correct for a retraction.
-const ADMITS_UNKNOWN = /(?:不(?:再)?(?:记得|确定|知道)|没有(?:相关)?记录|已(?:经)?(?:删除|撤回)|无法确认|没有(?:这个)?信息|不清楚)/u
+const ADMITS_UNKNOWN = /(?:不(?:再)?(?:记得|确定|知道)|没有(?:相关)?记录|已(?:经)?(?:删除|撤回)|无法(?:确认|知道)|没法知道|没有(?:这个)?信息|不清楚)/u
 
 const has = (text: string, value: string): boolean => text.includes(value)
 
@@ -117,8 +120,20 @@ function polarityFinding(reply: string, current: string[]): JudgeFinding {
       ? { dimension: 'polarity', status: 'fail', basis: 'the reply claims not to remember a fact that was delivered' }
       : { dimension: 'polarity', status: 'pass', basis: 'the reply admits it has no record' }
   }
+  // Polarity is decided per clause. A reply that states the fact and then asks
+  // a follow-up question ("你对花生过敏。需要我帮你避开吗？") is an assertion,
+  // not an evasion; judging the whole reply by its last character made two
+  // correct answers in a real run come back as uncertain.
+  const clauses = reply.split(/[。！？!?；;\n]/u).map((clause) => clause.trim()).filter((clause) => clause.length > 0)
+  const assertsValue = clauses.some((clause) =>
+    current.some((value) => clause.includes(value)) &&
+    !QUOTED.test(clause) &&
+    !QUESTION_FORM.test(clause))
+  if (assertsValue) {
+    return { dimension: 'polarity', status: 'pass', basis: 'the fact is asserted in a declarative clause' }
+  }
   if (QUOTED.test(reply) && !SUPERSEDED_MARKER.test(reply)) {
-    return { dimension: 'polarity', status: 'uncertain', basis: 'the fact appears inside a quotation, so it may not be asserted' }
+    return { dimension: 'polarity', status: 'uncertain', basis: 'the fact appears only inside a quotation, so it may not be asserted' }
   }
   if (QUESTION_FORM.test(reply.trim())) {
     return { dimension: 'polarity', status: 'uncertain', basis: 'the reply asks instead of asserting' }

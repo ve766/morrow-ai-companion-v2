@@ -45,6 +45,14 @@ describe('recall is a second-person assertion, not a keyword', () => {
     expect(status(result, 'polarity')).toBe('uncertain')
   })
 
+  it('accepts an assertion followed by a follow-up question', () => {
+    // A real third-party run answered "你之前提到过你对花生过敏。需要我…吗？"
+    // and was scored uncertain because the reply ended with a question mark.
+    const result = judgeReply({ reply: '你之前提到过你对花生过敏。需要我帮你避开含花生的食物吗？', ...allergy })
+    expect(status(result, 'polarity')).toBe('pass')
+    expect(result.verdict).toBe('pass')
+  })
+
   it('does not pass a mere acknowledgement without the fact', () => {
     const result = judgeReply({ reply: '我记得你提过这件事。', ...allergy })
     expect(result.verdict).not.toBe('pass')
