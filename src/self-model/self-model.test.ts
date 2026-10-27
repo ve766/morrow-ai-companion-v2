@@ -287,4 +287,46 @@ describe('a question cannot create an interest (task 2)', () => {
     expect(reinforced?.evidenceCount).toBe(before.evidenceCount + 1)
     expect(interests.list()).toHaveLength(1)
   })
+
+  it('does not attribute a friend interest to the user', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const result = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111113',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '我朋友喜欢天文学。',
+      intent: 'third_party'
+    })
+    expect(result).toBeNull()
+    expect(interests.list()).toEqual([])
+  })
+
+  it('does not create an interest from a task request', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const result = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111114',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '帮我研究一下抑郁症的治疗方法。',
+      intent: 'task_request'
+    })
+    expect(result).toBeNull()
+    expect(interests.list()).toEqual([])
+  })
+
+  it('creates from a statement that also asks a question', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const result = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111115',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '我对天文学很感兴趣，有推荐吗？',
+      intent: 'mixed'
+    })
+    expect(result).not.toBeNull()
+    expect(interests.list()).toHaveLength(1)
+  })
 })

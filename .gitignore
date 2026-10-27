@@ -27,6 +27,7 @@ evaluation/reports/*
 # and the writer refuses to overwrite, so tracking them cannot clobber a run.
 !evaluation/reports/context-memory-v2-real-report*.json
 !evaluation/reports/long-conversation-real-report*.json
+!evaluation/reports/long-behavior*.json
 # Human reviews are evidence, and evidence is tracked. Nothing ignores this
 # directory today; the rule states the intent so a later broad ignore of
 # evaluation/ cannot make a reviewer's record disappear silently.

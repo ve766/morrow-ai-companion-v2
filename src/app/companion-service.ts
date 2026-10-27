@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { classifyInterestIntent } from '../self-model/interest-intent'
 import type {
   AssembledMemoryContext,
   ChatPreview,
@@ -660,7 +661,7 @@ export class CompanionService {
                 messageId: input.userMessageId,
                 occurredAt: input.occurredAt,
                 topicText: input.content,
-                source: isQuestionTurn(input.content) ? 'question' : 'statement'
+                intent: classifyInterestIntent(input.content)
               })
               selfModelLoop.interests.archiveStale(input.occurredAt)
               if (input.analysis?.signals.explicitSelfFact) {

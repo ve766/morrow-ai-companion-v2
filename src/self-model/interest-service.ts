@@ -15,6 +15,11 @@ import {
   type InterestStatus
 } from './self-model-domain'
 import type { Sensitivity } from '../shared/companion'
+import {
+  interestIntentAllowsCreation,
+  interestIntentAllowsReinforcement,
+  type InterestIntent
+} from './interest-intent'
 
 const sensitivityOrder: readonly Sensitivity[] = ['normal', 'personal', 'sensitive']
 
@@ -30,11 +35,12 @@ export interface InterestObservation {
   occurredAt: string
   topicText: string
   /**
-   * A question may reinforce a topic the user already disclosed, but it must
-   * never be the first evidence for one. Asking "抑郁症怎么治？" is a search,
-   * not an attribute; counting it as a new interest would turn curiosity into
-   * a personal fact.
+   * What the sentence is doing. Only an assertion about the user may create a
+   * row; a question may only reinforce one the user already stated. Third-party
+   * statements, task requests and uncertain sentences touch nothing.
    */
+  intent?: InterestIntent
+  /** Back-compat shim for callers that only know question vs statement. */
   source?: 'statement' | 'question'
 }
 
@@ -166,7 +172,11 @@ export class InterestService {
       .sort((left, right) => right.shared - left.shared)[0]?.record
     // A question is evidence of curiosity, not of the attribute itself. It can
     // only add evidence to a topic the user already stated; it cannot start one.
-    if (!existing && observation.source === 'question') return null
+    // Third-party, task, uncertain and withdrawn sentences never touch a row.
+    const intent: InterestIntent = observation.intent ??
+      (observation.source === 'question' ? 'question' : 'statement')
+    if (!interestIntentAllowsReinforcement(intent)) return null
+    if (!existing && !interestIntentAllowsCreation(intent)) return null
     if (!existing) {
       const created: InterestRecord = {
         id: this.makeId().toLowerCase(),
