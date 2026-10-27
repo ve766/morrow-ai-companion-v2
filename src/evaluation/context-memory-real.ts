@@ -320,6 +320,9 @@ async function runCase(
         timeoutMs,
         acknowledgeThirdParty: true
       })
+      // Selection is explicit: without this the chat path would keep using the
+      // local provider and the run would report PROVIDER_UNCONFIGURED.
+      companion.setActiveProvider(THIRD_PARTY_PROVIDER_ID)
     } else {
       companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
     }

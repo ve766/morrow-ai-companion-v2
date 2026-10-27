@@ -772,6 +772,21 @@ export const migrations: readonly Migration[] = [
         ALTER TABLE provider_profiles_v20 RENAME TO provider_profiles;
       `)
     }
+  },
+  {
+    version: 21,
+    name: 'explicit-provider-selection',
+    up(database) {
+      // Switching provider must be an explicit act, not an ordering rule.
+      // At most one row may carry `active = 1`; the partial unique index makes
+      // that a database fact instead of an application convention. A fresh
+      // database has no active row, which keeps the previous behaviour
+      // (local when enabled, else DeepSeek) until the user chooses.
+      database.exec(`
+        ALTER TABLE provider_profiles ADD COLUMN active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0, 1));
+        CREATE UNIQUE INDEX provider_profiles_one_active ON provider_profiles(active) WHERE active = 1;
+      `)
+    }
   }
 ]
 

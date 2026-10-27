@@ -510,10 +510,23 @@ export class ProviderConfigService {
     return { providerId: config.id, model: output.modelId, connected: output.text.trim().length > 0 }
   }
 
-  // The local provider wins when both are enabled: it keeps data on the
-  // machine and costs nothing; the consent dialog shows the exact endpoint
-  // for every request so the choice stays visible.
+  /**
+   * Which provider a chat request uses.
+   *
+   * An explicit selection always wins. Without one the previous rule stands:
+   * the local provider wins when enabled because it keeps data on the machine
+   * and costs nothing. There is deliberately no fallback from an explicitly
+   * selected provider to another one - silently sending the same conversation
+   * to a different service is exactly what must not happen. An unusable
+   * selection fails closed with PROVIDER_UNCONFIGURED and the caller has to
+   * switch back on purpose.
+   */
   requireConfigured(): ProviderConfigRecord {
+    const active = this.activeProvider()
+    if (active) {
+      this.assertUsable(active)
+      return active
+    }
     const local = this.get(LOCAL_PROVIDER_ID)
     if (local && local.enabled) {
       this.assertUsable(local)
@@ -525,6 +538,31 @@ export class ProviderConfigService {
       return deepseek
     }
     throw new ApplicationError('PROVIDER_UNCONFIGURED')
+  }
+
+  private activeProvider(): ProviderConfigRecord | null {
+    const row = this.database.connection.prepare('SELECT id FROM provider_profiles WHERE active = 1').get() as unknown as { id: string } | undefined
+    return row ? this.get(row.id as ProviderId) : null
+  }
+
+  /**
+   * Explicitly selects the provider a chat request uses, or clears the
+   * selection with `null`. The chosen provider must already exist and be
+   * enabled, so a selection can never point at something unusable.
+   */
+  setActiveProvider(providerId: ProviderId | null): ProviderConfigRecord | null {
+    if (providerId === null) {
+      this.database.connection.prepare('UPDATE provider_profiles SET active = 0 WHERE active = 1').run()
+      return null
+    }
+    const config = this.get(providerId)
+    if (!config || !config.enabled) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    this.assertUsable(config)
+    this.database.transaction(() => {
+      this.database.connection.prepare('UPDATE provider_profiles SET active = 0 WHERE active = 1').run()
+      this.database.connection.prepare('UPDATE provider_profiles SET active = 1 WHERE id = ?').run(providerId)
+    })
+    return this.get(providerId)
   }
 
   private assertUsable(config: ProviderConfigRecord): void {
@@ -802,6 +840,8 @@ export class CompanionService {
     return this.providers.get(DEEPSEEK_PROVIDER_ID) ?? local
   }
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord { return this.providers.save(request) }
+  /** Explicit provider switch. `null` clears it and restores the default rule. */
+  setActiveProvider(providerId: ProviderId | null): ProviderConfigRecord | null { return this.providers.setActiveProvider(providerId) }
   clearProviderCredential(request?: { providerId?: ProviderId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult> { return this.providers.testConnection(request) }
   createConversation(): ConversationRecord { return this.chat.createConversation() }
