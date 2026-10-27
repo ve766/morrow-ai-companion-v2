@@ -509,7 +509,7 @@
             "sourceCategory": "user_explicit_input"
           },
           {
-            "content": "用户可能喜欢徒步",
+            "content": "用户可能从事设计工作",
             "sourceCategory": "model_inferred_confirmed",
             "confidence": 60
           }
@@ -572,8 +572,8 @@
     {
       "id": "b8-miss",
       "capability": "B8_retrieval_miss_not_faked",
-      "title": "检索未命中时记忆被降级为背景而不是答案",
-      "claims": "问天气时，生日记忆的词面得分为 0，只能以 continuity 进入请求，并附带“continuity 只用于保持熟悉、不得当答案”的指令。",
+      "title": "检索未命中时无关记忆不进入请求",
+      "claims": "问天气时，生日记忆与问题没有相关性，不得仅因最近出现就注入请求。",
       "setup": {
         "memories": [
           {
@@ -585,15 +585,10 @@
         {
           "content": "今天天气怎么样？",
           "expect": {
-            "memoryMatchFor": [
-              {
-                "contentContains": "三月十二日",
-                "match": "continuity"
-              }
-            ],
+            "memoryEntries": 0,
             "memoryTopicCount": 0,
-            "systemContains": [
-              "match \"continuity\" is background only"
+            "contextExcludes": [
+              "三月十二日"
             ]
           }
         }
@@ -603,7 +598,7 @@
         "mustNotMention": [
           "三月十二"
         ],
-        "note": "问天气时把生日当回答内容，说明把 continuity 当成了答案。"
+        "note": "问天气时把生日当回答内容，说明无关记忆被错误注入。"
       }
     },
     {

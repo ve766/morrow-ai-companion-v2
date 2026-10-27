@@ -58,34 +58,40 @@ describe('bounded memory context assembly', () => {
     expect(result.characterCount).toBeLessThanOrEqual(700)
   })
 
-  it('keeps a bounded continuity layer so a zero-overlap turn is not treated as a first meeting', () => {
+  it('does not inject unrelated recency-only memories by default', () => {
     const result = assembler.assemble('今天有点累', [
       memory('00000000-0000-4000-8000-000000000011', '我住在杭州。', 'personal'),
       memory('00000000-0000-4000-8000-000000000012', '我常喝手冲咖啡。', 'personal')
     ], 'personal')
 
-    expect(result.selected.map((item) => item.id)).toEqual([
-      '00000000-0000-4000-8000-000000000011',
-      '00000000-0000-4000-8000-000000000012'
-    ])
-    expect(result.selected.every((item) => item.match === 'continuity')).toBe(true)
-    expect(result.text).toContain('"match":"continuity"')
+    expect(result.selected).toEqual([])
+    expect(result.text).not.toContain('杭州')
+    expect(result.text).not.toContain('咖啡')
   })
 
-  it('labels term-matched records as topic matches and ranks them before continuity records', () => {
+  it('only adds an explicitly enabled continuity record when it shares a fact family', () => {
+    const bounded = new MemoryContextAssembler(1)
+    const result = bounded.assemble('我住在哪里？', [
+      memory('00000000-0000-4000-8000-000000000011', '我现在的地址是杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000012', '我常喝手冲咖啡。', 'personal')
+    ], 'personal')
+    expect(result.selected.map((item) => item.id)).toEqual(['00000000-0000-4000-8000-000000000011'])
+    expect(result.selected.map((item) => item.match)).toEqual(['topic'])
+  })
+
+  it('labels term-matched records as topic matches without adding unrelated background', () => {
     const result = assembler.assemble('杭州天气如何', [
       memory('00000000-0000-4000-8000-000000000021', '我住在杭州。', 'personal'),
       memory('00000000-0000-4000-8000-000000000022', '我养了一只黑猫。', 'personal')
     ], 'personal')
 
     expect(result.selected.map((item) => item.id)).toEqual([
-      '00000000-0000-4000-8000-000000000021',
-      '00000000-0000-4000-8000-000000000022'
+      '00000000-0000-4000-8000-000000000021'
     ])
-    expect(result.selected.map((item) => item.match)).toEqual(['topic', 'continuity'])
+    expect(result.selected.map((item) => item.match)).toEqual(['topic'])
   })
 
-  it('caps continuity entries and never revives a retracted or still-sensitive record', () => {
+  it('never revives a retracted or still-sensitive record through an optional continuity layer', () => {
     const bounded = new MemoryContextAssembler(1)
     const records = [
       memory('00000000-0000-4000-8000-000000000031', '我住在杭州。', 'personal'),
@@ -93,7 +99,7 @@ describe('bounded memory context assembly', () => {
       memory('00000000-0000-4000-8000-000000000033', '我撤回过的旧地址。', 'personal', 'retracted'),
       memory('00000000-0000-4000-8000-000000000034', '我的病史。', 'sensitive')
     ]
-    const result = bounded.assemble('今天有点累', records, 'personal')
+    const result = bounded.assemble('我住在哪里？', records, 'personal')
 
     expect(result.selected).toHaveLength(1)
     expect(result.selected[0]?.id).toBe('00000000-0000-4000-8000-000000000031')
@@ -117,10 +123,13 @@ describe('bounded memory context assembly', () => {
       memory(`00000000-0000-4000-8000-00000000007${index}`, `我有一件与今天无关的事情，编号 ${index}。`, 'personal'))
 
     const generous = assembler.assemble('杭州天气如何', [topic, ...background], 'personal')
-    expect(generous.selected.map((item) => item.match)).toEqual(['topic', 'continuity', 'continuity', 'continuity'])
+    expect(generous.selected.map((item) => item.match)).toEqual(['topic'])
+    // Background records are not eligible without evidence, so they are not
+    // "omitted due to budget" either.
+    expect(generous.omitted).toBe(0)
 
-    // A budget that fits exactly one entry must be spent on the topic match,
-    // because continuity is background and the current question is not.
+    // The memory budget contains only the topic record; unrelated background is
+    // never selected merely because it is recent.
     const oneEntry = assembler.assemble('杭州天气如何', [topic], 'personal', 25, 100_000).characterCount
     const tight = assembler.assemble('杭州天气如何', [topic, ...background], 'personal', 25, oneEntry)
     expect(tight.selected).toHaveLength(1)
@@ -182,11 +191,11 @@ describe('bounded memory context assembly', () => {
     expect(result.selected.map((item) => item.match)).toEqual(['topic'])
   })
 
-  it('recalls a memory that shares nothing with an elliptical turn but is on-topic in the recent conversation', () => {
+  it('does not recall an unrelated memory without conversational evidence', () => {
     const record = memory('00000000-0000-4000-8000-000000000095', '我住在杭州。', 'personal')
-    // Without prior context the record can only be background.
+    // Without prior context "那后天呢" has no evidence connecting it to Hangzhou.
     const alone = assembler.assemble('那后天呢？', [record], 'personal')
-    expect(alone.selected.map((item) => item.match)).toEqual(['continuity'])
+    expect(alone.selected).toEqual([])
     // With the prior turn ("下周去杭州出差") it is on-topic, but labelled
     // `context`, not `topic`: it did not match this turn's words.
     const withContext = assembler.assemble('那后天呢？', [record], 'personal', 25, 3000, '2026-10-26T00:00:00.000Z', '我下周要去杭州出差。')
@@ -265,5 +274,27 @@ describe('bounded memory context assembly', () => {
     const result = assembler.assemble('喜欢什么', [old], 'personal', 25, 3000, now)
     const encoded = flattenMemoryBlock(JSON.parse(result.text))
     expect(encoded[0]?.stale).toBe(true)
+  })
+
+  it('explains every candidate selection or exclusion without fabricating semantics', () => {
+    const result = assembler.assemble('给我一个完全无关的问题。', [
+      memory('00000000-0000-4000-8000-0000000000d1', '我一直住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-0000000000d2', '我最近开始学习 Blender。', 'personal')
+    ], 'personal')
+    expect(result.selected).toEqual([])
+    expect(result.decisions?.map((item) => item.reason)).toEqual([
+      'below_relevance_threshold',
+      'below_relevance_threshold'
+    ])
+    expect(result.decisions?.every((item) => item.semanticScore === null)).toBe(true)
+
+    const related = assembler.assemble('我现在住在哪里？', [
+      memory('00000000-0000-4000-8000-0000000000d3', '我一直住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-0000000000d4', '我最近开始学习 Blender。', 'personal')
+    ], 'personal')
+    expect(related.decisions).toMatchObject([
+      { memoryId: '00000000-0000-4000-8000-0000000000d3', included: true, match: 'topic', reason: 'selected' },
+      { memoryId: '00000000-0000-4000-8000-0000000000d4', included: false, reason: 'below_relevance_threshold' }
+    ])
   })
 })

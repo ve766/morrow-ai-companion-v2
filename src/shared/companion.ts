@@ -74,11 +74,24 @@ export interface ContextMemory {
   conflictGroup?: number
 }
 
+export interface MemoryRetrievalDecision {
+  memoryId: string
+  included: boolean
+  match: 'topic' | 'context' | 'continuity' | null
+  lexicalScore: number
+  contextScore: number
+  /** Null means no semantic measurement exists; it is not zero similarity. */
+  semanticScore: number | null
+  reason: 'selected' | 'inactive' | 'unauthorized' | 'below_relevance_threshold' | 'budget_excluded'
+}
+
 export interface AssembledMemoryContext {
   text: string
   selected: ContextMemory[]
   omitted: number
   characterCount: number
+  /** Explainable selection outcome for every candidate record. */
+  decisions?: MemoryRetrievalDecision[]
 }
 
 export interface ProviderConfigRecord {
