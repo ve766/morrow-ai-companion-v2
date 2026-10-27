@@ -25,6 +25,7 @@ This pack is a workbench for algorithm design, reference contracts, evaluation c
 ## Pack contents
 
 - `ALGORITHM_BLUEPRINT.md`: the end-to-end cognitive algorithm and its invariants.
+- `MATHEMATICAL_SPEC.md`: proposed equations, variables, constraints, evaluation metrics, and formula-to-code coverage.
 - `OPERATOR_CATALOG.md`: candidate operator contracts, responsibilities, and boundaries.
 - `EVALUATION_PLAN.md`: datasets, metrics, regression cases, and release gates.
 - `INTEGRATION_PLAN.md`: how proven pieces may later be extracted without prematurely integrating them.
@@ -50,4 +51,4 @@ Version numbers describe this pack, not the Morrow product version.
 
 ## Current limitations
 
-This is an initial design pack, not a finished cognitive engine. No runtime integration, model training, or performance claim is implied. Candidate operators must be implemented and tested before being considered stable.
+This is an initial design pack, not a finished cognitive engine. The mathematical specification formalizes candidate methods but does not prove effectiveness; several formulas are not implemented yet. No runtime integration, model training, or performance claim is implied. Candidate operators must be implemented and tested before being considered stable.
