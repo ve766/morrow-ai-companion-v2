@@ -119,6 +119,7 @@ describe('authorisation and data governance', () => {
     const withdrawn = feedback.withdrawForConversation(conversationA, 'conversation_deleted')
     expect(withdrawn).toBe(1)
     expect(feedback.list()[0]?.status).toBe('withdrawn')
+    expect(feedback.list()[0]?.evidenceExcerpt).toBe('[withdrawn]')
   })
 
   it('withdraws candidates through the real conversation delete path', () => {
@@ -139,6 +140,7 @@ describe('authorisation and data governance', () => {
     record(feedback, conversation.id)
     companion.deleteConversation({ conversationId: conversation.id })
     expect(feedback.list()[0]?.status).toBe('withdrawn')
+    expect(feedback.list()[0]?.evidenceExcerpt).toBe('[withdrawn]')
   })
 
   it('cannot apply a rejected candidate', () => {
@@ -231,6 +233,7 @@ describe('evidence lifecycle governs support', () => {
     record(feedback, conversationA)
     feedback.withdrawForConversation(conversationA, 'conversation_deleted')
     expect(feedback.list()[0]?.status).toBe('withdrawn')
+    expect(feedback.list()[0]?.evidenceExcerpt).toBe('[withdrawn]')
     expect(feedback.listEvidence(feedback.list()[0]!.id).every((item) => item.status === 'withdrawn')).toBe(true)
   })
 

@@ -386,8 +386,16 @@ export class FeedbackCandidateService {
     const distinct = candidate.distinctConversations
     const next: FeedbackStatus = distinct === 0 ? 'withdrawn' : distinct >= FEEDBACK_SUPPORT_THRESHOLD ? 'supported' : 'pending'
     if (next !== candidate.status) {
-      this.database.connection.prepare('UPDATE persona_feedback_candidates SET status = ?, updated_at = ? WHERE id = ?')
-        .run(next, this.timestamp(), id)
+      if (next === 'withdrawn') {
+        // The excerpt is the only copy of the user's words in this table; once
+        // the candidate has no live evidence it must not survive as text.
+        this.database.connection.prepare(`
+          UPDATE persona_feedback_candidates SET status = ?, evidence_excerpt = '[withdrawn]', updated_at = ? WHERE id = ?
+        `).run(next, this.timestamp(), id)
+      } else {
+        this.database.connection.prepare('UPDATE persona_feedback_candidates SET status = ?, updated_at = ? WHERE id = ?')
+          .run(next, this.timestamp(), id)
+      }
     }
   }
 
@@ -395,8 +403,11 @@ export class FeedbackCandidateService {
     const candidate = this.get(id)
     if (!candidate) throw new ApplicationError('NOT_FOUND')
     if (!allowed.includes(candidate.status)) throw new ApplicationError('CONFLICT')
+    // Withdrawing is also a content deletion: keep the decision and the audit
+    // fields, drop the user's words.
+    const excerpt = status === 'withdrawn' ? "'[withdrawn]'" : 'evidence_excerpt'
     this.database.connection.prepare(`
-      UPDATE persona_feedback_candidates SET status = ?, decision_reason = ?, updated_at = ? WHERE id = ?
+      UPDATE persona_feedback_candidates SET status = ?, decision_reason = ?, evidence_excerpt = ${excerpt}, updated_at = ? WHERE id = ?
     `).run(status, reason.slice(0, 500), this.timestamp(), id)
     return this.get(id)!
   }
