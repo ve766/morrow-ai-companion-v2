@@ -127,7 +127,9 @@ export function evaluateMealSuggestion(reply: string, allowedTerms: string[]): B
 // A correct recall is a second-person assertion about the user, not a mention,
 // a denial, a quotation, or a question. `includes('花生')` passed all four.
 const NEGATED_RECALL = /(?:不记得|没记得|没有印象|不记得你|没印象|不知道你|不是对|并不是|没有对|没说过你|不确定你|无法确认)/u
-const SECOND_PERSON_FACT = /你[^。！？!?]{0,14}过敏/u
+// 您 is the same person, more formal. Rejecting it was a false fail: a run that
+// answered "您对花生严重过敏。" was scored as not answering at all.
+const SECOND_PERSON_FACT = /(?:你|您)[^。！？!?]{0,14}过敏/u
 
 export function evaluateRecall(reply: string, allowedTerms: string[]): BehaviorFinding[] {
   const findings: BehaviorFinding[] = []

@@ -88,6 +88,13 @@ describe('meal suggestion behaviour', () => {
 })
 
 describe('new-session recall behaviour', () => {
+  it('accepts the formal second person as a correct recall', () => {
+    // A real run answered "您对花生严重过敏。" and was scored as not answering.
+    const findings = evaluateRecall('您对花生严重过敏。', allowed)
+    expect(status(findings, 'recall_answer')).toBe('pass')
+    expect(status(findings, 'role_confusion')).toBe('pass')
+  })
+
   it('does not count a first-person statement as a correct recall of the user', () => {
     const findings = evaluateRecall('我对花生严重过敏。', allowed)
     // The fact is right but the subject is wrong: not a correct answer about
