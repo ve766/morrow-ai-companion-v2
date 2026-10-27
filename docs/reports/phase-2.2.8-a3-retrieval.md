@@ -93,6 +93,8 @@
 
 没有删除类别，没有降低断言；`b8` 从“允许注入”收紧为“禁止注入”。
 
+同一调整同步到 `context-memory-v1.json`，因为 CI 的 `evaluate:context` 默认仍读取 v1；否则离线门禁会继续要求旧的无关 continuity 行为。调整后本地 `evaluate:context` 为 **22/22 通过**。
+
 ## 6. 测试
 
 - `memory-context-assembler.test.ts`：21 条通过；
