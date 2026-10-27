@@ -21,8 +21,10 @@
 | 回归 fixture 对齐 | `5de0563` |
 | A4 clean 运行证据 | `5cdbce2` |
 | v1 离线 fixture 对齐 | `c04cb58` |
+| 报告更新提交 | `7f38228` |
 | 算法包提交 | `be27778`（远程 `research/cognitive-update-pack-v0.1`） |
 | Draft PR | #6，base PR #4，未合并 |
+| CI @ `7f38228` | run `40547860026`，三个 job 全部 success |
 
 `5de0563` 是五次 clean 模型运行绑定的代码 SHA。之后仅新增报告/证据，没有修改运行时代码。
 
@@ -150,7 +152,8 @@
 - A3 检索/上下文/请求断言共 35 条；
 - A4 payload 6/6；
 - B 24/24；
-- 主项目完整套件 **627 条**：首次 626 通过，1 条本地 HTTP 端口抖动失败，单独复跑通过；不能声称一次运行全绿，CI 将再次验证；
+- 主项目完整套件 **627 条**：首次 626 通过，1 条本地 HTTP 端口抖动失败，单独复跑通过；不能声称一次运行全绿；
+- CI `40547860026` 在 `7f38228` 上完整通过：Ubuntu 与 Windows 的 typecheck、全部测试、四个离线评估、build、Electron smoke，以及 Windows schema upgrade 均 success；
 - 四个离线评估本地全部通过：memory retrieval、cognition、companion 31/31、context 22/22。
 
 ### 已真实模型验证
