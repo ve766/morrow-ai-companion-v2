@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   INTEREST_ARCHIVE_AFTER_DAYS,
@@ -221,5 +224,25 @@ describe('interest sensitivity (task 4)', () => {
     const record = interests.list().find((item) => item.id === id)
     expect(record?.sensitivity).toBe('sensitive')
     expect(interests.activeForContext(5, 'personal')).toEqual([])
+  })
+
+  it('keeps a sensitive interest withheld after a database reopen', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-interest-restart-'))
+    try {
+      const path = join(directory, 'morrow.sqlite3')
+      const first = SqliteDatabase.open(path)
+      const services = createServices(first)
+      const id = promote(services.interests, '抑郁症让我很难受', '2026-10-25T10:00:00.000Z')
+      first.close()
+
+      const second = SqliteDatabase.open(path)
+      const reopened = new InterestService(new SqliteInterestRepository(second), undefined, () => '2026-10-25T10:00:00.000Z')
+      expect(reopened.list().find((item) => item.id === id)?.sensitivity).toBe('sensitive')
+      expect(reopened.activeForContext(5, 'personal')).toEqual([])
+      expect(reopened.activeForContext(5, 'sensitive').map((item) => item.id)).toEqual([id])
+      second.close()
+    } finally {
+      rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    }
   })
 })
