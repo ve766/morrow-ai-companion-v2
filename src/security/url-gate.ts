@@ -34,3 +34,56 @@ export function isValidLocalModelName(model: string): boolean {
   return trimmed.length >= 1 && trimmed.length <= 64 && trimmed === model &&
     !/[\u0000-\u001f\u007f]/u.test(trimmed)
 }
+
+/**
+ * A remote OpenAI-compatible base URL.
+ *
+ * Only `https:` is accepted: a remote provider carries credentials and private
+ * conversation text, and plain HTTP would expose both on the wire. Embedded
+ * credentials are refused because the API key travels in a header, not in the
+ * URL, and a URL-embedded password would end up in logs.
+ */
+export function isHttpsEndpoint(endpoint: string): boolean {
+  if (typeof endpoint !== 'string' || endpoint.length < 8 || endpoint.length > 2000) return false
+  let parsed: URL
+  try {
+    parsed = new URL(endpoint)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'https:') return false
+  if (parsed.username !== '' || parsed.password !== '') return false
+  if (parsed.hostname.length === 0) return false
+  // A query or fragment on a base URL is always a configuration mistake.
+  if (parsed.search !== '' || parsed.hash !== '') return false
+  return true
+}
+
+/**
+ * Canonical base URL for an OpenAI-compatible service.
+ *
+ * The chat endpoint is always derived as `${base}/chat/completions`, so a user
+ * who pastes the full chat URL, or a trailing `/v1/`, must not produce
+ * `/v1/v1/chat/completions` or `/chat/completions/chat/completions`. Only the
+ * documented suffixes are stripped; anything else is left alone and rejected
+ * later by the shape check.
+ */
+export function normalizeOpenAIBaseUrl(endpoint: string): string {
+  let value = endpoint.trim().replace(/\/+$/u, '')
+  if (/\/chat\/completions$/iu.test(value)) value = value.replace(/\/chat\/completions$/iu, '')
+  return value.replace(/\/+$/u, '')
+}
+
+/**
+ * Model ids on a remote catalogue are opaque strings, not filesystem names:
+ * the probe of the candidate gateways returned ids such as "入梦 Flash" with a
+ * space in them, so spaces must be allowed. Only control characters, leading or
+ * trailing whitespace and absurd lengths are refused.
+ */
+export function isValidRemoteModelId(model: string): boolean {
+  if (typeof model !== 'string') return false
+  if (model.length < 1 || model.length > 200) return false
+  if (model !== model.trim()) return false
+  if (/[\u0000-\u001f\u007f]/u.test(model)) return false
+  return true
+}

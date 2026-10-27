@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import { LOCAL_PROVIDER_ID } from '../shared/companion'
+import { LOCAL_PROVIDER_ID, THIRD_PARTY_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from '../app/companion-service'
 import { ConversationService } from '../conversation/conversation-service'
@@ -49,6 +49,14 @@ export interface ContextMemoryRealOptions {
   endpoint?: string
   model?: string
   timeoutMs?: number
+  /**
+   * Which provider shape to configure. `local` is the default so an existing
+   * command behaves exactly as before; `third-party` sends the same synthetic
+   * fixtures through a user-configured remote gateway and needs `apiKey`.
+   */
+  providerId?: 'local' | 'third-party'
+  /** Supplied by the operator at run time; never written to a report. */
+  apiKey?: string
   /** Restrict the run to these case ids; used to keep iteration cheap. */
   caseIds?: string[]
 }
@@ -136,10 +144,16 @@ export interface ContextMemoryRealReport {
   status: 'checked' | 'blocked'
   blockedReason: string | null
   provider: {
-    providerClass: 'local'
+    providerClass: 'local' | 'remote'
     endpoint: string
     model: string
     reachable: boolean
+    /**
+     * Whether the model id appears in the service's own catalogue. Null when the
+     * catalogue could not be read; false means it was read and the id is not
+     * there, which is exactly the "unverified, typed by hand" case.
+     */
+    modelInCatalog: boolean | null
   }
   environment: { node: string; platform: string; durationMs: number }
   summary: {
@@ -166,17 +180,22 @@ function probeTimeoutMs(): number {
   return 8_000
 }
 
-async function probe(endpoint: string, timeoutMs: number): Promise<{ reachable: boolean; detail: string }> {
+async function probe(endpoint: string, timeoutMs: number, apiKey?: string): Promise<{ reachable: boolean; detail: string; ids: string[] }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(`${endpoint}/models`, { signal: controller.signal })
-    if (!response.ok) return { reachable: false, detail: `HTTP ${response.status}` }
+    const response = await fetch(`${endpoint}/models`, {
+      signal: controller.signal,
+      // A gateway answers 401 without the key; the key stays in this header and
+      // is never part of the detail string.
+      ...(apiKey ? { headers: { authorization: `Bearer ${apiKey}` } } : {})
+    })
+    if (!response.ok) return { reachable: false, detail: `HTTP ${response.status}`, ids: [] }
     const body = await response.json() as { data?: Array<{ id?: unknown }> }
     const models = (body.data ?? []).map((item) => item.id).filter((id): id is string => typeof id === 'string')
-    return { reachable: true, detail: models.slice(0, 8).join(', ') }
+    return { reachable: true, detail: models.slice(0, 8).join(', '), ids: models }
   } catch (error) {
-    return { reachable: false, detail: error instanceof Error ? error.message : String(error) }
+    return { reachable: false, detail: error instanceof Error ? error.message : String(error), ids: [] }
   } finally {
     clearTimeout(timer)
   }
@@ -247,7 +266,9 @@ async function runCase(
   testCase: ContextMemoryCase,
   endpoint: string,
   model: string,
-  timeoutMs: number
+  timeoutMs: number,
+  providerId: 'local' | 'third-party' = 'local',
+  apiKey?: string
 ): Promise<RealCaseRecord> {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-context-real-'))
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
@@ -287,7 +308,21 @@ async function runCase(
       },
       providerFactory: (config) => new OpenAICompatibleProvider(config, secrets, undefined, timeoutMs)
     })
-    companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+    if (providerId === 'third-party') {
+      // The key lives in the in-memory evaluation store for the length of this
+      // process only; it is never persisted or written into the report.
+      secrets.set(THIRD_PARTY_PROVIDER_ID, apiKey ?? '')
+      companion.saveProvider({
+        providerId: THIRD_PARTY_PROVIDER_ID,
+        endpoint,
+        model,
+        enabled: true,
+        timeoutMs,
+        acknowledgeThirdParty: true
+      })
+    } else {
+      companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+    }
     if (testCase.setup?.personality) companion.savePersonality(testCase.setup.personality)
 
     const memoryIds: string[] = []
@@ -472,9 +507,14 @@ export async function runContextMemoryReal(
   dataset: ContextMemoryDataset,
   options: ContextMemoryRealOptions = {}
 ): Promise<ContextMemoryRealReport> {
+  const providerId = options.providerId ?? (process.env.MORROW_CONTEXT_REAL_PROVIDER === 'third-party' ? 'third-party' : 'local')
   const endpoint = options.endpoint ?? process.env.MORROW_CONTEXT_REAL_ENDPOINT ?? CONTEXT_REAL_DEFAULT_ENDPOINT
   const model = options.model ?? process.env.MORROW_CONTEXT_REAL_MODEL ?? CONTEXT_REAL_DEFAULT_MODEL
-  const timeoutMs = options.timeoutMs ?? 90_000
+  const apiKey = options.apiKey ?? process.env.MORROW_CONTEXT_REAL_API_KEY
+  const timeoutMs = options.timeoutMs ?? (providerId === 'third-party' ? 120_000 : 90_000)
+  if (providerId === 'third-party' && (typeof apiKey !== 'string' || apiKey.length === 0)) {
+    throw new Error('MORROW_CONTEXT_REAL_API_KEY is required for the third-party provider.')
+  }
   const startedAt = Date.now()
   const generatedAt = new Date(startedAt).toISOString()
   const environment = { node: process.version, platform: `${process.platform}-${process.arch}`, durationMs: 0 }
@@ -486,7 +526,7 @@ export async function runContextMemoryReal(
     'The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it.'
   ]
 
-  const reachability = await probe(endpoint, probeTimeoutMs())
+  const reachability = await probe(endpoint, probeTimeoutMs(), providerId === 'third-party' ? apiKey : undefined)
   if (!reachability.reachable) {
     return {
       schemaVersion: 2,
@@ -496,8 +536,8 @@ export async function runContextMemoryReal(
       generatedAt,
       reproduction: buildReproduction(generatedAt, `blocked|${endpoint}|${model}`),
       status: 'blocked',
-      blockedReason: `Local provider unreachable at ${endpoint} (${reachability.detail}). Start it with "ollama serve" or set MORROW_CONTEXT_REAL_ENDPOINT.`,
-      provider: { providerClass: 'local', endpoint, model, reachable: false },
+      blockedReason: `${providerId === 'third-party' ? 'Third-party gateway' : 'Local provider'} unreachable at ${endpoint} (${reachability.detail}).${providerId === 'third-party' ? ' Check the base URL, the key and the model catalogue.' : ' Start it with "ollama serve" or set MORROW_CONTEXT_REAL_ENDPOINT.'}`,
+      provider: { providerClass: providerId === 'third-party' ? 'remote' : 'local', endpoint, model, reachable: false, modelInCatalog: null },
       environment,
       summary: {
         casesInDataset: dataset.cases.length,
@@ -522,7 +562,7 @@ export async function runContextMemoryReal(
     : dataset.cases.filter((testCase) => testCase.realModel !== null && testCase.realModel !== undefined)
 
   const cases: RealCaseRecord[] = []
-  for (const testCase of selected) cases.push(await runCase(testCase, endpoint, model, timeoutMs))
+  for (const testCase of selected) cases.push(await runCase(testCase, endpoint, model, timeoutMs, providerId, apiKey))
 
   const tally = { pass: 0, fail: 0, uncertain: 0, needs_review: 0 }
   for (const item of cases) tally[item.verdict] += 1
@@ -548,7 +588,13 @@ export async function runContextMemoryReal(
     ),
     status: 'checked',
     blockedReason: null,
-    provider: { providerClass: 'local', endpoint, model, reachable: true },
+    provider: {
+      providerClass: providerId === 'third-party' ? 'remote' : 'local',
+      endpoint,
+      model,
+      reachable: true,
+      modelInCatalog: reachability.ids.length === 0 ? null : reachability.ids.includes(model)
+    },
     environment: { ...environment, durationMs: Date.now() - startedAt },
     summary: {
       casesInDataset: dataset.cases.length,

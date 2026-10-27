@@ -739,6 +739,39 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX deletion_journal_operation_idx ON deletion_journal(operation_id);
       `)
     }
+  },
+  {
+    version: 20,
+    name: 'third-party-openai-compatible-provider',
+    up(database) {
+      // A user-configured OpenAI-compatible gateway needs its own provider row.
+      // The per-id shape checks are kept rather than relaxed: DeepSeek stays
+      // pinned to its documented base URL and model, the local provider stays
+      // local, and only the new id may carry an arbitrary https base URL.
+      // `timeout_ms` is per provider because a relay is slower than a local
+      // model and must not inherit a local timeout.
+      database.exec(`
+        CREATE TABLE provider_profiles_v20 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (id IN ('deepseek', 'local-openai', 'third-party')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 8 AND 2000),
+          model TEXT NOT NULL CHECK (length(model) BETWEEN 1 AND 200),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          timeout_ms INTEGER NOT NULL DEFAULT 45000 CHECK (timeout_ms BETWEEN 1000 AND 300000),
+          catalog_verified INTEGER NOT NULL DEFAULT 0 CHECK (catalog_verified IN (0, 1)),
+          updated_at TEXT NOT NULL,
+          CHECK (
+            (id = 'deepseek' AND provider_class = 'remote' AND endpoint = 'https://api.deepseek.com' AND model = 'deepseek-flash')
+            OR (id = 'local-openai' AND provider_class = 'local')
+            OR (id = 'third-party' AND provider_class = 'remote')
+          )
+        ) STRICT;
+        INSERT INTO provider_profiles_v20(id, provider_class, endpoint, model, enabled, timeout_ms, catalog_verified, updated_at)
+          SELECT id, provider_class, endpoint, model, enabled, 45000, 0, updated_at FROM provider_profiles;
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v20 RENAME TO provider_profiles;
+      `)
+    }
   }
 ]
 

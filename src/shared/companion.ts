@@ -5,8 +5,14 @@ export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com'
 export const DEEPSEEK_MODEL = 'deepseek-flash' as const
 export const DEEPSEEK_PROVIDER_ID = 'deepseek' as const
 export const LOCAL_PROVIDER_ID = 'local-openai' as const
+/**
+ * A user-configured OpenAI-compatible gateway. It is a separate provider id on
+ * purpose: enabling it must never be confused with the DeepSeek default, and
+ * the default provider is never switched automatically.
+ */
+export const THIRD_PARTY_PROVIDER_ID = 'third-party' as const
 
-export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID
+export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID | typeof THIRD_PARTY_PROVIDER_ID
 export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
@@ -81,6 +87,14 @@ export interface ProviderConfigRecord {
   enabled: boolean
   apiKeyConfigured: boolean
   updatedAt: string
+  /** Request timeout. Only the third-party provider reads this per record. */
+  timeoutMs: number
+  /**
+   * True when the model id was found in the service's `/v1/models` catalogue.
+   * False means the id was typed by hand and is unverified; it is never
+   * reported as verified on the strength of a successful chat call.
+   */
+  catalogVerified: boolean
 }
 
 export interface DeepSeekProviderConfigInput {
@@ -98,7 +112,22 @@ export interface LocalProviderConfigInput {
   apiKey?: string
 }
 
-export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput
+export interface ThirdPartyProviderConfigInput {
+  providerId: typeof THIRD_PARTY_PROVIDER_ID
+  /** Base URL, e.g. `https://host/v1`. A full chat URL is normalised. */
+  endpoint: string
+  model: string
+  enabled: boolean
+  apiKey?: string
+  timeoutMs?: number
+  /**
+   * Must be true: the request leaves the machine. Without it the provider is
+   * not saved, so a private conversation cannot be sent anywhere by accident.
+   */
+  acknowledgeThirdParty: true
+}
+
+export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput | ThirdPartyProviderConfigInput
 
 export interface ProviderConnectionRequest {
   providerId: ProviderId

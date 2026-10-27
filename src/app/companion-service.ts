@@ -22,8 +22,8 @@ import type {
   ProviderId,
   Sensitivity
 } from '../shared/companion'
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput } from '../shared/companion'
-import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
+import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, THIRD_PARTY_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ThirdPartyProviderConfigInput, type ProviderConfigInput } from '../shared/companion'
+import { isHttpsEndpoint, isLoopbackEndpoint, isValidRemoteModelId, normalizeOpenAIBaseUrl, isValidLocalModelName } from '../security/url-gate'
 import { COGNITIVE_ANALYZER_VERSION, withCognitiveContextEvidence, type CognitiveCoreSettings, type CognitiveHistoryMessage, type CognitiveTurnAnalysis, type CognitiveTurnRecord } from '../cognition/cognition'
 import { validateMemoryText } from '../memory/memory-domain'
 import type { SqliteDatabase } from '../persistence/database'
@@ -116,6 +116,8 @@ const sensitivityOrder: readonly Sensitivity[] = ['normal', 'personal', 'sensiti
 export type ProviderConsentAuthorizer = (preview: ProviderConsentPreview) => Promise<ProviderConsent | undefined>
 
 interface ProviderRow {
+  timeout_ms?: number
+  catalog_verified?: number
   id: string
   provider_class: 'remote' | 'local'
   endpoint: string
@@ -244,14 +246,110 @@ export class ProviderConfigService {
   ) {}
 
   get(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
-    const row = this.database.connection.prepare('SELECT id, provider_class, endpoint, model, enabled, updated_at FROM provider_profiles WHERE id = ?')
+    const row = this.database.connection.prepare('SELECT id, provider_class, endpoint, model, enabled, timeout_ms, catalog_verified, updated_at FROM provider_profiles WHERE id = ?')
       .get(providerId) as unknown as ProviderRow | undefined
     return row ? this.toRecord(row) : null
   }
 
   save(input: ProviderConfigInput): ProviderConfigRecord {
     if (input.providerId === LOCAL_PROVIDER_ID) return this.saveLocal(input)
-    return this.saveDeepSeek(input)
+    if (input.providerId === THIRD_PARTY_PROVIDER_ID) return this.saveThirdParty(input as ThirdPartyProviderConfigInput)
+    return this.saveDeepSeek(input as DeepSeekProviderConfigInput)
+  }
+
+  /**
+   * A user-configured OpenAI-compatible gateway.
+   *
+   * Three things are refused rather than repaired: a non-https base URL, an
+   * endpoint that carries credentials, and a save without the explicit
+   * `acknowledgeThirdParty` flag. The last one exists because enabling this
+   * provider means private conversation text leaves the machine.
+   *
+   * `catalogVerified` is only ever set by `verifyCatalog`, never by a
+   * successful save: a chat call that happens to work does not prove the id is
+   * in the service's catalogue.
+   */
+  private saveThirdParty(input: ThirdPartyProviderConfigInput): ProviderConfigRecord {
+    if (input.acknowledgeThirdParty !== true) throw new ApplicationError('INVALID_INPUT')
+    const endpoint = normalizeOpenAIBaseUrl(String(input.endpoint ?? ''))
+    if (!isHttpsEndpoint(endpoint) || !isValidRemoteModelId(input.model)) throw new ApplicationError('INVALID_INPUT')
+    if (typeof input.enabled !== 'boolean') throw new ApplicationError('INVALID_INPUT')
+    const timeoutMs = input.timeoutMs ?? 45_000
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 300_000) throw new ApplicationError('INVALID_INPUT')
+    let apiKey: string | undefined
+    if (input.apiKey !== undefined) {
+      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
+      apiKey = input.apiKey.trim() || undefined
+    }
+    let existingCredential: string | undefined
+    if (apiKey || input.enabled) {
+      try {
+        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+        existingCredential = this.secrets.get(THIRD_PARTY_PROVIDER_ID)
+      } catch (error) {
+        throw mapProviderSecretError(error)
+      }
+    }
+    if (input.enabled && !apiKey && !existingCredential) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    const now = safeTimestamp(this.clock())
+    let transactionStarted = false
+    let credentialWriteCompleted = false
+    try {
+      this.database.connection.exec('BEGIN IMMEDIATE')
+      transactionStarted = true
+      this.database.connection.prepare(`
+        INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, timeout_ms, catalog_verified, updated_at)
+        VALUES (?, 'remote', ?, ?, ?, ?, 0, ?)
+        ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
+          model = excluded.model, enabled = excluded.enabled, timeout_ms = excluded.timeout_ms,
+          catalog_verified = CASE
+            WHEN provider_profiles.endpoint = excluded.endpoint AND provider_profiles.model = excluded.model
+            THEN provider_profiles.catalog_verified ELSE 0 END,
+          updated_at = excluded.updated_at
+      `).run(THIRD_PARTY_PROVIDER_ID, endpoint, input.model, input.enabled ? 1 : 0, timeoutMs, now)
+      if (apiKey) {
+        try {
+          this.secrets.set(THIRD_PARTY_PROVIDER_ID, apiKey)
+          credentialWriteCompleted = true
+          if (!this.secrets.isAvailable() || this.secrets.get(THIRD_PARTY_PROVIDER_ID) !== apiKey) {
+            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+          }
+        } catch (error) {
+          throw mapProviderSecretError(error)
+        }
+      }
+      this.database.connection.exec('COMMIT')
+      transactionStarted = false
+    } catch (error) {
+      if (transactionStarted) {
+        try { this.database.connection.exec('ROLLBACK') } catch { transactionStarted = false }
+      }
+      if (credentialWriteCompleted) {
+        try {
+          if (existingCredential === undefined) this.secrets.delete(THIRD_PARTY_PROVIDER_ID)
+          else this.secrets.set(THIRD_PARTY_PROVIDER_ID, existingCredential)
+        } catch {
+          throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+        }
+      }
+      if (error instanceof ApplicationError) throw error
+      throw new ApplicationError('STORAGE_ERROR')
+    }
+    const result = this.get(THIRD_PARTY_PROVIDER_ID)
+    if (!result) throw new ApplicationError('STORAGE_ERROR')
+    return result
+  }
+
+  /**
+   * Marks whether `model` appears in the service's `/v1/models` catalogue.
+   * Returns the record so the caller can show "unverified" honestly instead of
+   * inferring verification from a successful chat call.
+   */
+  markCatalogVerified(providerId: ProviderId, verified: boolean): ProviderConfigRecord | null {
+    if (providerId !== THIRD_PARTY_PROVIDER_ID) throw new ApplicationError('INVALID_INPUT')
+    this.database.connection.prepare('UPDATE provider_profiles SET catalog_verified = ?, updated_at = ? WHERE id = ?')
+      .run(verified ? 1 : 0, safeTimestamp(this.clock()), providerId)
+    return this.get(providerId)
   }
 
   private saveDeepSeek(input: DeepSeekProviderConfigInput): ProviderConfigRecord {
@@ -440,7 +538,9 @@ export class ProviderConfigService {
   }
 
   private toRecord(row: ProviderRow): ProviderConfigRecord {
-    const providerId = row.id === LOCAL_PROVIDER_ID ? LOCAL_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
+    const providerId = row.id === LOCAL_PROVIDER_ID
+      ? LOCAL_PROVIDER_ID
+      : row.id === THIRD_PARTY_PROVIDER_ID ? THIRD_PARTY_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
     return {
       id: providerId,
       providerClass: row.provider_class === 'local' ? 'local' : 'remote',
@@ -448,7 +548,9 @@ export class ProviderConfigService {
       model: row.model,
       enabled: row.enabled === 1,
       apiKeyConfigured: this.hasCredential(providerId),
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      timeoutMs: Number(row.timeout_ms ?? 45_000),
+      catalogVerified: Number(row.catalog_verified ?? 0) === 1
     }
   }
 
