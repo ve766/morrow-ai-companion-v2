@@ -23,6 +23,9 @@ evaluation/reports/*
 !evaluation/reports/cognitive-alpha-adversarial-report.json
 !evaluation/reports/real-provider-conversation-report*.json
 !evaluation/reports/context-memory-real-report*.json
+# Phase 2.2 real-model runs are evidence too: the file name carries the run id
+# and the writer refuses to overwrite, so tracking them cannot clobber a run.
+!evaluation/reports/context-memory-v2-real-report*.json
 # Human reviews are evidence, and evidence is tracked. Nothing ignores this
 # directory today; the rule states the intent so a later broad ignore of
 # evaluation/ cannot make a reviewer's record disappear silently.
