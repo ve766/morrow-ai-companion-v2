@@ -74,14 +74,17 @@ async function main(): Promise<void> {
     summary: report.summary,
     attribution: report.attribution,
     quality: report.quality,
+    verdicts: report.cases.map((item) => ({ id: item.id, verdict: item.verdict })),
     failures: report.cases
       .filter((item) => item.failureReason !== null)
       .map((item) => ({ id: item.id, attribution: item.attribution, reason: item.failureReason })),
     report: outputPath.replace(`${root}/`, '').replace(/\\/gu, '/')
   }))
+  // Only `fail` fails the gate. `uncertain` and `needs_review` mean the rule
+  // could not decide, and turning "we could not tell" into a red build would
+  // make the cheapest way to a green run "drop the difficult cases".
   if (report.summary.casesFailed > 0) process.exitCode = 2
 }
-
 main().catch((error: unknown) => {
   const code = error instanceof ReportPathError
     ? error.code

@@ -15,6 +15,7 @@ import type { ProviderConsentPreview } from '../providers/provider-policy'
 import { EvaluationSecretStore } from './evaluation-secret-store'
 import { buildReproduction, type RealRunReproduction } from './run-identity'
 import { parseProviderRequest } from './request-assertions'
+import { decideVerdict, type RealVerdict } from './verdict'
 import {
   parseDeliveredMemories,
   type ContextMemoryCase,
@@ -80,6 +81,15 @@ export interface RealCaseRecord {
    * different owner.
    */
   status: 'checked' | 'not_checked' | 'failed' | 'error'
+  /**
+   * How much the rule could prove, independent of `status`. `pass` requires a
+   * positive requirement to be satisfied; absence-only and form-only rules
+   * report `uncertain` because a non-answer satisfies them too.
+   */
+  verdict: RealVerdict
+  verdictRationale: string
+  /** The specific way this verdict could still be wrong. Not a summary. */
+  verdictCaveat: string | null
   /** The rule as declared in the fixture, echoed so the report is self-contained. */
   rule: string | null
   turns: RealTurnRecord[]
@@ -114,6 +124,10 @@ export interface ContextMemoryRealReport {
     casesPassed: number
     casesFailed: number
     casesNotChecked: number
+    /** Rule satisfied but unable to distinguish an answer from a non-answer. */
+    casesUncertain: number
+    /** No mechanical rule: handed to a reviewer instead of being scored. */
+    casesNeedsReview: number
     turnsExecuted: number
   }
   attribution: { notDelivered: number; deliveredButNotUsed: number; ruleNotSatisfied: number }
@@ -347,12 +361,16 @@ async function runCase(
     const caseStatus: RealCaseRecord['status'] = rule === null
       ? 'not_checked'
       : finalReply === null ? 'error' : failureReason === null ? 'checked' : 'failed'
+    const decision = decideVerdict(rule, finalReply, checks)
 
     return {
       id: testCase.id,
       capability: testCase.capability,
       title: testCase.title,
       status: caseStatus,
+      verdict: decision.verdict,
+      verdictRationale: decision.rationale,
+      verdictCaveat: decision.caveat,
       rule: rule ? (rule.check === 'clarifying_question' ? 'clarifying_question' : `substring: +[${(rule.mustMention ?? []).join('|')}] -[${(rule.mustNotMention ?? []).join('|')}]`) : null,
       turns,
       checks,
@@ -381,6 +399,7 @@ export async function runContextMemoryReal(
   const environment = { node: process.version, platform: `${process.platform}-${process.arch}`, durationMs: 0 }
   const limitations = [
     'Only cases whose fixture declares a mechanical rule are scored. The rest are recorded as not_checked; they need human review, not a substring.',
+    'A verdict of pass requires a positive requirement (mustMention) to be satisfied. Absence-only and question-mark rules report uncertain when they pass, because a non-answer satisfies them too.',
     'mustMention/mustNotMention are lexical. A correct paraphrase that avoids the literal string fails the check; the raw reply is kept so a reviewer can see the difference.',
     'clarifying_question only looks for a question mark. A declarative clarification ("我需要知道订什么") is scored as a failure.',
     'The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it.'
@@ -406,6 +425,8 @@ export async function runContextMemoryReal(
         casesPassed: 0,
         casesFailed: 0,
         casesNotChecked: 0,
+        casesUncertain: 0,
+        casesNeedsReview: 0,
         turnsExecuted: 0
       },
       attribution: { notDelivered: 0, deliveredButNotUsed: 0, ruleNotSatisfied: 0 },
@@ -422,9 +443,11 @@ export async function runContextMemoryReal(
   const cases: RealCaseRecord[] = []
   for (const testCase of selected) cases.push(await runCase(testCase, endpoint, model, timeoutMs))
 
-  const checked = cases.filter((item) => item.status !== 'not_checked')
-  const passed = checked.filter((item) => item.failureReason === null)
-  const failed = checked.length - passed.length
+  const tally = { pass: 0, fail: 0, uncertain: 0, needs_review: 0 }
+  for (const item of cases) tally[item.verdict] += 1
+  // A case counts as checked only when a rule was applied to an actual reply.
+  // everything else is `needs_review`, and that is a count, not a score.
+  const checkedCount = tally.pass + tally.fail + tally.uncertain
   const attributionCounts = { notDelivered: 0, deliveredButNotUsed: 0, ruleNotSatisfied: 0 }
   for (const item of cases) {
     if (item.attribution === 'not_delivered') attributionCounts.notDelivered += 1
@@ -449,12 +472,14 @@ export async function runContextMemoryReal(
     summary: {
       casesInDataset: dataset.cases.length,
       casesSelected: selected.length,
-      casesChecked: checked.length,
-      casesPassed: passed.length,
-      casesFailed: failed,
+      casesChecked: checkedCount,
+      casesPassed: tally.pass,
+      casesFailed: tally.fail,
       // Only cases this run actually selected can be "not checked". Counting
       // the whole dataset made a targeted run look like 18 untested cases.
-      casesNotChecked: selected.length - checked.length,
+      casesNotChecked: tally.needs_review,
+      casesUncertain: tally.uncertain,
+      casesNeedsReview: tally.needs_review,
       turnsExecuted: cases.reduce((total, item) => total + item.turns.length, 0)
     },
     attribution: attributionCounts,
