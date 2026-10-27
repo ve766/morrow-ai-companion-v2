@@ -45,6 +45,15 @@ export interface ContextMemory {
   updatedAt: string
   revision: number
   score: number
+  // Why this record entered the request. 'topic' means it shares terms with the
+  // current turn; 'continuity' means it carries no topical overlap and is
+  // included only so the companion does not treat the user as a stranger.
+  // The prompt labels both, so the model can tell the difference.
+  match: 'topic' | 'continuity'
+  // True when the record has gone past the staleness window without a fresh
+  // user confirmation. Stale evidence stays retrievable but must be presented
+  // to the model as possibly outdated rather than as a current fact.
+  stale?: boolean
 }
 
 export interface AssembledMemoryContext {

@@ -36,6 +36,8 @@ jobs:
         run: |
           npm run evaluate
           npm run evaluate:cognition
+          npm run evaluate:companion
+          npm run evaluate:context
 
       - name: Build application bundles
         run: npm run build

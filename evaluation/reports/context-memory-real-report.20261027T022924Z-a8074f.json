@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 2,
+  "evidenceClass": "real_provider_behaviour",
+  "measures": "model_behaviour",
+  "dataset": "context-memory-v1",
+  "generatedAt": "2026-10-27T02:29:24.209Z",
+  "reproduction": {
+    "runId": "20261027T022924Z-a8074f",
+    "codeCommit": "af4f0b108519af79cff8d11f031dfae588d47362",
+    "codeState": "clean",
+    "sampling": "provider-default"
+  },
+  "status": "checked",
+  "blockedReason": null,
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "reachable": true
+  },
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32-x64",
+    "durationMs": 5039
+  },
+  "summary": {
+    "casesInDataset": 22,
+    "casesSelected": 4,
+    "casesChecked": 3,
+    "casesPassed": 1,
+    "casesFailed": 2,
+    "casesNotChecked": 1,
+    "turnsExecuted": 4
+  },
+  "attribution": {
+    "notDelivered": 0,
+    "deliveredButNotUsed": 2,
+    "ruleNotSatisfied": 0
+  },
+  "cases": [
+    {
+      "id": "b2-recall-new-session",
+      "capability": "B2_cross_session_recall",
+      "title": "新会话通过已保存记忆回忆事实",
+      "status": "checked",
+      "rule": "substring: +[成都] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我下周要去哪来着？",
+          "reply": "用户说 \"去成都参加婚礼。\" 好的，那下周去成都吧。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 1816
+          },
+          "durationMs": 1409
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:成都",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b5-stale",
+      "capability": "B5_stale_flagged",
+      "title": "长期未确认的记忆被标记为过期",
+      "status": "not_checked",
+      "rule": null,
+      "turns": [
+        {
+          "index": 0,
+          "content": "我还在准备考研吗？",
+          "reply": "用户在考研，需要进一步提供更多的信息。请问您目前在哪里学习或者备考？\nuser_explicit_input: user_explicit_input: {\"topic\":\"考研\",\"content\":\"我已经开始备考了...\"}\nmemory_id_1: {\"id\":\"bf587af8-d314-48ca-ba53-cbcbff2c0c7d\"},\"status\": \"active\" ,confidence\": 85 ,revision : 1,stale:false,\"match\":\"topic\",sensitivity:\"personal\"}\nfavorite_topic: {\"topics\":[],\"color\":\"yellow\",\"level\":\"learn\"}",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 1,
+            "memoryMatches": [
+              "topic"
+            ],
+            "bytes": 1797
+          },
+          "durationMs": 1158
+        }
+      ],
+      "checks": [],
+      "attribution": null,
+      "failureReason": null
+    },
+    {
+      "id": "b7-conflict",
+      "capability": "B7_conflict_both_visible",
+      "title": "相互矛盾的记忆同时可见，并附带冲突指令",
+      "status": "failed",
+      "rule": "substring: +[杭州|上海] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我到底住在哪？",
+          "reply": "用户住在上海。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "topic"
+            ],
+            "bytes": 2080
+          },
+          "durationMs": 282
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:杭州",
+          "passed": false,
+          "detail": "absent from reply (用户住在上海。)"
+        },
+        {
+          "rule": "mustMention:上海",
+          "passed": true,
+          "detail": "present in reply"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:杭州: absent from reply (用户住在上海。)"
+    },
+    {
+      "id": "c4-uncertain",
+      "capability": "C4_conflict_uncertainty_delivered",
+      "title": "新旧证据冲突时不确定性与过期标记同时到位",
+      "status": "failed",
+      "rule": "substring: +[杭州|上海] -[]",
+      "turns": [
+        {
+          "index": 0,
+          "content": "我住在哪个城市？",
+          "reply": "用户住在杭州。",
+          "errorCode": null,
+          "request": {
+            "messageRoles": [
+              "system",
+              "user"
+            ],
+            "historyLength": 0,
+            "memoryEntries": 2,
+            "memoryMatches": [
+              "topic",
+              "topic"
+            ],
+            "bytes": 2082
+          },
+          "durationMs": 387
+        }
+      ],
+      "checks": [
+        {
+          "rule": "mustMention:杭州",
+          "passed": true,
+          "detail": "present in reply"
+        },
+        {
+          "rule": "mustMention:上海",
+          "passed": false,
+          "detail": "absent from reply (用户住在杭州。)"
+        }
+      ],
+      "attribution": "delivered_but_not_used",
+      "failureReason": "mustMention:上海: absent from reply (用户住在杭州。)"
+    }
+  ],
+  "quality": {
+    "assessed": false,
+    "note": "This run measures whether a small local model used context it was given. It is not a product-quality verdict and must not be quoted as one."
+  },
+  "limitations": [
+    "Only cases whose fixture declares a mechanical rule are scored. The rest are recorded as not_checked; they need human review, not a substring.",
+    "mustMention/mustNotMention are lexical. A correct paraphrase that avoids the literal string fails the check; the raw reply is kept so a reviewer can see the difference.",
+    "clarifying_question only looks for a question mark. A declarative clarification (\"我需要知道订什么\") is scored as a failure.",
+    "The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it."
+  ]
+}

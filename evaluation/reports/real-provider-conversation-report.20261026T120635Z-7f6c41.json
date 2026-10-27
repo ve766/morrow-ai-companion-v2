@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-26T12:06:35.483Z",
+  "status": "verified",
+  "blockedReason": null,
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "reachable": true
+  },
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32-x64"
+  },
+  "turns": [
+    {
+      "id": "turn-1",
+      "conversation": "a",
+      "content": "我叫林一，住在杭州，做后端开发。",
+      "requestSha256": "7ff7e3cb30521cdbab5de7eb2a7160c374e44622ae92ebd7d23cb08548140221",
+      "requestBytes": 1621,
+      "messageRoles": [
+        "system",
+        "user"
+      ],
+      "containsPreviousUserTurn": true,
+      "containsPreviousAssistantTurn": true,
+      "containsMemory": false,
+      "responseText": "很高兴认识你，林一！我是用户提供的程序的管理员。我理解你在杭州，并且正在进行后端开发的工作。有什么我能帮助你的吗？",
+      "responseChars": 57,
+      "elapsedMs": 759,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    },
+    {
+      "id": "turn-2",
+      "conversation": "a",
+      "content": "我平时喝手冲咖啡。",
+      "requestSha256": "9d47d510602bd27a7b8b2388adbdc3897f507358397c9459449c8432ea00b68d",
+      "requestBytes": 1882,
+      "messageRoles": [
+        "system",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "containsPreviousUserTurn": true,
+      "containsPreviousAssistantTurn": true,
+      "containsMemory": false,
+      "responseText": "明白了，喜欢手冲咖啡吗？不过要保持咖啡的质量，建议购买高质量的咖啡豆和研磨设备。祝你生活愉快！",
+      "responseChars": 47,
+      "elapsedMs": 434,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    },
+    {
+      "id": "turn-3",
+      "conversation": "a",
+      "content": "你还记得我叫什么、住在哪里、做什么工作吗？",
+      "requestSha256": "537eb35584b15d16e89fad2fe1fc15992900cf1de0e7b9ab4118280c73d8f1c4",
+      "requestBytes": 2149,
+      "messageRoles": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "containsPreviousUserTurn": true,
+      "containsPreviousAssistantTurn": true,
+      "containsMemory": false,
+      "responseText": "对不起，我现在不支持用户记忆用户的隐私。我们可以使用更高级的隐私设置或创建一个完全信任的关系来保护您的隐私。如果您需要帮助记录重要的信息，请告诉我。",
+      "responseChars": 74,
+      "elapsedMs": 459,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    },
+    {
+      "id": "turn-4",
+      "conversation": "b",
+      "content": "我住在哪里？",
+      "requestSha256": "f7829cbdc6b81f54d196ba823b09abbb7623c47bf9c4a018dbdda8a9d70501f1",
+      "requestBytes": 1923,
+      "messageRoles": [
+        "system",
+        "user"
+      ],
+      "containsPreviousUserTurn": true,
+      "containsPreviousAssistantTurn": true,
+      "containsMemory": true,
+      "responseText": "我住在杭州，做后端开发。",
+      "responseChars": 12,
+      "elapsedMs": 332,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    }
+  ],
+  "checks": [
+    {
+      "id": "provider-reachable",
+      "description": "The configured OpenAI-compatible endpoint answered on /models",
+      "passed": true,
+      "detail": "nomic-embed-text:latest, qwen2.5:0.5b"
+    },
+    {
+      "id": "first-turn-answered",
+      "description": "A real HTTP call returned a non-empty assistant reply",
+      "passed": true,
+      "detail": "turn-1 chars=57"
+    },
+    {
+      "id": "multi-turn-context",
+      "description": "Turn 3 request still carried turn 1 and turn 2 exchanges",
+      "passed": true,
+      "detail": "turn-3 bytes=2149 turn-2 bytes=1882"
+    },
+    {
+      "id": "conversation-isolated",
+      "description": "The new conversation request contains the memory but not the earlier conversation text",
+      "passed": true,
+      "detail": "cross bytes=1923 memoryInRequest=true"
+    },
+    {
+      "id": "memory-reaches-real-model",
+      "description": "A memory saved before the new conversation appears inside the real request body",
+      "passed": true,
+      "detail": "memoryInRequest=true"
+    },
+    {
+      "id": "personality-in-request",
+      "description": "The stored personality version and values are present in the request the server received",
+      "passed": true,
+      "detail": "versionInRequest=true warmthInRequest=true"
+    },
+    {
+      "id": "configured-model-used",
+      "description": "The request declared the configured model id",
+      "passed": true,
+      "detail": "model=qwen2.5:0.5b"
+    },
+    {
+      "id": "no-credential-in-body",
+      "description": "No credential or authorization header value appears in the request body",
+      "passed": true,
+      "detail": "bodyBytes=1923"
+    },
+    {
+      "id": "no-fabricated-reply-on-failure",
+      "description": "No turn stored an assistant message while reporting an error",
+      "passed": true,
+      "detail": "failedTurns=0"
+    }
+  ],
+  "observations": [
+    {
+      "id": "recall-of-name-and-city",
+      "note": "turn-3 reply mentions 林一=false, 杭州=false, 后端=false. A 0.5B local model frequently fails this; the check above only proves the context was delivered, not that the model used it."
+    },
+    {
+      "id": "cross-conversation-answer",
+      "note": "turn-4 reply mentions 杭州=true. The memory was delivered to the model; whether the model used it is a model-capability observation, not a system guarantee."
+    }
+  ],
+  "quality": {
+    "assessed": false,
+    "note": "No quality verdict is produced. A 0.5B local model is not evidence about reply quality, personality expression, or real-user usefulness in either direction."
+  },
+  "summary": {
+    "turnsRequested": 4,
+    "turnsCompleted": 4,
+    "turnsFailed": 0
+  }
+}

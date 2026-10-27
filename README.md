@@ -52,13 +52,22 @@ npm run dev          # 启动开发实例
 
 ```bash
 npm run typecheck    # tsc --noEmit
-npm test             # vitest 全量（40 文件 / 268 测试）
+npm test             # vitest 全量（42+ 文件 / 290+ 测试）
 npm run evaluate     # 离线评估：记忆检索（substring 基线 vs scope-aware 候选）
 npm run evaluate:cognition  # 离线评估：轮次分析 / 内在状态 / 认知 Alpha 对抗
+npm run evaluate:companion  # 离线评估：陪伴核心闭环（多轮/记忆/人格/失败/完整性）
 npm run build        # electron-vite 构建
 npm run smoke        # 真实 Electron 冒烟（凭据生命周期/认知开关/记忆/目标/提醒/重启）
-npm run verify       # 上述全部（typecheck + test + 两项评估 + build + smoke）
+npm run verify       # 上述全部（typecheck + test + 三项评估 + build + smoke）
+npm run verify:real  # 真实模型多轮验证（需本机 OpenAI 兼容服务，见下）
 ```
+
+`npm run verify:real` 需要一个真实运行的 OpenAI 兼容服务，默认探测
+`http://127.0.0.1:11434/v1`（Ollama）与 `qwen2.5:0.5b`，可用
+`MORROW_REAL_PROVIDER_ENDPOINT` / `MORROW_REAL_PROVIDER_MODEL` 覆盖。它只对**客观事实**设门禁
+（请求是否到达、是否携带上一轮、是否携带记忆、是否声明了配置的模型），不产出质量结论：
+小参数本地模型回答得好不好，既不能证明也不能否证真实陪伴质量。未探测到服务时退出码为 3，
+状态记为 `blocked`，不会写成通过。
 
 验收场景 A–H 的自动化映射：`tests/acceptance/scenarios.test.ts`（场景说明见
 [docs/testing/acceptance-report.md](docs/testing/acceptance-report.md)）。
