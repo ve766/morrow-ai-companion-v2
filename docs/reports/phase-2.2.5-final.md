@@ -8,7 +8,8 @@
 | 本轮最终 HEAD | `cfa6f25` |
 | 分支 | `feat/phase-2.2-memory-reliability` |
 | PR | [#4](https://github.com/ve766/morrow-ai-companion-v2/pull/4)，**OPEN**，base `feat/phase-2-companion-core`（PR #3，未合并） |
-| CI @ `cfa6f25` | [40505885872](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40505885872) **success** |
+| CI @ `cfa6f25`（代码+证据+三份报告） | [40505885872](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40505885872) **success** |
+| CI @ `f93ac2a`（最终报告） | [40506396179](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40506396179) **success** |
 | 数据库 | v18 → **v19** |
 | main | 未修改；未合并任何 PR |
 
