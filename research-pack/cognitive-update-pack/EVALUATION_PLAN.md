@@ -106,3 +106,53 @@ For each candidate:
 - Latency/resource comparison:
 - Decision: keep / revise / reject / defer
 - Rationale:
+
+## 7. v0.2 module evaluation plan
+
+### 7.1 Required datasets
+
+| Dataset | Minimum cases | Labels |
+|---|---:|---|
+| Evidence dedup/confidence | 40 | independent vs duplicate evidence, counter-evidence, source uncertainty |
+| Relevance fusion | 60 queries | relevant memory ids, hard-excluded ids, per-signal scores |
+| Conflict/time | 50 pairs | subject/attribute same or different, overlapping or disjoint time, compatible/incompatible values |
+| Temporal decay | 40 records | category, age, last confirmation, retracted/deleted |
+| Context budget | 40 scenarios | utility, cost, hard eligibility, expected selected set at budget |
+| Metacognitive check | 50 replies | answer/clarify/abstain, reason code, unsupported claim, subject error |
+| Personality evolution | 40 sequences | independent preference evidence vs factual correction, expected bounded delta |
+| Affective state | 30 sequences | event/state targets, bounds, no-subjective-experience invariant |
+
+At least 30% must be held out and not used for parameter tuning.
+
+### 7.2 Metrics
+
+- Evidence: duplicate inflation rate, confidence monotonicity failures, calibration error if probabilities are claimed.
+- Fusion: Recall@k, Precision@k, MRR, false-recall rate, missing-signal handling errors.
+- Conflict: conflict precision/recall, temporal-update misclassification rate.
+- Decay: rank correlation with expected recency; retracted reactivation count must be 0.
+- Budget: exact-vs-greedy utility gap, budget violations, hard-gate violations.
+- Metacognition: abstention precision/recall, unsupported-assertion rate, subject-error rate.
+- Personality: maximum per-turn delta violations, fact-to-personality leakage count, stability across replay.
+- Affective: bound violations, deterministic replay, claims-subjective-experience count must be 0.
+- Generic: p50/p95 latency, memory use, determinism hash.
+
+### 7.3 Ablations
+
+Run the same fixture with each signal/penalty removed: semantic, context, temporal, conflict, provenance, decay. Report whether the change is beneficial, neutral, or harmful. Do not tune on held-out data.
+
+### 7.4 v0.2 current evidence
+
+Only deterministic unit tests have run: 24/24 pass (6 v0.1 + 18 v0.2). No dataset, calibration, ablation, product integration, or human review has been completed. Therefore no module is VALIDATED.
+
+### 7.5 Promotion gates
+
+A module may become INTEGRATION_CANDIDATE only after all of the following:
+
+- 0 revoked/unauthorized data leaks;
+- 0 hard-gate override violations;
+- no regression in the frozen product retrieval suite;
+- a measurable improvement over the v0.1 reference on held-out cases;
+- documented parameter/config version;
+- reproducible case-level results;
+- explicit owner and rollback plan.
+

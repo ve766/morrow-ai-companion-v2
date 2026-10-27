@@ -1,6 +1,6 @@
 # Morrow Cognitive Algorithm & Operator Update Pack
 
-**Pack version:** 0.1.0-draft  
+**Pack version:** 0.2.0-draft  
 **Status:** isolated research package; not integrated into Morrow runtime  
 **Target:** Morrow V2  
 **Branch:** `research/cognitive-update-pack-v0.1`
@@ -25,11 +25,27 @@ This pack is a workbench for algorithm design, reference contracts, evaluation c
 ## Pack contents
 
 - `ALGORITHM_BLUEPRINT.md`: the end-to-end cognitive algorithm and its invariants.
-- `MATHEMATICAL_SPEC.md`: proposed equations, variables, constraints, evaluation metrics, and formula-to-code coverage.
-- `OPERATOR_CATALOG.md`: candidate operator contracts, responsibilities, and boundaries.
-- `EVALUATION_PLAN.md`: datasets, metrics, regression cases, and release gates.
+- `ALGORITHM_CATALOG.md`: the eight v0.2 modules, versions, dependencies, and maturity.
+- `MATHEMATICAL_SPEC.md`: v0.1 plus incremental v0.2 equations, variables, constraints, evaluation metrics, and formula-to-code status.
+- `OPERATOR_CATALOG.md`: candidate operator contracts, responsibilities, boundaries, and error paths.
+- `EVALUATION_PLAN.md`: datasets, metrics, regression cases, ablations, and release gates.
+- `IMPLEMENTATION_STATUS.md`: what is implemented, tested, only specified, or blocked.
 - `INTEGRATION_PLAN.md`: how proven pieces may later be extracted without prematurely integrating them.
+- `SAFETY_AND_PRIVACY.md`: lifecycle, consent, sensitivity, retraction, and no-runtime-integration rules.
 - `CHANGELOG.md`: changes and evidence for each pack revision.
+- `src/operators.js`: v0.1 reference lifecycle/retrieval/ranking/context operators.
+- `src/cognitive-v2.js`: v0.2 reference evidence, fusion, conflict, decay, budget, metacognition, personality, and affective operators.
+- `test/`: Node built-in tests; no external dependencies.
+
+## Current v0.2 verification
+
+Run inside `research-pack/cognitive-update-pack`:
+
+```bash
+npm test
+```
+
+The reference suite contains 24 tests and passes in Node 22. This proves deterministic operator behavior on synthetic unit cases only. It does not prove product quality, calibration, or real-model benefit.
 
 ## Development loop
 

@@ -116,6 +116,78 @@ This is a proposed shape, not a claim that the current repository already export
 **Must not:** make a single transient utterance permanently define personality; directly change permissions or system policy.  
 **Evaluation:** stability, reversibility, calibration, resistance to prompt injection and transient noise.
 
+### O-11: Evidence Confidence Updater (v0.2)
+
+- **Input:** prior, alpha/beta/gamma, supporting evidence `{id,strength}`, counter evidence, source uncertainty.
+- **Output:** new confidence, delta, E/K/U components, accepted ids, duplicate counts, `isCalibratedProbability:false`.
+- **Preconditions:** strengths and prior in [0,1]; coefficients non-negative.
+- **Error path:** non-finite inputs fall back to safe defaults; duplicate ids are collapsed to max strength.
+- **Side effects:** none; pure function.
+- **Test:** `test/cognitive-v2.test.js` confidence cases.
+
+### O-12: Multi-Signal Fusion Ranker (v0.2)
+
+- **Input:** optional lexical/phrase/semantic/context/temporal scores, non-negative weights, threshold, hard eligibility.
+- **Output:** normalized score, normalized weights, per-signal contributions, available/missing signals, threshold result.
+- **Preconditions:** semantic score supplied only when measured; missing remains absent.
+- **Error path:** no available signals → score 0 with `no_available_signals`; hard gate failure never returns eligible.
+- **Side effects:** none.
+- **Test:** missing semantic, zero score, and hard-gate cases.
+
+### O-13: Structured Conflict Detector (v0.2)
+
+- **Input:** new and old memory with subject, attribute, value, validity range.
+- **Output:** conflict boolean plus subject/attribute/time/value evidence and `autoSelectWinner:false`.
+- **Preconditions:** records may have open-ended time ranges.
+- **Error path:** missing object → `missing_memory`; mismatched subject/attribute → no conflict with reason.
+- **Side effects:** none.
+- **Test:** simultaneous conflict, attribute mismatch, non-overlapping temporal update.
+
+### O-14: Category-Aware Temporal Decay (v0.2)
+
+- **Input:** category, ageDays, optional half-life, status.
+- **Output:** decay factor, eligibility, category, half-life.
+- **Preconditions:** age and half-life non-negative.
+- **Error path:** retracted/deleted → decay 0, eligible false, explicit reason.
+- **Side effects:** none; decay never deletes evidence.
+- **Test:** identity vs temporary and retraction exclusion.
+
+### O-15: Budgeted Context Selector v2 (v0.2)
+
+- **Input:** items `{id,utility,cost,eligible}`, integer character budget.
+- **Output:** exact-DP selected set, used budget, greedy comparison, gap, omitted reasons.
+- **Preconditions:** utility non-negative, cost non-negative; costs are characters, not tokens.
+- **Error path:** ineligible items hard-excluded; impossible budget → empty selection.
+- **Side effects:** none.
+- **Test:** exact beats greedy, deterministic replay, hard gate, impossible budget.
+
+### O-16: Metacognitive Pre-Answer Check (v0.2)
+
+- **Input:** evidence ids, claims with support/subject/inference/context-only flags, unresolved conflict, retired ids.
+- **Output:** answer/clarify/abstain, reason codes, check counters, `usedModelSelfEvaluation:false`.
+- **Preconditions:** claims reference supplied evidence ids.
+- **Error path:** missing/unsupported evidence → abstain; unresolved conflict → clarify.
+- **Side effects:** none; no model invocation.
+- **Test:** supported answer, conflict, inference-as-fact, subject mismatch, context-only, retired.
+
+### O-17: Bounded Personality Updater (v0.2)
+
+- **Input:** current dimensions, user preference observations, eta, max delta, bounds.
+- **Output:** next state, per-dimension changes with evidence ids and reasons, accepted ids.
+- **Preconditions:** only `kind='preference'`, `subject='user'`; duplicate ids collapsed.
+- **Error path:** unknown dimension or non-finite direction ignored; facts never change personality.
+- **Side effects:** none; caller must still request user authorization before persistence.
+- **Test:** bounded delta, fact exclusion, duplicate evidence.
+
+### O-18: Computed Affective/Interest State Updater (v0.2)
+
+- **Input:** state vector, event targets, rho, eta, bounds.
+- **Output:** bounded next vector, per-dimension changes, representation label, `claimsSubjectiveExperience:false`.
+- **Preconditions:** dimensions normalized to [0,1].
+- **Error path:** missing event target retains current state; non-finite values become current/default.
+- **Side effects:** none; not connected to production feeling state.
+- **Test:** bounds, decay without event, representation disclaimer.
+
 ## 4. Composition rules
 
 - Run hard lifecycle/authorization gates before expensive ranking.

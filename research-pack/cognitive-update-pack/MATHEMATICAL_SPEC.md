@@ -192,3 +192,150 @@ Freeze pack commit, algorithm/config version, fixture/corpus version, model/prov
 | Evaluation | Recall@k, MRR, nDCG, UAR, CRR | Definitions only; no recorded benchmark results |
 
 **Important:** equations are hypotheses and contracts, not proof of effectiveness. The next steps are unit tests for the formulas, CJK-aware retrieval, and comparative evaluation. Do not claim any quality gain until results are run and recorded.
+
+---
+
+# v0.2 incremental specification
+
+The v0.1 sections above are preserved as historical specification. The sections below add the eight modules requested for version 0.2 and record the exact reference implementations in `src/cognitive-v2.js`. Nothing here is integrated into the Morrow runtime.
+
+## 12. Evidence and confidence management
+
+For a candidate memory m, let:
+
+- \(C_{old}\in[0,1]\): previous confidence.
+- \(E=\{e_1,\ldots,e_n\}\): independent supporting evidence.
+- \(K=\{k_1,\ldots,k_m\}\): independent counter-evidence.
+- \(e_i,k_j\in[0,1]\): evidence strength.
+- \(U\in[0,1]\): source uncertainty.
+- \(\alpha,\beta,\gamma\ge 0\): calibrated coefficients.
+
+\[
+C_{new}=clip(C_{old}+\alpha\sum_i e_i-\beta\sum_j k_j-\gamma U,0,1)
+\]
+
+**Independence rule:** repeated observations are deduplicated by `sourceId`; for duplicate IDs the maximum strength is used once, never summed. Therefore repeating the same sentence cannot increase \(C\). The output is explicitly `isCalibratedProbability: false` until reliability diagrams or Brier scores are computed on labelled data.
+
+Variables recorded per memory: subject, source message/type, observed time, validity range, confidence, confirmation status, sensitivity, conflict status, revision/retraction history. Confidence is bounded but not interpreted as truth probability without calibration.
+
+## 13. Relevance fusion and selection
+
+For memory \(m\) and query \(q\), available normalized signals \(x_i(q,m)\in[0,1]\):
+
+- \(L\): lexical relevance;
+- \(P\): phrase/entity match;
+- \(S\): semantic similarity, **only when actually computed**;
+- \(C\): conversational-context relevance;
+- \(T\): temporal relevance.
+
+\[
+R(m,q)=\frac{\sum_{i\in A}w_i x_i}{\sum_{i\in A}w_i},\qquad A=\{i\mid x_i\text{ is available}\}
+\]
+
+Weights \(w_i\ge0\) are calibrated on a development set and frozen before held-out evaluation. A missing signal is excluded from both numerator and denominator; it is never replaced by zero. `semanticScore: null` means unmeasured, not zero similarity.
+
+The hard selection predicate is:
+
+\[
+Select(m,q)=Active(m)\land Authorized(m)\land Relevant(m,q)
+\]
+
+\[
+Relevant(m,q)=R(m,q)\ge \tau
+\]
+
+\(\tau\) is validated on labelled data. No score can override `Active` or `Authorized`. Conflicting values remain visible to the answer layer and cannot be resolved by a higher score alone.
+
+## 14. Conflict detection and temporal state
+
+For new claim \(m_{new}\) and old claim \(m_{old}\):
+
+\[
+Conflict=SubjectMatch\land AttributeMatch\land TimeOverlap\land ValueIncompatible
+\]
+
+Time ranges are half-open-to-closed intervals \([start,end]\); non-overlap yields a temporal update, not a conflict:
+
+\[
+TimeOverlap(m_a,m_b)=start_a\le end_b\land start_b\le end_a
+\]
+
+Output is a structured object with both evidence ids, subject, attribute, values, time ranges, classification, and `autoSelectWinner: false`. A correction is a user-authorized transition; it is not inferred from score order.
+
+Temporal ranking uses:
+
+\[
+T(m,t)=2^{-\Delta t/h}
+\]
+
+where \(\Delta t\ge0\) is days since last relevant confirmation and \(h>0\) is a category-specific half-life. Reference values: identity 3650 days, preference 365, project 90, temporary 3, unknown 180; these are starting hypotheses, not tuned constants. Retracted/deleted records return \(T=0\) with `eligible=false`; decay must never reactivate them.
+
+## 15. Context budget optimization
+
+Let \(x_i\in\{0,1\}\), utility \(u_i\ge0\), cost \(c_i>0\), budget \(B>0\):
+
+\[
+\max\sum_i u_i x_i\quad\text{s.t.}\quad\sum_i c_i x_i\le B,\quad x_i\le Eligible_i
+\]
+
+`Eligible_i` encodes active/authorized state and cannot be relaxed by utility. Reference code solves the small integer-cost problem exactly with dynamic programming and also returns a greedy ratio solution for comparison. Costs currently use serialized character length, **not tokenizer tokens**. A zero budget or a cost larger than the budget returns an empty selection; metadata is never stripped to force inclusion.
+
+## 16. Pre-answer metacognitive check
+
+Given evidence set \(E\), claim set \(A\), unresolved conflict flag \(X\), context-only ids \(G\), and retired ids \(D\):
+
+\[
+AnswerAllowed=\neg(X)\land E\ne\varnothing\land\forall a\in A: Supported(a)\land SubjectOK(a)\land\neg Retired(a)\land\neg(ContextOnlyUsedAsAnswer(a))
+\]
+
+The reference function returns a structured decision:
+
+- `abstain` when evidence is missing, unsupported, inferred-as-fact, subject-mismatched, or retired;
+- `clarify` when an unresolved conflict is material;
+- `answer` otherwise.
+
+Reason codes are deterministic. The model's own self-evaluation is never accepted as ground truth (`usedModelSelfEvaluation: false`).
+
+## 17. Personality stability and preference evolution
+
+For each personality dimension \(p_d\in[p_{min},p_{max}]\):
+
+\[
+p_{d,t+1}=clip(p_{d,t}+\eta\cdot G(E_t),p_{min},p_{max})
+\]
+
+\[
+|\eta\cdot G(E_t)|\le \Delta_{max}
+\]
+
+\(G(E_t)\) is the mean direction of **independent** user preference observations after deduplication. Only `kind='preference'` and `subject='user'` contribute; factual corrections never change personality. \(\eta>0\), \(\Delta_{max}\) and legal bounds are configuration, not learned by the reference code. Every change records from/to, evidence ids and reason. Inferred preferences remain labelled inferred; they are not treated as explicit user statements.
+
+## 18. Computed affective/interest state research
+
+For state dimensions \(F_t=[f_1,\ldots,f_k]\), targets \(E_t\) and goal/task context \(G_t\):
+
+\[
+F_{t+1}=clip(\rho F_t+\eta(E_t-F_t),F_{min},F_{max})
+\]
+
+Reference dimensions: novelty, goal progress, uncertainty, conflict, interest, exploration. \(0\le\rho\le1\), \(0\le\eta\le1\), \(0\le F\le1\).
+
+This is an attention/valuation state vector. The reference output sets `claimsSubjectiveExperience: false` and `representation: computed_state_vector`. It does not claim emotion, consciousness, or subjective experience. Expression language is a separate product concern and must not be used as evidence that an internal state exists.
+
+## 19. v0.2 formula-to-code status
+
+This table supplements, rather than rewrites, the v0.1 coverage table.
+
+| Module | Specification | Reference implementation | Test status | Maturity |
+|---|---|---|---|---|
+| Evidence/confidence | §12 | `updateEvidenceConfidence` | 2 tests | TESTED (unit only) |
+| Fusion ranking | §13 | `fuseRelevanceScores` | 3 tests | TESTED (unit only) |
+| Conflict detection | §14 | `detectFactConflict` | 2 tests | TESTED (unit only) |
+| Temporal decay | §14 | `temporalDecay` | 1 test | TESTED (unit only) |
+| Context budget | §15 | `selectContextUnderBudget` | 2 tests | TESTED (unit only) |
+| Metacognitive check | §16 | `metacognitiveCheck` | 4 tests | TESTED (unit only) |
+| Personality update | §17 | `updatePersonalityState` | 2 tests | TESTED (unit only) |
+| Affective state | §18 | `updateAffectiveState` | 2 tests | TESTED (unit only) |
+
+**Maturity does not mean VALIDATED.** No held-out labelled dataset, parameter calibration, model comparison, integration test, or human review has been completed. `VALIDATED` and `INTEGRATION_CANDIDATE` remain reserved for future evidence.
+
