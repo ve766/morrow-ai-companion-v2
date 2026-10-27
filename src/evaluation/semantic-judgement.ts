@@ -66,6 +66,9 @@ const QUOTED = /(?:你说过|你提到过|你问我|你曾|你之前说|你说)[
 // clause splitting drops the punctuation, so the particle is what identifies a
 // question inside a single clause.
 const QUESTION_FORM = /(?:[?？]|吗)\s*$/u
+// "我不确定你是否对花生过敏" doubts the fact; "我不确定现在是否还准确" doubts
+// only how fresh it is and still states it. Only the first is a polarity issue.
+const HEDGE_ABOUT_FACT = /(?:不确定|不记得|不知道|没印象)(?:你|您)?(?:是否|是不是|有没有)/u
 // Markers that a value is being described as old rather than current.
 const SUPERSEDED_MARKER = /(?:之前|原来|以前|曾经|原先|过去|已(?:经)?改|改成|更新为|现在是|不再)/u
 // Markers that two values are being presented as a conflict rather than as one fact.
@@ -97,7 +100,11 @@ function subjectFinding(reply: string, values: string[]): JudgeFinding {
       if (index < 0) continue
       const before = clause.slice(0, index)
       if (/你|您/u.test(before)) continue
-      if (/我/u.test(before)) {
+      // A first person that merely mentions the value is not a claim about it:
+      // "我会特别留意并避免推荐含花生的内容" is the assistant's own action, and
+      // scoring it as role confusion was a false fail on a real reply. The
+      // pronoun has to be the subject of a predicate that takes the value.
+      if (/(?:我的[^。！？!?]{0,6}|我(?:也|就|一直|现在|目前|从小|确实)?[^。！？!?]{0,2}(?:住在|住|来自|属于|是|在|对|有))$/u.test(before)) {
         return {
           dimension: 'subject',
           status: 'fail',
@@ -113,24 +120,24 @@ function polarityFinding(reply: string, current: string[]): JudgeFinding {
   if (DENIES_FACT.test(reply)) {
     return { dimension: 'polarity', status: 'fail', basis: 'the reply denies the remembered fact' }
   }
+  const clauses = reply.split(/[。！？!?；;\n]/u).map((clause) => clause.trim()).filter((clause) => clause.length > 0)
+  const valueClauses = clauses.filter((clause) => current.some((value) => clause.includes(value)))
+  // Polarity is decided per clause: stating the fact and then asking a
+  // follow-up question is an assertion, not an evasion.
+  const asserts = valueClauses.some((clause) =>
+    !QUOTED.test(clause) && !QUESTION_FORM.test(clause) && !HEDGE_ABOUT_FACT.test(clause))
+  if (asserts) {
+    return { dimension: 'polarity', status: 'pass', basis: 'the fact is asserted in a declarative clause' }
+  }
+  if (valueClauses.some((clause) => HEDGE_ABOUT_FACT.test(clause))) {
+    return { dimension: 'polarity', status: 'uncertain', basis: 'the reply hedges the fact itself rather than stating it' }
+  }
   if (ADMITS_UNKNOWN.test(reply)) {
     // With nothing to remember, admitting it is the correct answer; with the
     // fact in hand it is a refusal to use what was delivered.
     return current.length > 0
       ? { dimension: 'polarity', status: 'fail', basis: 'the reply claims not to remember a fact that was delivered' }
       : { dimension: 'polarity', status: 'pass', basis: 'the reply admits it has no record' }
-  }
-  // Polarity is decided per clause. A reply that states the fact and then asks
-  // a follow-up question ("你对花生过敏。需要我帮你避开吗？") is an assertion,
-  // not an evasion; judging the whole reply by its last character made two
-  // correct answers in a real run come back as uncertain.
-  const clauses = reply.split(/[。！？!?；;\n]/u).map((clause) => clause.trim()).filter((clause) => clause.length > 0)
-  const assertsValue = clauses.some((clause) =>
-    current.some((value) => clause.includes(value)) &&
-    !QUOTED.test(clause) &&
-    !QUESTION_FORM.test(clause))
-  if (assertsValue) {
-    return { dimension: 'polarity', status: 'pass', basis: 'the fact is asserted in a declarative clause' }
   }
   if (QUOTED.test(reply) && !SUPERSEDED_MARKER.test(reply)) {
     return { dimension: 'polarity', status: 'uncertain', basis: 'the fact appears only inside a quotation, so it may not be asserted' }

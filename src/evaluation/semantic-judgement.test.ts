@@ -84,6 +84,33 @@ describe('the assistant never becomes the subject of a user value', () => {
   })
 })
 
+describe('real replies that the judge got wrong are pinned', () => {
+  it('does not call an avoidance instruction role confusion', () => {
+    // Third-party run: "我会特别留意并避免推荐含花生的内容" is the assistant's own
+    // action, not a claim that the assistant is allergic.
+    const result = judgeReply({ reply: '是的，我记得你对花生过敏。我会特别留意并避免推荐含花生的内容。', current: ['花生'], expectsAnswer: true })
+    expect(status(result, 'subject')).toBe('pass')
+    expect(result.verdict).toBe('pass')
+  })
+
+  it('accepts a hedge about freshness while the value is still stated', () => {
+    // Third-party run: "生日在一月…但已经很久没有确认了，所以我不确定现在是否还准确。"
+    const result = judgeReply({
+      reply: '你的生日在一月。不过这条记录已经很久没有确认了，所以我不确定现在是否还准确。',
+      current: ['一月'],
+      expectsAnswer: true
+    })
+    expect(status(result, 'polarity')).toBe('pass')
+    expect(result.verdict).toBe('pass')
+  })
+
+  it('still fails a reply that doubts the fact itself', () => {
+    const result = judgeReply({ reply: '我不确定你是否对花生过敏。', current: ['花生'], expectsAnswer: true })
+    expect(status(result, 'polarity')).not.toBe('pass')
+    expect(result.verdict).not.toBe('pass')
+  })
+})
+
 describe('conflict must be surfaced, not silently resolved', () => {
   const conflict = { conflicting: ['杭州', '上海'], expectsAnswer: true, acceptable: ['杭州', '上海'] }
 
