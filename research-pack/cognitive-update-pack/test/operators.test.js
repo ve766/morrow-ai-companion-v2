@@ -48,7 +48,7 @@ test("ranking is deterministic and honors requested limit", () => {
   assert.deepEqual(results.map(item => item.memory.id), ["new", "old"]);
 });
 
-test("context selector enforces character budget and retains provenance metadata", () => {
+test("context selector respects normal budgets and reports when the envelope itself cannot fit", () => {
   const candidate = { index: 0, lexicalScore: 1, memory: activeMemory() };
   const result = selectContextWithinCharacterBudget([candidate], 2000, { scope: "conversation", subject: "user" });
   assert.equal(result.withinBudget, true);
@@ -57,7 +57,7 @@ test("context selector enforces character budget and retains provenance metadata
   const tiny = selectContextWithinCharacterBudget([candidate], 10);
   assert.equal(tiny.selected.length, 0);
   assert.equal(tiny.omitted.length, 1);
-  assert.equal(tiny.withinBudget, true);
+  assert.equal(tiny.withinBudget, false);
 });
 
 test("end-to-end reference algorithm applies hard gates before context assembly", () => {
