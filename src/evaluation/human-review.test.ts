@@ -59,6 +59,7 @@ function report(cases: Array<{ id: string; verdict: RealVerdict }>): ContextMemo
       diagnostics: {
         expectedInRequest: [],
         deliveredInRequest: [],
+        retractedLeaked: [],
         requestContradictory: false,
         stages: [],
         failureClass: 'INSUFFICIENT_EVIDENCE' as const

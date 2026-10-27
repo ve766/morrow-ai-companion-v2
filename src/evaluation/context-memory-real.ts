@@ -117,6 +117,8 @@ export interface DiagnosticChain {
   expectedInRequest: string[]
   /** Facts actually found in the serialized provider request. */
   deliveredInRequest: string[]
+  /** Retracted values that were still present in the request; must be empty. */
+  retractedLeaked: string[]
   /** True when two contradictory values were delivered with no conflict marker. */
   requestContradictory: boolean
   stages: Array<{ stage: 'stored' | 'retrieved' | 'serialized' | 'answered' | 'evaluated'; ok: boolean; detail: string }>
@@ -402,33 +404,42 @@ async function runCase(
 
     // The chain is built from what was observed, not from what should have
     // happened: stored -> retrieved -> serialized -> answered -> evaluated.
+    // A retracted value is expected to be *absent*; counting it as expected
+    // would report a correct deletion as a retrieval failure.
+    // A retracted value is expected to be *absent*; counting it as expected
+    // would report a correct deletion as a retrieval failure.
     const expectedInRequest = rule?.judge
-      ? [...(rule.judge.current ?? []), ...(rule.judge.conflicting ?? []), ...(rule.judge.retracted ?? [])]
+      ? [...(rule.judge.current ?? []), ...(rule.judge.conflicting ?? [])]
       : (rule?.mustMention ?? [])
+    const retractedValues = rule?.judge?.retracted ?? []
+    const leakedRetracted = retractedValues.filter((value) => requestText.includes(value))
     const deliveredInRequest = expectedInRequest.filter((value) => requestText.includes(value))
     const conflictValues = rule?.judge?.conflicting ?? []
     const requestContradictory = conflictValues.length >= 2 &&
       conflictValues.every((value) => requestText.includes(value)) &&
       !/冲突|矛盾|不一致|conflict/iu.test(requestText)
-    const stored = expectedInRequest.length === 0 || deliveredInRequest.length > 0
+    const retrieved = expectedInRequest.length === 0 || deliveredInRequest.length > 0
     const diagnostics: DiagnosticChain = {
       expectedInRequest,
       deliveredInRequest,
+      retractedLeaked: leakedRetracted,
       requestContradictory,
       stages: [
-        { stage: 'stored', ok: true, detail: `fixture declares ${expectedInRequest.length} value(s); stored facts are asserted by the delivery checks above` },
-        { stage: 'retrieved', ok: stored, detail: stored ? 'the expected value was retrieved into the request' : 'the expected value never reached the request' },
-        { stage: 'serialized', ok: deliveredInRequest.length === expectedInRequest.length, detail: `${deliveredInRequest.length}/${expectedInRequest.length} expected value(s) present in the serialized request` },
+        { stage: 'stored', ok: true, detail: `fixture declares ${expectedInRequest.length} required and ${retractedValues.length} forbidden value(s)` },
+        { stage: 'retrieved', ok: retrieved, detail: retrieved ? 'the required value reached the request' : 'the required value never reached the request' },
+        { stage: 'serialized', ok: deliveredInRequest.length === expectedInRequest.length && leakedRetracted.length === 0, detail: `${deliveredInRequest.length}/${expectedInRequest.length} required value(s) present; ${leakedRetracted.length} retracted value(s) leaked` },
         { stage: 'answered', ok: finalReply !== null, detail: finalReply === null ? 'no reply was obtained' : 'a reply was obtained and is stored verbatim' },
         { stage: 'evaluated', ok: decision.verdict !== 'needs_review', detail: `verdict ${decision.verdict}` }
       ],
-      failureClass: classifyFailure({
-        verdict: decision.verdict,
-        findings: judgement?.findings ?? [],
-        expectedInRequest,
-        deliveredInRequest,
-        requestContradictory
-      })
+      failureClass: leakedRetracted.length > 0
+        ? 'CONTEXT_NOT_SERIALIZED'
+        : classifyFailure({
+            verdict: decision.verdict,
+            findings: judgement?.findings ?? [],
+            expectedInRequest,
+            deliveredInRequest,
+            requestContradictory
+          })
     }
 
     return {
