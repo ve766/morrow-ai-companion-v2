@@ -73,7 +73,13 @@ export interface RealCaseRecord {
   id: string
   capability: string
   title: string
-  status: 'checked' | 'not_checked' | 'error'
+  /**
+   * `failed` means the model answered and the rule was not satisfied; `error`
+   * means no reply was obtained. Collapsing the two into one value made a
+   * wrong answer look like a broken run, which is a different bug for a
+   * different owner.
+   */
+  status: 'checked' | 'not_checked' | 'failed' | 'error'
   /** The rule as declared in the fixture, echoed so the report is self-contained. */
   rule: string | null
   turns: RealTurnRecord[]
@@ -338,11 +344,15 @@ async function runCase(
       }
     }
 
+    const caseStatus: RealCaseRecord['status'] = rule === null
+      ? 'not_checked'
+      : finalReply === null ? 'error' : failureReason === null ? 'checked' : 'failed'
+
     return {
       id: testCase.id,
       capability: testCase.capability,
       title: testCase.title,
-      status: rule ? (failureReason === null ? 'checked' : 'error') : 'not_checked',
+      status: caseStatus,
       rule: rule ? (rule.check === 'clarifying_question' ? 'clarifying_question' : `substring: +[${(rule.mustMention ?? []).join('|')}] -[${(rule.mustNotMention ?? []).join('|')}]`) : null,
       turns,
       checks,
