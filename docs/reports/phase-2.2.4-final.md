@@ -8,7 +8,8 @@
 | 本轮最终 HEAD | `c1495df`（代码 `0e5b251`，证据 `c1495df`） |
 | 分支 | `feat/phase-2.2-memory-reliability` |
 | PR | [#4](https://github.com/ve766/morrow-ai-companion-v2/pull/4)，**OPEN**，base `feat/phase-2-companion-core`（PR #3，未合并） |
-| CI @ `c1495df` | [40484555247](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40484555247) **success** |
+| CI @ `c1495df`（代码+证据） | [40484555247](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40484555247) **success** |
+| CI @ `ae5dce8`（报告） | [40485058283](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40485058283) **success** |
 | 数据库版本 | v18（本轮**无迁移**） |
 | main | 未修改，未合并任何 PR |
 
