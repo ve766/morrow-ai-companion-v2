@@ -12,6 +12,8 @@
 | 项 | 结果 |
 |---|---|
 | 检索子串误命中 | **已修**：`an`/`analyst`、`do`/`dog`、`like`/`dislike` 不再成为 `topic` |
+| 检索量化对比 | Recall@3 **0.75 → 0.875**，MRR **0.75 → 0.875**，误召回 **3 → 0**，泄漏 0/0（12 例） |
+| 26 轮长对话 | 第 25 轮约束仍以 `continuity` 送达（历史只剩 12 条）；新会话以 `topic` 召回；真实模型 **pass** |
 | 代词/省略轮的相关记忆 | **已改善**：新增 `context` 层，与本轮零重叠但与前文相关的记忆可召回 |
 | 冲突处理 | 系统层：双方 + `conflictGroup` + 指令已送达；模型层：**3 次可判定用例全部失败** |
 | 过期判断 | 系统层：按波动性分档（90/180/365 天）；模型层：**未验证**（无机械规则） |
@@ -19,7 +21,7 @@
 | 评测集 | v1 22 例 hash 未变；v2 30 例 / 110 断言全绿 |
 | 评测器盲点 | a4 假通过、a6 假失败**仍未修复**，但已被测试固定并带 caveat |
 | 真实模型 | 已运行，**行为层失败**；`notDelivered = 0`，失败均为 `delivered_but_not_used` |
-| CI | run `40461677187` @ `20628d5`，3/3 success，双平台 smoke passed |
+| CI | 代码 head `4fb998e`：run `40466215328`，3/3 success；早前 `20628d5` 为 `40461677187` |
 
 **工程验收通过不等于 Morrow 已具备可靠的 AI 伴侣能力。** 本阶段能证明的是系统层与评测层；行为层证据是失败的。
 
@@ -48,7 +50,11 @@ Git 传输说明：本机代理对 `github.com` 返回 502，读取与推送通�
 | `src/self-model/interest-service.ts` | 持久化/读取/升级敏感度；上限过滤 |
 | `src/persistence/migrations.ts` | v16 `interest-sensitivity` + 回填 |
 | `src/evaluation/context-memory-evaluation.ts` | 接受 `match=context` |
+| `src/evaluation/retrieval-benchmark.ts` | 生产装配器 vs 冻结 substring 基线，Recall@3/Precision@3/MRR/泄漏 |
+| `src/self-model/interest-service.ts` | 疑问句不能新建兴趣，只能强化已陈述主题 |
 | `evaluation/fixtures/context-memory-v2.json` | 30 例新数据集 |
+| `evaluation/fixtures/retrieval-context-v1.json` | 12 例检索标注集 |
+| `evaluation/fixtures/long-conversation-v1.json` | 26 轮长对话 |
 | 测试 | 8 个文件新增/更新，共 452 用例 |
 
 没有删除既有迁移、纠正链、检索过滤或隐私约束。
@@ -113,27 +119,46 @@ clean 运行的逐例：
 
 > **更正**：本报告早先版本把 `e0151c` 写成 "clean tree"，实际记录是 `codeState: dirty`。原因是我没有核对 runner 写入的 `codeState` 字段。现在引用 clean 运行 `2132d7`，并保留 dirty 运行作为历史记录，不删除、不改写。
 
-### 5.3 未运行
+### 5.3 26 轮长对话（`verify:context:real` + `long-conversation-v1`）
 
-- 20–30 轮长对话回归：无现成 harness，未实现，**未验证**。
+| 项 | 值 |
+|---|---|
+| runId | `20261027T071741Z-b44b19` |
+| 代码 / 状态 | `4fb998e` / **clean** |
+| 轮数 / 判定 | 26 / **pass** |
+| `notDelivered` | **0** |
+| 耗时 | 27.9 s |
+
+- 第 1 轮声明花生过敏，第 2–24 轮为日常陈述，第 25 轮问「中午吃什么好？」。
+- 第 25 轮 `historyLength = 12`（第 1 轮已被历史窗口挤出），`memoryEntries = 1`、`match = continuity`：约束靠记忆层送达，不是靠历史。
+- 第 25 轮回复建议面条/黄瓜/沙拉/土豆，未提花生。
+- 第 26 轮新会话 `match = topic`，回复「我对花生严重过敏。」
+
+观察（不计入判定）：第 26 轮以第一人称复述用户事实，存在角色混淆。
+
+### 5.4 未运行
+
 - 云端 Provider：无凭据，未调用。
+- 真实人工复核：未安排，复核文件仍是 agent。
 
 ## 6. 工程检查（实际执行）
 
 | 命令 | 结果 |
 |---|---|
 | `npm run typecheck` | 通过（0 错） |
-| `npm test` | **50 文件 / 452 用例通过** |
+| `npm test` | **51 文件 / 467 用例通过** |
 | `npm run evaluate` | 通过 |
 | `npm run evaluate:cognition` | 通过（26+34+28 用例） |
 | `npm run evaluate:companion` | 31/31 |
 | `npm run evaluate:context`（v1） | 22/22，90 断言，hash `693b0a19…` 未变 |
 | `npm run evaluate:context --dataset context-memory-v2.json` | **30/30，110 断言**，hash `b9cc7f03…` |
+| `npm run evaluate:retrieval-context` | Recall@3 0.75→0.875，误召回 3→0，泄漏 0，hash `b6a29de5…` |
 | `npm run build` | 通过 |
 | 本地 `npm run smoke` | **未运行**（Phase 2.1 已证为本机 Electron 渲染进程环境问题） |
 | CI run `40461677187` @ `20628d5` | **3/3 success**；Ubuntu/Windows 日志均含 `Morrow smoke passed`；Windows 升级路径 success |
+| CI run `40466215328` @ `4fb998e`（当前代码 head） | **3/3 success**；Windows / Ubuntu / 升级路径 |
 
-本报告所在提交仅新增文档，代码与 `20628d5` 相同；其 CI 结果见 PR checks，不把旧 SHA 的绿灯当作新代码的验证。
+代码与实验记录提交为 `4fb998e` / `2b308b5`；本报告所在提交仅新增文档。最新 head 的 CI 结果见 PR checks，不把旧 SHA 的绿灯当作新代码的验证。
 
 ## 7. 最终请求体证据
 
@@ -167,12 +192,13 @@ clean 运行的逐例：
 3. **偶发空回复**：`651742` 的第 2 轮返回 `PROVIDER_RESPONSE`，assistant 未落库（处理正确），但说明本地模型会偶发空响应。
 4. **评测器盲点仍在**：a4 假通过、a6 假失败，只被固定，未被修复。
 5. **无语义检索**：零词面重叠的语用关联仍不召回（能力边界）。
-6. **长对话未验证**：20–30 轮行为没有 harness。
-7. **`self_model_entries` 无敏感度列**：逐字通道整体受 `includeSensitive` 门禁，但撤回主记忆不会撤回对应自我条目。
-8. **冲突分组是词面启发式**：可能漏分同义改写，也可能误分共享词多的不同主题。
-9. **无真实人工复核**：复核文件 `reviewer.kind` 仍是 agent。
-10. **本地 smoke 未运行**：CI 为权威，但不冒充本地通过。
-11. **回滚 v16 需恢复备份**：代码回退后旧版本会 fail-closed 拒绝打开 v16 库。
+6. **长对话只有一次运行**：26 轮 pass，但单次结果不能代表稳定性；且第 26 轮出现第一人称角色混淆。
+7. **`run-identity` 测试在 51 个并行 worker 下偶发超时**：本机 `git init` 约 3 s，曾出现一次 `unknown` 而非 `dirty`；单独运行与第二次全量运行均通过。未修改断言，记录为环境性抖动。
+8. **`self_model_entries` 无敏感度列**：逐字通道整体受 `includeSensitive` 门禁，但撤回主记忆不会撤回对应自我条目。
+9. **冲突分组是词面启发式**：可能漏分同义改写，也可能误分共享词多的不同主题。
+10. **无真实人工复核**：复核文件 `reviewer.kind` 仍是 agent。
+11. **本地 smoke 未运行**：CI 为权威，但不冒充本地通过。
+12. **回滚 v16 需恢复备份**：代码回退后旧版本会 fail-closed 拒绝打开 v16 库。
 
 ## 10. 提交与 PR
 
@@ -186,7 +212,10 @@ clean 运行的逐例：
 | `de12870` | 本报告初版 |
 | `3fa6a40` | 归档真实模型 run 报告 + `.gitignore` 白名单 |
 | `c0d27ca` | clean tree 真实运行记录（含空回复失败） |
-| 本提交 | 更正 clean/dirty 表述并补 clean 运行证据 |
+| `cf849cb` | 更正 clean/dirty 表述并补 clean 运行证据 |
+| `4fb998e` | 检索量化基线 + 26 轮长对话数据集 + 疑问句不建兴趣 |
+| `2b308b5` | 26 轮 clean 真实运行记录 |
+| 本提交 | 补入量化对比与长对话结果 |
 
 PR：[#4](https://github.com/ve766/morrow-ai-companion-v2/pull/4)
 
@@ -212,21 +241,23 @@ npm run verify:context:real
 
 | 验收项 | 状态 | 依据 |
 |---|---|---|
-| 记忆/授权链路由源码与测试核实 | **通过** | §2、§7、452 用例 |
-| 检索改进未破坏撤回/删除/授权 | **通过** | `v2-retracted-context` 等 |
+| 记忆/授权链路由源码与测试核实 | **通过** | §2、§7、467 用例 |
+| 零词面重叠有可复现召回证据 | **通过（仅 context 层）** | `context-pronoun`：基线 0，候选召回；纯语用关联仍失败 |
+| 检索排序与误召回有量化对比 | **通过** | 12 例：Recall@3 0.75→0.875，误召回 3→0，MRR 0.75→0.875 |
+| 检索改进未破坏撤回/删除/授权 | **通过** | `v2-retracted-context`、`retracted-old-value` 等 |
 | 冲突/过期/纠正有系统层回归 | **通过** | 单测 + v2 |
 | 评测器用历史假通过/假失败验证 | **通过（验证=固定，非修复）** | `verdict.test.ts` 两条 |
-| 真实模型实验完整留档 | **通过** | 5 份 run（含 2 份 clean），失败未删 |
+| 真实模型实验完整留档 | **通过** | 6 份 run（含 3 份 clean），失败未删 |
 | 自动/人工/模型表现区分 | **通过** | 报告与 verdict 分层 |
-| CI 通过且无未解释回归 | **通过** | run `40461677187` 3/3；后续 docs/evidence 提交见 PR checks |
+| CI 通过且无未解释回归 | **通过** | 最新 head 的 CI 见 PR checks |
 | 残余风险说明 | **通过** | §9 |
 | 模型层具备冲突披露/过期承认 | **未通过 / 未验证** | clean 运行 1 pass / 2 fail，2 needs_review |
-| 20–30 轮长对话 | **未验证** | 无 harness |
+| 20–30 轮长对话 | **通过（单次）** | 26 轮 pass，`notDelivered=0`；单次运行不代表稳定 |
 
 ## 13. 三层证据声明
 
-- **代码已实现**：检索三层、冲突分组、波动性过期、兴趣敏感度与 v16 迁移。
-- **自动化测试通过**：452 用例、四个离线评估、构建、CI 3/3。
-- **真实模型验证通过**：**没有**。clean 运行 3 个可判定用例中 1 pass、2 fail；换一轮同一用例结果又不同（fail → pass），跨会话命中 true → false。
+- **代码已实现**：检索三层、冲突分组、波动性过期、兴趣敏感度与 v16 迁移、疑问句不建兴趣。
+- **自动化测试通过**：467 用例、五个离线评估、构建。
+- **真实模型验证通过**：**没有**。clean 运行 3 个可判定用例中 1 pass、2 fail；换一轮同一用例结果又不同（fail → pass），跨会话命中 true → false。26 轮长对话单次 pass。
 
 本报告不宣称 Morrow 已达到可靠 AI 伴侣水平。
