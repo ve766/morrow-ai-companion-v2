@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 
 /**
@@ -49,13 +49,33 @@ export function assertNoSymlink(base: string, path: string): void {
   }
 }
 
-export function atomicWriteReport(directory: string, filename: string, value: string): string {
+export function atomicWriteReport(
+  directory: string,
+  filename: string,
+  value: string,
+  options: { overwrite?: boolean } = {}
+): string {
   const path = resolveReportPath(directory, filename)
   mkdirSync(directory, { recursive: true })
   assertNoSymlink(resolve(directory, '..'), directory)
   assertNoSymlink(directory, path)
   const temporary = resolve(directory, `.morrow-report-${process.pid}-${Date.now()}.tmp`)
   writeFileSync(temporary, value, { encoding: 'utf8', flag: 'wx' })
+  if (options.overwrite === false) {
+    // Evidence for a single run must never replace another run's evidence. The
+    // copy uses COPYFILE_EXCL so the check and the write are one operation; a
+    // pre-flight existsSync would be a race that silently wins on a collision.
+    try {
+      copyFileSync(temporary, path, constants.COPYFILE_EXCL)
+    } catch (error) {
+      rmSync(temporary, { force: true })
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'EEXIST') throw new ReportPathError('REPORT_ALREADY_EXISTS')
+      throw error
+    }
+    rmSync(temporary, { force: true })
+    return path
+  }
   renameSync(temporary, path)
   return path
 }

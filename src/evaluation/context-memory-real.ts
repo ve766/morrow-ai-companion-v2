@@ -13,6 +13,7 @@ import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { OpenAICompatibleProvider } from '../providers/openai-compatible'
 import type { ProviderConsentPreview } from '../providers/provider-policy'
 import { EvaluationSecretStore } from './evaluation-secret-store'
+import { buildReproduction, type RealRunReproduction } from './run-identity'
 import { parseProviderRequest } from './request-assertions'
 import {
   parseDeliveredMemories,
@@ -83,11 +84,13 @@ export interface RealCaseRecord {
 }
 
 export interface ContextMemoryRealReport {
-  schemaVersion: 1
+  schemaVersion: 2
   evidenceClass: 'real_provider_behaviour'
   measures: 'model_behaviour'
   dataset: string
   generatedAt: string
+  /** Run id, code provenance and sampling. A document cites the run id, not a path. */
+  reproduction: RealRunReproduction
   status: 'checked' | 'blocked'
   blockedReason: string | null
   provider: {
@@ -99,6 +102,8 @@ export interface ContextMemoryRealReport {
   environment: { node: string; platform: string; durationMs: number }
   summary: {
     casesInDataset: number
+    /** Cases this run was asked to execute; a subset run is not a full run. */
+    casesSelected: number
     casesChecked: number
     casesPassed: number
     casesFailed: number
@@ -374,21 +379,23 @@ export async function runContextMemoryReal(
   const reachability = await probe(endpoint, probeTimeoutMs())
   if (!reachability.reachable) {
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       evidenceClass: 'real_provider_behaviour',
       measures: 'model_behaviour',
       dataset: dataset.id,
       generatedAt,
+      reproduction: buildReproduction(generatedAt, `blocked|${endpoint}|${model}`),
       status: 'blocked',
       blockedReason: `Local provider unreachable at ${endpoint} (${reachability.detail}). Start it with "ollama serve" or set MORROW_CONTEXT_REAL_ENDPOINT.`,
       provider: { providerClass: 'local', endpoint, model, reachable: false },
       environment,
       summary: {
         casesInDataset: dataset.cases.length,
+        casesSelected: 0,
         casesChecked: 0,
         casesPassed: 0,
         casesFailed: 0,
-        casesNotChecked: dataset.cases.length,
+        casesNotChecked: 0,
         turnsExecuted: 0
       },
       attribution: { notDelivered: 0, deliveredButNotUsed: 0, ruleNotSatisfied: 0 },
@@ -416,21 +423,28 @@ export async function runContextMemoryReal(
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     evidenceClass: 'real_provider_behaviour',
     measures: 'model_behaviour',
     dataset: dataset.id,
     generatedAt,
+    reproduction: buildReproduction(
+      generatedAt,
+      cases.map((item) => `${item.id}:${item.turns.map((turn) => turn.reply ?? turn.errorCode ?? '').join('|')}`).join('\n')
+    ),
     status: 'checked',
     blockedReason: null,
     provider: { providerClass: 'local', endpoint, model, reachable: true },
     environment: { ...environment, durationMs: Date.now() - startedAt },
     summary: {
       casesInDataset: dataset.cases.length,
+      casesSelected: selected.length,
       casesChecked: checked.length,
       casesPassed: passed.length,
       casesFailed: failed,
-      casesNotChecked: dataset.cases.length - checked.length,
+      // Only cases this run actually selected can be "not checked". Counting
+      // the whole dataset made a targeted run look like 18 untested cases.
+      casesNotChecked: selected.length - checked.length,
       turnsExecuted: cases.reduce((total, item) => total + item.turns.length, 0)
     },
     attribution: attributionCounts,

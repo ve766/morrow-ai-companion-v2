@@ -4,6 +4,7 @@ import process from 'node:process'
 import { ContextMemoryEvaluationError, parseContextMemoryDataset } from './context-memory-evaluation'
 import { runContextMemoryReal } from './context-memory-real'
 import { ReportPathError, assertNoSymlink, atomicWriteReport, resolveInsideDirectory, resolveReportPath } from './report-path'
+import { runScopedReportName } from './run-identity'
 
 /**
  * CLI for the real-model behaviour evaluation. Exit codes mirror the
@@ -15,17 +16,20 @@ import { ReportPathError, assertNoSymlink, atomicWriteReport, resolveInsideDirec
  *
  * A blocked run writes no report. Overwriting the last real run with a file
  * that contains no observations would destroy the only record of it.
+ *
+ * The file name carries the run id and the write refuses to replace an existing
+ * file: a real-model run is not reproducible, so its record is the evidence.
  */
 
 const root = process.env.MORROW_EVALUATION_ROOT ?? process.cwd()
 const fixturesDirectory = resolve(root, 'evaluation', 'fixtures')
 const reportsDirectory = resolve(root, 'evaluation', 'reports')
 const datasetName = process.env.MORROW_CONTEXT_REAL_DATASET ?? 'context-memory-v1.json'
-const outputName = process.env.MORROW_CONTEXT_REAL_OUTPUT ?? 'context-memory-real-report.json'
+const baseName = process.env.MORROW_CONTEXT_REAL_OUTPUT ?? 'context-memory-real-report.json'
 const only = process.env.MORROW_CONTEXT_REAL_CASES
 
 async function main(): Promise<void> {
-  resolveReportPath(reportsDirectory, outputName)
+  resolveReportPath(reportsDirectory, baseName)
   const datasetPath = resolveInsideDirectory(fixturesDirectory, datasetName)
   assertNoSymlink(fixturesDirectory, datasetPath)
   let dataset: unknown
@@ -54,12 +58,18 @@ async function main(): Promise<void> {
     return
   }
 
-  const outputPath = atomicWriteReport(reportsDirectory, outputName, `${JSON.stringify(report, null, 2)}\n`)
+  const outputPath = atomicWriteReport(
+    reportsDirectory,
+    runScopedReportName(baseName, report.reproduction.runId),
+    `${JSON.stringify(report, null, 2)}\n`,
+    { overwrite: false }
+  )
   console.log(JSON.stringify({
     status: report.status,
     evidenceClass: report.evidenceClass,
     measures: report.measures,
     provider: report.provider,
+    runId: report.reproduction.runId,
     environment: report.environment,
     summary: report.summary,
     attribution: report.attribution,

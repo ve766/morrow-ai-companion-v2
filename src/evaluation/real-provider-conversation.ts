@@ -14,6 +14,7 @@ import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { OpenAICompatibleProvider } from '../providers/openai-compatible'
 import type { ProviderConsentPreview } from '../providers/provider-policy'
 import { EvaluationSecretStore } from './evaluation-secret-store'
+import { buildReproduction, type RealRunReproduction } from './run-identity'
 import {
   RequestShapeError,
   checkCrossSessionIsolation,
@@ -120,9 +121,11 @@ export interface FailureScenarioRecord {
 }
 
 export interface RealProviderEvidence {
-  schemaVersion: 2
+  schemaVersion: 3
   evidenceClass: 'real_provider'
   generatedAt: string
+  /** Run id, code provenance and sampling. A document cites the run id, not a path. */
+  reproduction: RealRunReproduction
   status: 'verified' | 'blocked' | 'failed'
   blockedReason: string | null
   provider: {
@@ -196,9 +199,10 @@ export async function runRealProviderConversation(options: RealProviderOptions =
   const reachability = await probe(endpoint, 8_000)
   if (!reachability.reachable) {
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       evidenceClass: 'real_provider',
       generatedAt,
+      reproduction: buildReproduction(generatedAt, `blocked|${endpoint}|${model}`),
       status: 'blocked',
       blockedReason: `Local provider unreachable at ${endpoint} (${reachability.detail}). Start it with "ollama serve" or set MORROW_REAL_PROVIDER_ENDPOINT.`,
       provider: { providerClass: 'local', endpoint, model, reachable: false },
@@ -462,10 +466,14 @@ export async function runRealProviderConversation(options: RealProviderOptions =
 
     const failed = turns.filter((turn) => turn.errorCode !== null)
     const verified = failed.length === 0 && checks.every((check) => check.passed)
+    // The digest covers the replies, so two runs of the same code cannot share
+    // an id even if they start inside the same second.
+    const seed = turns.map((turn) => `${turn.id}:${turn.responseText}`).join('\n')
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       evidenceClass: 'real_provider',
       generatedAt,
+      reproduction: buildReproduction(generatedAt, seed),
       status: verified ? 'verified' : 'failed',
       blockedReason: null,
       provider: { providerClass: 'local', endpoint, model, reachable: true },

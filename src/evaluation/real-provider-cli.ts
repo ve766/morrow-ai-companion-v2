@@ -2,6 +2,7 @@ import process from 'node:process'
 import { relative, resolve } from 'node:path'
 import { runRealProviderConversation } from './real-provider-conversation'
 import { ReportPathError, atomicWriteReport, resolveReportPath } from './report-path'
+import { runScopedReportName } from './run-identity'
 
 /**
  * CLI for the real-provider verification. Exit codes:
@@ -13,16 +14,20 @@ import { ReportPathError, atomicWriteReport, resolveReportPath } from './report-
  * The output path is confined to `<root>/evaluation/reports` by the shared
  * report-path guard, so a mistyped or hostile value cannot write evidence
  * outside the repository or over an unrelated file.
+ *
+ * The file name carries the run id and the write refuses to replace an existing
+ * file. Before this, every verified run overwrote the same path, and a report
+ * that quoted one run ended up pointing at a different one.
  */
 
 const root = process.env.MORROW_EVALUATION_ROOT ?? process.cwd()
 const reportsDirectory = resolve(root, 'evaluation', 'reports')
-const outputName = process.env.MORROW_REAL_PROVIDER_OUTPUT ?? 'real-provider-conversation-report.json'
+const baseName = process.env.MORROW_REAL_PROVIDER_OUTPUT ?? 'real-provider-conversation-report.json'
 
 async function main(): Promise<void> {
   // Validate the destination before the run, so a bad path fails in a second
   // instead of after a multi-minute verification.
-  resolveReportPath(reportsDirectory, outputName)
+  resolveReportPath(reportsDirectory, baseName)
   const evidence = await runRealProviderConversation()
 
   // A blocked run produced no evidence, so it writes no report. Overwriting a
@@ -32,7 +37,12 @@ async function main(): Promise<void> {
   const blocked = evidence.status === 'blocked'
   const outputPath = blocked
     ? null
-    : atomicWriteReport(reportsDirectory, outputName, `${JSON.stringify(evidence, null, 2)}\n`)
+    : atomicWriteReport(
+        reportsDirectory,
+        runScopedReportName(baseName, evidence.reproduction.runId),
+        `${JSON.stringify(evidence, null, 2)}\n`,
+        { overwrite: false }
+      )
 
   const passedChecks = evidence.checks.filter((check) => check.passed).length
   console.log(JSON.stringify({
@@ -41,6 +51,7 @@ async function main(): Promise<void> {
     blockedReason: evidence.blockedReason,
     provider: evidence.provider,
     generatedAt: evidence.generatedAt,
+    runId: evidence.reproduction.runId,
     environment: evidence.environment,
     summary: evidence.summary,
     checkTotals: { total: evidence.checks.length, passed: passedChecks, failed: evidence.checks.length - passedChecks },
