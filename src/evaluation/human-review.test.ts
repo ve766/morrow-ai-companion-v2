@@ -55,7 +55,14 @@ function report(cases: Array<{ id: string; verdict: RealVerdict }>): ContextMemo
       turns: [],
       checks: [],
       attribution: null,
-      failureReason: null
+      failureReason: null,
+      diagnostics: {
+        expectedInRequest: [],
+        deliveredInRequest: [],
+        requestContradictory: false,
+        stages: [],
+        failureClass: 'INSUFFICIENT_EVIDENCE' as const
+      }
     })),
     quality: { assessed: false, note: 'test' },
     limitations: []

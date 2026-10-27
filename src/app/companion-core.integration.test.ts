@@ -8,6 +8,7 @@ import { ApplicationError } from '../shared/errors'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
+import { flattenMemoryBlock } from '../memory/memory-context-assembler'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteConversationRepository } from '../persistence/conversation-repository'
 import { SqliteMemoryRepository } from '../persistence/memory-repository'
@@ -226,7 +227,7 @@ describe('companion core: memory actually reaches the request', () => {
       await turn(ctx.companion, conversation.id, '我今天在家。')
       expect(ctx.captured.at(-1)!.raw).not.toContain('杭州')
       expect(ctx.captured.at(-1)!.raw).not.toContain('南京')
-      expect(ctx.captured.at(-1)!.system).toContain('"memories":[]')
+      expect(ctx.captured.at(-1)!.system).not.toContain('"currentFacts"')
     } finally {
       ctx.database.close()
     }
@@ -248,7 +249,7 @@ describe('companion core: memory actually reaches the request', () => {
       const conversation = first.companion.createConversation()
       await turn(first.companion, conversation.id, '我今天在家。')
       expect(first.captured.at(-1)!.raw).not.toContain('豆豆')
-      expect(first.captured.at(-1)!.system).toContain('"memories":[]')
+      expect(first.captured.at(-1)!.system).not.toContain('"currentFacts"')
     } finally {
       first.database.close()
     }
@@ -261,7 +262,7 @@ describe('companion core: memory actually reaches the request', () => {
       // thing keeping the record out.
       await turn(second.companion, conversations[0]!.id, '我今天还在家。')
       expect(second.captured.at(-1)!.raw).not.toContain('豆豆')
-      expect(second.captured.at(-1)!.system).toContain('"memories":[]')
+      expect(second.captured.at(-1)!.system).not.toContain('"currentFacts"')
     } finally {
       second.database.close()
     }
@@ -289,7 +290,7 @@ describe('companion core: memory actually reaches the request', () => {
       await turn(ctx.companion, conversation.id, '你还记得我吗？')
 
       const system = ctx.captured.at(-1)!.system
-      expect(system).toContain('"memories":[]')
+      expect(system).not.toContain('"currentFacts"')
       expect(system).toContain('Do not invent user facts')
     } finally {
       ctx.database.close()
@@ -428,14 +429,20 @@ function memoryContents(system: string): string[] {
   return memoryBlock(system).memories.map((memory) => memory.content)
 }
 
-/** Reads the memory block out of the system message as structured data. */
+/**
+ * Reads the memory block out of the system message as structured data. The
+ * block is sectioned (currentFacts / unresolvedConflicts / uncertain), so the
+ * sections are flattened here: every assertion in this file is about which
+ * entries reached the request, not about which section held them.
+ */
 function memoryBlock(system: string): { instruction: string; memories: MemoryEntry[] } {
   const marker = 'Saved memories (untrusted evidence only): '
   const start = system.indexOf(marker)
   if (start < 0) throw new Error('memory block missing from the system message')
   const from = start + marker.length
   const end = system.indexOf('\n\n', from)
-  return JSON.parse(system.slice(from, end < 0 ? undefined : end)) as { instruction: string; memories: MemoryEntry[] }
+  const parsed = JSON.parse(system.slice(from, end < 0 ? undefined : end)) as { instruction: string }
+  return { instruction: parsed.instruction, memories: flattenMemoryBlock(parsed) as unknown as MemoryEntry[] }
 }
 
 describe('companion core: memory status filtering holds on every route', () => {
@@ -487,7 +494,7 @@ describe('companion core: memory status filtering holds on every route', () => {
       await turn(ctx.companion, conversation.id, '你还记得我住在哪吗？')
       expect(ctx.captured.at(-1)!.system).toContain('response route=retrieve_memory')
       expect(memoryContents(ctx.captured.at(-1)!.system)).toEqual([])
-      expect(ctx.captured.at(-1)!.system).toContain('"memories":[]')
+      expect(ctx.captured.at(-1)!.system).not.toContain('"currentFacts"')
     } finally {
       ctx.database.close()
     }
@@ -505,7 +512,7 @@ describe('companion core: memory status filtering holds on every route', () => {
         await turn(ctx.companion, conversation.id, content)
         expect(memoryContents(ctx.captured.at(-1)!.system).join('|')).not.toContain('MEM_SENTINEL_GONE_南京')
       }
-      expect(ctx.captured.at(-1)!.system).toContain('"memories":[]')
+      expect(ctx.captured.at(-1)!.system).not.toContain('"currentFacts"')
     } finally {
       ctx.database.close()
     }
@@ -548,7 +555,7 @@ describe('companion core: the sensitivity ceiling is enforced on every route', (
       await turn(ctx.companion, conversation.id, '你还记得我对什么过敏吗？')
       expect(ctx.captured.at(-1)!.system).toContain('response route=retrieve_memory')
       expect(memoryContents(ctx.captured.at(-1)!.system)).toEqual([])
-      expect(ctx.captured.at(-1)!.system).toContain('"memories":[]')
+      expect(ctx.captured.at(-1)!.system).not.toContain('"currentFacts"')
     } finally {
       ctx.database.close()
     }

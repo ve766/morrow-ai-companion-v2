@@ -34,6 +34,7 @@ export interface MemoryRepository {
   get(id: string): MemoryRecord | null
   list(): MemoryRecord[]
   listActiveForContext(limit: number): MemoryRecord[]
+  listSupersededTexts(): Array<{ memoryId: string; content: string; supersededAt: string }>
   countActive(): number
   countActiveForVerification(): number
   search(query: string): MemoryRecord[]
@@ -93,6 +94,22 @@ export class SqliteMemoryRepository implements MemoryRepository {
   list(): MemoryRecord[] {
     const rows = this.database.connection.prepare('SELECT * FROM memories ORDER BY created_at DESC, id').all() as unknown as MemoryRow[]
     return rows.map(mapMemory)
+  }
+
+  /**
+   * For every active record that was corrected, the text the correction
+   * replaced. One query, no N+1: the context block needs it to mark a value as
+   * history instead of letting the model treat it as current.
+   */
+  listSupersededTexts(): Array<{ memoryId: string; content: string; supersededAt: string }> {
+    const rows = this.database.connection.prepare(`
+      SELECT m.id AS memory_id, r.content AS content, r.created_at AS created_at
+      FROM memories m
+      JOIN memory_revisions r ON r.memory_id = m.id AND r.revision = m.revision - 1
+      WHERE m.status = 'active' AND m.revision > 1
+      ORDER BY m.updated_at DESC
+    `).all() as unknown as Array<{ memory_id: string; content: string; created_at: string }>
+    return rows.map((row) => ({ memoryId: row.memory_id, content: row.content, supersededAt: row.created_at }))
   }
 
   listActiveForContext(limit: number): MemoryRecord[] {

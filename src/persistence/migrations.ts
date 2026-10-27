@@ -711,6 +711,34 @@ export const migrations: readonly Migration[] = [
         ) STRICT;
       `)
     }
+  },
+  {
+    version: 19,
+    name: 'deletion-journal-covers-evidence-and-candidates',
+    up(database) {
+      // The journal used to cover only memories and conversations, so restoring
+      // an older backup could resurrect withdrawn feedback evidence and push a
+      // withdrawn candidate back to `supported`. Evidence and candidates need
+      // the same boundary. `entity_id` for evidence is
+      // `candidateId:conversationId:evidenceHash` - identifiers and a hash, no
+      // user text. `operation_id` groups the rows of one deletion request so a
+      // replay can report what it did without keeping content.
+      database.exec(`
+        ALTER TABLE deletion_journal RENAME TO deletion_journal_v18;
+        CREATE TABLE deletion_journal (
+          entity TEXT NOT NULL CHECK (entity IN ('memory', 'conversation', 'message', 'evidence', 'candidate')),
+          entity_id TEXT NOT NULL CHECK (length(entity_id) BETWEEN 1 AND 200),
+          state TEXT NOT NULL CHECK (state IN ('deleted', 'retracted', 'unretracted')),
+          operation_id TEXT CHECK (operation_id IS NULL OR length(operation_id) = 36),
+          recorded_at TEXT NOT NULL,
+          PRIMARY KEY (entity, entity_id)
+        ) STRICT;
+        INSERT INTO deletion_journal(entity, entity_id, state, operation_id, recorded_at)
+          SELECT entity, entity_id, state, NULL, recorded_at FROM deletion_journal_v18;
+        DROP TABLE deletion_journal_v18;
+        CREATE INDEX deletion_journal_operation_idx ON deletion_journal(operation_id);
+      `)
+    }
   }
 ]
 

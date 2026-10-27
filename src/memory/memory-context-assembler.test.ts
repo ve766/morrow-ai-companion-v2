@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MemoryRecord } from './memory-domain'
-import { MemoryContextAssembler } from './memory-context-assembler'
+import { flattenMemoryBlock, MemoryContextAssembler } from './memory-context-assembler'
 
 function memory(id: string, text: string, sensitivity: MemoryRecord['sensitivity'], status: MemoryRecord['status'] = 'active', overrides: Partial<MemoryRecord> = {}): MemoryRecord {
   return {
@@ -48,13 +48,14 @@ describe('bounded memory context assembly', () => {
   it('does not let an oversized candidate crowd out later memories that fit the context budget', () => {
     const oversized = memory('00000000-0000-4000-8000-000000000006', `coffee ${'x'.repeat(1200)}`, 'normal')
     const compact = memory('00000000-0000-4000-8000-000000000007', 'coffee', 'normal')
-    // 620 rather than 500 because the block now carries an explicit
-    // `subject:"user"` declaration; the point of the case is that the compact
-    // record still fits after the oversized one is skipped.
-    const result = assembler.assemble('coffee', [oversized, compact], 'personal', 25, 620)
+    // 700 rather than 500 because the block now carries a `subject:"user"`
+    // declaration and section keys (currentFacts / uncertain). The point of the
+    // case is unchanged: the compact record still fits after the oversized one
+    // is skipped, and the block never exceeds the stated limit.
+    const result = assembler.assemble('coffee', [oversized, compact], 'personal', 25, 700)
     expect(result.selected.map((item) => item.id)).toEqual(['00000000-0000-4000-8000-000000000007'])
     expect(result.omitted).toBe(1)
-    expect(result.characterCount).toBeLessThanOrEqual(620)
+    expect(result.characterCount).toBeLessThanOrEqual(700)
   })
 
   it('keeps a bounded continuity layer so a zero-overlap turn is not treated as a first meeting', () => {
@@ -148,9 +149,9 @@ describe('bounded memory context assembly', () => {
     })
     const result = assembler.assemble('住在哪里', [stale, fresh], 'personal', 25, 3000, now)
 
-    const encoded = JSON.parse(result.text) as { memories: Array<{ id: string; stale: boolean }> }
-    expect(encoded.memories.find((item) => item.id.endsWith('51'))?.stale).toBe(true)
-    expect(encoded.memories.find((item) => item.id.endsWith('52'))?.stale).toBe(false)
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded.find((item) => item.id.endsWith('51'))?.stale).toBe(true)
+    expect(encoded.find((item) => item.id.endsWith('52'))?.stale).toBe(false)
   })
 
   // --- Task 1: lexical precision and conversation-context recall -----------
@@ -206,10 +207,12 @@ describe('bounded memory context assembly', () => {
       memory('00000000-0000-4000-8000-000000000098', '我住在杭州。', 'personal'),
       memory('00000000-0000-4000-8000-000000000099', '我住在上海。', 'personal')
     ], 'personal')
-    const encoded = JSON.parse(result.text) as { instruction: string; memories: Array<{ conflictGroup?: number }> }
-    expect(encoded.memories.map((item) => item.conflictGroup)).toEqual([0, 0])
-    expect(encoded.instruction).toContain('conflictGroup')
-    expect(encoded.instruction).toContain('ask which is current')
+    const parsed = JSON.parse(result.text) as { instruction: string }
+    const encoded = flattenMemoryBlock(parsed)
+    expect(encoded.map((item) => item.conflictGroup)).toEqual([0, 0])
+    expect(encoded.every((item) => item.status === 'conflict')).toBe(true)
+    expect(parsed.instruction).toContain('unresolvedConflicts')
+    expect(parsed.instruction).toContain('ask which is current')
   })
 
   it('does not group two unrelated records just because both are present', () => {
@@ -217,8 +220,8 @@ describe('bounded memory context assembly', () => {
       memory('00000000-0000-4000-8000-0000000000a1', '我住在杭州。', 'personal'),
       memory('00000000-0000-4000-8000-0000000000a2', '我喜欢手冲咖啡。', 'personal')
     ], 'personal')
-    const encoded = JSON.parse(result.text) as { memories: Array<{ conflictGroup?: number }> }
-    expect(encoded.memories.every((item) => item.conflictGroup === undefined)).toBe(true)
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded.every((item) => item.conflictGroup === null)).toBe(true)
   })
 
   // --- Task 3: volatility-aware staleness ---------------------------------
@@ -232,8 +235,8 @@ describe('bounded memory context assembly', () => {
       memory('00000000-0000-4000-8000-0000000000b3', '我的项目代号是蓝鲸。', 'personal', 'active', { updatedAt: reference, lastConfirmedAt: null })
     ]
     const result = assembler.assemble('住在哪里 喜欢什么 项目', records, 'personal', 25, 3000, now)
-    const encoded = JSON.parse(result.text) as { memories: Array<{ id: string; stale: boolean; volatility?: string; ageDays?: number }> }
-    const bySuffix = (suffix: string) => encoded.memories.find((item) => item.id.endsWith(suffix))
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    const bySuffix = (suffix: string) => encoded.find((item) => item.id.endsWith(suffix))
     expect(bySuffix('b1')?.stale).toBe(true)   // volatile: > 90 days
     expect(bySuffix('b2')?.stale).toBe(false)  // stable: < 365 days
     expect(bySuffix('b3')?.stale).toBe(true)   // unknown: > 180 days
@@ -260,7 +263,7 @@ describe('bounded memory context assembly', () => {
       lastConfirmedAt: null
     })
     const result = assembler.assemble('喜欢什么', [old], 'personal', 25, 3000, now)
-    const encoded = JSON.parse(result.text) as { memories: Array<{ stale: boolean }> }
-    expect(encoded.memories[0]?.stale).toBe(true)
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded[0]?.stale).toBe(true)
   })
 })

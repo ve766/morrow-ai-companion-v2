@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { flattenMemoryBlock } from '../memory/memory-context-assembler'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, type PersonalityInput } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from '../app/companion-service'
@@ -270,21 +271,26 @@ export function parseDeliveredMemories(system: string): DeliveredMemoryEntry[] {
   } catch {
     throw new ContextMemoryEvaluationError('MALFORMED_MEMORY_BLOCK')
   }
-  const memories = (parsed as { memories?: unknown }).memories
-  if (!Array.isArray(memories)) throw new ContextMemoryEvaluationError('MALFORMED_MEMORY_BLOCK')
-  return memories.map((entry) => {
-    const record = entry as Record<string, unknown>
-    return {
-      id: String(record.id),
-      content: String(record.content),
-      match: String(record.match),
-      stale: record.stale === true,
-      sourceCategory: String(record.sourceCategory),
-      confidence: Number(record.confidence),
-      sensitivity: String(record.sensitivity),
-      revision: Number(record.revision)
-    }
-  })
+  // The block is sectioned (currentFacts / unresolvedConflicts / uncertain).
+  // Flattening here keeps every existing assertion working and, more
+  // importantly, means a delivery check cannot pass by reading a section the
+  // model would not have seen as a current fact.
+  // An empty block is a valid delivery ("no memory applies"); only a block that
+  // is not an object at all is malformed.
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ContextMemoryEvaluationError('MALFORMED_MEMORY_BLOCK')
+  }
+  const entries = flattenMemoryBlock(parsed)
+  return entries.map((entry) => ({
+    id: entry.id,
+    content: entry.content,
+    match: entry.match,
+    stale: entry.stale,
+    sourceCategory: entry.sourceCategory,
+    confidence: entry.confidence,
+    sensitivity: entry.sensitivity,
+    revision: entry.revision
+  }))
 }
 
 function personalityVersionIn(system: string): number | null {

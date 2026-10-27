@@ -177,6 +177,9 @@ export class SqliteConversationRepository {
     return this.database.transaction(() => {
       const result = this.database.connection.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?')
         .run(messageId, conversationId)
+      // Without a journal row a restore would bring the message back; the
+      // message is part of the deletion boundary like a conversation is.
+      if (result.changes === 1) recordDeletionState(this.database, 'message', messageId, 'deleted', new Date().toISOString())
       return result.changes === 1
     })
   }

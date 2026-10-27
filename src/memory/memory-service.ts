@@ -144,14 +144,22 @@ export class MemoryService {
   assembleContext(query: string, maximumSensitivity: Sensitivity, conversationContext = ''): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
     if (typeof conversationContext !== 'string' || conversationContext.length > 20_000) throw new ApplicationError('INVALID_INPUT')
+    const records = this.repository.listActiveForContext(1000)
+    // Only the fact that a correction happened is passed on; the replaced text
+    // stays in the revision history and never re-enters the request.
+    const history = this.repository.listSupersededTexts().map((entry) => ({
+      memoryId: entry.memoryId,
+      replacedAt: entry.supersededAt
+    }))
     return this.contextAssembler.assemble(
       query,
-      this.repository.listActiveForContext(1000),
+      records,
       maximumSensitivity,
       25,
       3000,
       this.timestamp(),
-      conversationContext
+      conversationContext,
+      history
     )
   }
 

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { ApplicationError } from '../shared/errors'
 import type { SqliteDatabase } from '../persistence/database'
+import { evidenceJournalKey, recordDeletionState } from '../persistence/deletion-journal'
 
 /**
  * Feedback candidates: a record that the user may want Morrow to behave
@@ -387,19 +388,45 @@ export class FeedbackCandidateService {
     const rows = this.database.connection.prepare(query).all(value) as unknown as Array<{ candidate_id: string }>
     if (rows.length === 0) return 0
     const now = this.timestamp()
+    // One operation id for the whole request: a restore can then report which
+    // deletion a replayed row came from without storing the content.
+    const operationId = this.makeId().toLowerCase()
     this.database.transaction(() => {
+      // Read the rows before the update: after it they are no longer `active`,
+      // and the journal needs the exact identity of what was withdrawn.
+      const affected = this.database.connection.prepare(`
+        SELECT candidate_id, conversation_id, evidence_hash FROM persona_feedback_evidence
+        WHERE ${column} = ? AND status = 'active'
+      `).all(value) as unknown as Array<{ candidate_id: string; conversation_id: string; evidence_hash: string }>
       this.database.connection.prepare(`
         UPDATE persona_feedback_evidence
         SET status = 'withdrawn', withdrawn_at = ?
         WHERE ${column} = ? AND status = 'active'
       `).run(now, value)
+      for (const row of affected) {
+        recordDeletionState(
+          this.database,
+          'evidence',
+          evidenceJournalKey(row.candidate_id, row.conversation_id, row.evidence_hash),
+          'retracted',
+          now,
+          operationId
+        )
+      }
       for (const row of rows) {
         this.database.connection.prepare(`
           UPDATE persona_feedback_candidates SET decision_reason = ?, updated_at = ? WHERE id = ? AND status IN ('pending', 'supported')
         `).run(reason.slice(0, 500), now, row.candidate_id)
       }
     })
-    for (const row of rows) this.recomputeSupport(row.candidate_id)
+    for (const row of rows) {
+      this.recomputeSupport(row.candidate_id)
+      // A candidate with no live evidence is withdrawn; that decision has to
+      // survive a restore even if the backup predates the withdrawal.
+      if (this.get(row.candidate_id)?.status === 'withdrawn') {
+        recordDeletionState(this.database, 'candidate', row.candidate_id, 'retracted', now, operationId)
+      }
+    }
     return rows.length
   }
 
@@ -430,9 +457,15 @@ export class FeedbackCandidateService {
     // Withdrawing is also a content deletion: keep the decision and the audit
     // fields, drop the user's words.
     const excerpt = status === 'withdrawn' ? "'[withdrawn]'" : 'evidence_excerpt'
-    this.database.connection.prepare(`
-      UPDATE persona_feedback_candidates SET status = ?, decision_reason = ?, evidence_excerpt = ${excerpt}, updated_at = ? WHERE id = ?
-    `).run(status, reason.slice(0, 500), this.timestamp(), id)
+    const now = this.timestamp()
+    this.database.transaction(() => {
+      this.database.connection.prepare(`
+        UPDATE persona_feedback_candidates SET status = ?, decision_reason = ?, evidence_excerpt = ${excerpt}, updated_at = ? WHERE id = ?
+      `).run(status, reason.slice(0, 500), now, id)
+      if (status === 'withdrawn') {
+        recordDeletionState(this.database, 'candidate', id, 'retracted', now)
+      }
+    })
     return this.get(id)!
   }
 

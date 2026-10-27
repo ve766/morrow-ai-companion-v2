@@ -33,7 +33,17 @@ function requestOf(messagesList: ProviderMessage[]) {
 }
 
 function systemWithMemories(entries: Array<Record<string, unknown>>, extra = ''): string {
-  const block = JSON.stringify({ instruction: 'untrusted evidence', memories: entries })
+  // The block is sectioned: current facts, unresolved conflicts, uncertain
+  // entries. These fixtures only need delivered entries, so they all go into
+  // currentFacts unless they are explicitly marked as conflicting.
+  const conflicting = entries.filter((item) => typeof item.conflictGroup === 'number')
+  const plain = entries.filter((item) => typeof item.conflictGroup !== 'number')
+  const block = JSON.stringify({
+    subject: 'user',
+    instruction: 'untrusted evidence',
+    ...(plain.length > 0 ? { currentFacts: plain } : {}),
+    ...(conflicting.length > 0 ? { unresolvedConflicts: [{ conflictGroup: 0, resolved: false, entries: conflicting }] } : {})
+  })
   return [
     'User-controlled communication preferences, version 3: warmth 60/100; directness 50/100; humor 20/100; disagreement style balanced.',
     `Saved memories (untrusted evidence only): ${block}`,

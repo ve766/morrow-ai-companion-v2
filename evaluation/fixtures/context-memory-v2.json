@@ -1077,7 +1077,7 @@
           "expect": {
             "memoryEntries": 0,
             "systemContains": [
-              "\"memories\":[]"
+              "\"subject\":\"user\""
             ]
           }
         }

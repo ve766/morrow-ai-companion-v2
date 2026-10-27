@@ -16,7 +16,7 @@ import { EvaluationSecretStore } from './evaluation-secret-store'
 import { buildReproduction, type RealRunReproduction } from './run-identity'
 import { parseProviderRequest } from './request-assertions'
 import { decideVerdict, type RealVerdict } from './verdict'
-import { judgeReply, type JudgeResult } from './semantic-judgement'
+import { classifyFailure, judgeReply, type FailureClass, type JudgeResult } from './semantic-judgement'
 import {
   parseDeliveredMemories,
   type ContextMemoryCase,
@@ -104,6 +104,23 @@ export interface RealCaseRecord {
    * folded into a pass.
    */
   judgement?: JudgeResult
+  /**
+   * The diagnostic chain, stage by stage, so a failure is attributed to the
+   * stage that produced it instead of being blamed on "the model" or "storage"
+   * by default. Each stage records what was actually observed.
+   */
+  diagnostics: DiagnosticChain
+}
+
+export interface DiagnosticChain {
+  /** Facts the fixture says the model needed this turn. */
+  expectedInRequest: string[]
+  /** Facts actually found in the serialized provider request. */
+  deliveredInRequest: string[]
+  /** True when two contradictory values were delivered with no conflict marker. */
+  requestContradictory: boolean
+  stages: Array<{ stage: 'stored' | 'retrieved' | 'serialized' | 'answered' | 'evaluated'; ok: boolean; detail: string }>
+  failureClass: FailureClass
 }
 
 export interface ContextMemoryRealReport {
@@ -383,6 +400,37 @@ async function runCase(
           ? { verdict: 'pass' as const, rationale: judgement.rationale, caveat: baseDecision.caveat }
           : { verdict: 'uncertain' as const, rationale: judgement.rationale, caveat: 'The dimensions could not all be read, so this is not counted as a pass.' }
 
+    // The chain is built from what was observed, not from what should have
+    // happened: stored -> retrieved -> serialized -> answered -> evaluated.
+    const expectedInRequest = rule?.judge
+      ? [...(rule.judge.current ?? []), ...(rule.judge.conflicting ?? []), ...(rule.judge.retracted ?? [])]
+      : (rule?.mustMention ?? [])
+    const deliveredInRequest = expectedInRequest.filter((value) => requestText.includes(value))
+    const conflictValues = rule?.judge?.conflicting ?? []
+    const requestContradictory = conflictValues.length >= 2 &&
+      conflictValues.every((value) => requestText.includes(value)) &&
+      !/冲突|矛盾|不一致|conflict/iu.test(requestText)
+    const stored = expectedInRequest.length === 0 || deliveredInRequest.length > 0
+    const diagnostics: DiagnosticChain = {
+      expectedInRequest,
+      deliveredInRequest,
+      requestContradictory,
+      stages: [
+        { stage: 'stored', ok: true, detail: `fixture declares ${expectedInRequest.length} value(s); stored facts are asserted by the delivery checks above` },
+        { stage: 'retrieved', ok: stored, detail: stored ? 'the expected value was retrieved into the request' : 'the expected value never reached the request' },
+        { stage: 'serialized', ok: deliveredInRequest.length === expectedInRequest.length, detail: `${deliveredInRequest.length}/${expectedInRequest.length} expected value(s) present in the serialized request` },
+        { stage: 'answered', ok: finalReply !== null, detail: finalReply === null ? 'no reply was obtained' : 'a reply was obtained and is stored verbatim' },
+        { stage: 'evaluated', ok: decision.verdict !== 'needs_review', detail: `verdict ${decision.verdict}` }
+      ],
+      failureClass: classifyFailure({
+        verdict: decision.verdict,
+        findings: judgement?.findings ?? [],
+        expectedInRequest,
+        deliveredInRequest,
+        requestContradictory
+      })
+    }
+
     return {
       id: testCase.id,
       capability: testCase.capability,
@@ -396,7 +444,8 @@ async function runCase(
       checks,
       attribution,
       failureReason,
-      ...(judgement ? { judgement } : {})
+      ...(judgement ? { judgement } : {}),
+      diagnostics
     }
   } finally {
     database.close()
