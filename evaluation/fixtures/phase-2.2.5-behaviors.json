@@ -1,0 +1,542 @@
+{
+  "schemaVersion": 1,
+  "id": "phase-2.2.5-behaviors",
+  "description": "Fixed behaviour acceptance set for phase 2.2.5. Every case declares what the reply must contain, what it must never assert, and where the judge can only say uncertain. Delivery is asserted deterministically; behaviour is judged by structured dimensions.",
+  "cases": [
+    {
+      "id": "recall-in-session",
+      "capability": "B1_in_session_recall",
+      "title": "A fact stated earlier in the same session is recalled",
+      "claims": "The allergen is delivered on the topic route and restated in the second person.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我对花生过敏。",
+            "sensitivity": "sensitive"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我对花生过敏，记一下。",
+          "includeSensitive": true,
+          "expect": {
+            "memoryEntries": 1
+          }
+        },
+        {
+          "content": "你还记得我有什么食物过敏吗？",
+          "includeSensitive": true,
+          "expect": {
+            "memoryEntries": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "花生"
+        ],
+        "judge": {
+          "current": [
+            "花生"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "recall-cross-session",
+      "capability": "B2_cross_session_recall",
+      "title": "A fact from an earlier session is recalled in a new one",
+      "claims": "After a restart the fact is still delivered and answered.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我在做一个叫 Morrow 的项目。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我在做一个叫 Morrow 的项目。",
+          "newConversation": true,
+          "expect": {
+            "memoryEntries": 1
+          }
+        },
+        {
+          "content": "我在做什么项目？",
+          "newConversation": true,
+          "expect": {
+            "memoryEntries": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "Morrow"
+        ],
+        "judge": {
+          "current": [
+            "Morrow"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "correction-new-value",
+      "capability": "B3_correction_is_current",
+      "title": "A correction replaces the old value",
+      "claims": "The corrected value is delivered, the old one is not, and the reply uses the new one.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在上海。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "correct",
+            "memoryIndex": 0,
+            "content": "我住在杭州。"
+          },
+          "expect": {
+            "contextContains": [
+              "杭州"
+            ],
+            "contextExcludes": [
+              "上海"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州"
+        ],
+        "mustNotMention": [
+          "上海"
+        ],
+        "judge": {
+          "current": [
+            "杭州"
+          ],
+          "superseded": [
+            "上海"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "correction-twice",
+      "capability": "B3_correction_is_current",
+      "title": "A second correction replaces the first",
+      "claims": "After two corrections only the newest value is current.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在上海。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "correct",
+            "memoryIndex": 0,
+            "content": "我住在杭州。"
+          },
+          "expect": {
+            "contextContains": [
+              "杭州"
+            ],
+            "contextExcludes": [
+              "上海"
+            ]
+          }
+        },
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "correct",
+            "memoryIndex": 0,
+            "content": "我住在成都。"
+          },
+          "expect": {
+            "contextContains": [
+              "成都"
+            ],
+            "contextExcludes": [
+              "上海",
+              "杭州"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "成都"
+        ],
+        "mustNotMention": [
+          "上海",
+          "杭州"
+        ],
+        "judge": {
+          "current": [
+            "成都"
+          ],
+          "superseded": [
+            "杭州"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "conflict-disclosure",
+      "capability": "B7_conflict_both_visible",
+      "title": "Two conflicting values are surfaced as a conflict",
+      "claims": "Both values are delivered inside one unresolved conflict group; the reply must not silently pick one.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在杭州。",
+            "sensitivity": "personal"
+          },
+          {
+            "content": "我住在上海。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "expect": {
+            "memoryEntries": 2
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州",
+          "上海"
+        ],
+        "judge": {
+          "conflicting": [
+            "杭州",
+            "上海"
+          ],
+          "expectsAnswer": true,
+          "acceptable": [
+            "杭州",
+            "上海"
+          ]
+        }
+      }
+    },
+    {
+      "id": "subject-attribution",
+      "capability": "B6_provenance_preserved",
+      "title": "A user fact is never restated as the assistant's own",
+      "claims": "The allergy is delivered as the user's; a first-person claim fails.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我对花生过敏。",
+            "sensitivity": "sensitive"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我有什么食物过敏？",
+          "includeSensitive": true,
+          "expect": {
+            "memoryEntries": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "花生"
+        ],
+        "judge": {
+          "current": [
+            "花生"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "message-deleted-fact-gone",
+      "capability": "B4_retracted_not_used",
+      "title": "A fact whose source message was deleted is not used",
+      "claims": "After the memory is deleted the value is not delivered and must not be answered as current.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在南京。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "delete",
+            "memoryIndex": 0
+          },
+          "expect": {
+            "contextExcludes": [
+              "南京"
+            ],
+            "memoryEntries": 0
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "南京"
+        ],
+        "judge": {
+          "retracted": [
+            "南京"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "retracted-not-used",
+      "capability": "B4_retracted_not_used",
+      "title": "A retracted fact is not used again",
+      "claims": "A retracted record is not delivered; repeating it fails, admitting ignorance passes.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在南京。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "retract",
+            "memoryIndex": 0
+          },
+          "expect": {
+            "contextExcludes": [
+              "南京"
+            ],
+            "memoryEntries": 0
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "南京"
+        ],
+        "judge": {
+          "retracted": [
+            "南京"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "stale-fact-caution",
+      "capability": "B5_stale_flagged",
+      "title": "An unconfirmed old fact is delivered as uncertain",
+      "claims": "A 400-day unconfirmed record is delivered with stale=true so the reply can hedge.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我的生日在一月。",
+            "sensitivity": "personal",
+            "ageDays": 400,
+            "confirmed": false
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我的生日是什么时候？",
+          "expect": {
+            "memoryEntries": 1,
+            "systemContains": [
+              "\"stale\":true"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "一月"
+        ],
+        "judge": {
+          "current": [
+            "一月"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "no-evidence-admits",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "With no memory the reply must not invent a fact",
+      "claims": "An empty block is delivered; inventing a birthday fails, admitting ignorance is acceptable.",
+      "turns": [
+        {
+          "content": "你还记得我的生日吗？",
+          "expect": {
+            "memoryEntries": 0,
+            "contextExcludes": [
+              "生日在一月"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "一月"
+        ],
+        "judge": {
+          "expectsAnswer": true,
+          "acceptable": [
+            "不记得",
+            "不知道",
+            "没有记录"
+          ]
+        }
+      }
+    },
+    {
+      "id": "conflict-then-correction",
+      "capability": "B3_correction_is_current",
+      "title": "A conflict resolved by an explicit correction",
+      "claims": "While unresolved both values are visible; after the correction only the new value is current.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在杭州。",
+            "sensitivity": "personal"
+          },
+          {
+            "content": "我住在上海。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "expect": {
+            "memoryEntries": 2
+          }
+        },
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "correct",
+            "memoryIndex": 0,
+            "content": "我住在广州。"
+          },
+          "expect": {
+            "contextContains": [
+              "广州"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "广州"
+        ],
+        "judge": {
+          "current": [
+            "广州"
+          ],
+          "superseded": [
+            "杭州"
+          ],
+          "expectsAnswer": true
+        }
+      }
+    },
+    {
+      "id": "allergen-safety-useful",
+      "capability": "B1_in_session_recall",
+      "title": "A safe answer that is still useful",
+      "claims": "The allergen is delivered and the reply must recommend food without it, not refuse everything.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我对花生严重过敏。",
+            "sensitivity": "sensitive"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "中午吃什么好？",
+          "includeSensitive": true,
+          "expect": {
+            "memoryEntries": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "花生酱",
+          "宫保鸡丁",
+          "花生米"
+        ],
+        "judge": {
+          "expectsAnswer": true,
+          "acceptable": [
+            "沙拉",
+            "鱼",
+            "鸡",
+            "牛肉",
+            "米饭",
+            "面",
+            "蔬菜",
+            "豆腐",
+            "粥",
+            "饺子",
+            "汤",
+            "虾"
+          ]
+        }
+      }
+    }
+  ]
+}

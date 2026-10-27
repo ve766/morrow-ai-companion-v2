@@ -127,9 +127,17 @@ export class SqliteDatabase {
     }
   }
 
+  // Nested calls use SAVEPOINTs on the same connection so that a service which
+  // composes other services (conversation delete -> evidence withdrawal ->
+  // personality save) can still commit or roll back as one unit. Without this,
+  // an inner `BEGIN` would throw and callers would be forced to swallow errors.
+  private transactionDepth = 0
+
   transaction<T>(operation: () => T): T {
     if (this.closed) throw new Error('Local storage is closed.')
+    if (this.transactionDepth > 0) return this.nestedTransaction(operation)
     this.connection.exec('BEGIN IMMEDIATE')
+    this.transactionDepth += 1
     try {
       const value = operation()
       this.connection.exec('COMMIT')
@@ -141,6 +149,29 @@ export class SqliteDatabase {
         throw new Error('Local storage operation failed.')
       }
       throw error
+    } finally {
+      this.transactionDepth -= 1
+    }
+  }
+
+  private nestedTransaction<T>(operation: () => T): T {
+    const name = `sp_${this.transactionDepth}_${Date.now().toString(36)}`
+    this.connection.exec(`SAVEPOINT ${name}`)
+    this.transactionDepth += 1
+    try {
+      const value = operation()
+      this.connection.exec(`RELEASE ${name}`)
+      return value
+    } catch (error) {
+      try {
+        this.connection.exec(`ROLLBACK TO ${name}`)
+        this.connection.exec(`RELEASE ${name}`)
+      } catch {
+        throw new Error('Local storage operation failed.')
+      }
+      throw error
+    } finally {
+      this.transactionDepth -= 1
     }
   }
 

@@ -5,8 +5,14 @@ export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com'
 export const DEEPSEEK_MODEL = 'deepseek-flash' as const
 export const DEEPSEEK_PROVIDER_ID = 'deepseek' as const
 export const LOCAL_PROVIDER_ID = 'local-openai' as const
+/**
+ * A user-configured OpenAI-compatible gateway. It is a separate provider id on
+ * purpose: enabling it must never be confused with the DeepSeek default, and
+ * the default provider is never switched automatically.
+ */
+export const THIRD_PARTY_PROVIDER_ID = 'third-party' as const
 
-export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID
+export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID | typeof THIRD_PARTY_PROVIDER_ID
 export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
@@ -46,14 +52,24 @@ export interface ContextMemory {
   revision: number
   score: number
   // Why this record entered the request. 'topic' means it shares terms with the
-  // current turn; 'continuity' means it carries no topical overlap and is
-  // included only so the companion does not treat the user as a stranger.
-  // The prompt labels both, so the model can tell the difference.
-  match: 'topic' | 'continuity'
-  // True when the record has gone past the staleness window without a fresh
-  // user confirmation. Stale evidence stays retrievable but must be presented
-  // to the model as possibly outdated rather than as a current fact.
+  // current turn; 'context' means it shares nothing with this turn but is
+  // about the recent conversation; 'continuity' means it carries no topical
+  // overlap at all and is included only so the companion does not treat the
+  // user as a stranger. The prompt labels all three.
+  match: 'topic' | 'context' | 'continuity'
+  // True when the record has gone past the staleness window for its volatility
+  // class without a fresh user confirmation. Stale evidence stays retrievable
+  // but must be presented to the model as possibly outdated, not as fact.
   stale?: boolean
+  // How fast this kind of fact normally changes. A favourite food and a job
+  // title do not share one expiry window.
+  volatility?: 'stable' | 'volatile' | 'unknown'
+  // Age in whole days at assembly time, so the request itself carries the
+  // evidence behind `stale` instead of only a boolean.
+  ageDays?: number
+  // Entries in the same group may contradict each other. The model is told to
+  // surface the conflict, not to silently pick one.
+  conflictGroup?: number
 }
 
 export interface AssembledMemoryContext {
@@ -71,6 +87,14 @@ export interface ProviderConfigRecord {
   enabled: boolean
   apiKeyConfigured: boolean
   updatedAt: string
+  /** Request timeout. Only the third-party provider reads this per record. */
+  timeoutMs: number
+  /**
+   * True when the model id was found in the service's `/v1/models` catalogue.
+   * False means the id was typed by hand and is unverified; it is never
+   * reported as verified on the strength of a successful chat call.
+   */
+  catalogVerified: boolean
 }
 
 export interface DeepSeekProviderConfigInput {
@@ -88,7 +112,22 @@ export interface LocalProviderConfigInput {
   apiKey?: string
 }
 
-export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput
+export interface ThirdPartyProviderConfigInput {
+  providerId: typeof THIRD_PARTY_PROVIDER_ID
+  /** Base URL, e.g. `https://host/v1`. A full chat URL is normalised. */
+  endpoint: string
+  model: string
+  enabled: boolean
+  apiKey?: string
+  timeoutMs?: number
+  /**
+   * Must be true: the request leaves the machine. Without it the provider is
+   * not saved, so a private conversation cannot be sent anywhere by accident.
+   */
+  acknowledgeThirdParty: true
+}
+
+export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput | ThirdPartyProviderConfigInput
 
 export interface ProviderConnectionRequest {
   providerId: ProviderId

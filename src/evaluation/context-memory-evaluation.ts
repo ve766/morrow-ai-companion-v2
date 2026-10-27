@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { flattenMemoryBlock } from '../memory/memory-context-assembler'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, type PersonalityInput } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from '../app/companion-service'
@@ -93,7 +94,7 @@ export interface ContextMemoryTurnExpectation {
   /** Exact number of entries tagged match="topic". */
   memoryTopicCount?: number
   /** At least one entry matching `contentContains` must carry this match reason. */
-  memoryMatchFor?: Array<{ contentContains: string; match: 'topic' | 'continuity'; stale?: boolean }>
+  memoryMatchFor?: Array<{ contentContains: string; match: 'topic' | 'context' | 'continuity'; stale?: boolean }>
   /**
    * If an entry containing this text is delivered at all, it must not be
    * promoted to match="topic". This is the assertion behind "an unrelated
@@ -159,6 +160,18 @@ export interface ContextMemoryCase {
     mustMention?: string[]
     mustNotMention?: string[]
     note?: string
+    /**
+     * Structured semantic dimensions for replies a substring rule cannot read.
+     * When present the judge decides the verdict and the substring checks are
+     * kept only as supporting evidence.
+     */
+    judge?: {
+      current?: string[]
+      superseded?: string[]
+      retracted?: string[]
+      conflicting?: string[]
+      expectsAnswer?: boolean
+    }
   } | null
 }
 
@@ -258,21 +271,26 @@ export function parseDeliveredMemories(system: string): DeliveredMemoryEntry[] {
   } catch {
     throw new ContextMemoryEvaluationError('MALFORMED_MEMORY_BLOCK')
   }
-  const memories = (parsed as { memories?: unknown }).memories
-  if (!Array.isArray(memories)) throw new ContextMemoryEvaluationError('MALFORMED_MEMORY_BLOCK')
-  return memories.map((entry) => {
-    const record = entry as Record<string, unknown>
-    return {
-      id: String(record.id),
-      content: String(record.content),
-      match: String(record.match),
-      stale: record.stale === true,
-      sourceCategory: String(record.sourceCategory),
-      confidence: Number(record.confidence),
-      sensitivity: String(record.sensitivity),
-      revision: Number(record.revision)
-    }
-  })
+  // The block is sectioned (currentFacts / unresolvedConflicts / uncertain).
+  // Flattening here keeps every existing assertion working and, more
+  // importantly, means a delivery check cannot pass by reading a section the
+  // model would not have seen as a current fact.
+  // An empty block is a valid delivery ("no memory applies"); only a block that
+  // is not an object at all is malformed.
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ContextMemoryEvaluationError('MALFORMED_MEMORY_BLOCK')
+  }
+  const entries = flattenMemoryBlock(parsed)
+  return entries.map((entry) => ({
+    id: entry.id,
+    content: entry.content,
+    match: entry.match,
+    stale: entry.stale,
+    sourceCategory: entry.sourceCategory,
+    confidence: entry.confidence,
+    sensitivity: entry.sensitivity,
+    revision: entry.revision
+  }))
 }
 
 function personalityVersionIn(system: string): number | null {
@@ -612,9 +630,10 @@ const EXPECT_KEYS = [
 ] as const
 const MATCH_KEYS = ['contentContains', 'match', 'stale'] as const
 const AFTER_KEYS = ['personalityVersionStable', 'activeMemoryCount', 'storedAssistantCount', 'storedUserCount'] as const
-const REAL_KEYS = ['check', 'mustMention', 'mustNotMention', 'note'] as const
+const REAL_KEYS = ['check', 'mustMention', 'mustNotMention', 'note', 'judge'] as const
+const JUDGE_KEYS = ['current', 'superseded', 'retracted', 'conflicting', 'acceptable', 'expectsAnswer'] as const
 const REAL_CHECKS = ['substring', 'clarifying_question'] as const
-const MATCH_VALUES = ['topic', 'continuity'] as const
+const MATCH_VALUES = ['topic', 'context', 'continuity'] as const
 
 function rejectUnknownKeys(value: Record<string, unknown>, allowed: readonly string[], where: string): void {
   for (const key of Object.keys(value)) {
@@ -740,6 +759,25 @@ function validateCase(candidate: Record<string, unknown>, seen: Set<string>): Co
     requireStrings(spec.mustNotMention, `${candidate.id}:realModel:mustNotMention`)
     if (spec.check === 'substring' && (spec.mustMention === undefined) && (spec.mustNotMention === undefined)) {
       throw new ContextMemoryEvaluationError(`EMPTY_REAL_CHECK:${candidate.id}`)
+    }
+    if (spec.judge !== undefined) {
+      if (spec.judge === null || typeof spec.judge !== 'object' || Array.isArray(spec.judge)) {
+        throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+      }
+      const judge = spec.judge as Record<string, unknown>
+      rejectUnknownKeys(judge, JUDGE_KEYS, `${candidate.id}:realModel:judge`)
+      for (const key of ['current', 'superseded', 'retracted', 'conflicting', 'acceptable']) {
+        requireStrings(judge[key], `${candidate.id}:realModel:judge:${key}`)
+      }
+      if (judge.expectsAnswer !== undefined && typeof judge.expectsAnswer !== 'boolean') {
+        throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+      }
+      // A judge with no dimension would silently pass everything.
+      const declared = ['current', 'superseded', 'retracted', 'conflicting']
+        .some((key) => Array.isArray(judge[key]) && (judge[key] as unknown[]).length > 0)
+      if (!declared && judge.expectsAnswer !== true) {
+        throw new ContextMemoryEvaluationError(`EMPTY_JUDGE:${candidate.id}`)
+      }
     }
   }
   return candidate.capability as ContextMemoryCapability

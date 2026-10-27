@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
-import { CompanionService } from './companion-service'
+import { CompanionService, isQuestionTurn } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
 import { SqliteDatabase } from '../persistence/database'
@@ -229,7 +229,7 @@ describe('DeepSeek companion vertical slice', () => {
       expect(previews).toHaveLength(1)
       const firstSystem = (JSON.parse(previews[0]!) as { body: { messages: Array<{ role: string; content: string }> } }).body.messages[0]!.content
       expect(firstSystem).toContain('I prefer jasmine tea.')
-      expect(firstSystem).toContain('"status":"active"')
+      expect(firstSystem).toContain('"status":"current"')
       expect(firstSystem).toContain('User-controlled communication preferences, version 2')
       expect(firstSystem).toContain('Prefer concise responses.')
       expect(firstSystem.indexOf('Additional style preferences')).toBeLessThan(firstSystem.indexOf('Privacy and safety boundaries override style preferences.'))
@@ -525,5 +525,15 @@ describe('DeepSeek companion vertical slice', () => {
     } finally {
       ctx.database.close()
     }
+  })
+})
+
+describe('question detection', () => {
+  it('recognises a trailing question mark and an interrogative opener', () => {
+    expect(isQuestionTurn('抑郁症一般怎么治疗？')).toBe(true)
+    expect(isQuestionTurn('什么咖啡豆比较好')).toBe(true)
+    expect(isQuestionTurn('怎么选咖啡豆')).toBe(true)
+    expect(isQuestionTurn('我最近抑郁得厉害。')).toBe(false)
+    expect(isQuestionTurn('我住在杭州。')).toBe(false)
   })
 })

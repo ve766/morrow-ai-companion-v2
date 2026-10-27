@@ -141,7 +141,7 @@
       ],
       "expect": {
         "systemExcludes": ["我住在南京。"],
-        "systemContains": ["\"memories\":[]"],
+        "systemContains": ["\"subject\":\"user\""],
         "providerCalls": 2
       }
     },
@@ -184,7 +184,7 @@
       ],
       "expect": {
         "systemExcludes": ["我住在南京。"],
-        "systemContains": ["\"memories\":[]"],
+        "systemContains": ["\"subject\":\"user\""],
         "providerCalls": 1
       }
     },
@@ -267,7 +267,7 @@
       "dimension": "uncertainty_no_evidence",
       "steps": [{ "type": "send", "content": "你还记得我的生日吗？" }],
       "expect": {
-        "systemContains": ["\"memories\":[]", "Do not invent user facts"],
+        "systemContains": ["\"subject\":\"user\"", "Do not invent user facts"],
         "providerCalls": 1
       }
     },
@@ -277,7 +277,7 @@
       "memories": [{ "content": "我的生日在一月。", "sensitivity": "personal", "ageDays": 400, "confirmed": false }],
       "steps": [{ "type": "send", "content": "我的生日是什么时候？" }],
       "expect": {
-        "systemContains": ["stale=true means unconfirmed for long", "\"stale\":true"],
+        "systemContains": ["uncertain=unconfirmed long", "\"stale\":true"],
         "providerCalls": 1
       }
     },
@@ -332,7 +332,7 @@
       "steps": [{ "type": "send", "content": "今天午饭吃什么？" }],
       "expect": {
         "rawExcludes": ["花生", "evaluation-only-secret"],
-        "systemContains": ["\"memories\":[]"],
+        "systemContains": ["\"subject\":\"user\""],
         "providerCalls": 1
       }
     },
@@ -344,7 +344,7 @@
       "expect": {
         "rawContains": ["\"model\":\"deepseek-flash\""],
         "rawExcludes": ["evaluation-only-secret"],
-        "systemContains": ["\"status\":\"active\"", "\"revision\":"],
+        "systemContains": ["\"status\":\"current\"", "\"revision\":"],
         "providerCalls": 1
       }
     },
@@ -354,7 +354,7 @@
       "memories": [{ "content": "我住在杭州。", "sensitivity": "personal" }],
       "steps": [{ "type": "send", "content": "今天有点累。" }],
       "expect": {
-        "systemContains": ["我住在杭州。", "\"match\":\"continuity\"", "background only"],
+        "systemContains": ["我住在杭州。", "\"match\":\"continuity\"", "continuity=background"],
         "memoryCount": 1,
         "providerCalls": 1
       }
@@ -403,7 +403,7 @@
       "steps": [{ "type": "send", "content": "你还记得我对什么过敏吗？" }],
       "expect": {
         "cognitive": { "intent": "information_query", "strategy": "retrieve_memory" },
-        "systemContains": ["response route=retrieve_memory", "\"memories\":[]"],
+        "systemContains": ["response route=retrieve_memory", "\"subject\":\"user\""],
         "excludeContents": ["花生"],
         "memoryCount": 0,
         "providerCalls": 1

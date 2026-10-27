@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import { LOCAL_PROVIDER_ID } from '../shared/companion'
+import { LOCAL_PROVIDER_ID, THIRD_PARTY_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from '../app/companion-service'
 import { ConversationService } from '../conversation/conversation-service'
@@ -16,6 +16,7 @@ import { EvaluationSecretStore } from './evaluation-secret-store'
 import { buildReproduction, type RealRunReproduction } from './run-identity'
 import { parseProviderRequest } from './request-assertions'
 import { decideVerdict, type RealVerdict } from './verdict'
+import { classifyFailure, judgeReply, type FailureClass, type JudgeResult } from './semantic-judgement'
 import {
   parseDeliveredMemories,
   type ContextMemoryCase,
@@ -48,6 +49,14 @@ export interface ContextMemoryRealOptions {
   endpoint?: string
   model?: string
   timeoutMs?: number
+  /**
+   * Which provider shape to configure. `local` is the default so an existing
+   * command behaves exactly as before; `third-party` sends the same synthetic
+   * fixtures through a user-configured remote gateway and needs `apiKey`.
+   */
+  providerId?: 'local' | 'third-party'
+  /** Supplied by the operator at run time; never written to a report. */
+  apiKey?: string
   /** Restrict the run to these case ids; used to keep iteration cheap. */
   caseIds?: string[]
 }
@@ -97,6 +106,31 @@ export interface RealCaseRecord {
   /** Where a failure belongs: delivery or model. Null when nothing failed. */
   attribution: 'not_delivered' | 'delivered_but_not_used' | 'rule_not_satisfied' | null
   failureReason: string | null
+  /**
+   * Per-dimension reading of the reply. Present only when the fixture declares
+   * `judge`; a dimension that could not be read stays `uncertain` and is never
+   * folded into a pass.
+   */
+  judgement?: JudgeResult
+  /**
+   * The diagnostic chain, stage by stage, so a failure is attributed to the
+   * stage that produced it instead of being blamed on "the model" or "storage"
+   * by default. Each stage records what was actually observed.
+   */
+  diagnostics: DiagnosticChain
+}
+
+export interface DiagnosticChain {
+  /** Facts the fixture says the model needed this turn. */
+  expectedInRequest: string[]
+  /** Facts actually found in the serialized provider request. */
+  deliveredInRequest: string[]
+  /** Retracted values that were still present in the request; must be empty. */
+  retractedLeaked: string[]
+  /** True when two contradictory values were delivered with no conflict marker. */
+  requestContradictory: boolean
+  stages: Array<{ stage: 'stored' | 'retrieved' | 'serialized' | 'answered' | 'evaluated'; ok: boolean; detail: string }>
+  failureClass: FailureClass
 }
 
 export interface ContextMemoryRealReport {
@@ -110,10 +144,16 @@ export interface ContextMemoryRealReport {
   status: 'checked' | 'blocked'
   blockedReason: string | null
   provider: {
-    providerClass: 'local'
+    providerClass: 'local' | 'remote'
     endpoint: string
     model: string
     reachable: boolean
+    /**
+     * Whether the model id appears in the service's own catalogue. Null when the
+     * catalogue could not be read; false means it was read and the id is not
+     * there, which is exactly the "unverified, typed by hand" case.
+     */
+    modelInCatalog: boolean | null
   }
   environment: { node: string; platform: string; durationMs: number }
   summary: {
@@ -140,17 +180,22 @@ function probeTimeoutMs(): number {
   return 8_000
 }
 
-async function probe(endpoint: string, timeoutMs: number): Promise<{ reachable: boolean; detail: string }> {
+async function probe(endpoint: string, timeoutMs: number, apiKey?: string): Promise<{ reachable: boolean; detail: string; ids: string[] }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(`${endpoint}/models`, { signal: controller.signal })
-    if (!response.ok) return { reachable: false, detail: `HTTP ${response.status}` }
+    const response = await fetch(`${endpoint}/models`, {
+      signal: controller.signal,
+      // A gateway answers 401 without the key; the key stays in this header and
+      // is never part of the detail string.
+      ...(apiKey ? { headers: { authorization: `Bearer ${apiKey}` } } : {})
+    })
+    if (!response.ok) return { reachable: false, detail: `HTTP ${response.status}`, ids: [] }
     const body = await response.json() as { data?: Array<{ id?: unknown }> }
     const models = (body.data ?? []).map((item) => item.id).filter((id): id is string => typeof id === 'string')
-    return { reachable: true, detail: models.slice(0, 8).join(', ') }
+    return { reachable: true, detail: models.slice(0, 8).join(', '), ids: models }
   } catch (error) {
-    return { reachable: false, detail: error instanceof Error ? error.message : String(error) }
+    return { reachable: false, detail: error instanceof Error ? error.message : String(error), ids: [] }
   } finally {
     clearTimeout(timer)
   }
@@ -221,7 +266,9 @@ async function runCase(
   testCase: ContextMemoryCase,
   endpoint: string,
   model: string,
-  timeoutMs: number
+  timeoutMs: number,
+  providerId: 'local' | 'third-party' = 'local',
+  apiKey?: string
 ): Promise<RealCaseRecord> {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-context-real-'))
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
@@ -261,7 +308,24 @@ async function runCase(
       },
       providerFactory: (config) => new OpenAICompatibleProvider(config, secrets, undefined, timeoutMs)
     })
-    companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+    if (providerId === 'third-party') {
+      // The key lives in the in-memory evaluation store for the length of this
+      // process only; it is never persisted or written into the report.
+      secrets.set(THIRD_PARTY_PROVIDER_ID, apiKey ?? '')
+      companion.saveProvider({
+        providerId: THIRD_PARTY_PROVIDER_ID,
+        endpoint,
+        model,
+        enabled: true,
+        timeoutMs,
+        acknowledgeThirdParty: true
+      })
+      // Selection is explicit: without this the chat path would keep using the
+      // local provider and the run would report PROVIDER_UNCONFIGURED.
+      companion.setActiveProvider(THIRD_PARTY_PROVIDER_ID)
+    } else {
+      companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+    }
     if (testCase.setup?.personality) companion.savePersonality(testCase.setup.personality)
 
     const memoryIds: string[] = []
@@ -362,7 +426,67 @@ async function runCase(
     const caseStatus: RealCaseRecord['status'] = rule === null
       ? 'not_checked'
       : finalReply === null ? 'error' : failureReason === null ? 'checked' : 'failed'
-    const decision = decideVerdict(rule, finalReply, checks, requestText)
+    const baseDecision = decideVerdict(rule, finalReply, checks, requestText)
+    // The judge only speaks when the fixture declares dimensions. It may turn a
+    // substring pass into a fail or an uncertain, never the other way round.
+    const judgement = rule?.judge && finalReply !== null
+      ? judgeReply({ reply: finalReply, ...rule.judge })
+      : undefined
+    // When a fixture declares semantic dimensions, the judge decides. The
+    // substring checks stay in `checks` as supporting evidence, but they no
+    // longer veto a pass: an absence-only rule such as mustNotMention can never
+    // prove anything, so letting it veto turned two correct "I have no record"
+    // answers into uncertain. The judge is conservative on its own terms - any
+    // dimension it cannot read makes the verdict uncertain.
+    const decision = judgement === undefined
+      ? baseDecision
+      : judgement.verdict === 'pass'
+        ? { verdict: 'pass' as const, rationale: judgement.rationale, caveat: baseDecision.caveat }
+        : judgement.verdict === 'uncertain'
+          ? { verdict: 'uncertain' as const, rationale: judgement.rationale, caveat: 'A dimension could not be read, so this is not counted as a pass.' }
+          : judgement.verdict === 'fail'
+            ? { verdict: 'fail' as const, rationale: judgement.rationale, caveat: 'Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.' }
+            : { verdict: 'needs_review' as const, rationale: judgement.rationale, caveat: 'No dimension was declared for this case.' }
+
+    // The chain is built from what was observed, not from what should have
+    // happened: stored -> retrieved -> serialized -> answered -> evaluated.
+    // A retracted value is expected to be *absent*; counting it as expected
+    // would report a correct deletion as a retrieval failure.
+    // A retracted value is expected to be *absent*; counting it as expected
+    // would report a correct deletion as a retrieval failure.
+    const expectedInRequest = rule?.judge
+      ? [...(rule.judge.current ?? []), ...(rule.judge.conflicting ?? [])]
+      : (rule?.mustMention ?? [])
+    const retractedValues = rule?.judge?.retracted ?? []
+    const leakedRetracted = retractedValues.filter((value) => requestText.includes(value))
+    const deliveredInRequest = expectedInRequest.filter((value) => requestText.includes(value))
+    const conflictValues = rule?.judge?.conflicting ?? []
+    const requestContradictory = conflictValues.length >= 2 &&
+      conflictValues.every((value) => requestText.includes(value)) &&
+      !/冲突|矛盾|不一致|conflict/iu.test(requestText)
+    const retrieved = expectedInRequest.length === 0 || deliveredInRequest.length > 0
+    const diagnostics: DiagnosticChain = {
+      expectedInRequest,
+      deliveredInRequest,
+      retractedLeaked: leakedRetracted,
+      requestContradictory,
+      stages: [
+        { stage: 'stored', ok: true, detail: `fixture declares ${expectedInRequest.length} required and ${retractedValues.length} forbidden value(s)` },
+        { stage: 'retrieved', ok: retrieved, detail: retrieved ? 'the required value reached the request' : 'the required value never reached the request' },
+        { stage: 'serialized', ok: deliveredInRequest.length === expectedInRequest.length && leakedRetracted.length === 0, detail: `${deliveredInRequest.length}/${expectedInRequest.length} required value(s) present; ${leakedRetracted.length} retracted value(s) leaked` },
+        { stage: 'answered', ok: finalReply !== null, detail: finalReply === null ? 'no reply was obtained' : 'a reply was obtained and is stored verbatim' },
+        { stage: 'evaluated', ok: decision.verdict !== 'needs_review', detail: `verdict ${decision.verdict}` }
+      ],
+      failureClass: leakedRetracted.length > 0
+        ? 'CONTEXT_NOT_SERIALIZED'
+        : classifyFailure({
+            verdict: decision.verdict,
+            findings: judgement?.findings ?? [],
+            expectedInRequest,
+            deliveredInRequest,
+            requestContradictory
+          })
+    }
 
     return {
       id: testCase.id,
@@ -376,7 +500,9 @@ async function runCase(
       turns,
       checks,
       attribution,
-      failureReason
+      failureReason,
+      ...(judgement ? { judgement } : {}),
+      diagnostics
     }
   } finally {
     database.close()
@@ -392,9 +518,14 @@ export async function runContextMemoryReal(
   dataset: ContextMemoryDataset,
   options: ContextMemoryRealOptions = {}
 ): Promise<ContextMemoryRealReport> {
+  const providerId = options.providerId ?? (process.env.MORROW_CONTEXT_REAL_PROVIDER === 'third-party' ? 'third-party' : 'local')
   const endpoint = options.endpoint ?? process.env.MORROW_CONTEXT_REAL_ENDPOINT ?? CONTEXT_REAL_DEFAULT_ENDPOINT
   const model = options.model ?? process.env.MORROW_CONTEXT_REAL_MODEL ?? CONTEXT_REAL_DEFAULT_MODEL
-  const timeoutMs = options.timeoutMs ?? 90_000
+  const apiKey = options.apiKey ?? process.env.MORROW_CONTEXT_REAL_API_KEY
+  const timeoutMs = options.timeoutMs ?? (providerId === 'third-party' ? 120_000 : 90_000)
+  if (providerId === 'third-party' && (typeof apiKey !== 'string' || apiKey.length === 0)) {
+    throw new Error('MORROW_CONTEXT_REAL_API_KEY is required for the third-party provider.')
+  }
   const startedAt = Date.now()
   const generatedAt = new Date(startedAt).toISOString()
   const environment = { node: process.version, platform: `${process.platform}-${process.arch}`, durationMs: 0 }
@@ -406,7 +537,7 @@ export async function runContextMemoryReal(
     'The local model is chosen for cost, not representativeness. Its behaviour is not evidence about a cloud model, and no quality verdict is drawn from it.'
   ]
 
-  const reachability = await probe(endpoint, probeTimeoutMs())
+  const reachability = await probe(endpoint, probeTimeoutMs(), providerId === 'third-party' ? apiKey : undefined)
   if (!reachability.reachable) {
     return {
       schemaVersion: 2,
@@ -416,8 +547,8 @@ export async function runContextMemoryReal(
       generatedAt,
       reproduction: buildReproduction(generatedAt, `blocked|${endpoint}|${model}`),
       status: 'blocked',
-      blockedReason: `Local provider unreachable at ${endpoint} (${reachability.detail}). Start it with "ollama serve" or set MORROW_CONTEXT_REAL_ENDPOINT.`,
-      provider: { providerClass: 'local', endpoint, model, reachable: false },
+      blockedReason: `${providerId === 'third-party' ? 'Third-party gateway' : 'Local provider'} unreachable at ${endpoint} (${reachability.detail}).${providerId === 'third-party' ? ' Check the base URL, the key and the model catalogue.' : ' Start it with "ollama serve" or set MORROW_CONTEXT_REAL_ENDPOINT.'}`,
+      provider: { providerClass: providerId === 'third-party' ? 'remote' : 'local', endpoint, model, reachable: false, modelInCatalog: null },
       environment,
       summary: {
         casesInDataset: dataset.cases.length,
@@ -442,7 +573,7 @@ export async function runContextMemoryReal(
     : dataset.cases.filter((testCase) => testCase.realModel !== null && testCase.realModel !== undefined)
 
   const cases: RealCaseRecord[] = []
-  for (const testCase of selected) cases.push(await runCase(testCase, endpoint, model, timeoutMs))
+  for (const testCase of selected) cases.push(await runCase(testCase, endpoint, model, timeoutMs, providerId, apiKey))
 
   const tally = { pass: 0, fail: 0, uncertain: 0, needs_review: 0 }
   for (const item of cases) tally[item.verdict] += 1
@@ -468,7 +599,13 @@ export async function runContextMemoryReal(
     ),
     status: 'checked',
     blockedReason: null,
-    provider: { providerClass: 'local', endpoint, model, reachable: true },
+    provider: {
+      providerClass: providerId === 'third-party' ? 'remote' : 'local',
+      endpoint,
+      model,
+      reachable: true,
+      modelInCatalog: reachability.ids.length === 0 ? null : reachability.ids.includes(model)
+    },
     environment: { ...environment, durationMs: Date.now() - startedAt },
     summary: {
       casesInDataset: dataset.cases.length,

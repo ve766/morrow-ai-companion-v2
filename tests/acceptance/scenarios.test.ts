@@ -255,7 +255,9 @@ describe('scenario F: security and authorization boundaries', () => {
       model: 'm',
       enabled: true,
       apiKeyConfigured: false,
-      updatedAt: nextTimestamp()
+      updatedAt: nextTimestamp(),
+      timeoutMs: 45000,
+      catalogVerified: false
     }, new MemorySecretStore(), blockedFetch)
     expect(remoteEndpointProvider.profile.configured).toBe(false)
     await expect(remoteEndpointProvider.generate({
@@ -276,7 +278,9 @@ describe('scenario F: security and authorization boundaries', () => {
       model: DEEPSEEK_MODEL,
       enabled: true,
       apiKeyConfigured: true,
-      updatedAt: nextTimestamp()
+      updatedAt: nextTimestamp(),
+      timeoutMs: 45000,
+      catalogVerified: false
     }, keyedSecrets, async () => new Response(null, { status: 401 }))
     await expect(unauthorized.generate({
       prompt: 'x',

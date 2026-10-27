@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MemoryRecord } from './memory-domain'
-import { MemoryContextAssembler } from './memory-context-assembler'
+import { flattenMemoryBlock, MemoryContextAssembler } from './memory-context-assembler'
 
 function memory(id: string, text: string, sensitivity: MemoryRecord['sensitivity'], status: MemoryRecord['status'] = 'active', overrides: Partial<MemoryRecord> = {}): MemoryRecord {
   return {
@@ -48,10 +48,14 @@ describe('bounded memory context assembly', () => {
   it('does not let an oversized candidate crowd out later memories that fit the context budget', () => {
     const oversized = memory('00000000-0000-4000-8000-000000000006', `coffee ${'x'.repeat(1200)}`, 'normal')
     const compact = memory('00000000-0000-4000-8000-000000000007', 'coffee', 'normal')
-    const result = assembler.assemble('coffee', [oversized, compact], 'personal', 25, 500)
+    // 700 rather than 500 because the block now carries a `subject:"user"`
+    // declaration and section keys (currentFacts / uncertain). The point of the
+    // case is unchanged: the compact record still fits after the oversized one
+    // is skipped, and the block never exceeds the stated limit.
+    const result = assembler.assemble('coffee', [oversized, compact], 'personal', 25, 700)
     expect(result.selected.map((item) => item.id)).toEqual(['00000000-0000-4000-8000-000000000007'])
     expect(result.omitted).toBe(1)
-    expect(result.characterCount).toBeLessThanOrEqual(500)
+    expect(result.characterCount).toBeLessThanOrEqual(700)
   })
 
   it('keeps a bounded continuity layer so a zero-overlap turn is not treated as a first meeting', () => {
@@ -145,8 +149,121 @@ describe('bounded memory context assembly', () => {
     })
     const result = assembler.assemble('住在哪里', [stale, fresh], 'personal', 25, 3000, now)
 
-    const encoded = JSON.parse(result.text) as { memories: Array<{ id: string; stale: boolean }> }
-    expect(encoded.memories.find((item) => item.id.endsWith('51'))?.stale).toBe(true)
-    expect(encoded.memories.find((item) => item.id.endsWith('52'))?.stale).toBe(false)
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded.find((item) => item.id.endsWith('51'))?.stale).toBe(true)
+    expect(encoded.find((item) => item.id.endsWith('52'))?.stale).toBe(false)
+  })
+
+  // --- Task 1: lexical precision and conversation-context recall -----------
+
+  it('does not match a short latin term inside a longer word', () => {
+    const records = [
+      memory('00000000-0000-4000-8000-000000000091', 'I work as a data analyst.', 'normal'),
+      memory('00000000-0000-4000-8000-000000000092', 'I have a dog named Pixel.', 'normal'),
+      memory('00000000-0000-4000-8000-000000000093', 'I dislike horror films.', 'normal')
+    ]
+    const result = new MemoryContextAssembler(0).assemble(
+      'What is the airspeed of an unladen swallow? What pet do I have? Do I like scary movies?',
+      records,
+      'personal'
+    )
+    // "an" must not match "analyst", "do" must not match "dog", "like" must not
+    // match "dislike". All three were substring false positives.
+    expect(result.selected).toEqual([])
+    expect(result.text).not.toContain('analyst')
+    expect(result.text).not.toContain('Pixel')
+    expect(result.text).not.toContain('horror')
+  })
+
+  it('still matches a whole latin token', () => {
+    const result = new MemoryContextAssembler(0).assemble('coffee', [
+      memory('00000000-0000-4000-8000-000000000094', 'I drink coffee every morning.', 'normal')
+    ], 'personal')
+    expect(result.selected.map((item) => item.match)).toEqual(['topic'])
+  })
+
+  it('recalls a memory that shares nothing with an elliptical turn but is on-topic in the recent conversation', () => {
+    const record = memory('00000000-0000-4000-8000-000000000095', '我住在杭州。', 'personal')
+    // Without prior context the record can only be background.
+    const alone = assembler.assemble('那后天呢？', [record], 'personal')
+    expect(alone.selected.map((item) => item.match)).toEqual(['continuity'])
+    // With the prior turn ("下周去杭州出差") it is on-topic, but labelled
+    // `context`, not `topic`: it did not match this turn's words.
+    const withContext = assembler.assemble('那后天呢？', [record], 'personal', 25, 3000, '2026-10-26T00:00:00.000Z', '我下周要去杭州出差。')
+    expect(withContext.selected.map((item) => item.match)).toEqual(['context'])
+    expect(withContext.text).toContain('"match":"context"')
+  })
+
+  it('never lets conversation context revive a retracted or unauthorised record', () => {
+    const retracted = memory('00000000-0000-4000-8000-000000000096', '我住在杭州。', 'personal', 'retracted')
+    const sensitive = memory('00000000-0000-4000-8000-000000000097', '我住在杭州的医院。', 'sensitive')
+    const result = assembler.assemble('那后天呢？', [retracted, sensitive], 'personal', 25, 3000, '2026-10-26T00:00:00.000Z', '我下周要去杭州出差。')
+    expect(result.selected).toEqual([])
+    expect(result.text).not.toContain('我住在杭州')
+  })
+
+  it('tags two same-subject records as one possible conflict and tells the model to surface it', () => {
+    const result = assembler.assemble('我住在哪里', [
+      memory('00000000-0000-4000-8000-000000000098', '我住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000099', '我住在上海。', 'personal')
+    ], 'personal')
+    const parsed = JSON.parse(result.text) as { instruction: string }
+    const encoded = flattenMemoryBlock(parsed)
+    expect(encoded.map((item) => item.conflictGroup)).toEqual([0, 0])
+    expect(encoded.every((item) => item.status === 'conflict')).toBe(true)
+    expect(parsed.instruction).toContain('unresolvedConflicts')
+    expect(parsed.instruction).toContain('ask which is current')
+  })
+
+  it('does not group two unrelated records just because both are present', () => {
+    const result = assembler.assemble('我住在哪里', [
+      memory('00000000-0000-4000-8000-0000000000a1', '我住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-0000000000a2', '我喜欢手冲咖啡。', 'personal')
+    ], 'personal')
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded.every((item) => item.conflictGroup === null)).toBe(true)
+  })
+
+  // --- Task 3: volatility-aware staleness ---------------------------------
+
+  it('applies a shorter staleness window to volatile facts than to stable preferences', () => {
+    const now = '2026-10-26T00:00:00.000Z'
+    const reference = '2026-01-01T00:00:00.000Z' // 298 days
+    const records = [
+      memory('00000000-0000-4000-8000-0000000000b1', '我住在南京。', 'personal', 'active', { updatedAt: reference, lastConfirmedAt: null }),
+      memory('00000000-0000-4000-8000-0000000000b2', '我喜欢咖啡。', 'personal', 'active', { updatedAt: reference, lastConfirmedAt: null }),
+      memory('00000000-0000-4000-8000-0000000000b3', '我的项目代号是蓝鲸。', 'personal', 'active', { updatedAt: reference, lastConfirmedAt: null })
+    ]
+    const result = assembler.assemble('住在哪里 喜欢什么 项目', records, 'personal', 25, 3000, now)
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    const bySuffix = (suffix: string) => encoded.find((item) => item.id.endsWith(suffix))
+    expect(bySuffix('b1')?.stale).toBe(true)   // volatile: > 90 days
+    expect(bySuffix('b2')?.stale).toBe(false)  // stable: < 365 days
+    expect(bySuffix('b3')?.stale).toBe(true)   // unknown: > 180 days
+    expect(bySuffix('b1')?.volatility).toBe('volatile')
+    expect(bySuffix('b2')?.volatility).toBe('stable')
+    expect(bySuffix('b3')?.volatility).toBeUndefined()
+    expect(bySuffix('b1')?.ageDays).toBe(298)
+  })
+
+  it('declares that every saved memory describes the user, not the assistant', () => {
+    const result = assembler.assemble('杭州', [
+      memory('00000000-0000-4000-8000-0000000000c1', '我住在杭州。', 'personal')
+    ], 'personal')
+    const encoded = JSON.parse(result.text) as { subject?: string; instruction: string }
+    expect(encoded.subject).toBe('user')
+    expect(encoded.instruction).toContain('never yours')
+    expect(encoded.instruction).toContain('say "you", never "I"')
+  })
+
+  it('eventually flags a stable preference once it passes its own window', () => {
+    const now = '2026-10-26T00:00:00.000Z'
+    const old = memory('00000000-0000-4000-8000-0000000000b4', '我喜欢咖啡。', 'personal', 'active', {
+      updatedAt: '2025-01-01T00:00:00.000Z',
+      lastConfirmedAt: null
+    })
+    const result = assembler.assemble('喜欢什么', [old], 'personal', 25, 3000, now)
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded[0]?.stale).toBe(true)
   })
 })

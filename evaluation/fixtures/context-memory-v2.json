@@ -1,0 +1,1121 @@
+{
+  "schemaVersion": 1,
+  "id": "context-memory-v2",
+  "description": "Phase 2.2 context dataset: v1 coverage plus conversation-context recall, conflict groups, volatility-aware staleness, lexical precision and retraction under the context tier.",
+  "cases": [
+    {
+      "id": "a1-pronoun-cat",
+      "capability": "A1_reference_resolution",
+      "title": "代词的指代对象仍在上下文中",
+      "claims": "第二轮请求携带第一轮提到的“豆豆”，因此模型具备消解“它”的必要上下文；本轮不判断模型是否真的解出。",
+      "turns": [
+        {
+          "content": "我收养了一只叫豆豆的橘猫。",
+          "expect": {
+            "contextContains": [
+              "豆豆"
+            ],
+            "historyLength": 0,
+            "lastMessageEquals": "我收养了一只叫豆豆的橘猫。"
+          }
+        },
+        {
+          "content": "它现在多大了？",
+          "expect": {
+            "contextContains": [
+              "豆豆"
+            ],
+            "historyLength": 2,
+            "historyRoles": [
+              "user",
+              "assistant"
+            ],
+            "lastMessageEquals": "它现在多大了？"
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "豆豆"
+        ],
+        "note": "离线层只证明“豆豆”在请求里；回答是否解出“它”必须看真实回复。"
+      }
+    },
+    {
+      "id": "a2-elliptical-trip",
+      "capability": "A2_elliptical_turn",
+      "title": "省略主语的追问仍带着前一轮的行程",
+      "claims": "“那后天呢？”这一轮的请求包含杭州、上海与出差，说明省略句的必要前提没有被裁掉。",
+      "turns": [
+        {
+          "content": "我在杭州，明天要去上海出差。",
+          "expect": {
+            "contextContains": [
+              "杭州",
+              "上海"
+            ],
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "那后天呢？",
+          "expect": {
+            "contextContains": [
+              "杭州",
+              "上海",
+              "出差"
+            ],
+            "historyLength": 2,
+            "historyRoles": [
+              "user",
+              "assistant"
+            ],
+            "lastMessageEquals": "那后天呢？"
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "a3-switch-to-guitar",
+      "capability": "A3_topic_switch",
+      "title": "切换话题后，旧话题记忆不再被当作本轮主题",
+      "claims": "第二轮把“吉他”记忆标为 topic，而“豆豆”记忆即便被连续性地带入也不会被标为 topic。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户养了一只叫豆豆的猫"
+          },
+          {
+            "content": "用户最近在学吉他"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "豆豆今天打翻了水杯。",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "豆豆",
+                "match": "topic"
+              }
+            ]
+          }
+        },
+        {
+          "content": "帮我看看这个吉他谱的和弦怎么按。",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "吉他",
+                "match": "topic"
+              }
+            ],
+            "memoryNotTopicFor": [
+              "豆豆"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "豆豆"
+        ],
+        "note": "话题切换后，猫的记忆不应劫持吉他问题的回答。"
+      }
+    },
+    {
+      "id": "a4-revisit-cat",
+      "capability": "A4_topic_revisit",
+      "title": "旧话题被重新提起时重新成为本轮主题",
+      "claims": "第三轮“说回豆豆”重新把豆豆记忆标为 topic，而中间那一轮的吉他记忆退回非 topic。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户养了一只叫豆豆的猫"
+          },
+          {
+            "content": "用户最近在学吉他"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "豆豆今天打翻了水杯。",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "豆豆",
+                "match": "topic"
+              }
+            ]
+          }
+        },
+        {
+          "content": "吉他的和弦好难。",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "吉他",
+                "match": "topic"
+              }
+            ],
+            "memoryNotTopicFor": [
+              "豆豆"
+            ]
+          }
+        },
+        {
+          "content": "说回豆豆，它是不是生病了？",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "豆豆",
+                "match": "topic"
+              }
+            ],
+            "memoryNotTopicFor": [
+              "吉他"
+            ],
+            "lastMessageEquals": "说回豆豆，它是不是生病了？"
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "豆豆"
+        ],
+        "note": "重新提起旧话题时，回答应回到猫，而不是继续讲吉他。"
+      }
+    },
+    {
+      "id": "a5-two-sessions",
+      "capability": "A5_same_sentence_two_contexts",
+      "title": "同一句“她”在不同会话里没有共同前提",
+      "claims": "第二个会话的请求不含第一个会话的人名，也不含其历史；同一句话因此在两个会话里含义不同。",
+      "turns": [
+        {
+          "content": "我女朋友叫小满。",
+          "expect": {
+            "contextContains": [
+              "小满"
+            ],
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "她最近怎么样？",
+          "newConversation": true,
+          "expect": {
+            "contextExcludes": [
+              "小满"
+            ],
+            "historyLength": 0,
+            "lastMessageEquals": "她最近怎么样？"
+          }
+        }
+      ],
+      "realModel": {
+        "check": "clarifying_question",
+        "note": "第二个会话没有“她”的指代对象，正确行为是反问而不是编造一个人。"
+      }
+    },
+    {
+      "id": "a6-insufficient",
+      "capability": "A6_clarify_when_insufficient",
+      "title": "信息不足时不确定性指令仍然到位",
+      "claims": "请求中包含“证据不足时表达不确定性”的固定原则；本轮不声称模型一定照做。",
+      "turns": [
+        {
+          "content": "帮我订一下。",
+          "expect": {
+            "systemContains": [
+              "express uncertainty when evidence is incomplete"
+            ],
+            "historyLength": 0,
+            "lastMessageEquals": "帮我订一下。"
+          }
+        }
+      ],
+      "realModel": {
+        "check": "clarifying_question",
+        "note": "“订一下”缺宾语和时间，正确行为是澄清。问号判定是弱代理：陈述式澄清（“我需要知道订什么”）会被判失败。"
+      }
+    },
+    {
+      "id": "b1-recall-in-session",
+      "capability": "B1_in_session_recall",
+      "title": "同会话内可回忆仍在窗口内的事实",
+      "claims": "第三轮的请求仍包含成都与婚礼，说明窗口内的同会话回忆在投递层是可能的。",
+      "turns": [
+        {
+          "content": "我下周三要去成都参加一个婚礼。",
+          "expect": {
+            "contextContains": [
+              "成都",
+              "婚礼"
+            ],
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "这两天有点忙。",
+          "expect": {
+            "historyLength": 2
+          }
+        },
+        {
+          "content": "我下周要去哪来着？",
+          "expect": {
+            "contextContains": [
+              "成都",
+              "婚礼"
+            ],
+            "historyLength": 4,
+            "historyRoles": [
+              "user",
+              "assistant",
+              "user",
+              "assistant"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "成都"
+        ],
+        "note": "同会话回忆的正确性由真实回复判定。"
+      }
+    },
+    {
+      "id": "b2-recall-new-session",
+      "capability": "B2_cross_session_recall",
+      "title": "新会话通过已保存记忆回忆事实",
+      "claims": "新会话第一轮无历史，但“成都”记忆以 topic 身份进入请求，是跨会话回忆的唯一通道。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户下周三要去成都参加婚礼"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我下周要去哪来着？",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "成都",
+                "match": "topic"
+              }
+            ],
+            "historyLength": 0,
+            "memoryTopicCount": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "成都"
+        ],
+        "mustNotMention": [
+          "不存在实际居住地址"
+        ],
+        "note": "新会话里能否说出成都，是跨会话回忆的行为证据。"
+      }
+    },
+    {
+      "id": "b2b-authorised-recall",
+      "capability": "B2_cross_session_recall",
+      "title": "敏感记忆只有在显式授权的那一轮才可见",
+      "claims": "同一条敏感记忆：未授权的新会话里条目数为 0；显式授权后的另一轮里以 topic 出现；再下一轮不授权时又消失。这证明授权是逐轮生效的上限，会随授权撤销失效，而不是“库里有就发”。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户对花生过敏（记录号 ALLERGY-K9X2）",
+            "sensitivity": "sensitive"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我可以吃花生吗？",
+          "newConversation": true,
+          "expect": {
+            "memoryEntries": 0,
+            "contextExcludes": [
+              "ALLERGY-K9X2"
+            ],
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "本轮我授权读取敏感记忆：我可以吃花生吗？",
+          "newConversation": true,
+          "includeSensitive": true,
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "ALLERGY-K9X2",
+                "match": "topic"
+              }
+            ],
+            "memoryEntries": 1
+          }
+        },
+        {
+          "content": "这一轮我不再授权：我可以吃花生吗？",
+          "newConversation": true,
+          "expect": {
+            "memoryEntries": 0,
+            "contextExcludes": [
+              "ALLERGY-K9X2"
+            ]
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "b3-correction",
+      "capability": "B3_correction_is_current",
+      "title": "纠正后旧事实不再出现在请求里",
+      "claims": "纠正为杭州之后，请求只含杭州，上海只在被纠正的历史版本里存在，未进入本轮上下文。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户住在上海"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我上个月搬到杭州了。",
+          "expect": {
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "我现在住在哪？",
+          "op": {
+            "type": "correct",
+            "memoryIndex": 0,
+            "content": "用户住在杭州"
+          },
+          "expect": {
+            "contextExcludes": [
+              "上海"
+            ],
+            "memoryEntries": 1,
+            "memoryMatchFor": [
+              {
+                "contentContains": "杭州",
+                "match": "topic"
+              }
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州"
+        ],
+        "mustNotMention": [
+          "上海"
+        ],
+        "note": "继续使用被纠正的事实，说明纠正没有生效。"
+      }
+    },
+    {
+      "id": "b4-retracted",
+      "capability": "B4_retracted_not_used",
+      "title": "撤回后的记忆不进入请求",
+      "claims": "撤回过敏记忆后，请求里没有任何记忆条目，也不含该记忆的唯一标记。撤回后的“不提及”是否做到，需人工复核而非子串判定。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户对花生过敏（记录号 ALLERGY-K9X2）"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我可以吃花生吗？",
+          "op": {
+            "type": "retract",
+            "memoryIndex": 0
+          },
+          "expect": {
+            "contextExcludes": [
+              "ALLERGY-K9X2"
+            ],
+            "memoryEntries": 0
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "b5-stale",
+      "capability": "B5_stale_flagged",
+      "title": "长期未确认的记忆被标记为过期",
+      "claims": "200 天未确认的记忆以 topic 身份进入请求但 stale=true，且“不要当作现状断言”的指令同时到位。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户在准备考研",
+            "ageDays": 200,
+            "confirmed": false
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我还在准备考研吗？",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "考研",
+                "match": "topic",
+                "stale": true
+              }
+            ],
+            "systemContains": [
+              "stale was never re-confirmed"
+            ],
+            "memoryTopicCount": 1
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "b6-provenance",
+      "capability": "B6_provenance_preserved",
+      "title": "记忆来源与置信度随记忆一起投递",
+      "claims": "用户明说与模型推断的记忆各自带着 sourceCategory 进入请求，模型因此有条件区分二者；能否据此措辞不在此层判断。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户是后端工程师",
+            "sourceCategory": "user_explicit_input"
+          },
+          {
+            "content": "用户可能喜欢徒步",
+            "sourceCategory": "model_inferred_confirmed",
+            "confidence": 60
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我是做什么工作的？",
+          "expect": {
+            "memoryEntries": 2,
+            "contextContains": [
+              "user_explicit_input",
+              "model_inferred_confirmed"
+            ]
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "b7-conflict",
+      "capability": "B7_conflict_both_visible",
+      "title": "相互矛盾的记忆同时可见，并附带冲突指令",
+      "claims": "两条冲突记忆同时以 topic 进入请求，且“冲突要说明、不要静默选一个”的原则同时在 prompt 中；这使模型有可能发现冲突，但不保证它发现。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户住在杭州"
+          },
+          {
+            "content": "用户住在上海"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我到底住在哪？",
+          "expect": {
+            "memoryEntries": 2,
+            "memoryTopicCount": 2,
+            "contextContains": [
+              "杭州",
+              "上海"
+            ],
+            "systemContains": [
+              "When saved memories contradict each other"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州",
+          "上海"
+        ],
+        "note": "只提一个城市说明静默合并；两个都提才算没有替用户选边。"
+      }
+    },
+    {
+      "id": "b8-miss",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "检索未命中时记忆被降级为背景而不是答案",
+      "claims": "问天气时，生日记忆的词面得分为 0，只能以 continuity 进入请求，并附带“continuity 只用于保持熟悉、不得当答案”的指令。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户的母亲生日是三月十二日"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "今天天气怎么样？",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "三月十二日",
+                "match": "continuity"
+              }
+            ],
+            "memoryTopicCount": 0,
+            "systemContains": [
+              "match \"continuity\" is background only"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "三月十二"
+        ],
+        "note": "问天气时把生日当回答内容，说明把 continuity 当成了答案。"
+      }
+    },
+    {
+      "id": "b9-bounded",
+      "capability": "B9_irrelevant_memory_bounded",
+      "title": "无关记忆最多三条，且不晋升为本轮主题",
+      "claims": "六条无关记忆里最多三条以 continuity 进入请求，没有任何一条被标为 topic，所以当前问题不会被无关记忆带偏。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户已经拿到驾照"
+          },
+          {
+            "content": "用户每周跑步三次"
+          },
+          {
+            "content": "用户的老家在重庆"
+          },
+          {
+            "content": "用户喜欢手冲咖啡"
+          },
+          {
+            "content": "用户养了一只猫"
+          },
+          {
+            "content": "用户最近在读历史书"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "推荐一部电影。",
+          "expect": {
+            "memoryEntriesAtMost": 3,
+            "memoryTopicCount": 0
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustNotMention": [
+          "驾照"
+        ],
+        "note": "无关记忆若出现在回答里，说明背景注入干扰了当前问题。"
+      }
+    },
+    {
+      "id": "b10-isolation",
+      "capability": "B10_session_isolation",
+      "title": "未保存为记忆的会话内容不跨会话",
+      "claims": "第二个会话既无历史也无记忆，工号不出现在请求中。这是当前设计真实的隔离边界：跨会话只能通过显式保存的记忆。",
+      "turns": [
+        {
+          "content": "我的工号是 ZX-4471，请记住。",
+          "expect": {
+            "contextContains": [
+              "ZX-4471"
+            ],
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "我的工号是多少？",
+          "newConversation": true,
+          "expect": {
+            "contextExcludes": [
+              "ZX-4471"
+            ],
+            "memoryEntries": 0,
+            "historyLength": 0
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "c1-personality",
+      "capability": "C1_personality_across_topics",
+      "title": "不同话题下人格版本一致",
+      "claims": "两轮完全不同的话题携带同一个人格版本，说明人格不随话题变化。",
+      "setup": {
+        "personality": {
+          "warmth": 70,
+          "directness": 60,
+          "humor": 30,
+          "disagreementStyle": "direct",
+          "systemRules": ""
+        }
+      },
+      "turns": [
+        {
+          "content": "今天工作好累。",
+          "expect": {
+            "personalityVersionStable": true
+          }
+        },
+        {
+          "content": "你觉得量子力学难吗？",
+          "expect": {
+            "personalityVersionStable": true
+          }
+        }
+      ],
+      "after": {
+        "personalityVersionStable": true
+      },
+      "realModel": null
+    },
+    {
+      "id": "c2-no-rewrite",
+      "capability": "C2_single_prompt_does_not_rewrite",
+      "title": "单轮提示不会改写已保存的人格",
+      "claims": "用户要求“以后都讲笑话”之后，人格版本与设置值均未改变；系统没有让模型写人格的路径。",
+      "turns": [
+        {
+          "content": "从现在开始你要非常幽默，每句话都讲一个笑话。",
+          "expect": {
+            "personalityVersionStable": true
+          }
+        }
+      ],
+      "after": {
+        "personalityVersionStable": true,
+        "storedAssistantCount": 1
+      },
+      "realModel": null
+    },
+    {
+      "id": "c3-agreement",
+      "capability": "C3_agreement_request_is_not_identity",
+      "title": "要求无条件赞同不等于改变身份",
+      "claims": "用户要求“以后都同意我”时，人格版本不变，且“不得编造事实、不得静默改人格”的原则仍在 prompt 中。",
+      "turns": [
+        {
+          "content": "以后我说什么你都要同意，不许反驳。",
+          "expect": {
+            "personalityVersionStable": true,
+            "systemContains": [
+              "Do not invent user facts, silently change the saved personality"
+            ]
+          }
+        }
+      ],
+      "after": {
+        "personalityVersionStable": true
+      },
+      "realModel": null
+    },
+    {
+      "id": "c4-uncertain",
+      "capability": "C4_conflict_uncertainty_delivered",
+      "title": "新旧证据冲突时不确定性与过期标记同时到位",
+      "claims": "新记忆与 220 天未确认的旧记忆同时以 topic 进入请求，旧记忆带 stale=true，且不确定性原则在 prompt 中。",
+      "setup": {
+        "memories": [
+          {
+            "content": "用户住在杭州"
+          },
+          {
+            "content": "用户住在上海",
+            "ageDays": 220,
+            "confirmed": false
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪个城市？",
+          "expect": {
+            "memoryEntries": 2,
+            "memoryMatchFor": [
+              {
+                "contentContains": "上海",
+                "match": "topic",
+                "stale": true
+              }
+            ],
+            "systemContains": [
+              "express uncertainty when evidence is incomplete"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州",
+          "上海"
+        ],
+        "note": "只给一个城市、不作任何限定，说明把冲突证据当成了确定事实。"
+      }
+    },
+    {
+      "id": "c5-own-error",
+      "capability": "C5_own_error_visible_to_model",
+      "title": "被纠正时模型能看到自己上一轮的回答",
+      "claims": "第二轮请求包含上一轮助手原文，因此模型具备承认并修正自己错误的前提；是否真的纠正由行为层判断。",
+      "turns": [
+        {
+          "content": "1 加 1 等于几？",
+          "expect": {
+            "historyLength": 0
+          }
+        },
+        {
+          "content": "你刚才答错了。",
+          "expect": {
+            "contextContains": [
+              "确定性回复 1"
+            ],
+            "historyLength": 2,
+            "historyRoles": [
+              "user",
+              "assistant"
+            ]
+          }
+        }
+      ],
+      "after": {
+        "storedUserCount": 2,
+        "storedAssistantCount": 2
+      },
+      "realModel": null
+    },
+    {
+      "id": "v2-elliptical-context",
+      "capability": "A2_elliptical_turn",
+      "title": "Elliptical follow-up recalls the on-topic memory",
+      "claims": "A memory that shares no word with the elliptical turn but is on-topic in the previous turn is delivered as match=context.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在杭州。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我下周要去杭州出差。",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "杭州",
+                "match": "topic"
+              }
+            ]
+          }
+        },
+        {
+          "content": "那后天呢？",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "杭州",
+                "match": "context"
+              }
+            ],
+            "memoryEntries": 1
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州"
+        ],
+        "note": "Positive check only: the reply names the city. Whether it used the prior turn or guessed cannot be told apart mechanically."
+      }
+    },
+    {
+      "id": "v2-conflict-group",
+      "capability": "B7_conflict_both_visible",
+      "title": "Same-subject records carry one conflict group",
+      "claims": "Two active records about the same subject are both delivered, tagged with the same conflictGroup, and the prompt tells the model to surface the conflict.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在杭州。",
+            "sensitivity": "personal"
+          },
+          {
+            "content": "我住在上海。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "expect": {
+            "memoryEntries": 2,
+            "systemContains": [
+              "conflictGroup",
+              "ask which is current"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州",
+          "上海"
+        ],
+        "note": "Both sides must be present; the rule cannot tell whether the reply called them a conflict."
+      }
+    },
+    {
+      "id": "v2-stale-classes",
+      "capability": "B5_stale_flagged",
+      "title": "Volatile facts expire sooner than stable preferences",
+      "claims": "At 120 days a volatile fact is flagged stale while a stable preference is not, and the request carries the volatility class.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在南京。",
+            "sensitivity": "personal",
+            "ageDays": 120,
+            "confirmed": false
+          },
+          {
+            "content": "我喜欢咖啡。",
+            "sensitivity": "personal",
+            "ageDays": 120,
+            "confirmed": false
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "住在哪里 喜欢什么",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "南京",
+                "match": "topic",
+                "stale": true
+              },
+              {
+                "contentContains": "咖啡",
+                "match": "topic",
+                "stale": false
+              }
+            ],
+            "systemContains": [
+              "volatility"
+            ]
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "v2-lexical-precision",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "A short word inside a longer word is not a match",
+      "claims": "The query word an must not match analyst, so the record is not promoted to topic.",
+      "setup": {
+        "memories": [
+          {
+            "content": "I work as a data analyst.",
+            "sensitivity": "normal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "What is the airspeed of an unladen swallow?",
+          "expect": {
+            "memoryTopicCount": 0,
+            "memoryNotTopicFor": [
+              "analyst"
+            ]
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "v2-retracted-context",
+      "capability": "B4_retracted_not_used",
+      "title": "Retraction survives the conversation-context tier",
+      "claims": "A retracted record is not re-admitted by the context tier even though the previous turn named its subject.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在 MEM_RETRACTED_CITY_杭州。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我下周要去杭州出差。",
+          "expect": {
+            "memoryMatchFor": [
+              {
+                "contentContains": "MEM_RETRACTED_CITY_杭州",
+                "match": "topic"
+              }
+            ]
+          }
+        },
+        {
+          "content": "那后天呢？",
+          "op": {
+            "type": "retract",
+            "memoryIndex": 0
+          },
+          "expect": {
+            "contextExcludes": [
+              "MEM_RETRACTED_CITY_杭州"
+            ],
+            "memoryEntries": 0
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "v2-correction-current",
+      "capability": "B3_correction_is_current",
+      "title": "A correction replaces the old text in the next request",
+      "claims": "After a correction the old value is absent and the new value is delivered.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我住在上海。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我住在哪里？",
+          "op": {
+            "type": "correct",
+            "memoryIndex": 0,
+            "content": "我住在杭州。"
+          },
+          "expect": {
+            "contextContains": [
+              "杭州"
+            ],
+            "contextExcludes": [
+              "上海"
+            ]
+          }
+        }
+      ],
+      "realModel": {
+        "check": "substring",
+        "mustMention": [
+          "杭州"
+        ],
+        "mustNotMention": [
+          "上海"
+        ],
+        "note": "The corrected value must appear and the replaced value must not be presented as current."
+      }
+    },
+    {
+      "id": "v2-no-evidence",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "No evidence yields an empty memory block",
+      "claims": "With no stored memories the request carries an empty block instead of an invented one.",
+      "turns": [
+        {
+          "content": "你还记得我的生日吗？",
+          "expect": {
+            "memoryEntries": 0,
+            "systemContains": [
+              "\"subject\":\"user\""
+            ]
+          }
+        }
+      ],
+      "realModel": null
+    },
+    {
+      "id": "v2-unrelated-not-promoted",
+      "capability": "B9_irrelevant_memory_bounded",
+      "title": "Conversation context does not promote an unrelated record",
+      "claims": "A record unrelated to both this turn and the recent conversation stays background, not context or topic.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我养了一只猫。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我下周要去杭州出差。",
+          "expect": {
+            "memoryNotTopicFor": [
+              "猫"
+            ]
+          }
+        },
+        {
+          "content": "那后天呢？",
+          "expect": {
+            "memoryNotTopicFor": [
+              "猫"
+            ]
+          }
+        }
+      ],
+      "realModel": null
+    }
+  ]
+}

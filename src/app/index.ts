@@ -21,6 +21,7 @@ import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
 import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
+import { FeedbackCandidateService } from '../self-model/feedback-candidate-service'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
@@ -184,6 +185,7 @@ if (hasSingleInstanceLock) {
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
+    const feedbackCandidates = new FeedbackCandidateService(database)
     const reflection = new ReflectionService(
       new SqliteReflectionRepository(database),
       { memories, interests, selfModel, events: eventLog },
@@ -195,7 +197,8 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel }
+      selfModelLoop: { events: eventLog, interests, selfModel },
+      feedback: feedbackCandidates
     })
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)

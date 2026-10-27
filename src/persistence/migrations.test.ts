@@ -308,4 +308,94 @@ describe('foreign implementation-line databases', () => {
       rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     }
   })
+
+  it('adds interest sensitivity at v16 and backfills existing rows without dropping them', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-interest-sensitivity-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    // A v15 database is the state a real installation is in before this
+    // migration: interests exist, but nothing has ever classified them.
+    expect(applyMigrations(connection, 15)).toBe(15)
+    const insert = connection.prepare(`
+      INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    insert.run('00000000-0000-4000-8000-000000000101', '抑郁', 'active', 3, 2, 0.5, 70,
+      '00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000301', timestamp, timestamp, timestamp, '["抑郁","郁症"]')
+    insert.run('00000000-0000-4000-8000-000000000102', '天文', 'active', 3, 2, 0.5, 70,
+      '00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000302', timestamp, timestamp, timestamp, '["天文","文学"]')
+
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    const rows = connection.prepare('SELECT id, label, sensitivity FROM interests ORDER BY id').all()
+    expect(rows).toEqual([
+      { id: '00000000-0000-4000-8000-000000000101', label: '抑郁', sensitivity: 'sensitive' },
+      { id: '00000000-0000-4000-8000-000000000102', label: '天文', sensitivity: 'normal' }
+    ])
+    // Re-running is a no-op rather than a second ALTER TABLE failure.
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    connection.close()
+  })
+
+  it('adds the feedback candidate tables at v17 without touching existing rows', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-feedback-candidates-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    expect(applyMigrations(connection, 16)).toBe(16)
+    connection.prepare(`
+      INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, sensitivity)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('00000000-0000-4000-8000-000000000301', '天文', 'active', 3, 2, 0.5, 70,
+      '00000000-0000-4000-8000-000000000401', '00000000-0000-4000-8000-000000000501', timestamp, timestamp, timestamp, '["天文"]', 'normal')
+
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    const tables = connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'persona_feedback%' ORDER BY name").all()
+    expect(tables).toEqual([
+      { name: 'persona_feedback_applications' },
+      { name: 'persona_feedback_candidates' },
+      { name: 'persona_feedback_evidence' }
+    ])
+    // Existing data is untouched by the new tables.
+    expect(connection.prepare('SELECT label, sensitivity FROM interests').get()).toEqual({ label: '天文', sensitivity: 'normal' })
+    // The evidence hash is unique: the same claim cannot fork into two rows.
+    const insert = connection.prepare(`
+      INSERT INTO persona_feedback_candidates(id, kind, source, evidence_hash, evidence_excerpt, confidence, sensitivity, status, created_at, updated_at)
+      VALUES (?, 'tone', 'user_explicit', ?, 'be brief', 70, 'normal', 'pending', ?, ?)
+    `)
+    insert.run('00000000-0000-4000-8000-000000000601', 'a'.repeat(64), timestamp, timestamp)
+    expect(() => insert.run('00000000-0000-4000-8000-000000000602', 'a'.repeat(64), timestamp, timestamp)).toThrow()
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    connection.close()
+  })
+
+  it('upgrades feedback identity to (hash, kind) and adds evidence lifecycle columns', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-feedback-identity-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    expect(applyMigrations(connection, 17)).toBe(17)
+    const hash = 'b'.repeat(64)
+    connection.prepare(`
+      INSERT INTO persona_feedback_candidates(id, kind, source, evidence_hash, evidence_excerpt, confidence, sensitivity, status, created_at, updated_at)
+      VALUES (?, 'tone', 'user_explicit', ?, 'be brief', 70, 'normal', 'pending', ?, ?)
+    `).run('00000000-0000-4000-8000-000000000701', hash, timestamp, timestamp)
+    connection.prepare(`
+      INSERT INTO persona_feedback_evidence(candidate_id, conversation_id, message_id, evidence_hash, created_at)
+      VALUES (?, ?, NULL, ?, ?)
+    `).run('00000000-0000-4000-8000-000000000701', '00000000-0000-4000-8000-000000000801', hash, timestamp)
+
+    expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+    expect(connection.prepare('SELECT source, sensitivity, status FROM persona_feedback_evidence').get())
+      .toEqual({ source: 'user_explicit', sensitivity: 'normal', status: 'active' })
+    expect(connection.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'persona_feedback_applications'").get())
+      .toEqual({ name: 'persona_feedback_applications' })
+
+    const insert = connection.prepare(`
+      INSERT INTO persona_feedback_candidates(id, kind, source, evidence_hash, evidence_excerpt, confidence, sensitivity, status, created_at, updated_at)
+      VALUES (?, ?, 'user_explicit', ?, 'be brief', 70, 'normal', 'pending', ?, ?)
+    `)
+    // Same sentence, different kind: a separate candidate is legitimate now.
+    insert.run('00000000-0000-4000-8000-000000000702', 'boundary', hash, timestamp, timestamp)
+    // Same sentence and same kind: still one identity.
+    expect(() => insert.run('00000000-0000-4000-8000-000000000703', 'tone', hash, timestamp, timestamp)).toThrow()
+    connection.close()
+  })
 })

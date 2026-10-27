@@ -1,6 +1,32 @@
 export const INTEREST_STATUS_VALUES = ['candidate', 'active', 'archived', 'dropped'] as const
 export type InterestStatus = (typeof INTEREST_STATUS_VALUES)[number]
 
+// Interests are single topic labels, so a "sensitive" class is coarse. It is
+// still needed: the label is enough to reveal that the user has been talking
+// about a medical, financial or relationship topic, and that must obey the same
+// consent switch as memory content.
+export const INTEREST_SENSITIVITY_VALUES = ['normal', 'personal', 'sensitive'] as const
+export type InterestSensitivity = (typeof INTEREST_SENSITIVITY_VALUES)[number]
+
+// Kept in sync with the v16 migration's backfill list by intent, not by import:
+// the migration freezes its own copy, the runtime classifier may be refined.
+const INTEREST_SENSITIVE_MARKERS: readonly string[] = [
+  '抑郁', '焦虑', '自杀', '自残', '癌', '艾滋', '确诊', '疾病', '生病',
+  '住院', '吃药', '药物', '精神', '创伤', '家暴', '虐待', '离婚', '债务',
+  '欠款', '负债', '工资', '薪', '怀孕', '性取向', '性生活', '性侵', '宗教', '政治'
+]
+
+/**
+ * Deterministic and conservative: any sensitive marker in the label or the
+ * observed term set makes the interest sensitive. There is no "personal"
+ * middle class today because nothing distinguishes it honestly; normal is the
+ * default so a plain topic is not withheld from ordinary turns.
+ */
+export function classifyInterestSensitivity(...texts: string[]): InterestSensitivity {
+  const combined = texts.join(' ').normalize('NFKC').toLocaleLowerCase()
+  return INTEREST_SENSITIVE_MARKERS.some((marker) => combined.includes(marker)) ? 'sensitive' : 'normal'
+}
+
 export const SELF_MODEL_KINDS = ['fact', 'inference', 'unknown', 'correction'] as const
 export type SelfModelKind = (typeof SELF_MODEL_KINDS)[number]
 
@@ -28,6 +54,8 @@ export interface InterestRecord {
   updatedAt: string
   /** Deterministic term set (CJK bigrams / latin tokens) from observed texts; used for topic identity. */
   terms: string[]
+  /** Consent class: 'sensitive' is withheld unless the turn allows sensitive content. */
+  sensitivity: InterestSensitivity
 }
 
 const INTEREST_STOP_CHARACTERS = new Set(['我', '的', '了', '着', '很', '真', '在', '是', '有', '和', '就', '都', '也', '不', '这', '那', '你', '他', '她', '它', '吧', '呢', '吗', '啊', '想', '下', '对', '又', '还', '再', '上', '中'])

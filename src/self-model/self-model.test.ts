@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   INTEREST_ARCHIVE_AFTER_DAYS,
@@ -174,5 +177,156 @@ describe('bounded reflection', () => {
       expect('skipped' in result).toBe(false)
     }
     expect(reflection.run('startup')).toEqual({ skipped: 'rate_limited' })
+  })
+})
+
+describe('interest sensitivity (task 4)', () => {
+  const first = '11111111-1111-4111-8111-111111111111'
+  const second = '33333333-3333-4111-8111-111111111111'
+
+  function promote(interests: InterestService, topicText: string, at: string): string {
+    // Three observations across two conversations is the real promotion path,
+    // so the test does not bypass the lifecycle just to reach 'active'.
+    interests.observe({ conversationId: first, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: at, topicText })
+    interests.observe({ conversationId: first, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: at, topicText })
+    interests.observe({ conversationId: second, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: at, topicText })
+    const record = interests.list().find((item) => item.status === 'active')
+    expect(record).toBeDefined()
+    return record!.id
+  }
+
+  it('classifies a sensitive topic and withholds it above the turn ceiling', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const sensitiveId = promote(interests, '抑郁症让我很难受', '2026-10-25T10:00:00.000Z')
+    const record = interests.list().find((item) => item.id === sensitiveId)
+    expect(record?.sensitivity).toBe('sensitive')
+    expect(interests.activeForContext(5, 'personal')).toEqual([])
+    expect(interests.activeForContext(5, 'sensitive').map((item) => item.id)).toEqual([sensitiveId])
+    // The default ceiling is the widest one, so old callers keep their behaviour.
+    expect(interests.activeForContext(5).map((item) => item.id)).toEqual([sensitiveId])
+  })
+
+  it('keeps an ordinary topic available without consent', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const normalId = promote(interests, '天文学最近很有意思', '2026-10-25T10:00:00.000Z')
+    expect(interests.list().find((item) => item.id === normalId)?.sensitivity).toBe('normal')
+    expect(interests.activeForContext(5, 'personal').map((item) => item.id)).toEqual([normalId])
+  })
+
+  it('never downgrades a sensitive interest after a neutral turn', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const id = promote(interests, '抑郁症让我很难受', '2026-10-25T10:00:00.000Z')
+    // Shares 最近/得厉/厉害 with the stored terms but contains no marker.
+    interests.observe({ conversationId: first, messageId: '22222222-2222-4111-8111-111111111112', occurredAt: '2026-10-26T10:00:00.000Z', topicText: '最近得厉害' })
+    const record = interests.list().find((item) => item.id === id)
+    expect(record?.sensitivity).toBe('sensitive')
+    expect(interests.activeForContext(5, 'personal')).toEqual([])
+  })
+
+  it('keeps a sensitive interest withheld after a database reopen', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-interest-restart-'))
+    try {
+      const path = join(directory, 'morrow.sqlite3')
+      const first = SqliteDatabase.open(path)
+      const services = createServices(first)
+      const id = promote(services.interests, '抑郁症让我很难受', '2026-10-25T10:00:00.000Z')
+      first.close()
+
+      const second = SqliteDatabase.open(path)
+      const reopened = new InterestService(new SqliteInterestRepository(second), undefined, () => '2026-10-25T10:00:00.000Z')
+      expect(reopened.list().find((item) => item.id === id)?.sensitivity).toBe('sensitive')
+      expect(reopened.activeForContext(5, 'personal')).toEqual([])
+      expect(reopened.activeForContext(5, 'sensitive').map((item) => item.id)).toEqual([id])
+      second.close()
+    } finally {
+      rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    }
+  })
+})
+
+describe('a question cannot create an interest (task 2)', () => {
+  const conversation = '11111111-1111-4111-8111-111111111111'
+
+  it('returns null for a question with no prior statement', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const asked = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111111',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '抑郁症一般怎么治疗？',
+      source: 'question'
+    })
+    expect(asked).toBeNull()
+    expect(interests.list()).toEqual([])
+  })
+
+  it('lets a question reinforce a topic the user already stated', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const stated = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111111',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '我最近抑郁得厉害。',
+      source: 'statement'
+    })
+    expect(stated).not.toBeNull()
+    const before = interests.list()[0]!
+    const reinforced = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111112',
+      occurredAt: '2026-10-25T10:05:00.000Z',
+      topicText: '最近抑郁又犯了，怎么办？',
+      source: 'question'
+    })
+    expect(reinforced?.id).toBe(before.id)
+    expect(reinforced?.evidenceCount).toBe(before.evidenceCount + 1)
+    expect(interests.list()).toHaveLength(1)
+  })
+
+  it('does not attribute a friend interest to the user', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const result = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111113',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '我朋友喜欢天文学。',
+      intent: 'third_party'
+    })
+    expect(result).toBeNull()
+    expect(interests.list()).toEqual([])
+  })
+
+  it('does not create an interest from a task request', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const result = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111114',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '帮我研究一下抑郁症的治疗方法。',
+      intent: 'task_request'
+    })
+    expect(result).toBeNull()
+    expect(interests.list()).toEqual([])
+  })
+
+  it('creates from a statement that also asks a question', () => {
+    const database = openDatabase()
+    const { interests } = createServices(database)
+    const result = interests.observe({
+      conversationId: conversation,
+      messageId: '22222222-2222-4111-8111-111111111115',
+      occurredAt: '2026-10-25T10:00:00.000Z',
+      topicText: '我对天文学很感兴趣，有推荐吗？',
+      intent: 'mixed'
+    })
+    expect(result).not.toBeNull()
+    expect(interests.list()).toHaveLength(1)
   })
 })

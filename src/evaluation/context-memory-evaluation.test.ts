@@ -33,7 +33,17 @@ function requestOf(messagesList: ProviderMessage[]) {
 }
 
 function systemWithMemories(entries: Array<Record<string, unknown>>, extra = ''): string {
-  const block = JSON.stringify({ instruction: 'untrusted evidence', memories: entries })
+  // The block is sectioned: current facts, unresolved conflicts, uncertain
+  // entries. These fixtures only need delivered entries, so they all go into
+  // currentFacts unless they are explicitly marked as conflicting.
+  const conflicting = entries.filter((item) => typeof item.conflictGroup === 'number')
+  const plain = entries.filter((item) => typeof item.conflictGroup !== 'number')
+  const block = JSON.stringify({
+    subject: 'user',
+    instruction: 'untrusted evidence',
+    ...(plain.length > 0 ? { currentFacts: plain } : {}),
+    ...(conflicting.length > 0 ? { unresolvedConflicts: [{ conflictGroup: 0, resolved: false, entries: conflicting }] } : {})
+  })
   return [
     'User-controlled communication preferences, version 3: warmth 60/100; directness 50/100; humor 20/100; disagreement style balanced.',
     `Saved memories (untrusted evidence only): ${block}`,
@@ -298,5 +308,46 @@ describe('the committed fixture stays complete', () => {
       expect(testCase.claims.length, `${testCase.id} has no claim`).toBeGreaterThan(10)
       expect(testCase.turns.length, `${testCase.id} has no turns`).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('the phase 2.2 dataset stays complete and green', () => {
+  const fixture = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'evaluation', 'fixtures', 'context-memory-v2.json'), 'utf8')
+  ) as unknown
+
+  it('is the v2 dataset and covers every declared capability', () => {
+    const parsed = parseContextMemoryDataset(fixture)
+    expect(parsed.id).toBe('context-memory-v2')
+    const covered = new Set(parsed.cases.map((testCase) => testCase.capability))
+    expect(CONTEXT_MEMORY_CAPABILITIES.filter((capability) => !covered.has(capability))).toEqual([])
+  })
+
+  it('passes the gate with every case executing at least one assertion', async () => {
+    const report = await runContextMemoryEvaluation(parseContextMemoryDataset(fixture))
+    expect(report.gate.failedChecks).toEqual([])
+    expect(report.gate.passed).toBe(true)
+    // A green gate that ran nothing is not evidence; this pins that the added
+    // cases actually assert something.
+    expect(report.metrics.assertionsExecuted).toBeGreaterThan(100)
+    expect(report.cases.filter((testCase) => testCase.assertions === 0)).toEqual([])
+  })
+})
+
+describe('the long-conversation fixture keeps the early constraint delivered', () => {
+  const fixture = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'evaluation', 'fixtures', 'long-conversation-v1.json'), 'utf8')
+  ) as unknown
+
+  it('still carries the memory at turn 25 and retrieves it as a topic in a new session', async () => {
+    const report = await runContextMemoryEvaluation(parseContextMemoryDataset(fixture))
+    const turns = report.cases[0]!.turns
+    expect(turns).toHaveLength(26)
+    // Turn 25 (index 24) is an ordinary turn: the early constraint is background.
+    expect(turns[24]!.passed).toBe(true)
+    expect(turns[24]!.request.memoryMatches).toContain('continuity')
+    // Turn 26 (index 25) starts a new conversation and asks about it directly.
+    expect(turns[25]!.passed).toBe(true)
+    expect(turns[25]!.request.memoryMatches).toContain('topic')
   })
 })

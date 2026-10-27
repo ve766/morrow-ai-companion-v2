@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "memory-pipeline-diagnostic-20261027",
+  "description": "Read-only diagnostic core cases. Synthetic data only; production code is unchanged.",
+  "cases": [
+    {
+      "id": "diag-cross-session-blue",
+      "capability": "B2_cross_session_recall",
+      "title": "Persistent project code recall without old history",
+      "claims": "BLUE-731 reaches a new conversation through persistent memory.",
+      "setup": { "memories": [{ "content": "我的项目代号是 BLUE-731。", "sensitivity": "personal" }] },
+      "turns": [
+        { "content": "我的项目代号是 BLUE-731。", "newConversation": true, "expect": { "memoryEntries": 1 } },
+        { "content": "你还记得我的项目代号吗？", "newConversation": true, "expect": { "memoryEntries": 1 } }
+      ],
+      "realModel": { "check": "substring", "mustMention": ["BLUE-731"], "judge": { "current": ["BLUE-731"], "expectsAnswer": true } }
+    },
+    {
+      "id": "diag-correction-osaka",
+      "capability": "B3_correction_is_current",
+      "title": "Osaka replaces Hangzhou",
+      "claims": "Only Osaka is current after explicit correction.",
+      "setup": { "memories": [{ "content": "我现在住在杭州。", "sensitivity": "personal" }] },
+      "turns": [
+        { "content": "我现在住在哪里？", "op": { "type": "correct", "memoryIndex": 0, "content": "我现在住在大阪。" }, "expect": { "contextContains": ["大阪"], "contextExcludes": ["杭州"] } }
+      ],
+      "realModel": { "check": "substring", "mustMention": ["大阪"], "mustNotMention": ["杭州"], "judge": { "current": ["大阪"], "superseded": ["杭州"], "expectsAnswer": true } }
+    },
+    {
+      "id": "diag-conflict-cities",
+      "capability": "B7_conflict_both_visible",
+      "title": "Conflict must be disclosed",
+      "claims": "Both conflicting cities are delivered as unresolved.",
+      "setup": { "memories": [{ "content": "我住在杭州。", "sensitivity": "personal" }, { "content": "我住在大阪。", "sensitivity": "personal" }] },
+      "turns": [{ "content": "我住在哪里？", "expect": { "memoryEntries": 2 } }],
+      "realModel": { "check": "substring", "mustMention": ["杭州", "大阪"], "judge": { "conflicting": ["杭州", "大阪"], "expectsAnswer": true, "acceptable": ["杭州", "大阪"] } }
+    },
+    {
+      "id": "diag-retraction-blue",
+      "capability": "B4_retracted_not_used",
+      "title": "Retracted project code is not used",
+      "claims": "The retracted code never reaches the request.",
+      "setup": { "memories": [{ "content": "我的项目代号是 BLUE-731。", "sensitivity": "personal" }] },
+      "turns": [{ "content": "我的项目代号是什么？", "op": { "type": "retract", "memoryIndex": 0 }, "expect": { "contextExcludes": ["BLUE-731"], "memoryEntries": 0 } }],
+      "realModel": { "check": "substring", "mustNotMention": ["BLUE-731"], "judge": { "retracted": ["BLUE-731"], "expectsAnswer": true } }
+    },
+    {
+      "id": "diag-no-memory-code",
+      "capability": "B8_retrieval_miss_not_faked",
+      "title": "No stored project code",
+      "claims": "No memory is delivered and no code should be invented.",
+      "turns": [{ "content": "你还记得我的项目代号吗？", "expect": { "memoryEntries": 0, "contextExcludes": ["BLUE-731"] } }],
+      "realModel": { "check": "substring", "mustNotMention": ["BLUE-731"], "judge": { "expectsAnswer": true, "acceptable": ["不记得", "不知道", "没有记录"] } }
+    }
+  ]
+}

@@ -6,36 +6,58 @@ import type { SqliteDatabase } from './database'
 // `unretracted` exists because an explicit memory restore revokes the
 // retraction boundary on purpose.
 
-export type DeletionJournalEntity = 'memory' | 'conversation'
+export type DeletionJournalEntity = 'memory' | 'conversation' | 'message' | 'evidence' | 'candidate'
 export type DeletionJournalState = 'deleted' | 'retracted' | 'unretracted'
 
 export interface DeletionJournalEntry {
   entity: DeletionJournalEntity
   entityId: string
   state: DeletionJournalState
+  /** Groups the rows written by one deletion request; null for legacy rows. */
+  operationId: string | null
   recordedAt: string
 }
 
 const journalTablePresent = (database: SqliteDatabase): boolean =>
   Number(database.connection.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'deletion_journal'").get()?.count ?? 0) === 1
 
-export function recordDeletionState(database: SqliteDatabase, entity: DeletionJournalEntity, entityId: string, state: DeletionJournalState, recordedAt: string): void {
+export function recordDeletionState(
+  database: SqliteDatabase,
+  entity: DeletionJournalEntity,
+  entityId: string,
+  state: DeletionJournalState,
+  recordedAt: string,
+  operationId: string | null = null
+): void {
   if (!journalTablePresent(database)) return
   database.connection.prepare(`
-    INSERT INTO deletion_journal(entity, entity_id, state, recorded_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(entity, entity_id) DO UPDATE SET state = excluded.state, recorded_at = excluded.recorded_at
-  `).run(entity, entityId, state, recordedAt)
+    INSERT INTO deletion_journal(entity, entity_id, state, operation_id, recorded_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(entity, entity_id) DO UPDATE SET
+      state = excluded.state,
+      operation_id = COALESCE(excluded.operation_id, deletion_journal.operation_id),
+      recorded_at = excluded.recorded_at
+  `).run(entity, entityId, state, operationId, recordedAt)
+}
+
+/**
+ * Evidence identity inside the journal: candidate id, conversation id and the
+ * evidence hash. No user text and no message body, so the journal stays a
+ * boundary record rather than a second copy of the conversation.
+ */
+export function evidenceJournalKey(candidateId: string, conversationId: string, evidenceHash: string): string {
+  return `${candidateId}:${conversationId}:${evidenceHash}`
 }
 
 export function readDeletionJournal(database: SqliteDatabase): DeletionJournalEntry[] {
   if (!journalTablePresent(database)) return []
-  const rows = database.connection.prepare('SELECT entity, entity_id, state, recorded_at FROM deletion_journal ORDER BY recorded_at, entity, entity_id')
-    .all() as unknown as Array<{ entity: string; entity_id: string; state: string; recorded_at: string }>
+  const rows = database.connection.prepare('SELECT entity, entity_id, state, operation_id, recorded_at FROM deletion_journal ORDER BY recorded_at, entity, entity_id')
+    .all() as unknown as Array<{ entity: string; entity_id: string; state: string; operation_id: string | null; recorded_at: string }>
   return rows.map((row) => ({
     entity: row.entity as DeletionJournalEntity,
     entityId: row.entity_id,
     state: row.state as DeletionJournalState,
+    operationId: row.operation_id,
     recordedAt: row.recorded_at
   }))
 }

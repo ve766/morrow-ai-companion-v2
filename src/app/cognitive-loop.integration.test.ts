@@ -221,6 +221,76 @@ describe('cognitive closed loop over a real loopback provider', () => {
     }
   })
 
+  it('withholds a sensitive interest from the serialized request unless the turn allows it', async () => {
+    const server = startLocalModelServer()
+    const url = await listen(server.raw)
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-interest-gate-'))
+    directories.push(directory)
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    databases.push(database)
+    const stack = buildStack(database)
+    try {
+      stack.companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint: url, model: 'loop-model', enabled: true })
+      stack.companion.saveCognitiveSettings({ enabled: true })
+      const first = stack.companion.createConversation()
+      const second = stack.companion.createConversation()
+      const observe = (conversationId: string, topicText: string, offset: number): void => {
+        stack.interests.observe({
+          conversationId,
+          messageId: randomUUID(),
+          occurredAt: new Date(Date.parse('2026-10-25T10:00:00.000Z') + offset * 60_000).toISOString(),
+          topicText
+        })
+      }
+      // Two topics, each promoted through the real lifecycle (three
+      // observations across two conversations). One is sensitive, one is not,
+      // so the assertion can prove the gate is targeted rather than the whole
+      // long-term layer being dropped.
+      for (const [index, conversationId] of [first.id, first.id, second.id].entries()) observe(conversationId, '抑郁症让我很难受', index)
+      for (const [index, conversationId] of [first.id, first.id, second.id].entries()) observe(conversationId, '天文学最近很有意思', index + 10)
+      expect(stack.interests.list().filter((record) => record.status === 'active')).toHaveLength(2)
+
+      const conversation = stack.companion.createConversation()
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '今天感觉怎么样？', includeSensitive: false }, () => {})
+      const withoutConsent = server.requests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
+      expect(withoutConsent).toContain('Bounded long-term attention signal')
+      expect(withoutConsent).toContain('天文')
+      expect(withoutConsent).not.toContain('抑郁')
+
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '今天感觉怎么样？', includeSensitive: true }, () => {})
+      const withConsent = server.requests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
+      expect(withConsent).toContain('抑郁')
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('does not turn a question about a topic into a personal interest', async () => {
+    const server = startLocalModelServer()
+    const url = await listen(server.raw)
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-question-interest-'))
+    directories.push(directory)
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    databases.push(database)
+    const stack = buildStack(database)
+    try {
+      stack.companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint: url, model: 'loop-model', enabled: true })
+      stack.companion.saveCognitiveSettings({ enabled: true })
+      const conversation = stack.companion.createConversation()
+      // Asking about a condition is not having it. No interest row may appear.
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '抑郁症一般怎么治疗？', includeSensitive: false }, () => {})
+      expect(stack.interests.list()).toEqual([])
+
+      // A declarative statement about the user still forms a sensitive topic.
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '我最近抑郁得厉害。', includeSensitive: false }, () => {})
+      const recorded = stack.interests.list()
+      expect(recorded).toHaveLength(1)
+      expect(recorded[0]?.sensitivity).toBe('sensitive')
+    } finally {
+      await server.close()
+    }
+  })
+
   it('restores interests, self-model and journal across restart without duplicating evidence', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-cognitive-restart-'))
     directories.push(directory)

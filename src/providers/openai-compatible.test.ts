@@ -12,7 +12,7 @@ const config: ProviderConfigRecord = {
   model: DEEPSEEK_MODEL,
   enabled: true,
   apiKeyConfigured: true,
-  updatedAt: '2026-10-23T00:00:00.000Z'
+  updatedAt: '2026-10-23T00:00:00.000Z', timeoutMs: 45000, catalogVerified: false
 }
 
 function input(signal?: AbortSignal): ProviderInput {
@@ -103,7 +103,7 @@ describe('DeepSeek V4.1 Flash adapter', () => {
       model: 'test-local-model',
       enabled: true,
       apiKeyConfigured: false,
-      updatedAt: '2026-10-25T00:00:00.000Z'
+      updatedAt: '2026-10-25T00:00:00.000Z', timeoutMs: 45000, catalogVerified: false
     }
     const seenAuth: Array<string | null> = []
     const local = new OpenAICompatibleProvider(localConfig, new MemorySecretStore(), async (_url, init) => {

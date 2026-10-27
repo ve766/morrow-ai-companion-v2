@@ -3,6 +3,7 @@ import {
   INTEREST_ARCHIVE_AFTER_DAYS,
   INTEREST_MATCH_MIN_SHARED_TERMS,
   canTransitionInterestStatus,
+  classifyInterestSensitivity,
   computeInterestStrength,
   confidenceForEvidence,
   extractInterestTerms,
@@ -10,8 +11,17 @@ import {
   sharedTermCount,
   type InterestEvidence,
   type InterestRecord,
+  type InterestSensitivity,
   type InterestStatus
 } from './self-model-domain'
+import type { Sensitivity } from '../shared/companion'
+import {
+  interestIntentAllowsCreation,
+  interestIntentAllowsReinforcement,
+  type InterestIntent
+} from './interest-intent'
+
+const sensitivityOrder: readonly Sensitivity[] = ['normal', 'personal', 'sensitive']
 
 export interface InterestRepositoryPort {
   all(): InterestRecord[]
@@ -24,6 +34,14 @@ export interface InterestObservation {
   messageId: string
   occurredAt: string
   topicText: string
+  /**
+   * What the sentence is doing. Only an assertion about the user may create a
+   * row; a question may only reinforce one the user already stated. Third-party
+   * statements, task requests and uncertain sentences touch nothing.
+   */
+  intent?: InterestIntent
+  /** Back-compat shim for callers that only know question vs statement. */
+  source?: 'statement' | 'question'
 }
 
 interface InterestRow {
@@ -40,6 +58,7 @@ interface InterestRow {
   last_seen_at: string
   updated_at: string
   terms_json: string
+  sensitivity: string
 }
 
 export class SqliteInterestRepository implements InterestRepositoryPort {
@@ -52,17 +71,17 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
 
   create(record: InterestRecord): void {
     this.database.connection.prepare(`
-      INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(record.id, record.label, record.status, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.sourceMessageId, record.conversationId, record.firstSeenAt, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms))
+      INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, sensitivity)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(record.id, record.label, record.status, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.sourceMessageId, record.conversationId, record.firstSeenAt, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), record.sensitivity)
   }
 
   update(record: InterestRecord): void {
     this.database.connection.prepare(`
       UPDATE interests
-      SET status = ?, evidence_count = ?, conversation_count = ?, strength = ?, confidence = ?, last_seen_at = ?, updated_at = ?, terms_json = ?
+      SET status = ?, evidence_count = ?, conversation_count = ?, strength = ?, confidence = ?, last_seen_at = ?, updated_at = ?, terms_json = ?, sensitivity = ?
       WHERE id = ?
-    `).run(record.status, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), record.id)
+    `).run(record.status, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), record.sensitivity, record.id)
   }
 }
 
@@ -80,7 +99,8 @@ function mapInterest(row: InterestRow): InterestRecord {
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     updatedAt: row.updated_at,
-    terms: parseTerms(row.terms_json)
+    terms: parseTerms(row.terms_json),
+    sensitivity: (row.sensitivity as InterestSensitivity) ?? 'normal'
   }
 }
 
@@ -124,10 +144,17 @@ export class InterestService {
     return this.repository.all()
   }
 
-  /** Active interests for context assembly, strongest first. */
-  activeForContext(limit = 5): InterestRecord[] {
+  /**
+   * Active interests for context assembly, strongest first, filtered by the
+   * same sensitivity ceiling the memory layer uses. The default is the widest
+   * ceiling so existing callers keep their behaviour; the chat path always
+   * passes the turn's actual ceiling.
+   */
+  activeForContext(limit = 5, maximumSensitivity: Sensitivity = 'sensitive'): InterestRecord[] {
     return this.repository.all()
-      .filter((record) => record.status === 'active')
+      .filter((record) =>
+        record.status === 'active' &&
+        sensitivityOrder.indexOf(record.sensitivity) <= sensitivityOrder.indexOf(maximumSensitivity))
       .slice(0, limit)
   }
 
@@ -143,6 +170,13 @@ export class InterestService {
       .map((record) => ({ record, shared: sharedTermCount(record.terms, terms) }))
       .filter((item) => item.shared >= INTEREST_MATCH_MIN_SHARED_TERMS)
       .sort((left, right) => right.shared - left.shared)[0]?.record
+    // A question is evidence of curiosity, not of the attribute itself. It can
+    // only add evidence to a topic the user already stated; it cannot start one.
+    // Third-party, task, uncertain and withdrawn sentences never touch a row.
+    const intent: InterestIntent = observation.intent ??
+      (observation.source === 'question' ? 'question' : 'statement')
+    if (!interestIntentAllowsReinforcement(intent)) return null
+    if (!existing && !interestIntentAllowsCreation(intent)) return null
     if (!existing) {
       const created: InterestRecord = {
         id: this.makeId().toLowerCase(),
@@ -157,7 +191,8 @@ export class InterestService {
         firstSeenAt: now,
         lastSeenAt: now,
         updatedAt: now,
-        terms
+        terms,
+        sensitivity: classifyInterestSensitivity(label, terms.join(' '))
       }
       this.repository.create(created)
       this.recordEvent('interest.observed', created, { newTopic: true })
@@ -173,6 +208,13 @@ export class InterestService {
     let status = existing.status
     if (status === 'archived' && isNewConversation) status = 'candidate'
     if (interestPromotionEligible({ status, conversationCount, evidenceCount })) status = 'active'
+    // Sensitivity can only escalate. A topic that once revealed a sensitive
+    // subject must not become ordinary again because a later turn used neutral
+    // words; a downgrade would need an explicit user action, not an inference.
+    const observedSensitivity = classifyInterestSensitivity(label, terms.join(' '))
+    const sensitivity: InterestSensitivity = existing.sensitivity === 'sensitive' || observedSensitivity === 'sensitive'
+      ? 'sensitive'
+      : existing.sensitivity
     const updated: InterestRecord = {
       ...existing,
       status,
@@ -182,7 +224,8 @@ export class InterestService {
       confidence,
       lastSeenAt,
       updatedAt: now,
-      terms: [...new Set([...existing.terms, ...terms])].slice(0, 16)
+      terms: [...new Set([...existing.terms, ...terms])].slice(0, 16),
+      sensitivity
     }
     this.repository.update(updated)
     const promoted = existing.status !== 'active' && updated.status === 'active'

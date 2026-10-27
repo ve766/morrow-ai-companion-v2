@@ -1,7 +1,7 @@
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, type ProviderConfigRecord } from '../shared/companion'
+import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, THIRD_PARTY_PROVIDER_ID, type ProviderConfigRecord } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
-import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
+import { isHttpsEndpoint, isLoopbackEndpoint, isValidLocalModelName, isValidRemoteModelId, normalizeOpenAIBaseUrl } from '../security/url-gate'
 import type { SecretStore } from '../security/secrets'
 import type { ProviderDeltaHandler, ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from './provider-policy'
 
@@ -111,8 +111,19 @@ export class OpenAICompatibleProvider implements ProviderPort {
     }
   }
 
+  /**
+   * The remote shape used to be "is exactly DeepSeek". A user-configured
+   * gateway is the second remote shape, and it is checked just as strictly:
+   * https only, a key present, and the model id it was configured with. The
+   * DeepSeek branch is unchanged, so the default provider cannot drift.
+   */
   private isConfigShapeValid(): boolean {
     if (this.config.providerClass === 'remote') {
+      if (this.config.id === THIRD_PARTY_PROVIDER_ID) {
+        return this.config.apiKeyConfigured &&
+          isHttpsEndpoint(this.config.endpoint) &&
+          isValidRemoteModelId(this.config.model)
+      }
       return this.config.apiKeyConfigured &&
         this.config.endpoint === DEEPSEEK_API_BASE_URL &&
         this.config.model === DEEPSEEK_MODEL
@@ -120,11 +131,74 @@ export class OpenAICompatibleProvider implements ProviderPort {
     return isLoopbackEndpoint(this.config.endpoint) && isValidLocalModelName(this.config.model)
   }
 
+  /** `{base}/chat/completions`, with the base normalised once, here. */
+  private get chatEndpoint(): string {
+    return `${normalizeOpenAIBaseUrl(this.config.endpoint)}/chat/completions`
+  }
+
+  private get effectiveTimeoutMs(): number {
+    return this.config.id === THIRD_PARTY_PROVIDER_ID
+      ? (this.config.timeoutMs ?? this.timeoutMs)
+      : this.timeoutMs
+  }
+
+  /**
+   * `GET {base}/models`. Used to decide whether a model id is catalogue
+   * verified; a 200 here is evidence about the catalogue only, never about
+   * chat quality. The key is sent in a header and never logged.
+   */
+  async listModels(signal?: AbortSignal): Promise<{ ids: string[] }> {
+    if (this.config.providerClass !== 'remote' || !this.config.apiKeyConfigured) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    const controller = new AbortController()
+    const cancel = (): void => controller.abort()
+    if (signal?.aborted) cancel()
+    else signal?.addEventListener('abort', cancel, { once: true })
+    const timeout = setTimeout(() => controller.abort(), Math.min(this.effectiveTimeoutMs, 20_000))
+    try {
+      let key: string | undefined
+      try {
+        key = this.secrets.get(this.config.id)
+      } catch (error) {
+        throw mapProviderSecretError(error)
+      }
+      if (!key) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+      const response = await this.fetcher(`${normalizeOpenAIBaseUrl(this.config.endpoint)}/models`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${key}` },
+        signal: controller.signal,
+        redirect: 'error'
+      })
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
+        if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT')
+        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')
+        throw new ApplicationError('PROVIDER_NETWORK')
+      }
+      let data: { data?: Array<{ id?: unknown }> }
+      try {
+        data = await response.json() as { data?: Array<{ id?: unknown }> }
+      } catch {
+        throw new ApplicationError('PROVIDER_RESPONSE')
+      }
+      if (!Array.isArray(data.data)) throw new ApplicationError('PROVIDER_RESPONSE')
+      const ids = data.data.map((entry) => entry?.id).filter((id): id is string => typeof id === 'string' && id.length > 0)
+      return { ids }
+    } catch (error) {
+      if (error instanceof ApplicationError) throw error
+      if (signal?.aborted) throw new ApplicationError('PROVIDER_CANCELLED')
+      if (controller.signal.aborted) throw new ApplicationError('PROVIDER_TIMEOUT')
+      throw new ApplicationError('PROVIDER_NETWORK')
+    } finally {
+      clearTimeout(timeout)
+      signal?.removeEventListener('abort', cancel)
+    }
+  }
+
   async generate(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
     const payload = input.requestPayload as OpenAIChatPayload
     if (
       !this.isConfigShapeValid() ||
-      input.endpoint !== `${this.config.endpoint}/chat/completions` ||
+      input.endpoint !== this.chatEndpoint ||
       (this.config.providerClass === 'local' && !isLoopbackEndpoint(input.endpoint)) ||
       !payload ||
       payload.model !== this.config.model ||
@@ -140,7 +214,7 @@ export class OpenAICompatibleProvider implements ProviderPort {
     const timeout = setTimeout(() => {
       timedOut = true
       controller.abort()
-    }, this.timeoutMs)
+    }, this.effectiveTimeoutMs)
 
     try {
       let key: string | undefined

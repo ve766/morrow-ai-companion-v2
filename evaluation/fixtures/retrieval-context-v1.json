@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "id": "retrieval-context-v1",
+  "description": "Labelled production-retrieval cases comparing the shipped assembler with a frozen substring baseline. Includes false-positive traps, one context-only recall, one known semantic gap, and hard boundaries (retracted, unauthorised).",
+  "cases": [
+    {
+      "id": "substring-an-analyst",
+      "query": "What is the airspeed of an unladen swallow?",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "analyst", "content": "I work as a data analyst.", "sensitivity": "normal" }
+      ],
+      "relevant": [],
+      "note": "Baseline substring matches 'an' inside 'analyst'; the shipped rule requires a whole token."
+    },
+    {
+      "id": "substring-do-dog",
+      "query": "What pet do I have?",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "dog", "content": "I have a dog named Pixel.", "sensitivity": "normal" }
+      ],
+      "relevant": [],
+      "note": "Baseline substring matches 'do' inside 'dog'."
+    },
+    {
+      "id": "substring-number",
+      "query": "26",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "plan", "content": "2026 年的计划是换工作。", "sensitivity": "personal" }
+      ],
+      "relevant": [],
+      "note": "Baseline substring matches '26' inside '2026'; a number is not a word prefix."
+    },
+    {
+      "id": "context-pronoun",
+      "query": "那后天呢？",
+      "conversationContext": "我下周要去杭州出差。",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我住在杭州。", "sensitivity": "personal" },
+        { "id": "cat", "content": "我养了一只猫。", "sensitivity": "personal" }
+      ],
+      "relevant": ["hangzhou"],
+      "note": "Elliptical turn shares no word with the memory; only the conversation-context tier can find it."
+    },
+    {
+      "id": "cross-session-recall",
+      "query": "你还记得我住在哪吗？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我住在杭州。", "sensitivity": "personal" }
+      ],
+      "relevant": ["hangzhou"],
+      "note": "Both rules match on the shared bigram 我住."
+    },
+    {
+      "id": "semantic-gap-vinyl",
+      "query": "我有什么爱好？",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "vinyl", "content": "我收集黑胶唱片。", "sensitivity": "personal" }
+      ],
+      "relevant": ["vinyl"],
+      "note": "Known capability boundary: zero lexical overlap and no semantic index, so both rules miss. Recorded, not hidden."
+    },
+    {
+      "id": "same-subject-conflict",
+      "query": "我住在哪里",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我住在杭州。", "sensitivity": "personal" },
+        { "id": "shanghai", "content": "我住在上海。", "sensitivity": "personal" }
+      ],
+      "relevant": ["hangzhou", "shanghai"],
+      "note": "A conflict must not be resolved by ranking; both sides are relevant."
+    },
+    {
+      "id": "retracted-old-value",
+      "query": "我住在哪里",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "hangzhou", "content": "我住在杭州。", "sensitivity": "personal" },
+        { "id": "nanjing", "content": "我住在南京。", "sensitivity": "personal", "status": "retracted" }
+      ],
+      "relevant": ["hangzhou"],
+      "mustNotRecall": ["nanjing"],
+      "note": "Retraction is a hard boundary, not a ranking preference."
+    },
+    {
+      "id": "sensitive-unauthorised",
+      "query": "我的健康状况",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "health", "content": "我的健康状况不太好。", "sensitivity": "sensitive" }
+      ],
+      "relevant": [],
+      "mustNotRecall": ["health"],
+      "note": "Above-ceiling content must not be delivered on any tier, including continuity."
+    },
+    {
+      "id": "sensitive-authorised",
+      "query": "我的健康状况",
+      "maximumSensitivity": "sensitive",
+      "memories": [
+        { "id": "health", "content": "我的健康状况不太好。", "sensitivity": "sensitive" }
+      ],
+      "relevant": ["health"],
+      "note": "The same record is retrievable once the turn's ceiling allows it."
+    },
+    {
+      "id": "mixed-script",
+      "query": "coffee 咖啡",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "coffee", "content": "I drink coffee every morning.", "sensitivity": "normal" },
+        { "id": "tea", "content": "我喜欢喝茶。", "sensitivity": "personal" }
+      ],
+      "relevant": ["coffee"],
+      "note": "A mixed-script query matches per script run; the unrelated record stays background."
+    },
+    {
+      "id": "stale-but-retrievable",
+      "query": "我住在哪里",
+      "maximumSensitivity": "personal",
+      "memories": [
+        { "id": "nanjing", "content": "我住在南京。", "sensitivity": "personal", "ageDays": 120 }
+      ],
+      "relevant": ["nanjing"],
+      "note": "A stale volatile fact is still retrievable; staleness changes presentation, not access."
+    }
+  ]
+}

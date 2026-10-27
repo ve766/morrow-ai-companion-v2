@@ -29,7 +29,7 @@ function report(cases: Array<{ id: string; verdict: RealVerdict }>): ContextMemo
     },
     status: 'checked',
     blockedReason: null,
-    provider: { providerClass: 'local', endpoint: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:0.5b', reachable: true },
+    provider: { providerClass: 'local', endpoint: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:0.5b', reachable: true, modelInCatalog: null },
     environment: { node: 'v22', platform: 'win32-x64', durationMs: 1 },
     summary: {
       casesInDataset: 22,
@@ -55,7 +55,15 @@ function report(cases: Array<{ id: string; verdict: RealVerdict }>): ContextMemo
       turns: [],
       checks: [],
       attribution: null,
-      failureReason: null
+      failureReason: null,
+      diagnostics: {
+        expectedInRequest: [],
+        deliveredInRequest: [],
+        retractedLeaked: [],
+        requestContradictory: false,
+        stages: [],
+        failureClass: 'INSUFFICIENT_EVIDENCE' as const
+      }
     })),
     quality: { assessed: false, note: 'test' },
     limitations: []

@@ -7,6 +7,7 @@ import { ApplicationError } from '../shared/errors'
 import { SqliteDatabase } from './database'
 import { CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION } from './migrations'
 import { mergeDeletionJournal, readDeletionJournal, type DeletionJournalEntry } from './deletion-journal'
+import { FEEDBACK_SUPPORT_THRESHOLD } from '../self-model/feedback-candidate-service'
 
 export const BACKUP_FORMAT = 'morrow-backup'
 export const BACKUP_FORMAT_VERSION = 1
@@ -46,6 +47,10 @@ export interface BackupRestoreResult {
   reappliedDeletions: number
   reappliedRetractions: number
   reappliedUnretractions: number
+  /** Evidence rows re-withdrawn because the journal says they were withdrawn. */
+  reappliedEvidenceWithdrawals: number
+  /** Candidates re-withdrawn because the journal says they were withdrawn. */
+  reappliedCandidateWithdrawals: number
 }
 
 interface BackupManifest {
@@ -296,7 +301,9 @@ export class BackupService {
         schemaVersion: CURRENT_SCHEMA_VERSION,
         reappliedDeletions: boundary.reappliedDeletions,
         reappliedRetractions: boundary.reappliedRetractions,
-        reappliedUnretractions: boundary.reappliedUnretractions
+        reappliedUnretractions: boundary.reappliedUnretractions,
+        reappliedEvidenceWithdrawals: boundary.reappliedEvidenceWithdrawals,
+        reappliedCandidateWithdrawals: boundary.reappliedCandidateWithdrawals
       }
     } catch (error) {
       try { staged?.close() } catch { /* best effort */ }
@@ -383,16 +390,41 @@ export class BackupService {
     }
   }
 
-  private applyDeletionBoundary(staged: SqliteDatabase, liveJournal: DeletionJournalEntry[]): { reappliedDeletions: number; reappliedRetractions: number; reappliedUnretractions: number } {
+  /**
+   * Replays the deletion boundary onto the staged database before it is swapped
+   * in. The boundary is the merge of the live journal and the backup's own
+   * journal: a restore must not undo a deletion that happened after the backup
+   * was taken, and must not resurrect evidence that was withdrawn.
+   *
+   * Every step is idempotent: each UPDATE is guarded by the state it changes, so
+   * running the replay twice reports zero the second time instead of
+   * double-counting.
+   *
+   * Transaction boundary: the staged database is a separate file, so the live
+   * journal is read first and only then applied inside the staged file's own
+   * transaction. There is no cross-file transaction; if the process dies between
+   * reading the journal and swapping the file, the live database is untouched.
+   */
+  private applyDeletionBoundary(staged: SqliteDatabase, liveJournal: DeletionJournalEntry[]): {
+    reappliedDeletions: number
+    reappliedRetractions: number
+    reappliedUnretractions: number
+    reappliedEvidenceWithdrawals: number
+    reappliedCandidateWithdrawals: number
+  } {
     const merged = mergeDeletionJournal(liveJournal, readDeletionJournal(staged))
     let reappliedDeletions = 0
     let reappliedRetractions = 0
     let reappliedUnretractions = 0
+    let reappliedEvidenceWithdrawals = 0
+    let reappliedCandidateWithdrawals = 0
+    const touchedCandidates = new Set<string>()
     staged.transaction(() => {
       staged.connection.exec('DELETE FROM deletion_journal')
-      const insert = staged.connection.prepare('INSERT INTO deletion_journal(entity, entity_id, state, recorded_at) VALUES (?, ?, ?, ?)')
+      const insert = staged.connection.prepare('INSERT INTO deletion_journal(entity, entity_id, state, operation_id, recorded_at) VALUES (?, ?, ?, ?, ?)')
       const deleteMemory = staged.connection.prepare('DELETE FROM memories WHERE id = ?')
       const deleteConversation = staged.connection.prepare('DELETE FROM conversations WHERE id = ?')
+      const deleteMessage = staged.connection.prepare('DELETE FROM messages WHERE id = ?')
       const retractMemory = staged.connection.prepare("UPDATE memories SET status = 'retracted', updated_at = ? WHERE id = ? AND status = 'active'")
       const unretractMemory = staged.connection.prepare("UPDATE memories SET status = 'active', updated_at = ? WHERE id = ? AND status = 'retracted'")
       const nextRevision = staged.connection.prepare('SELECT COALESCE(MAX(revision), 0) + 1 AS next FROM memory_revisions WHERE memory_id = ?')
@@ -401,15 +433,61 @@ export class BackupService {
         VALUES (?, ?, ?, 'user_explicit_input', ?, ?, ?, ?)
       `)
       const readMemory = staged.connection.prepare('SELECT id, current_text, revision FROM memories WHERE id = ?')
+      const withdrawConversationEvidence = staged.connection.prepare(`
+        UPDATE persona_feedback_evidence SET status = 'withdrawn', withdrawn_at = ?
+        WHERE conversation_id = ? AND status = 'active'
+      `)
+      const withdrawEvidence = staged.connection.prepare(`
+        UPDATE persona_feedback_evidence SET status = 'withdrawn', withdrawn_at = ?
+        WHERE candidate_id = ? AND conversation_id = ? AND evidence_hash = ? AND status = 'active'
+      `)
+      const withdrawCandidate = staged.connection.prepare(`
+        UPDATE persona_feedback_candidates SET status = 'withdrawn', evidence_excerpt = '[withdrawn]', updated_at = ?
+        WHERE id = ? AND status IN ('pending', 'supported')
+      `)
       const boundaryAt = new Date(this.now()).toISOString()
 
       for (const entry of merged) {
-        insert.run(entry.entity, entry.entityId, entry.state, entry.recordedAt)
+        insert.run(entry.entity, entry.entityId, entry.state, entry.operationId, entry.recordedAt)
       }
       for (const entry of merged) {
-        if (entry.entity !== 'memory') {
-          const result = deleteConversation.run(entry.entityId)
-          if (result.changes === 1) reappliedDeletions += 1
+        if (entry.entity === 'evidence') {
+          // entity_id is `candidateId:conversationId:evidenceHash`; the hash is
+          // fixed-width hex and the two ids are UUIDs, so the split is exact.
+          const parts = entry.entityId.split(':')
+          if (parts.length !== 3) continue
+          const [candidateId, conversationId, evidenceHash] = parts as [string, string, string]
+          touchedCandidates.add(candidateId)
+          if (entry.state === 'retracted' && withdrawEvidence.run(boundaryAt, candidateId, conversationId, evidenceHash).changes === 1) {
+            reappliedEvidenceWithdrawals += 1
+          }
+          continue
+        }
+        if (entry.entity === 'candidate') {
+          touchedCandidates.add(entry.entityId)
+          if (entry.state === 'retracted' && withdrawCandidate.run(boundaryAt, entry.entityId).changes === 1) {
+            reappliedCandidateWithdrawals += 1
+          }
+          continue
+        }
+        if (entry.entity === 'message') {
+          // Derived rows (cognitive observations, memory suggestions, reminders)
+          // cascade from the message.
+          if (entry.state === 'deleted' && deleteMessage.run(entry.entityId).changes === 1) reappliedDeletions += 1
+          continue
+        }
+        if (entry.entity === 'conversation') {
+          // Evidence rows carry the conversation id but no foreign key, so
+          // deleting the conversation would leave them active.
+          const withdrawn = Number(withdrawConversationEvidence.run(boundaryAt, entry.entityId).changes)
+          reappliedEvidenceWithdrawals += withdrawn
+          if (withdrawn > 0) {
+            const affected = staged.connection.prepare(
+              'SELECT DISTINCT candidate_id FROM persona_feedback_evidence WHERE conversation_id = ?'
+            ).all(entry.entityId) as unknown as Array<{ candidate_id: string }>
+            for (const row of affected) touchedCandidates.add(row.candidate_id)
+          }
+          if (deleteConversation.run(entry.entityId).changes === 1) reappliedDeletions += 1
           continue
         }
         if (entry.state === 'deleted') {
@@ -426,7 +504,30 @@ export class BackupService {
           }
         }
       }
+
+      // Support counts are derived from active evidence. After a replay they must
+      // be recomputed, otherwise a candidate could stay `supported` with zero
+      // live evidence - the exact inconsistency this boundary exists to prevent.
+      const countActive = staged.connection.prepare(`
+        SELECT COUNT(DISTINCT conversation_id) AS count FROM persona_feedback_evidence
+        WHERE candidate_id = ? AND status = 'active'
+      `)
+      const setStatus = staged.connection.prepare(`
+        UPDATE persona_feedback_candidates SET status = ?, updated_at = ? WHERE id = ? AND status IN ('pending', 'supported', 'withdrawn')
+      `)
+      for (const candidateId of touchedCandidates) {
+        const active = Number((countActive.get(candidateId) as unknown as { count: number } | undefined)?.count ?? 0)
+        const next = active === 0 ? 'withdrawn' : active >= FEEDBACK_SUPPORT_THRESHOLD ? 'supported' : 'pending'
+        if (next === 'withdrawn') {
+          staged.connection.prepare(`
+            UPDATE persona_feedback_candidates SET status = 'withdrawn', evidence_excerpt = '[withdrawn]', updated_at = ?
+            WHERE id = ? AND status IN ('pending', 'supported')
+          `).run(boundaryAt, candidateId)
+        } else {
+          setStatus.run(next, boundaryAt, candidateId)
+        }
+      }
     })
-    return { reappliedDeletions, reappliedRetractions, reappliedUnretractions }
+    return { reappliedDeletions, reappliedRetractions, reappliedUnretractions, reappliedEvidenceWithdrawals, reappliedCandidateWithdrawals }
   }
 }

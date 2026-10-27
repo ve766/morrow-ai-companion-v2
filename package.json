@@ -19,6 +19,8 @@
     "package:win": "npm run build && electron-builder --win nsis --x64 --publish never",
     "evaluate:companion": "node scripts/run-companion-core-evaluation.mjs",
     "evaluate:context": "node scripts/run-context-memory-evaluation.mjs",
+    "evaluate:retrieval-context": "node scripts/run-retrieval-benchmark.mjs",
+    "verify:long:behavior": "node scripts/run-long-behavior.mjs",
     "verify:context:real": "node scripts/run-context-memory-real.mjs",
     "verify:real": "node scripts/run-real-provider-conversation.mjs",
     "review:summary": "node scripts/run-review-summary.mjs"

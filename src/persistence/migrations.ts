@@ -615,6 +615,178 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
       `)
     }
+  },
+  {
+    version: 16,
+    name: 'interest-sensitivity',
+    up(database) {
+      // Interests are derived topic labels, not memories, so they never had a
+      // sensitivity class and were therefore always eligible for the prompt.
+      // The marker list is inlined here on purpose: a migration must keep doing
+      // what it did on the day it shipped, even if the runtime classifier is
+      // refined later. Existing rows are backfilled from the label and the
+      // stored term set, which is the only evidence a v15 row still carries.
+      const sensitiveMarkers = [
+        '抑郁', '焦虑', '自杀', '自残', '癌', '艾滋', '确诊', '疾病', '生病',
+        '住院', '吃药', '药物', '精神', '创伤', '家暴', '虐待', '离婚', '债务',
+        '欠款', '负债', '工资', '薪', '怀孕', '性取向', '性生活', '性侵', '宗教', '政治'
+      ]
+      const backfill = sensitiveMarkers
+        .map((marker) => `instr(lower(label || ' ' || terms_json), '${marker}') > 0`)
+        .join(' OR ')
+      database.exec(`
+        ALTER TABLE interests ADD COLUMN sensitivity TEXT NOT NULL DEFAULT 'normal'
+          CHECK (sensitivity IN ('normal', 'personal', 'sensitive'));
+        UPDATE interests SET sensitivity = 'sensitive' WHERE ${backfill};
+      `)
+    }
+  },
+  {
+    version: 17,
+    name: 'persona-feedback-candidates',
+    up(database) {
+      // Feedback about how Morrow should behave is not a memory and must not be
+      // applied automatically. Candidates are recorded with a short excerpt and
+      // traceable references; the full turn is never copied here.
+      database.exec(`
+        CREATE TABLE persona_feedback_candidates (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          kind TEXT NOT NULL CHECK (kind IN ('interaction_preference', 'tone', 'boundary', 'other')),
+          source TEXT NOT NULL CHECK (source IN ('user_explicit', 'model_inferred')),
+          evidence_hash TEXT NOT NULL CHECK (length(evidence_hash) = 64),
+          evidence_excerpt TEXT NOT NULL CHECK (length(trim(evidence_excerpt)) BETWEEN 1 AND 500 AND instr(evidence_excerpt, char(0)) = 0),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'supported', 'rejected', 'withdrawn', 'applied')),
+          decision_reason TEXT,
+          applied_personality_version INTEGER,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX persona_feedback_evidence_uq ON persona_feedback_candidates(evidence_hash);
+        CREATE INDEX persona_feedback_status_idx ON persona_feedback_candidates(status, created_at DESC);
+
+        CREATE TABLE persona_feedback_evidence (
+          candidate_id TEXT NOT NULL REFERENCES persona_feedback_candidates(id) ON DELETE CASCADE,
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          message_id TEXT,
+          evidence_hash TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (candidate_id, conversation_id, evidence_hash)
+        ) STRICT;
+        CREATE INDEX persona_feedback_evidence_conversation_idx ON persona_feedback_evidence(conversation_id);
+      `)
+    }
+  },
+  {
+    version: 18,
+    name: 'feedback-identity-and-evidence-lifecycle',
+    up(database) {
+      // Identity is (evidence hash, kind): the same sentence can legitimately be
+      // a tone request and a boundary request, and those must not share a row.
+      // Evidence keeps its own source, sensitivity and lifecycle so a merge can
+      // never downgrade protection.
+      database.exec(`
+        DROP INDEX IF EXISTS persona_feedback_evidence_uq;
+        CREATE UNIQUE INDEX persona_feedback_candidate_identity_uq
+          ON persona_feedback_candidates(evidence_hash, kind);
+
+        ALTER TABLE persona_feedback_evidence ADD COLUMN source TEXT NOT NULL DEFAULT 'user_explicit'
+          CHECK (source IN ('user_explicit', 'model_inferred'));
+        ALTER TABLE persona_feedback_evidence ADD COLUMN sensitivity TEXT NOT NULL DEFAULT 'normal'
+          CHECK (sensitivity IN ('normal', 'personal', 'sensitive'));
+        ALTER TABLE persona_feedback_evidence ADD COLUMN status TEXT NOT NULL DEFAULT 'active'
+          CHECK (status IN ('active', 'withdrawn'));
+        ALTER TABLE persona_feedback_evidence ADD COLUMN withdrawn_at TEXT;
+        CREATE INDEX persona_feedback_evidence_status_idx ON persona_feedback_evidence(status);
+
+        CREATE TABLE persona_feedback_applications (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          candidate_id TEXT NOT NULL UNIQUE REFERENCES persona_feedback_candidates(id) ON DELETE CASCADE,
+          status TEXT NOT NULL CHECK (status IN ('applying', 'applied', 'failed', 'needs_review')),
+          base_personality_version INTEGER NOT NULL CHECK (base_personality_version >= 1),
+          applied_personality_version INTEGER,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+      `)
+    }
+  },
+  {
+    version: 19,
+    name: 'deletion-journal-covers-evidence-and-candidates',
+    up(database) {
+      // The journal used to cover only memories and conversations, so restoring
+      // an older backup could resurrect withdrawn feedback evidence and push a
+      // withdrawn candidate back to `supported`. Evidence and candidates need
+      // the same boundary. `entity_id` for evidence is
+      // `candidateId:conversationId:evidenceHash` - identifiers and a hash, no
+      // user text. `operation_id` groups the rows of one deletion request so a
+      // replay can report what it did without keeping content.
+      database.exec(`
+        ALTER TABLE deletion_journal RENAME TO deletion_journal_v18;
+        CREATE TABLE deletion_journal (
+          entity TEXT NOT NULL CHECK (entity IN ('memory', 'conversation', 'message', 'evidence', 'candidate')),
+          entity_id TEXT NOT NULL CHECK (length(entity_id) BETWEEN 1 AND 200),
+          state TEXT NOT NULL CHECK (state IN ('deleted', 'retracted', 'unretracted')),
+          operation_id TEXT CHECK (operation_id IS NULL OR length(operation_id) = 36),
+          recorded_at TEXT NOT NULL,
+          PRIMARY KEY (entity, entity_id)
+        ) STRICT;
+        INSERT INTO deletion_journal(entity, entity_id, state, operation_id, recorded_at)
+          SELECT entity, entity_id, state, NULL, recorded_at FROM deletion_journal_v18;
+        DROP TABLE deletion_journal_v18;
+        CREATE INDEX deletion_journal_operation_idx ON deletion_journal(operation_id);
+      `)
+    }
+  },
+  {
+    version: 20,
+    name: 'third-party-openai-compatible-provider',
+    up(database) {
+      // A user-configured OpenAI-compatible gateway needs its own provider row.
+      // The per-id shape checks are kept rather than relaxed: DeepSeek stays
+      // pinned to its documented base URL and model, the local provider stays
+      // local, and only the new id may carry an arbitrary https base URL.
+      // `timeout_ms` is per provider because a relay is slower than a local
+      // model and must not inherit a local timeout.
+      database.exec(`
+        CREATE TABLE provider_profiles_v20 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (id IN ('deepseek', 'local-openai', 'third-party')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 8 AND 2000),
+          model TEXT NOT NULL CHECK (length(model) BETWEEN 1 AND 200),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          timeout_ms INTEGER NOT NULL DEFAULT 45000 CHECK (timeout_ms BETWEEN 1000 AND 300000),
+          catalog_verified INTEGER NOT NULL DEFAULT 0 CHECK (catalog_verified IN (0, 1)),
+          updated_at TEXT NOT NULL,
+          CHECK (
+            (id = 'deepseek' AND provider_class = 'remote' AND endpoint = 'https://api.deepseek.com' AND model = 'deepseek-flash')
+            OR (id = 'local-openai' AND provider_class = 'local')
+            OR (id = 'third-party' AND provider_class = 'remote')
+          )
+        ) STRICT;
+        INSERT INTO provider_profiles_v20(id, provider_class, endpoint, model, enabled, timeout_ms, catalog_verified, updated_at)
+          SELECT id, provider_class, endpoint, model, enabled, 45000, 0, updated_at FROM provider_profiles;
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v20 RENAME TO provider_profiles;
+      `)
+    }
+  },
+  {
+    version: 21,
+    name: 'explicit-provider-selection',
+    up(database) {
+      // Switching provider must be an explicit act, not an ordering rule.
+      // At most one row may carry `active = 1`; the partial unique index makes
+      // that a database fact instead of an application convention. A fresh
+      // database has no active row, which keeps the previous behaviour
+      // (local when enabled, else DeepSeek) until the user chooses.
+      database.exec(`
+        ALTER TABLE provider_profiles ADD COLUMN active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0, 1));
+        CREATE UNIQUE INDEX provider_profiles_one_active ON provider_profiles(active) WHERE active = 1;
+      `)
+    }
   }
 ]
 
