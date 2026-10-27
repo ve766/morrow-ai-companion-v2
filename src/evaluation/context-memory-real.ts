@@ -336,6 +336,14 @@ async function runCase(
     const checks: RealCaseRecord['checks'] = []
     let attribution: RealCaseRecord['attribution'] = null
     let failureReason: string | null = null
+    // The request is needed both to attribute a failure and to notice that the
+    // reply copied it back, so it is read once for both.
+    let requestText = ''
+    try {
+      requestText = parseProviderRequest(captured.at(-1)?.raw ?? '').messages.map((message) => message.content).join('\n')
+    } catch {
+      requestText = ''
+    }
 
     if (rule) {
       if (finalReply === null) {
@@ -345,13 +353,6 @@ async function runCase(
         checks.push(...applyRealRule(rule, finalReply))
         const failed = checks.filter((check) => !check.passed)
         if (failed.length > 0) {
-          const raw = captured.at(-1)?.raw ?? ''
-          let requestText = ''
-          try {
-            requestText = parseProviderRequest(raw).messages.map((message) => message.content).join('\n')
-          } catch {
-            requestText = ''
-          }
           attribution = attributeFailure(rule, requestText)
           failureReason = failed.map((check) => `${check.rule}: ${check.detail}`).join('; ')
         }
@@ -361,7 +362,7 @@ async function runCase(
     const caseStatus: RealCaseRecord['status'] = rule === null
       ? 'not_checked'
       : finalReply === null ? 'error' : failureReason === null ? 'checked' : 'failed'
-    const decision = decideVerdict(rule, finalReply, checks)
+    const decision = decideVerdict(rule, finalReply, checks, requestText)
 
     return {
       id: testCase.id,

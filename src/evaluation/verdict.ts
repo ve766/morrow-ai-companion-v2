@@ -44,7 +44,36 @@ export interface VerdictDecision {
 
 const noReplyRationale = 'No reply was obtained, so the model was never observed; a provider fault is not a model verdict.'
 
-export function decideVerdict(rule: VerdictRule | null, reply: string | null, checks: RealCheck[]): VerdictDecision {
+/** Longest run of characters that may legitimately coincide with the request. */
+const echoWindow = 40
+
+/**
+ * True when the reply reproduces a long verbatim stretch of the request.
+ *
+ * A 0.5B model does this: one observed `b3` reply was the answer, followed by
+ * several hundred characters of the system prompt copied back, including
+ * "User-controlled communication preferences". A `mustMention` rule found 杭州
+ * in that reply and called it a pass. The reply was not an answer; it was the
+ * request read aloud, and no meaning-based reading is needed to see that.
+ *
+ * The window is deliberately long. Matching a short phrase would fire on
+ * ordinary overlap ("用户住在杭州" appears in both a memory and a good reply);
+ * forty characters of exact agreement does not happen by coincidence.
+ */
+export function echoesRequest(reply: string, requestText: string): boolean {
+  if (requestText.length < echoWindow) return false
+  for (let index = 0; index + echoWindow <= reply.length; index += 1) {
+    if (requestText.includes(reply.slice(index, index + echoWindow))) return true
+  }
+  return false
+}
+
+export function decideVerdict(
+  rule: VerdictRule | null,
+  reply: string | null,
+  checks: RealCheck[],
+  requestText = ''
+): VerdictDecision {
   if (rule === null) {
     return {
       verdict: 'needs_review',
@@ -68,6 +97,14 @@ export function decideVerdict(rule: VerdictRule | null, reply: string | null, ch
           // refer to a superseded or retracted fact while saying so.
           ? 'Mentioning the string is not automatically wrong - a reply may cite a superseded fact while marking it superseded, and this rule cannot tell that apart.'
           : 'A correct paraphrase that avoids the literal string would also fail this rule.'
+    }
+  }
+  const echo = requestText.length > 0 && echoesRequest(reply, requestText)
+  if (echo) {
+    return {
+      verdict: 'uncertain',
+      rationale: 'The reply reproduces a long verbatim stretch of the request, so whatever the rule matched may have come from the request rather than from an answer.',
+      caveat: 'Whether a copied request accidentally satisfies a rule is a reading question; the rule cannot separate the two.'
     }
   }
   const positive = (rule.mustMention ?? []).length > 0

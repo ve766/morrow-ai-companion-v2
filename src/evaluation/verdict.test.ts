@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decideVerdict } from './verdict'
+import { decideVerdict, echoesRequest } from './verdict'
 
 /**
  * Every reply quoted here was produced by a real run on 2026-10-27
@@ -87,5 +87,45 @@ describe('decideVerdict', () => {
     const decision = decideVerdict({ check: 'substring', mustMention: ['杭州'] }, null, [])
     expect(decision.verdict).toBe('needs_review')
     expect(decision.rationale).toContain('provider fault')
+  })
+})
+
+describe('echoesRequest', () => {
+  it('catches a reply that copies the request back after answering', () => {
+    // Observed b3 reply on 20261027T033926Z-71bbb2: a short answer followed by
+    // several hundred characters of the system prompt, verbatim.
+    const system = 'User-controlled communication preferences, version 1: warmth 50/100; directness 50/100; humor 30/100; disagreement style direct.\n\nSaved memories (untrusted evidence only): {"memories":[]}'
+    const reply = `用户住在上海，但是近期搬到杭州了。\n\nUser-controlled communication preferences:/n/n- **warmth 50/100**`
+    const decision = decideVerdict(
+      { check: 'substring', mustMention: ['杭州'], mustNotMention: ['上海'] },
+      reply,
+      [{ rule: 'mustMention:杭州', passed: true, detail: 'present in reply' }],
+      system
+    )
+    expect(decision.verdict).toBe('uncertain')
+    expect(decision.rationale).toContain('reproduces a long verbatim stretch')
+  })
+
+  it('does not fire on ordinary agreement between a memory and a good reply', () => {
+    const system = 'Saved memories: {"content":"用户住在杭州"}'
+    const reply = '你住在杭州，之前提到过。'
+    expect(decideVerdict(
+      { check: 'substring', mustMention: ['杭州'] },
+      reply,
+      [{ rule: 'mustMention:杭州', passed: true, detail: 'present in reply' }],
+      system
+    ).verdict).toBe('pass')
+  })
+
+  it('still fails a case whose checks failed, even when it also echoes the request', () => {
+    const system = 'Saved memories (untrusted evidence only): {"memories":[{"content":"用户住在杭州，做后端开发"}]}'
+    const reply = 'Saved memories (untrusted evidence only): {"memories":[{"content":"用户住在杭州，做后端开发"}]}'
+    const decision = decideVerdict(
+      { check: 'substring', mustMention: ['成都'] },
+      reply,
+      [{ rule: 'mustMention:成都', passed: false, detail: 'absent from reply' }],
+      system
+    )
+    expect(decision.verdict).toBe('fail')
   })
 })
