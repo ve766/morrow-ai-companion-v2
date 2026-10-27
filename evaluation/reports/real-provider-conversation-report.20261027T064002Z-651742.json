@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 3,
+  "evidenceClass": "real_provider",
+  "generatedAt": "2026-10-27T06:40:02.379Z",
+  "reproduction": {
+    "runId": "20261027T064002Z-651742",
+    "codeCommit": "3fa6a40dc58ae239c2bc09b78bb85c1e563f07c2",
+    "codeState": "clean",
+    "sampling": "provider-default"
+  },
+  "status": "failed",
+  "blockedReason": null,
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "reachable": true
+  },
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32-x64"
+  },
+  "turns": [
+    {
+      "id": "turn-1",
+      "conversation": "a",
+      "content": "我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
+      "requestSha256": "d5233db0432bfa568ffbcbe2adcdcad4824722e029a7239cb6a9f86c1060a2ea",
+      "requestBytes": 1695,
+      "messageRoles": [
+        "system",
+        "user"
+      ],
+      "messageContents": [
+        "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
+        "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）"
+      ],
+      "historyCheck": {
+        "passed": true,
+        "failures": [],
+        "detail": "messages=2 retainedExpected=0 droppedAllowed=0"
+      },
+      "isolationCheck": null,
+      "responseText": "好的，下面是针对当前对话的用户控制策略：\n\n1. 用户名（unauthorized access）: \"林一\"\n\n2. 家庭地址（non-invasive information): \"杭州\"\n\n3. 工作职位（非私密资料): \"\"\n\n4. 语言与文化的适应性偏好 (adaptable language policies):\n    - 寒暖度: 60/100\n    - 较直接性 (directness) : 70/100\n\n5. 品种幽默感 (bubbles): 15/100\n\n6. 与对方讨论时的风格一致性 (converse style balance): 100/100\n\n这些选项允许用户自由表达自己，以达到尽可能舒适的交流环境。",
+      "storedUserMessages": 1,
+      "storedAssistantMessages": 1,
+      "elapsedMs": 1354,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    },
+    {
+      "id": "turn-2",
+      "conversation": "a",
+      "content": "我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）",
+      "requestSha256": "20c66739f7ea4f6dfc3b43a539dd0a4be0196a90dedaf8c9c1fcd3c122654ba5",
+      "requestBytes": 2379,
+      "messageRoles": [
+        "system",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "messageContents": [
+        "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
+        "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
+        "assistant: 好的，下面是针对当前对话的用户控制策略：\n\n1. 用户名（unauthorized access）: \"林一\"\n\n2. 家庭地址（non-invasive information): \"杭州\"\n\n3. 工作职位（非私密资料): \"\"\n\n4. 语言与文化的适应性偏好 (adaptable language policie…",
+        "user: 我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）"
+      ],
+      "historyCheck": {
+        "passed": true,
+        "failures": [],
+        "detail": "messages=4 retainedExpected=2 droppedAllowed=0"
+      },
+      "isolationCheck": null,
+      "responseText": "",
+      "storedUserMessages": 2,
+      "storedAssistantMessages": 1,
+      "elapsedMs": 734,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": "PROVIDER_RESPONSE"
+    },
+    {
+      "id": "turn-3",
+      "conversation": "a",
+      "content": "你还记得我叫什么、住在哪里、做什么工作吗？",
+      "requestSha256": "85bc23a217a4fdbbdf8be0d4277f487bf3579fda9ee39b892b4ff22d772d00de",
+      "requestBytes": 2471,
+      "messageRoles": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user"
+      ],
+      "messageContents": [
+        "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
+        "user: 我叫林一，住在杭州，做后端开发。（记录编号 SENTINEL-A7F3）",
+        "assistant: 好的，下面是针对当前对话的用户控制策略：\n\n1. 用户名（unauthorized access）: \"林一\"\n\n2. 家庭地址（non-invasive information): \"杭州\"\n\n3. 工作职位（非私密资料): \"\"\n\n4. 语言与文化的适应性偏好 (adaptable language policie…",
+        "user: 我平时喝手冲咖啡。（记录编号 SENTINEL-B8E1）",
+        "user: 你还记得我叫什么、住在哪里、做什么工作吗？"
+      ],
+      "historyCheck": {
+        "passed": true,
+        "failures": [],
+        "detail": "messages=5 retainedExpected=3 droppedAllowed=0"
+      },
+      "isolationCheck": null,
+      "responseText": "好的，下面是针对当前对话的用户控制策略：\n\n1. 用户名（unauthorized access）: \"林一\"\n\n2. 家庭地址（non-invasive information): \"\"\n\n3. 语言与文化的适应性偏好 (adaptable language policies):\n    - 寒暖度: 50/100\n\n4. 品种幽默感 (bubbles): 75/100\n5. 与对方讨论时的风格一致性 (converse style balance): 93/100\n\n请随时告诉我有什么我能帮助你的。",
+      "storedUserMessages": 3,
+      "storedAssistantMessages": 2,
+      "elapsedMs": 1053,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    },
+    {
+      "id": "turn-4",
+      "conversation": "b",
+      "content": "我住在哪里？",
+      "requestSha256": "72be1eb43f98545557872f7e172a932985e2af3905a34c75e7de19d0b317ba6c",
+      "requestBytes": 2007,
+      "messageRoles": [
+        "system",
+        "user"
+      ],
+      "messageContents": [
+        "system: User-controlled communication preferences, version 2: warmth 60/100; directness 70/100; humor 15/100; disagreement style balanced.\n\nAdditional style preferences…",
+        "user: 我住在哪里？"
+      ],
+      "historyCheck": null,
+      "isolationCheck": {
+        "passed": true,
+        "failures": [],
+        "detail": "nonSystemMessages=1 foreignUser=3 foreignAssistant=2 memoryPresent=true"
+      },
+      "responseText": "你住在北京。",
+      "storedUserMessages": 1,
+      "storedAssistantMessages": 1,
+      "elapsedMs": 424,
+      "modelRequested": "qwen2.5:0.5b",
+      "errorCode": null
+    }
+  ],
+  "failureScenarios": [
+    {
+      "id": "cancel",
+      "description": "The user cancels after the server started streaming a reply",
+      "executedAgainst": "real_socket",
+      "attempted": true,
+      "userMessage": "请讲一个很长的故事。",
+      "turnId": "9a43aa93-d4d0-4eac-b5fc-04db62db1415",
+      "errorCode": "PROVIDER_CANCELLED",
+      "storedUserMessages": 1,
+      "storedAssistantMessages": 0,
+      "passed": true,
+      "failures": [],
+      "detail": "turn=9a43aa93 userStored=1 assistantStored=0",
+      "note": "Real socket: the first delta arrived, the caller aborted mid-stream, and the partial text was not persisted as a reply."
+    },
+    {
+      "id": "server-rejected-model",
+      "description": "The endpoint answers with a real error status for an unknown model id",
+      "executedAgainst": "real_socket",
+      "attempted": true,
+      "userMessage": "你好。",
+      "turnId": "13e0bb1e-cc60-4a45-9ecd-21ea690196f6",
+      "errorCode": "PROVIDER_MODEL",
+      "storedUserMessages": 1,
+      "storedAssistantMessages": 0,
+      "passed": true,
+      "failures": [],
+      "detail": "turn=13e0bb1e userStored=1 assistantStored=0",
+      "note": "Real socket: the local server returned a non-2xx response and the client mapped it."
+    },
+    {
+      "id": "endpoint-unreachable",
+      "description": "No listener answers on the configured loopback port",
+      "executedAgainst": "real_socket",
+      "attempted": true,
+      "userMessage": "你好。",
+      "turnId": "f10d34be-320f-466d-a4c1-df73e0be602f",
+      "errorCode": "PROVIDER_NETWORK",
+      "storedUserMessages": 1,
+      "storedAssistantMessages": 0,
+      "passed": true,
+      "failures": [],
+      "detail": "turn=f10d34be userStored=1 assistantStored=0",
+      "note": "Real socket: the connection failed outright (refused, or a gateway error when a local proxy intercepts it) and no reply was invented."
+    },
+    {
+      "id": "auth-rejected",
+      "description": "A 401/403 from the provider",
+      "executedAgainst": "not_exercised",
+      "attempted": false,
+      "userMessage": "",
+      "turnId": "",
+      "errorCode": null,
+      "storedUserMessages": 0,
+      "storedAssistantMessages": 0,
+      "passed": false,
+      "failures": [],
+      "detail": "not exercised against a real socket",
+      "note": "Cannot be provoked with a working local Ollama. Covered offline by the fail-auth case in companion-core-v1."
+    },
+    {
+      "id": "timeout",
+      "description": "The provider exceeds the client timeout",
+      "executedAgainst": "not_exercised",
+      "attempted": false,
+      "userMessage": "",
+      "turnId": "",
+      "errorCode": null,
+      "storedUserMessages": 0,
+      "storedAssistantMessages": 0,
+      "passed": false,
+      "failures": [],
+      "detail": "not exercised against a real socket",
+      "note": "Cannot be provoked with a working local Ollama. Covered offline by the fail-timeout case in companion-core-v1."
+    }
+  ],
+  "checks": [
+    {
+      "id": "provider-reachable",
+      "description": "The configured OpenAI-compatible endpoint answered on /models",
+      "passed": true,
+      "detail": "nomic-embed-text:latest, qwen2.5:0.5b",
+      "failures": []
+    },
+    {
+      "id": "first-turn-answered",
+      "description": "A real HTTP call returned a non-empty assistant reply, read back from the store",
+      "passed": true,
+      "detail": "turn-1 storedAssistant=1",
+      "failures": []
+    },
+    {
+      "id": "multi-turn-history-complete",
+      "description": "Every turn carried exactly the history the bound retains, in order, with correct roles and contents",
+      "passed": true,
+      "detail": "turn-1:system|user turn-2:system|user|assistant|user turn-3:system|user|assistant|user|user",
+      "failures": []
+    },
+    {
+      "id": "conversation-isolated",
+      "description": "The new conversation request carries the memory and no message from the earlier conversation",
+      "passed": true,
+      "detail": "nonSystemMessages=1 foreignUser=3 foreignAssistant=2 memoryPresent=true",
+      "failures": []
+    },
+    {
+      "id": "memory-reaches-real-model",
+      "description": "A memory saved before the new conversation appears inside the system message the server received",
+      "passed": true,
+      "detail": "memoryInSystemPrompt=true",
+      "failures": []
+    },
+    {
+      "id": "personality-in-request",
+      "description": "The stored personality version and values are present in every request of the main phase",
+      "passed": true,
+      "detail": "requestsChecked=4 allCarryPersonality=true",
+      "failures": []
+    },
+    {
+      "id": "configured-model-used",
+      "description": "Every main-phase request body declared the configured model id",
+      "passed": true,
+      "detail": "requestsChecked=4 declared=qwen2.5:0.5b configured=qwen2.5:0.5b",
+      "failures": []
+    },
+    {
+      "id": "no-credential-in-body",
+      "description": "No credential or authorization header value appears in any request body",
+      "passed": true,
+      "detail": "requests=7",
+      "failures": []
+    },
+    {
+      "id": "no-fabricated-reply-on-failure",
+      "description": "For every failure that was actually provoked against a real socket, SQLite holds the user turn and no assistant turn",
+      "passed": true,
+      "detail": "executed=3 failed=0 modes=cancel,server-rejected-model,endpoint-unreachable",
+      "failures": []
+    }
+  ],
+  "observations": [
+    {
+      "id": "recall-of-name-and-city",
+      "note": "turn-3 reply mentions 林一=true, 杭州=false, 后端=false. A 0.5B local model frequently fails this. The gating check above only proves the context was delivered, not that the model used it."
+    },
+    {
+      "id": "cross-conversation-answer",
+      "note": "turn-4 reply mentions 杭州=false. The memory was delivered to the model; whether the model used it is a model-capability observation, not a system guarantee."
+    }
+  ],
+  "quality": {
+    "assessed": false,
+    "note": "No quality verdict is produced. A 0.5B local model is not evidence about reply quality, personality expression, or real-user usefulness in either direction. The observations above are model-capability notes, never gated."
+  },
+  "summary": {
+    "turnsRequested": 4,
+    "turnsCompleted": 3,
+    "turnsFailed": 1,
+    "failureScenariosExecuted": 3
+  }
+}
