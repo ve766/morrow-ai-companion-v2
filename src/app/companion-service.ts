@@ -628,6 +628,8 @@ export class CompanionService {
   readonly chat: ChatService
   readonly memorySuggestions: MemorySuggestionService
   private readonly feedback: FeedbackCandidateService | undefined
+  private readonly database: SqliteDatabase
+  private readonly memories: MemoryService | undefined
 
   constructor(options: {
     database: SqliteDatabase
@@ -642,6 +644,8 @@ export class CompanionService {
     feedback?: FeedbackCandidateService
   }) {
     this.feedback = options.feedback
+    this.database = options.database
+    this.memories = options.memories
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
     this.providers = new ProviderConfigService(options.database, options.secrets, options.authorize, clock, options.providerFactory)
@@ -702,14 +706,46 @@ export class CompanionService {
   listConversations(): ConversationRecord[] { return this.chat.listConversations() }
   readConversation(request: { conversationId: string }): ReturnType<ConversationService['read']> { return this.chat.readConversation(request.conversationId) }
   deleteConversation(request: { conversationId: string }): void {
-    // Withdraw first: if the delete fails, a candidate is gone rather than
-    // left pointing at a conversation the user asked to remove.
-    try {
+    // One transaction: withdrawing the evidence and deleting the conversation
+    // either both happen or neither does. Swallowing a withdrawal failure would
+    // leave active evidence pointing at a conversation the user removed.
+    this.database.transaction(() => {
       this.feedback?.withdrawForConversation(request.conversationId, 'conversation_deleted')
-    } catch {
-      // Candidate bookkeeping must not block the user's delete.
+      this.chat.deleteConversation(request.conversationId)
+    })
+  }
+
+  /**
+   * Message-level deletion. Evidence that cites the message is withdrawn, any
+   * memory accepted from that message's suggestion is retracted, and only then
+   * is the row removed — all in one transaction. The memory retraction matters
+   * because an accepted memory restates the deleted message; leaving it active
+   * would keep the removed content readable through a derived record.
+   */
+  deleteMessage(request: { conversationId: string; messageId: string }): { evidenceWithdrawn: number; memoriesRetracted: string[] } {
+    return this.database.transaction(() => {
+      const withdrawn = this.feedback?.withdrawEvidenceForMessage(request.messageId, 'message_deleted') ?? 0
+      const memoriesRetracted = this.retractMemoriesFromMessage(request.messageId)
+      if (!this.chat.deleteMessage(request.conversationId, request.messageId)) throw new ApplicationError('NOT_FOUND')
+      return { evidenceWithdrawn: withdrawn, memoriesRetracted }
+    })
+  }
+
+  private retractMemoriesFromMessage(messageId: string): string[] {
+    if (!this.memories) return []
+    const rows = this.database.connection.prepare(`
+      SELECT DISTINCT accepted_memory_id AS memoryId FROM memory_suggestions
+      WHERE source_message_id = ? AND accepted_memory_id IS NOT NULL
+    `).all(messageId) as unknown as Array<{ memoryId: string }>
+    const retracted: string[] = []
+    for (const row of rows) {
+      const current = this.database.connection.prepare('SELECT status FROM memories WHERE id = ?')
+        .get(row.memoryId) as unknown as { status: string } | undefined
+      if (current?.status !== 'active') continue
+      this.memories.retract(row.memoryId, 'message_deleted')
+      retracted.push(row.memoryId)
     }
-    this.chat.deleteConversation(request.conversationId)
+    return retracted
   }
   getPersonality(): PersonalityProfile { return this.personality.get() }
   savePersonality(request: PersonalityInput): PersonalityProfile { return this.personality.save(request) }
@@ -772,6 +808,7 @@ export class ChatService {
   listConversations(): ConversationRecord[] { return this.conversations.list(maxRecentConversations) }
   readConversation(id: string): ReturnType<ConversationService['read']> { return this.conversations.read(id) }
   deleteConversation(id: string): void { this.cancel(id); this.conversations.delete(id) }
+  deleteMessage(conversationId: string, messageId: string): boolean { return this.conversations.deleteMessage(conversationId, messageId) }
 
   cancel(conversationId: string): boolean {
     const id = normalizedUuid(conversationId)

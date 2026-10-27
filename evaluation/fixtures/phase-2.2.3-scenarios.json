@@ -20,7 +20,12 @@
       "realModel": {
         "check": "substring",
         "mustMention": ["杭州", "上海"],
-        "note": "Both values must appear; the rule cannot tell whether the reply called them a conflict."
+        "note": "Both values must appear; the rule cannot tell whether the reply called them a conflict.",
+        "judge": {
+          "conflicting": ["杭州", "上海"],
+          "expectsAnswer": true,
+          "acceptable": ["杭州", "上海"]
+        }
       }
     },
     {
@@ -44,7 +49,12 @@
         "check": "substring",
         "mustMention": ["杭州"],
         "mustNotMention": ["上海"],
-        "note": "The corrected value must appear and the replaced value must not be presented as current."
+        "note": "The corrected value must appear and the replaced value must not be presented as current.",
+        "judge": {
+          "current": ["杭州"],
+          "superseded": ["上海"],
+          "expectsAnswer": true
+        }
       }
     },
     {
@@ -68,6 +78,11 @@
         "check": "substring",
         "mustNotMention": ["南京"],
         "note": "Absence-only rule: satisfying it is reported as uncertain, never pass."
+,
+        "judge": {
+          "retracted": ["南京"],
+          "expectsAnswer": true
+        }
       }
     }
   ]

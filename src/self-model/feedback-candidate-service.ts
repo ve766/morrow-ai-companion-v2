@@ -258,64 +258,85 @@ export class FeedbackCandidateService {
   }
 
   /**
-   * Applies an approved candidate at most once. A unique application row is the
-   * lock: two concurrent calls cannot both insert it, and an interrupted
-   * `applying` row blocks a retry until `recoverInterruptedApplications` has
-   * marked it for review. The personality save happens between two separate
-   * transactions, so this is not a single atomic commit; the window and its
-   * recovery are documented rather than described as "atomic".
+   * Applies an approved candidate at most once, inside one transaction.
+   *
+   * The personality row, the candidate status and the application record live in
+   * the same SQLite database on the same connection, so the application record,
+   * the personality write and the status update commit together. If anything
+   * throws, the personality write is rolled back and only a `failed` record is
+   * kept as an audit trail — the candidate stays supported, which is the
+   * `not_applied` state.
+   *
+   * `baseVersion` is re-checked at write time by requiring the saved version to
+   * be exactly `baseVersion + 1`, so a caller that saw an old version cannot
+   * silently overwrite an intervening edit or rollback.
    */
-  apply(id: string, options: { includeSensitive: boolean; baseVersion: number; currentVersion: number; apply: (candidate: FeedbackCandidate) => number }): FeedbackCandidate {
+  apply(id: string, options: { includeSensitive: boolean; baseVersion: number; currentVersion?: number; apply: (candidate: FeedbackCandidate) => number }): FeedbackCandidate {
     const candidate = this.get(id)
     if (!candidate) throw new ApplicationError('NOT_FOUND')
     if (candidate.status !== 'pending' && candidate.status !== 'supported') throw new ApplicationError('CONFLICT')
     if (candidate.sensitivity === 'sensitive' && !options.includeSensitive) throw new ApplicationError('FORBIDDEN')
     if (!Number.isSafeInteger(options.baseVersion) || options.baseVersion < 1) throw new ApplicationError('INVALID_INPUT')
-    // Writing on top of a version the caller did not see would silently discard
-    // an intervening edit or rollback.
-    if (options.baseVersion !== options.currentVersion) throw new ApplicationError('CONFLICT')
-    if (this.applicationFor(id)) throw new ApplicationError('CONFLICT')
+    if (options.currentVersion !== undefined && options.baseVersion !== options.currentVersion) throw new ApplicationError('CONFLICT')
 
     const applicationId = this.makeId().toLowerCase()
-    const now = this.timestamp()
     try {
-      this.database.connection.prepare(`
-        INSERT INTO persona_feedback_applications(id, candidate_id, status, base_personality_version, applied_personality_version, created_at, updated_at)
-        VALUES (?, ?, 'applying', ?, NULL, ?, ?)
-      `).run(applicationId, id, options.baseVersion, now, now)
-    } catch {
-      throw new ApplicationError('CONFLICT')
-    }
+      return this.database.transaction(() => {
+        // Re-read inside the transaction: a concurrent caller may have applied or
+        // withdrawn the candidate between the preflight check and this point.
+        const current = this.get(id)
+        if (!current) throw new ApplicationError('NOT_FOUND')
+        if (current.status !== 'pending' && current.status !== 'supported') throw new ApplicationError('CONFLICT')
+        if (current.sensitivity === 'sensitive' && !options.includeSensitive) throw new ApplicationError('FORBIDDEN')
+        if (this.applicationFor(id)) throw new ApplicationError('CONFLICT')
+        const now = this.timestamp()
+        this.database.connection.prepare(`
+          INSERT INTO persona_feedback_applications(id, candidate_id, status, base_personality_version, applied_personality_version, created_at, updated_at)
+          VALUES (?, ?, 'applying', ?, NULL, ?, ?)
+        `).run(applicationId, id, options.baseVersion, now, now)
 
-    let version: number
-    try {
-      version = options.apply(candidate)
+        const version = options.apply(current)
+        if (!Number.isSafeInteger(version) || version < 1) throw new ApplicationError('STORAGE_ERROR')
+        if (version !== options.baseVersion + 1) throw new ApplicationError('CONFLICT')
+
+        const appliedAt = this.timestamp()
+        this.database.connection.prepare(`
+          UPDATE persona_feedback_applications
+          SET status = 'applied', applied_personality_version = ?, updated_at = ? WHERE id = ?
+        `).run(version, appliedAt, applicationId)
+        this.database.connection.prepare(`
+          UPDATE persona_feedback_candidates
+          SET status = 'applied', applied_personality_version = ?, decision_reason = ?, updated_at = ?
+          WHERE id = ?
+        `).run(version, 'approved by explicit caller', appliedAt, id)
+        return this.get(id)!
+      })
     } catch (error) {
-      this.database.connection.prepare(`
-        UPDATE persona_feedback_applications SET status = 'failed', updated_at = ? WHERE id = ?
-      `).run(this.timestamp(), applicationId)
+      this.recordFailedApplication(applicationId, id, options.baseVersion, error)
       throw error
     }
-    if (!Number.isSafeInteger(version) || version < 1) {
-      this.database.connection.prepare(`
-        UPDATE persona_feedback_applications SET status = 'failed', updated_at = ? WHERE id = ?
-      `).run(this.timestamp(), applicationId)
-      throw new ApplicationError('STORAGE_ERROR')
-    }
+  }
 
-    const appliedAt = this.timestamp()
-    this.database.transaction(() => {
+  /** Best effort: the failure record must never mask the original error. */
+  private recordFailedApplication(applicationId: string, candidateId: string, baseVersion: number, error: unknown): void {
+    try {
+      // An existing row means an earlier attempt (possibly a crashed `applying`
+      // one) owns the audit trail; overwriting it would hide the unknown result.
+      const existing = this.database.connection.prepare('SELECT id FROM persona_feedback_applications WHERE candidate_id = ?')
+        .get(candidateId)
+      if (existing) return
+      const now = this.timestamp()
+      const detail = error instanceof Error ? error.message.slice(0, 200) : 'unknown error'
       this.database.connection.prepare(`
-        UPDATE persona_feedback_applications
-        SET status = 'applied', applied_personality_version = ?, updated_at = ? WHERE id = ?
-      `).run(version, appliedAt, applicationId)
+        INSERT INTO persona_feedback_applications(id, candidate_id, status, base_personality_version, applied_personality_version, created_at, updated_at)
+        VALUES (?, ?, 'failed', ?, NULL, ?, ?)
+      `).run(applicationId, candidateId, baseVersion, now, now)
       this.database.connection.prepare(`
-        UPDATE persona_feedback_candidates
-        SET status = 'applied', applied_personality_version = ?, decision_reason = ?, updated_at = ?
-        WHERE id = ?
-      `).run(version, 'approved by explicit caller', appliedAt, id)
-    })
-    return this.get(id)!
+        UPDATE persona_feedback_candidates SET decision_reason = ?, updated_at = ? WHERE id = ? AND status IN ('pending', 'supported')
+      `).run(`application failed: ${detail}`, now, candidateId)
+    } catch {
+      // Losing the audit row is acceptable; losing the caller's error is not.
+    }
   }
 
   applicationFor(candidateId: string): FeedbackApplication | null {

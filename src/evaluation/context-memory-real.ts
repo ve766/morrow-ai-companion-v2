@@ -16,6 +16,7 @@ import { EvaluationSecretStore } from './evaluation-secret-store'
 import { buildReproduction, type RealRunReproduction } from './run-identity'
 import { parseProviderRequest } from './request-assertions'
 import { decideVerdict, type RealVerdict } from './verdict'
+import { judgeReply, type JudgeResult } from './semantic-judgement'
 import {
   parseDeliveredMemories,
   type ContextMemoryCase,
@@ -97,6 +98,12 @@ export interface RealCaseRecord {
   /** Where a failure belongs: delivery or model. Null when nothing failed. */
   attribution: 'not_delivered' | 'delivered_but_not_used' | 'rule_not_satisfied' | null
   failureReason: string | null
+  /**
+   * Per-dimension reading of the reply. Present only when the fixture declares
+   * `judge`; a dimension that could not be read stays `uncertain` and is never
+   * folded into a pass.
+   */
+  judgement?: JudgeResult
 }
 
 export interface ContextMemoryRealReport {
@@ -362,7 +369,19 @@ async function runCase(
     const caseStatus: RealCaseRecord['status'] = rule === null
       ? 'not_checked'
       : finalReply === null ? 'error' : failureReason === null ? 'checked' : 'failed'
-    const decision = decideVerdict(rule, finalReply, checks, requestText)
+    const baseDecision = decideVerdict(rule, finalReply, checks, requestText)
+    // The judge only speaks when the fixture declares dimensions. It may turn a
+    // substring pass into a fail or an uncertain, never the other way round.
+    const judgement = rule?.judge && finalReply !== null
+      ? judgeReply({ reply: finalReply, ...rule.judge })
+      : undefined
+    const decision = judgement === undefined
+      ? baseDecision
+      : judgement.verdict === 'fail'
+        ? { verdict: 'fail' as const, rationale: judgement.rationale, caveat: 'Rule-based dimensions only; a correct paraphrase this judge cannot read would also fail.' }
+        : judgement.verdict === 'pass' && baseDecision.verdict === 'pass'
+          ? { verdict: 'pass' as const, rationale: judgement.rationale, caveat: baseDecision.caveat }
+          : { verdict: 'uncertain' as const, rationale: judgement.rationale, caveat: 'The dimensions could not all be read, so this is not counted as a pass.' }
 
     return {
       id: testCase.id,
@@ -376,7 +395,8 @@ async function runCase(
       turns,
       checks,
       attribution,
-      failureReason
+      failureReason,
+      ...(judgement ? { judgement } : {})
     }
   } finally {
     database.close()

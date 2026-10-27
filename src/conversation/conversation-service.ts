@@ -95,6 +95,10 @@ export class ConversationService {
     if (!this.repository.delete(identifier(conversationId))) throw new ApplicationError('NOT_FOUND')
   }
 
+  deleteMessage(conversationId: string, messageId: string): boolean {
+    return this.repository.deleteMessage(identifier(conversationId), identifier(messageId))
+  }
+
   private now(): string {
     return timestamp(this.clock())
   }

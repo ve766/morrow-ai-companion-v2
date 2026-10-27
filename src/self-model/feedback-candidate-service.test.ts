@@ -354,3 +354,148 @@ describe('application is at most once and recoverable', () => {
     expect(feedback.applicationFor(candidate!.id)?.status).toBe('needs_review')
   })
 })
+
+describe('deletion is transactional across evidence, memory and the conversation row', () => {
+  function setupCompanion(feedback?: FeedbackCandidateService) {
+    const database = SqliteDatabase.open(':memory:')
+    const memories = new MemoryService(new SqliteMemoryRepository(database), clock)
+    const conversations = new ConversationService(new SqliteConversationRepository(database))
+    const companion = new CompanionService({
+      database,
+      memories,
+      conversations,
+      secrets: new MemorySecretStore(),
+      authorize: async () => undefined,
+      clock,
+      feedback: feedback ?? new FeedbackCandidateService(database, clock)
+    })
+    return { database, memories, conversations, companion }
+  }
+
+  it('does not delete the conversation when evidence withdrawal fails', () => {
+    const failing = {
+      withdrawForConversation: () => { throw new Error('withdrawal failed') }
+    } as unknown as FeedbackCandidateService
+    const { companion } = setupCompanion(failing)
+    const conversation = companion.createConversation()
+    expect(() => companion.deleteConversation({ conversationId: conversation.id })).toThrow('withdrawal failed')
+    // The user's delete must not be reported as done while evidence stays active.
+    expect(companion.listConversations().some((record) => record.id === conversation.id)).toBe(true)
+  })
+
+  it('deleting a message withdraws only that message evidence and recomputes support', () => {
+    const { database, conversations, companion } = setupCompanion()
+    const feedback = new FeedbackCandidateService(database, clock)
+    const conversation = companion.createConversation()
+    const firstMessage = conversations.appendMessage(conversation.id, 'user', '请简短一点。', 'cccccccc-cccc-4ccc-8ccc-cccccccccc01').messages[0]!.id
+    const secondMessage = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2'
+    for (const [conversationId, messageId] of [[conversation.id, firstMessage], [conversationB, secondMessage]] as const) {
+      feedback.record({
+        kind: 'tone',
+        source: 'user_explicit',
+        conversationId,
+        messageId,
+        claim: '请简短一点。',
+        confidence: 70,
+        sensitivity: 'normal'
+      })
+    }
+    const [candidate] = feedback.list()
+    expect(candidate?.status).toBe('supported')
+
+    companion.deleteMessage({ conversationId: conversation.id, messageId: firstMessage })
+
+    const evidence = database.connection.prepare(
+      'SELECT message_id, status FROM persona_feedback_evidence WHERE candidate_id = ? ORDER BY message_id'
+    ).all(candidate!.id) as Array<{ message_id: string; status: string }>
+    expect(evidence.find((row) => row.message_id === firstMessage)?.status).toBe('withdrawn')
+    expect(evidence.find((row) => row.message_id === secondMessage)?.status).toBe('active')
+    // One remaining independent conversation is no longer enough to be supported.
+    expect(feedback.get(candidate!.id)?.status).toBe('pending')
+    expect(feedback.get(candidate!.id)?.distinctConversations).toBe(1)
+    // The message row itself is gone.
+    const remaining = database.connection.prepare('SELECT COUNT(*) AS count FROM messages WHERE id = ?').get(firstMessage)
+    expect(Number(remaining?.count)).toBe(0)
+  })
+
+  it('retracts a memory accepted from a deleted message so it leaves the context', () => {
+    const { database, memories, conversations, companion } = setupCompanion()
+    const conversation = companion.createConversation()
+    const message = conversations.appendMessage(conversation.id, 'user', '我对花生过敏。', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1').messages[0]!
+    const memory = memories.create('用户对花生过敏。', 'sensitive')
+    database.connection.prepare(`
+      INSERT INTO memory_suggestions(id, conversation_id, source_message_id, claim, sensitivity, status, provider_model, evidence_hash, created_at, reviewed_at, accepted_memory_id, accepted_content)
+      VALUES (?, ?, ?, ?, 'sensitive', 'accepted', 'test', ?, ?, ?, ?, ?)
+    `).run('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', conversation.id, message.id, '用户对花生过敏。', 'a'.repeat(64), clock(), clock(), memory.id, '用户对花生过敏。')
+
+    expect(memories.assembleContext("花生", "sensitive").text).toContain('花生')
+    companion.deleteMessage({ conversationId: conversation.id, messageId: message.id })
+
+    const row = database.connection.prepare('SELECT status FROM memories WHERE id = ?').get(memory.id)
+    expect(row?.status).toBe('retracted')
+    expect(memories.assembleContext("花生", "sensitive").text).not.toContain('花生')
+  })
+})
+
+describe('persona application commits as one unit', () => {
+  it('rolls the personality back when the save succeeds but the request then fails', () => {
+    const { feedback, personality } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    const before = personality.get()
+    expect(() => feedback.apply(candidate!.id, {
+      includeSensitive: true,
+      baseVersion: before.version,
+      currentVersion: before.version,
+      apply: () => {
+        personality.save({ ...before, warmth: Math.min(100, before.warmth + 10) })
+        throw new Error('crash after save')
+      }
+    })).toThrow('crash after save')
+    // The save happened inside the transaction, so it must be gone.
+    expect(personality.get().version).toBe(before.version)
+    expect(personality.get().warmth).toBe(before.warmth)
+    expect(feedback.get(candidate!.id)?.status).toBe('supported')
+    expect(feedback.applicationFor(candidate!.id)?.status).toBe('failed')
+  })
+
+  it('rejects a write that did not land on the declared base version', () => {
+    const { feedback, personality } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    const before = personality.get()
+    expect(() => feedback.apply(candidate!.id, {
+      includeSensitive: true,
+      baseVersion: before.version,
+      currentVersion: before.version,
+      apply: () => {
+        personality.save({ ...before, warmth: 50 })
+        return personality.save({ ...personality.get(), warmth: 55 }).version
+      }
+    })).toThrowError(expect.objectContaining({ code: 'CONFLICT' }))
+    expect(personality.get().version).toBe(before.version)
+    expect(feedback.get(candidate!.id)?.status).toBe('supported')
+  })
+
+  it('keeps the applied version, the candidate and the record mutually consistent', () => {
+    const { feedback, personality } = setup()
+    record(feedback, conversationA)
+    record(feedback, conversationB)
+    const [candidate] = feedback.list()
+    const before = personality.get()
+    const applied = feedback.apply(candidate!.id, {
+      includeSensitive: true,
+      baseVersion: before.version,
+      currentVersion: before.version,
+      apply: () => personality.save({ ...before, warmth: Math.min(100, before.warmth + 5) }).version
+    })
+    const recordAfter = feedback.applicationFor(candidate!.id)
+    expect(applied.status).toBe('applied')
+    expect(applied.appliedPersonalityVersion).toBe(personality.get().version)
+    expect(recordAfter?.status).toBe('applied')
+    expect(recordAfter?.appliedPersonalityVersion).toBe(personality.get().version)
+    expect(personality.history().some((revision) => revision.version === applied.appliedPersonalityVersion)).toBe(true)
+  })
+})

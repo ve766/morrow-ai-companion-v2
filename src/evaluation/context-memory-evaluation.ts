@@ -159,6 +159,18 @@ export interface ContextMemoryCase {
     mustMention?: string[]
     mustNotMention?: string[]
     note?: string
+    /**
+     * Structured semantic dimensions for replies a substring rule cannot read.
+     * When present the judge decides the verdict and the substring checks are
+     * kept only as supporting evidence.
+     */
+    judge?: {
+      current?: string[]
+      superseded?: string[]
+      retracted?: string[]
+      conflicting?: string[]
+      expectsAnswer?: boolean
+    }
   } | null
 }
 
@@ -612,7 +624,8 @@ const EXPECT_KEYS = [
 ] as const
 const MATCH_KEYS = ['contentContains', 'match', 'stale'] as const
 const AFTER_KEYS = ['personalityVersionStable', 'activeMemoryCount', 'storedAssistantCount', 'storedUserCount'] as const
-const REAL_KEYS = ['check', 'mustMention', 'mustNotMention', 'note'] as const
+const REAL_KEYS = ['check', 'mustMention', 'mustNotMention', 'note', 'judge'] as const
+const JUDGE_KEYS = ['current', 'superseded', 'retracted', 'conflicting', 'acceptable', 'expectsAnswer'] as const
 const REAL_CHECKS = ['substring', 'clarifying_question'] as const
 const MATCH_VALUES = ['topic', 'context', 'continuity'] as const
 
@@ -740,6 +753,25 @@ function validateCase(candidate: Record<string, unknown>, seen: Set<string>): Co
     requireStrings(spec.mustNotMention, `${candidate.id}:realModel:mustNotMention`)
     if (spec.check === 'substring' && (spec.mustMention === undefined) && (spec.mustNotMention === undefined)) {
       throw new ContextMemoryEvaluationError(`EMPTY_REAL_CHECK:${candidate.id}`)
+    }
+    if (spec.judge !== undefined) {
+      if (spec.judge === null || typeof spec.judge !== 'object' || Array.isArray(spec.judge)) {
+        throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+      }
+      const judge = spec.judge as Record<string, unknown>
+      rejectUnknownKeys(judge, JUDGE_KEYS, `${candidate.id}:realModel:judge`)
+      for (const key of ['current', 'superseded', 'retracted', 'conflicting', 'acceptable']) {
+        requireStrings(judge[key], `${candidate.id}:realModel:judge:${key}`)
+      }
+      if (judge.expectsAnswer !== undefined && typeof judge.expectsAnswer !== 'boolean') {
+        throw new ContextMemoryEvaluationError(`INVALID_JUDGE:${candidate.id}`)
+      }
+      // A judge with no dimension would silently pass everything.
+      const declared = ['current', 'superseded', 'retracted', 'conflicting']
+        .some((key) => Array.isArray(judge[key]) && (judge[key] as unknown[]).length > 0)
+      if (!declared && judge.expectsAnswer !== true) {
+        throw new ContextMemoryEvaluationError(`EMPTY_JUDGE:${candidate.id}`)
+      }
     }
   }
   return candidate.capability as ContextMemoryCapability

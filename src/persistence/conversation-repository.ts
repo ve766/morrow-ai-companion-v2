@@ -167,4 +167,17 @@ export class SqliteConversationRepository {
       return result.changes === 1
     })
   }
+
+  /**
+   * Deletes a single message. Derived rows (cognitive observations, memory
+   * suggestions, reminders) cascade from the composite foreign keys, so the
+   * caller must read anything it still needs *before* calling this.
+   */
+  deleteMessage(conversationId: string, messageId: string): boolean {
+    return this.database.transaction(() => {
+      const result = this.database.connection.prepare('DELETE FROM messages WHERE id = ? AND conversation_id = ?')
+        .run(messageId, conversationId)
+      return result.changes === 1
+    })
+  }
 }
