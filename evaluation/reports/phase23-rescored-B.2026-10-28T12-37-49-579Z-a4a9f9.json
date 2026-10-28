@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runId": "2026-10-28T12-32-42-841Z-198ab6",
+  "runId": "2026-10-28T12-37-49-579Z-a4a9f9",
   "source": "phase23-spark-B-2026-10-28T12-08-59-304Z-422b26.json",
   "condition": {
     "id": "B",
@@ -11,21 +11,18 @@
   "codeSha": "f05ae22bf4c0166b8f2d2fe463354bee953071f1",
   "evaluator": "answer-evidence-evaluation@schema3 (re-scored offline)",
   "scorer": {
-    "baseSha": "f98e5558888a163b23ae92100c067fb9884c50a9",
-    "headSha": "f98e5558888a163b23ae92100c067fb9884c50a9",
-    "codeSha": "f98e5558888a163b23ae92100c067fb9884c50a9",
+    "baseSha": "a611150d6e740c7a90660177be025809c986950f",
+    "headSha": "a611150d6e740c7a90660177be025809c986950f",
+    "codeSha": "a611150d6e740c7a90660177be025809c986950f",
     "codeShaSource": "git",
     "workingTreeDirty": true,
-    "workingTreeDiffHash": "d67716e059db7f364266928f0c959a6eb2dc70b5562a1cae617805574af04466",
+    "workingTreeDiffHash": "9c711bb7465cf3392b3f8329fd6b0617626d0e9c2fcab9efaba0a322b1086d0b",
     "workingTreeFiles": [
-      "D evaluation/reports/phase23-rescored-A.2026-10-28T12-29-54-028Z-460c62.json",
-      "D evaluation/reports/phase23-rescored-B.2026-10-28T12-29-54-043Z-519e38.json",
-      "D evaluation/reports/phase23-rescored-C.2026-10-28T12-29-54-055Z-6cca14.json",
-      "D evaluation/reports/phase23-rescored-D.2026-10-28T12-29-54-068Z-8e6da3.json"
+      "M src/evaluation/code-provenance.ts"
     ],
     "reproducible": false,
     "reproducibleReason": "working_tree_dirty",
-    "capturedAt": "2026-10-28T12:32:43.817Z"
+    "capturedAt": "2026-10-28T12:37:50.592Z"
   },
   "note": "Replies are unchanged; only the assessment was recomputed with the corrected evaluator.",
   "totals": {

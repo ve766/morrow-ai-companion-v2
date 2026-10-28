@@ -47,7 +47,9 @@ export interface ProvenanceOptions {
 const DEFAULT_IGNORED_PATHS = ['evaluation/reports/'] as const
 
 function defaultRun(command: string, cwd: string): string {
-  return execSync(command, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  // trimEnd, not trim: trimming the leading space of the first porcelain line
+  // shifts every path by one character.
+  return execSync(command, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).replace(/\s+$/u, '')
 }
 
 function git(run: (command: string, cwd: string) => string, cwd: string, command: string): string | null {
