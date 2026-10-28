@@ -162,7 +162,7 @@ for (row of revisions) {
 | 用途 | SHA | 说明 |
 |---|---|---|
 | 代码（时间戳可信性） | `02184dc` | 新增 `timestamp-trust` + 重写 v24 判定 + 迁移上下文 |
-| 测试 | `02184dc` | 新增 9 条测试，与实现同一提交 |
+| 测试 | `02184dc`、`15ac2e9` | 新增 9 条；`15ac2e9` 仅给重迁移用例加 Windows 超时余量 |
 | 报告（本文件） | 见 PR #8 最后一个 docs 提交 | 不改代码 |
 | 上一轮代码基线 | `2bce65b` | 界面提示提交，模型矩阵对应此 SHA |
 | 首次交付 | `48697e2` | 严格属性校验 + 无目标拒绝 |
@@ -190,6 +190,8 @@ for (row of revisions) {
 每次变化都对应可指认的测试文件与提交，没有删除、跳过或弱化任何用例。
 
 **失败与重试**：本轮先用新规则重写验收断言（旧实现下「未来时间戳」与「相等时间戳」会被判为可信，新断言必然失败），再替换实现；替换后全量通过。无跳过、无临时忽略。
+
+**CI 失败与处理**：首次 CI（run `40629634344`）Windows job 失败，唯一原因是 `trusts only timestamps…` 在默认 20s 超时下超时（该轮整个文件 74s，运行器明显拥塞）。本地该用例 1.08s，同一用例在修复后一轮 Windows 上 3.0s 通过。处理方式是给这条「完整 23 步迁移 + 升级 + 24 行种子」的验收用例显式 60s 余量（`15ac2e9`），**没有**删断言、没有跳过、没有改判定。最终 CI（run `40630165647` @ `15ac2e9`）三平台全部 success。
 
 ## E. 真实模型实验
 
@@ -269,4 +271,6 @@ P=pass, F=fail, U=uncertain。合计 **9 pass / 23 fail / 23 uncertain**。
 
 **4. 最新代码 SHA 和 CI 结果是什么？**
 
-代码 `02184dc`；报告提交见 PR #8 末次 docs 提交。CI 见 PR #8 最新运行（三平台：Ubuntu、Windows、Windows schema upgrade）。
+代码 `02184dc`（判定实现）、`15ac2e9`（测试超时余量）；报告提交见 PR #8 末次 docs 提交。
+
+CI：run `40630165647` @ `15ac2e9`，三个 job 全部 success —— `Typecheck, tests, build and smoke (ubuntu-latest)`、`(windows-latest)`、`Windows upgrade path (schema migrations under the real app)`。此前一轮 run `40629634344` 的 Windows 超时已在上文说明并处理。
