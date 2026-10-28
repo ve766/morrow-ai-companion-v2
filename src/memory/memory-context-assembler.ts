@@ -4,16 +4,49 @@ import type { MemoryRecord } from './memory-domain'
 const order: readonly Sensitivity[] = ['normal', 'personal', 'sensitive']
 const stopWords = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'have', 'are', 'was', 'were', 'will', 'your', 'about', '我', '你', '他', '她', '它', '的', '了', '是', '在', '和', '有', '就', '都', '而', '及', '与', '着', '或', '一个'])
 
+/**
+ * Grammatical frames carry no object of their own. "我不喜欢这个方案" and
+ * "我不喜欢吃香菜" share 我不/不喜/喜欢; "我最近在学吉他" and "我最近在学做饭"
+ * share 我最/最近/在学; "明天要交报告" and "我明天要去医院复查" share 明天.
+ * None of that says two sentences describe the same fact, yet counting it as
+ * relevance injected an unrelated private memory into an ordinary turn.
+ *
+ * The rule is positional rather than a bag of words: any bigram that overlaps
+ * a frame occurrence is not evidence. Content that merely sits next to a frame
+ * survives — "我最近在学吉他" still yields 吉他, so a real shared object still
+ * matches.
+ */
+const frameWords = ['我不', '不喜', '喜欢', '我最', '最近', '近在', '在学', '明天', '今天', '这个', '那个'] as const
+
+function frameCoverage(normalized: string): Uint8Array {
+  const covered = new Uint8Array(normalized.length)
+  for (const frame of frameWords) {
+    let at = normalized.indexOf(frame)
+    while (at >= 0) {
+      for (let index = at; index < at + frame.length; index += 1) covered[index] = 1
+      at = normalized.indexOf(frame, at + 1)
+    }
+  }
+  return covered
+}
+
 function terms(value: string): string[] {
   const normalized = value.normalize('NFKC').toLocaleLowerCase()
+  const covered = frameCoverage(normalized)
   const terms = new Set<string>()
-  for (const token of normalized.match(/[\p{L}\p{N}]+/gu) ?? []) {
-    if (token.length > 1 && !stopWords.has(token)) terms.add(token)
+  for (const match of normalized.matchAll(/[\p{L}\p{N}]+/gu)) {
+    const token = match[0]
+    const start = match.index ?? 0
+    const frameToken = (frameWords as readonly string[]).includes(token)
+    if (token.length > 1 && !stopWords.has(token) && !frameToken) terms.add(token)
     const characters = Array.from(token)
     if (characters.length >= 2 && /\p{Script=Han}/u.test(token)) {
       for (let index = 0; index < characters.length - 1; index += 1) {
         const pair = characters[index]! + characters[index + 1]!
-        if (!stopWords.has(pair)) terms.add(pair)
+        if (stopWords.has(pair) || frameToken) continue
+        // `start + index` is a code-unit offset, which matches `covered`.
+        if (covered[start + index] === 1 || covered[start + index + 1] === 1) continue
+        terms.add(pair)
       }
     }
   }

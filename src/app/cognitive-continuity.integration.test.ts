@@ -279,4 +279,60 @@ describe('slice 1: cognitive hints stay hints', () => {
       ctx.database.close()
     }
   })
+
+})
+
+describe('slice 1: lexical overlap alone must not inject a private memory', () => {
+  // Each pair below shares a grammatical frame ("我不喜欢…", "我最近在学…",
+  // "明天…") but describes a different fact. Word overlap is not relevance.
+  const negatives: ReadonlyArray<{ query: string; memory: string; why: string }> = [
+    { query: '我不喜欢这个方案，换个思路。', memory: '我不喜欢吃香菜。', why: 'shared dislike frame, different object' },
+    { query: '我最近在学吉他。', memory: '我最近在学做饭。', why: 'shared study frame, different topic' },
+    { query: '明天要交报告。', memory: '我明天要去医院复查。', why: 'shared time word, different event' }
+  ]
+
+  for (const item of negatives) {
+    it(`keeps "${item.memory}" out of "${item.query}" (${item.why})`, async () => {
+      const ctx = setup()
+      try {
+        const stored = ctx.memories.create(item.memory, 'personal')
+        const conversation = ctx.companion.createConversation()
+        await send(ctx.companion, conversation.id, item.query)
+
+        const block = memoryBlock(lastSystem(ctx.previews))
+        expect(block).not.toContain(item.memory)
+        // The unique record id must not leak either: content assertions alone
+        // could pass if the block were reshaped later.
+        expect(block).not.toContain(stored.id)
+      } finally {
+        ctx.database.close()
+      }
+    })
+  }
+
+  it('still retrieves the memory when the overlap is a real object, not just a frame', async () => {
+    const ctx = setup()
+    try {
+      // Positive control for the two negatives above: same frame, same object.
+      ctx.memories.create('我不喜欢吃香菜。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我不喜欢香菜的味道，点菜时要注意什么？')
+      expect(memoryBlock(lastSystem(ctx.previews))).toContain('香菜')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('still resolves a short follow-up after the precision change', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我住在杭州。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我下周要去杭州出差。')
+      await send(ctx.companion, conversation.id, '那后天呢？')
+      expect(memoryBlock(lastSystem(ctx.previews))).toContain('杭州')
+    } finally {
+      ctx.database.close()
+    }
+  })
 })
