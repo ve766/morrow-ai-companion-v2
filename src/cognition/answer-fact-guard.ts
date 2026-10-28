@@ -189,25 +189,9 @@ interface ConflictGroup {
 function conflictGroups(memories: readonly FactGuardMemory[]): ConflictGroup[] {
   const groups: ConflictGroup[] = []
   const seen = new Set<string>()
-  // Unresolved entries that state the same predicate are a conflict even when
-  // the assembler did not link them (an offline caller may not set the links).
-  const byPredicate = new Map<string, FactGuardMemory[]>()
-  for (const memory of memories) {
-    if (memory.status !== 'unresolved') continue
-    const predicate = readFactSlot(memory.content)?.predicate
-    if (!predicate) continue
-    const list = byPredicate.get(predicate) ?? []
-    list.push(memory)
-    byPredicate.set(predicate, list)
-  }
-  for (const [predicate, entries] of byPredicate) {
-    if (entries.length < 2) continue
-    const values = entries.map((item) => strip(readFactSlot(item.content)?.value ?? '')).filter((value) => value.length > 0)
-    if (values.length < 2) continue
-    const ids = entries.map((item) => item.id).sort()
-    seen.add(ids.join('|'))
-    groups.push({ ids, values, predicate })
-  }
+  // Groups come from the explicit links the assembler wrote. Sharing a
+  // predicate is not a link: two independent residence conflicts are two
+  // groups, and one must never be disclosed for the other.
   for (const memory of memories) {
     if (memory.status !== 'unresolved' || (memory.conflictWith?.length ?? 0) === 0) continue
     const ids = [memory.id, ...memory.conflictWith!]
@@ -231,16 +215,14 @@ function conflictGroups(memories: readonly FactGuardMemory[]): ConflictGroup[] {
  * normalisation. Everything else stays out of this answer.
  */
 function relatedConflictValues(claim: UnsupportedClaim, memories: readonly FactGuardMemory[]): string[] {
-  const predicate = PREDICATE_BY_KIND[claim.kind]
-  const related = conflictGroups(memories).filter((group) => {
-    if (predicate && group.predicate === predicate) return true
-    const pattern = CLAIM_PATTERNS.find((item) => item.kind === claim.kind)
-    if (pattern && group.values.some((value) => build(pattern, MEMORY_SUBJECT).test(value))) return true
-    const wanted = normalizeFor(claim.kind, claim.value)
-    return group.values.some((value) => normalizeFor(claim.kind, value) === wanted)
-  })
-  const values = related.flatMap((group) => group.values)
-  return [...new Set(values)]
+  // The claim is linked to a group only when the group states the very value
+  // being claimed. A shared predicate, or a value of the same shape, is not a
+  // link: that is how two independent conflicts get mixed into one answer.
+  const wanted = normalizeFor(claim.kind, claim.value)
+  if (wanted.length === 0) return []
+  const group = conflictGroups(memories).find((candidate) =>
+    candidate.values.some((value) => normalizeFor(claim.kind, value) === wanted))
+  return group ? [...new Set(group.values)] : []
 }
 
 /** True when the question is about the user, so a personal claim is checkable. */

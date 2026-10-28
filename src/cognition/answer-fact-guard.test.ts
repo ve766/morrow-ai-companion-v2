@@ -141,6 +141,40 @@ describe('phase 2.3 P0-2: conflict disclosure must concern the intercepted fact'
     expect(result.reply).not.toContain('杭州')
   })
 
+  it('discloses only the linked group when two groups share a predicate', () => {
+    const result = guardAnswerFacts({
+      reply: '你住在杭州。',
+      question: '我住在哪里？',
+      memories: [
+        { id: 'a1', content: '我住在杭州。', status: 'unresolved', conflictWith: ['a2'] },
+        { id: 'a2', content: '我住在大阪。', status: 'unresolved', conflictWith: ['a1'] },
+        { id: 'b1', content: '我住在苏州。', status: 'unresolved', conflictWith: ['b2'] },
+        { id: 'b2', content: '我住在南京。', status: 'unresolved', conflictWith: ['b1'] }
+      ]
+    })
+    expect(result.reason).toBe('conflicting_evidence')
+    expect(result.reply).toContain('杭州')
+    expect(result.reply).toContain('大阪')
+    // The other residence group is a different conflict and must stay out.
+    expect(result.reply).not.toContain('苏州')
+    expect(result.reply).not.toContain('南京')
+  })
+
+  it('does not borrow any group when the claimed value is in none of them', () => {
+    const result = guardAnswerFacts({
+      reply: '你住在广州。',
+      question: '我住在哪里？',
+      memories: [
+        { id: 'a1', content: '我住在杭州。', status: 'unresolved', conflictWith: ['a2'] },
+        { id: 'a2', content: '我住在大阪。', status: 'unresolved', conflictWith: ['a1'] },
+        { id: 'b1', content: '我住在苏州。', status: 'unresolved', conflictWith: ['b2'] },
+        { id: 'b2', content: '我住在南京。', status: 'unresolved', conflictWith: ['b1'] }
+      ]
+    })
+    expect(result.reason).toBe('unsupported_personal_fact')
+    for (const value of ['广州', '杭州', '大阪', '苏州', '南京']) expect(result.reply).not.toContain(value)
+  })
+
   it('uses a value-free clarification when the conflict cannot be linked', () => {
     const result = guardAnswerFacts({
       reply: '你的手机号是 13800138000。',
@@ -196,11 +230,15 @@ describe('phase 2.3 A: unsupported personal facts are not delivered', () => {
     expect(guardAnswerFacts({ reply: '你的猫叫咪咪。', question: '我的猫叫什么名字？', memories: [memory('m1', '我养了一只叫咪咪的猫。')] }).verdict).toBe('allow')
   })
 
-  it('replaces a settled value with a disclosure of both stored values', () => {
+  it('replaces a settled value with a disclosure of the linked group', () => {
     const result = guardAnswerFacts({
       reply: '你住在杭州。',
       question: '我住在哪里？',
-      memories: [memory('m1', '我住在杭州。', 'unresolved'), memory('m2', '我住在大阪。', 'unresolved')]
+      // Linked entries: the assembler sets conflictWith in both directions.
+      memories: [
+        { id: 'm1', content: '我住在杭州。', status: 'unresolved', conflictWith: ['m2'] },
+        { id: 'm2', content: '我住在大阪。', status: 'unresolved', conflictWith: ['m1'] }
+      ]
     })
     expect(result.verdict).toBe('rewrite')
     expect(result.reason).toBe('conflicting_evidence')

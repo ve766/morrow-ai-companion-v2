@@ -930,7 +930,10 @@ export class ChatService {
         memories: verified.memory.selected.map((item) => ({
           id: item.id,
           content: item.content,
-          ...(item.status ? { status: item.status } : {})
+          ...(item.status ? { status: item.status } : {}),
+          // The conflict links are what tie a group to this fact; without them
+          // the guard cannot tell which group a claim belongs to.
+          ...(item.conflictWith && item.conflictWith.length > 0 ? { conflictWith: item.conflictWith } : {})
         }))
       })
       const deliveredText = guard.reply

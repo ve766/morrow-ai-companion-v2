@@ -84,7 +84,11 @@ function markdown(): string {
     '| C | 20 | 5 | 0 | 0 | 0 | 0 |',
     '| D | 19 | 4 | 1 | 0 | 0 | 1 |',
     '',
-    '关键词参考命中 42/100 → **97/100**；99 成功 1 失败；共 **20** 条改判。'
+    '关键词参考命中 42/100 → **97/100**；99 成功 1 失败；共 **20** 条改判。',
+    '',
+    '| 指标 | 值 |',
+    '|---|---|',
+    '| 人工判为正确 | 100/100（100 correct_use） |'
   ].join('\n')
 }
 
@@ -139,6 +143,38 @@ describe('phase 2.3 review: report verification', () => {
     const result = checkPhase23Report(tampered)
     expect(result.ok).toBe(false)
     expect(result.failures.join(' ')).toMatch(/A used \(report\)/)
+  })
+
+  it('fails when only the conflictPass summary is edited', () => {
+    const tampered = inputs()
+    tampered.rescored[0]!.totals.conflictPass = 5
+    const result = checkPhase23Report(tampered)
+    expect(result.ok).toBe(false)
+    expect(result.failures.join(' ')).toMatch(/A conflictPass \(rows vs summary\)/)
+  })
+
+  it('fails when only the contradictions summary is edited', () => {
+    const tampered = inputs()
+    tampered.rescored[1]!.totals.contradictions = 2
+    const result = checkPhase23Report(tampered)
+    expect(result.ok).toBe(false)
+    expect(result.failures.join(' ')).toMatch(/B contradictions \(rows vs summary\)/)
+  })
+
+  it('fails when only the notScorable summary is edited', () => {
+    const tampered = inputs()
+    tampered.rescored[3]!.totals.notScorable = 0
+    const result = checkPhase23Report(tampered)
+    expect(result.ok).toBe(false)
+    expect(result.failures.join(' ')).toMatch(/D notScorable \(rows vs summary\)/)
+  })
+
+  it('fails when the report states a different human-correct rate', () => {
+    const tampered = inputs()
+    tampered.markdown = tampered.markdown.replace('| 人工判为正确 | 100/100', '| 人工判为正确 | 99/100')
+    const result = checkPhase23Report(tampered)
+    expect(result.ok).toBe(false)
+    expect(result.failures.join(' ')).toMatch(/human correct \(report\)/)
   })
 
   it('fails when a run has no review entry', () => {

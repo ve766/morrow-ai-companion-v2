@@ -39,7 +39,16 @@ export interface RescoredReport {
     notScorable: number
     changed: number
   }
-  runs: Array<{ runId: string; scenarioId: string; before: string | null; after: string; scored: boolean; reference: { matched: boolean } }>
+  runs: Array<{
+    runId: string
+    scenarioId: string
+    before: string | null
+    after: string
+    scored: boolean
+    reference: { matched: boolean }
+    /** The conflict outcome the evaluator reported for this run. */
+    conflict?: string | null
+  }>
 }
 
 export interface ReviewFile {
@@ -109,6 +118,9 @@ export function checkPhase23Report(input: Phase23Inputs): Phase23Result {
     check(`${id} used (rows vs summary)`, rows.filter((run) => run.after === 'used_correctly').length, item.totals.usedCorrectly)
     check(`${id} unknown (rows vs summary)`, rows.filter((run) => run.after === 'reasonable_unknown').length, item.totals.reasonableUnknown)
     check(`${id} unsupported (rows vs summary)`, rows.filter((run) => run.after === 'unsupported_answer').length, item.totals.unsupported)
+    check(`${id} conflictPass (rows vs summary)`, rows.filter((run) => run.conflict === 'pass').length, item.totals.conflictPass)
+    check(`${id} contradictions (rows vs summary)`, rows.filter((run) => run.after === 'contradicts_evidence').length, item.totals.contradictions)
+    check(`${id} notScorable (rows vs summary)`, rows.filter((run) => run.after === 'not_scorable').length, item.totals.notScorable)
     check(`${id} changed (rows vs summary)`, rows.filter((run) => run.before !== run.after).length, item.totals.changed)
   }
 
@@ -119,6 +131,9 @@ export function checkPhase23Report(input: Phase23Inputs): Phase23Result {
   check('human reviewed', input.review.samples.length, input.review.summary.reviewed)
   check('human labels', labelCounts, nonZero(input.review.summary.byLabel))
   check('human disagreements', input.review.samples.filter((sample) => !sample.agree).length, input.review.summary.disagreements)
+  const correctLabels = new Set(['correct_use', 'conflict_handled', 'reasonable_unknown'])
+  const humanCorrect = input.review.samples.filter((sample) => correctLabels.has(sample.humanLabel)).length
+  check('review coverage', input.review.samples.length, input.raw.reduce((sum, report) => sum + report.runs.length, 0))
 
   const rawRunIds = new Set(input.raw.flatMap((report) => report.runs.map((run) => `${report.condition.id}:${run.runId}`)))
   const reviewIds = new Set(input.review.samples.map((sample) => `${sample.runId.split('-')[0]}:${sample.runId}`))
@@ -153,6 +168,11 @@ export function checkPhase23Report(input: Phase23Inputs): Phase23Result {
   check('reference matched (report)', Number(arrow?.[1] ?? NaN), referenceMatched)
   // The report may bold "23" or "23 条"; only the number is read.
   check('changed rows (report)', Number(/共 \*\*(\d+)[^0-9]{0,4}条/u.exec(markdown)?.[1] ?? NaN), changed)
+  // The human-correct count is stated in the final reading; it is derived from
+  // the labels, so the report cannot claim a different number.
+  const humanRow = /人工判为正确\s*\|\s*(\d+)\/(\d+)/u.exec(markdown)
+  check('human correct (report)', Number(humanRow?.[1] ?? NaN), humanCorrect)
+  check('human correct denominator (report)', Number(humanRow?.[2] ?? NaN), input.review.samples.length)
   check('provider failures (report)', Number(/99 成功 (\d+) 失败/u.exec(markdown)?.[1] ?? NaN), totals.failed)
   if (!new RegExp(`\\b${totals.succeeded} 成功`, 'u').test(markdown)) failures.push(`report does not state ${totals.succeeded} successful requests`)
 
@@ -170,6 +190,9 @@ export function checkPhase23Report(input: Phase23Inputs): Phase23Result {
       referenceMatched,
       changed,
       labelCounts,
+      humanCorrect,
+      humanCorrectRate: input.review.samples.length === 0 ? null : Number((humanCorrect / input.review.samples.length).toFixed(4)),
+      reviewCoverage: Number((input.review.samples.length / Math.max(1, input.raw.reduce((sum, report) => sum + report.runs.length, 0))).toFixed(4)),
       disagreements: input.review.samples.filter((sample) => !sample.agree).length,
       perCondition: input.rescored.map((item) => ({ condition: item.condition.id, ...item.totals })),
       perScenario,

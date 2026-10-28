@@ -344,6 +344,7 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 上一版把「前两个 `unresolved` 记忆」直接当作冲突依据，会把别的主题的冲突拼进当前回答。现在只披露与**被拦截事实**关联的冲突组：
 
 - 关联条件三选一：同谓词（住址→residence、年龄/生日→age、名字→name）；同类型句式（组内取值能被该类型的模式匹配）；归一化后取值相等。
+  *（历史。前两条会把同谓词的多个独立冲突并成一个组，已在 §15 改为只认显式链接 + 取值相等。）*
 - 没有关联组时**不借题发挥**，改为不含任何取值的安全澄清。
 - 已撤回条目根本不会进入上下文，因此不可能被披露（测试用空上下文验证）。
 
@@ -397,7 +398,7 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 | 精确类归一化 | NFKC、去分隔符、统一大小写；**完全相等** | 同上 `normalizeExact` |
 | 文本类归一化 | 同上 + 去一个行政区后缀；**完全相等** | 同上 `normalizeText` |
 | 槽位类型约束 | 只有同谓词槽位可支持（住址←residence、年龄/生日←age、名字←name；车牌/电话/证件无结构化槽位） | 同上 `SLOT_PREDICATES_BY_KIND` |
-| 冲突披露 | 只披露与拦截事实同谓词 / 同句式 / 同值的冲突组；否则给不含取值的安全澄清 | 同上 `relatedConflictValues` |
+| 冲突披露 | 只披露**显式链接到该取值**的冲突组（组内取值与被拦截取值归一化后相等）；谓词相同但无链接的其它组一律不引用；否则给不含取值的安全澄清 | 同上 `conflictGroups`/`relatedConflictValues` |
 | 撤回 | 撤回条目不进上下文，因此不可能被用于支持或披露 | 由装配器保证 |
 | 请求重试 | 网络/5xx/408/504 与 429 有限重试（≤3），遵守 `Retry-After` | `src/providers/openai-compatible.ts` |
 | 总耗时预算 | 默认 90s，含重试与退避；装不下直接 `PROVIDER_DEADLINE` | 同上 + `provider-policy.ts` |
@@ -408,11 +409,11 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 
 | 套件 | 条数 | 说明 |
 |---|---|---|
-| `answer-fact-guard.test.ts` | 27 | 含 P0-1 的 9 条、P0-2 的 5 条、槽位类型的 5 条，以及最初的 8 条 |
+| `answer-fact-guard.test.ts` | 29 | 含 P0-1 的 9 条、P0-2 的 7 条（含同谓词双组与不可关联）、槽位类型的 5 条，以及最初的 8 条 |
 | `provider-retry.test.ts` | 12 | 含总预算 3 条 |
 | `turn-reliability.integration.test.ts` | 3 | 一轮一答、失败后下一轮可继续、重试不写记忆 |
-| `conflict-handling.integration.test.ts` | 10 | 含 2 条按门控行为更新 |
-| `phase23-report-check.test.ts` | 6 | 含「只改 summary 必须失败」的负向用例 |
+| `conflict-handling.integration.test.ts` | 12 | 含 2 条按门控行为更新 + 2 条撤回/无关冲突不泄漏 |
+| `phase23-report-check.test.ts` | 10 | 含「只改 summary 必须失败」的 6 个负向用例（used/summary 混合、conflictPass、contradictions、notScorable、人工正确率、缺复核行） |
 | 全量 `npx vitest run` | **504 passed / 59 files** | 见 §13.5 |
 
 ### 14.3 报告数字的唯一口径
@@ -424,6 +425,8 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 | 人工判为正确 | 98/100（59 + 20 + 19） | `phase23-human-review.json` 标签 | 是（标签本身不可重算） |
 | 评估器改判 | 23 条 | 重评 JSON 的 `before != after` | 是 |
 | 自动与人工分歧 | 0/100 | 复核文件的 `agree` | 是 |
+| 人工判定正确率 | 98/100（0.98） | 复核标签归并 | 是（标签本身不可重算） |
+| 复核覆盖率 | 100/100 | 复核样本数 / 运行数 | 是 |
 | 证据语义一致率 | 由评估器给出 | 评估器输出 | **否**（脚本只做一致性检查） |
 
 人工复核为**单人**，不与「两名标注者一致性」混称。
@@ -446,4 +449,47 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 - 有单次超时与 90s 总预算，迟到响应被丢弃，取消/重试/流式不产生重复回答（`provider-retry.test.ts` 12 条 + 集成 3 条）；
 - 报告数字可由逐条数据复算，且只改 summary 会失败（`phase23-report-check.test.ts` 6 条 + CLI 负向验证）；
 - `main` 未动、PR 未合并、无凭据入库。
+
+## 15. 最后一轮审查修正（冲突组串用 + 校验补全）
+
+### 15.1 冲突组只能通过显式链接成立
+
+上一版 `conflictGroups()` 在缺少链接时按 `predicate` 把未解决记忆聚成一组，于是「居住地冲突 A（杭州/大阪）」和「居住地冲突 B（苏州/南京）」会被并成一个组，把四个值一起披露。现在：
+
+- 组只由装配器写入的 `conflictWith` 双向链接构成；**谓词相同不再是链接**。
+- 被拦截取值只有在**与某个组内的取值归一化后相等**时才引用该组，且只引用这一个组。
+- 没有可关联组时不披露任何取值，返回安全澄清。
+- 同时修掉一个真实缺陷：`companion-service` 传给门控的记忆只带 `id/content/status`，**丢掉了 `conflictWith`**，因此真实链路里根本拿不到链接——之前靠谓词兜底掩盖了这一点。现在把链接一并传入。
+
+回归测试：`answer-fact-guard.test.ts` 增加「同谓词两组只披露关联组」「取值不在任何组内时不借用其它组」；`conflict-handling.integration.test.ts` 增加「撤回值不出现在披露里」「无关冲突不进入披露」。
+
+### 15.2 校验脚本补全可重算指标
+
+`checkPhase23Report()` 现在从逐条行重算并与文件 summary、markdown 三方核对：
+
+| 指标 | 来源 | 是否独立重算 |
+|---|---|---|
+| 运行 / 请求 / 成功 / 失败 / 取消 | `requests[].status` 与 `runs[]` | 是 |
+| 正确使用 / 合理未知 / 无依据断言 | `runs[].after` | 是 |
+| 冲突正确处理 / 矛盾 / 不可评分 | `runs[].conflict`、`after` | 是 |
+| 改判总数与方向 | `before != after` | 是 |
+| 人工标签数量 / 正确率 / 覆盖率 | 复核文件 | 是（标签本身不可重算） |
+| 证据语义一致率 | 评估器输出 | **否**（仅引用） |
+
+新增 4 个负向用例：只改 `conflictPass`、只改 `contradictions`、只改 `notScorable`、只改报告里的人工正确率——都必须失败。
+
+### 15.3 本轮实跑
+
+| 命令 | 退出码 | 结果 |
+|---|---|---|
+| `npx vitest run src/cognition/answer-fact-guard.test.ts` | 0 | 29 passed |
+| `npx vitest run src/app/conflict-handling.integration.test.ts` | 0 | 12 passed |
+| `npx vitest run src/evaluation/phase23-report-check.test.ts` | 0 | 10 passed |
+| `npx vitest run --maxWorkers=2` | 0 | **512 passed / 59 files** |
+| `npx tsc --noEmit` | 0 | 无输出 |
+| `npm run build` | 0 | 成功 |
+| `npm run verify:phase23` | 0 | `ok:true`，humanCorrect 98/100，reviewCoverage 1，disagreements 0 |
+| `MORROW_PHASE23_REPORT=node_modules/.cache/tampered-phase23.md npm run verify:phase23` | **1** | 把报告里的人工正确率改成 97 后报 `human correct (report): data says 97, report says 98` |
+
+负向验证用的是临时副本，跑完立即用真实报告重跑恢复 `phase23-verification.json`（`ok:true`），被跟踪文件未被篡改。
 

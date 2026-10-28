@@ -236,6 +236,41 @@ describe('phase 2.1 C: unresolved conflict evidence', () => {
     }
   })
 
+  it('14. never repeats a retracted value in the disclosure', async () => {
+    const ctx = setup('你住在杭州。')
+    try {
+      ctx.memories.create('我住在杭州。', 'personal')
+      const osaka = ctx.memories.create('我住在大阪。', 'personal')
+      ctx.memories.retract(osaka.id)
+      const conversation = ctx.companion.createConversation()
+      const result = await send(ctx.companion, conversation.id, '我住在哪里？')
+      // Only one live entry remains, so there is no group and no disclosure.
+      expect(result.evaluation?.guard).toMatchObject({ verdict: 'allow' })
+      expect(result.assistantMessage.body).not.toContain('大阪')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('15. keeps an unrelated conflict out of the disclosure', async () => {
+    const ctx = setup('你住在杭州。')
+    try {
+      ctx.memories.create('我住在杭州。', 'personal')
+      ctx.memories.create('我住在大阪。', 'personal')
+      // A second, independent conflict about a different fact.
+      ctx.memories.create('我的职业是设计师。', 'personal')
+      ctx.memories.create('我的职业是工程师。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      const result = await send(ctx.companion, conversation.id, '我住在哪里？')
+      expect(result.evaluation?.guard).toMatchObject({ reason: 'conflicting_evidence' })
+      expect(result.assistantMessage.body).toContain('杭州')
+      expect(result.assistantMessage.body).not.toContain('设计师')
+      expect(result.assistantMessage.body).not.toContain('工程师')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
   it('4. does not deliver a one-sided answer when the evidence conflicts', async () => {
     // Phase 2.3 added a pre-delivery fact guard: a conflicting value may not be
     // stated as settled fact, so the reply is replaced before it reaches the
