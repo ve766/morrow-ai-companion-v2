@@ -175,7 +175,7 @@ describe('a database written by an older build still opens with its data', () =>
     })
   }
 
-  it('upgrades v22 to v23 by pinning existing correction candidates and backfilling revision sensitivity', () => {
+  it('upgrades v22 to v24 without inventing the revision a legacy candidate was built against', () => {
     const { databasePath } = tempProfile()
     seedAtVersion(databasePath, 22)
     const suggestionId = '77777777-7777-4777-8777-777777777777'
@@ -197,15 +197,191 @@ describe('a database written by an older build still opens with its data', () =>
 
     const database = SqliteDatabase.open(databasePath)
     openDatabases.push(database)
-    expect(database.schemaVersion).toBe(23)
-    expect(database.connection.prepare('SELECT correction_target_revision FROM memory_suggestions WHERE id = ?').get(suggestionId))
-      .toEqual({ correction_target_revision: 1 })
-    // The revision history had no sensitivity column before v23; the backfill
-    // copies the memory's value, which cannot under-report it.
-    expect(database.connection.prepare('SELECT sensitivity FROM memory_revisions WHERE memory_id = ?').get(memoryId))
-      .toEqual({ sensitivity: 'sensitive' })
+    expect(database.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
+    // The v23 backfill wrote the target's *current* revision into the row. That
+    // value was never recorded by the candidate, so v24 clears it and marks the
+    // binding unverified: a guess must not be usable as history.
+    expect(database.connection.prepare('SELECT correction_target_revision, correction_binding FROM memory_suggestions WHERE id = ?').get(suggestionId))
+      .toEqual({ correction_target_revision: null, correction_binding: 'unverified' })
+    // Sensitivity copied into an older revision is marked as inferred, so it
+    // can keep filtering conservative without being read as audit evidence.
+    expect(database.connection.prepare('SELECT sensitivity, sensitivity_source FROM memory_revisions WHERE memory_id = ?').get(memoryId))
+      .toEqual({ sensitivity: 'sensitive', sensitivity_source: 'inferred_backfill' })
     expect(database.connection.prepare('SELECT current_text, status FROM memories WHERE id = ?').get(memoryId))
       .toEqual({ current_text: '我对花生过敏。', status: 'active' })
+  })
+
+  it('keeps a candidate written after v23 as a recorded binding and stays stable across restarts', () => {
+    const { databasePath } = tempProfile()
+    const suggestionId = '88888888-8888-4888-8888-888888888888'
+    // Seed at v23 exactly, then write a candidate the way the v23 build did:
+    // with the revision it was created against.
+    const connection = new DatabaseSync(databasePath)
+    try {
+      applyMigrations(connection, 23)
+      connection.exec('PRAGMA foreign_keys = ON')
+      connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, '合成的对话', T0, T0)
+      connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', '我住在大阪。', T0, 1, '55555555-5555-4555-8555-555555555555')
+      connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
+        VALUES (?, ?, ?, 'user_explicit_input', 'active', ?, 'personal', ?, 1, 85, ?)
+      `).run(memoryId, '我住在大阪。', '我住在大阪。', T0, T0, T0)
+      // Written after v23, so this revision's sensitivity is a real record and
+      // must not be re-labelled as a migration inference.
+      connection.prepare(`
+        INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
+        VALUES (?, 1, ?, 'user_explicit_input', 'active', 'created', ?, NULL, 85, 'personal')
+      `).run(memoryId, '我住在大阪。', new Date().toISOString())
+      // Created after v23 was applied, so this row really did record revision 1.
+      connection.prepare(`
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+          confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+          correction_target_revision, provider_model, evidence_hash, created_at
+        ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'personal', 'pending', '[]', ?, 1, 'local-rule-v1', ?, ?)
+      `).run(suggestionId, conversationId, messageId, '我住在京都。', '我住在京都。', memoryId, 'c'.repeat(64), new Date().toISOString())
+    } finally {
+      connection.close()
+    }
+
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    expect(database.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
+    expect(database.connection.prepare('SELECT correction_target_revision, correction_binding FROM memory_suggestions WHERE id = ?').get(suggestionId))
+      .toEqual({ correction_target_revision: 1, correction_binding: 'recorded' })
+    database.close()
+
+    // A second open must not re-run the migration or change the binding.
+    const reopened = SqliteDatabase.open(databasePath)
+    openDatabases.push(reopened)
+    expect(reopened.connection.prepare('SELECT correction_target_revision, correction_binding FROM memory_suggestions WHERE id = ?').get(suggestionId))
+      .toEqual({ correction_target_revision: 1, correction_binding: 'recorded' })
+    expect(reopened.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?').get(memoryId))
+      .toEqual({ sensitivity_source: 'recorded' })
+  })
+
+  it('trusts only timestamps that provably fall between v23 and v24, for both provenance fields', () => {
+    const { databasePath } = tempProfile()
+    const BOUNDARY = '2026-10-27T00:00:00.000Z'
+    const cases: ReadonlyArray<{ key: string; createdAt: string; trusted: boolean; why: string }> = [
+      { key: 'before', createdAt: '2026-10-26T23:59:59.999Z', trusted: false, why: 'written before v23' },
+      { key: 'equal', createdAt: BOUNDARY, trusted: false, why: 'equality is not proof of order' },
+      { key: 'after', createdAt: '2026-10-27T12:00:00.000Z', trusted: true, why: 'a real instant after v23 and before v24' },
+      { key: 'future', createdAt: '2099-01-01T00:00:00.000Z', trusted: false, why: 'obviously in the future' },
+      { key: 'empty', createdAt: '', trusted: false, why: 'empty' },
+      { key: 'garbage', createdAt: 'not-a-date', trusted: false, why: 'unparseable' },
+      { key: 'badmonth', createdAt: '2026-13-45T00:00:00.000Z', trusted: false, why: 'shape looks right, month is impossible' },
+      { key: 'badday', createdAt: '2026-02-30T00:00:00.000Z', trusted: false, why: 'shape looks right, day does not exist' }
+    ]
+
+    const connection = new DatabaseSync(databasePath)
+    try {
+      applyMigrations(connection, 23)
+      connection.exec('PRAGMA foreign_keys = ON')
+      // Pin v23's instant to a fixed past date so the fixture is deterministic;
+      // the runtime only checks version + name, and a real v23 build could
+      // legitimately have been applied at any time.
+      connection.prepare('UPDATE schema_migrations SET applied_at = ? WHERE version = 23').run(BOUNDARY)
+      connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, '合成的对话', T0, T0)
+      connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', '我住在大阪。', T0, 1, '55555555-5555-4555-8555-555555555555')
+
+      const insertMemory = connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
+        VALUES (?, ?, ?, 'user_explicit_input', 'active', ?, 'personal', ?, 1, 85, ?)
+      `)
+      const insertRevision = connection.prepare(`
+        INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
+        VALUES (?, 1, ?, 'user_explicit_input', 'active', 'created', ?, NULL, 85, 'personal')
+      `)
+      const insertSuggestion = connection.prepare(`
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+          confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+          correction_target_revision, provider_model, evidence_hash, created_at
+        ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'personal', 'pending', '[]', ?, 1, 'local-rule-v1', ?, ?)
+      `)
+      cases.forEach((item, index) => {
+        const memoryId = `91000000-0000-4000-8000-00000000000${index}`
+        const suggestionId = `92000000-0000-4000-8000-00000000000${index}`
+        insertMemory.run(memoryId, `我住在大阪${index}。`, `我住在大阪${index}。`, T0, T0, T0)
+        insertRevision.run(memoryId, `我住在大阪${index}。`, item.createdAt)
+        insertSuggestion.run(suggestionId, conversationId, messageId, `我住在京都${index}。`, `我住在京都${index}。`, memoryId, 'e'.repeat(64), item.createdAt)
+      })
+    } finally {
+      connection.close()
+    }
+
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    const readSuggestion = (key: string): unknown => {
+      const index = cases.findIndex((item) => item.key === key)
+      return database.connection.prepare('SELECT correction_binding, correction_target_revision FROM memory_suggestions WHERE id = ?')
+        .get(`92000000-0000-4000-8000-00000000000${index}`)
+    }
+    const readRevision = (key: string): unknown => {
+      const index = cases.findIndex((item) => item.key === key)
+      return database.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?')
+        .get(`91000000-0000-4000-8000-00000000000${index}`)
+    }
+
+    for (const item of cases) {
+      expect(readSuggestion(item.key), `${item.key}: ${item.why}`).toEqual(item.trusted
+        ? { correction_binding: 'recorded', correction_target_revision: 1 }
+        : { correction_binding: 'unverified', correction_target_revision: null })
+      // The revision field must follow the same rule; a guess may not be
+      // presented as recorded history.
+      expect(readRevision(item.key), `${item.key}: ${item.why}`)
+        .toEqual({ sensitivity_source: item.trusted ? 'recorded' : 'inferred_backfill' })
+    }
+    expect(database.connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+    expect(database.connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    // This case builds a full 23-step schema, seeds eight rows into three
+    // tables, then upgrades to v24 with a backup copy. Windows CI is several
+    // times slower at exactly this file I/O, so the default 20s is not enough
+    // headroom for a real timeout rather than a slow run.
+  }, 60_000)
+
+  it('treats every row as unproven when v23 applied_at cannot be parsed', () => {
+    const { databasePath } = tempProfile()
+    const connection = new DatabaseSync(databasePath)
+    try {
+      applyMigrations(connection, 23)
+      connection.exec('PRAGMA foreign_keys = ON')
+      connection.prepare('UPDATE schema_migrations SET applied_at = ? WHERE version = 23').run('not-a-date')
+      connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, '合成的对话', T0, T0)
+      connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', '我住在大阪。', T0, 1, '55555555-5555-4555-8555-555555555555')
+      connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
+        VALUES (?, ?, ?, 'user_explicit_input', 'active', ?, 'personal', ?, 1, 85, ?)
+      `).run(memoryId, '我住在大阪。', '我住在大阪。', T0, T0, T0)
+      connection.prepare(`
+        INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
+        VALUES (?, 1, ?, 'user_explicit_input', 'active', 'created', ?, NULL, 85, 'personal')
+      `).run(memoryId, '我住在大阪。', '2026-10-27T12:00:00.000Z')
+      connection.prepare(`
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+          confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+          correction_target_revision, provider_model, evidence_hash, created_at
+        ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'personal', 'pending', '[]', ?, 1, 'local-rule-v1', ?, ?)
+      `).run('93000000-0000-4000-8000-000000000001', conversationId, messageId, '我住在京都。', '我住在京都。', memoryId, 'f'.repeat(64), '2026-10-27T12:00:00.000Z')
+    } finally {
+      connection.close()
+    }
+
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    expect(database.connection.prepare('SELECT correction_binding, correction_target_revision FROM memory_suggestions WHERE id = ?')
+      .get('93000000-0000-4000-8000-000000000001'))
+      .toEqual({ correction_binding: 'unverified', correction_target_revision: null })
+    expect(database.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?').get(memoryId))
+      .toEqual({ sensitivity_source: 'inferred_backfill' })
   })
 
   it('keeps the v21 selection column unset so the default rule still applies', () => {
@@ -315,6 +491,27 @@ describe('a controlled failure during the upgrade leaves the original intact', (
 })
 
 describe('a backup restores into an openable, consistent database', () => {
+  it('keeps sensitivity provenance across a backup and restore', async () => {
+    const { directory, databasePath } = tempProfile()
+    // Seeded at v22, so the revision's sensitivity comes from the v23 backfill.
+    seedAtVersion(databasePath, 22)
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    const readSource = (): unknown =>
+      database.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?').get(memoryId)
+    expect(readSource()).toEqual({ sensitivity_source: 'inferred_backfill' })
+
+    const service = new BackupService(database, databasePath)
+    const exported = await service.export(join(directory, 'backups'))
+    const preview = await service.preview(exported.directory)
+    await service.restore({ token: preview.token, confirmed: true })
+
+    const reopened = SqliteDatabase.open(databasePath)
+    openDatabases.push(reopened)
+    expect(reopened.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?').get(memoryId))
+      .toEqual({ sensitivity_source: 'inferred_backfill' })
+  })
+
   it('round-trips the rows and passes integrity and foreign-key checks', async () => {
     const { directory, databasePath } = tempProfile()
     seedAtVersion(databasePath, 18)

@@ -10,6 +10,17 @@ export type MemoryStatus = 'active' | 'retracted'
 export type MemorySensitivity = 'normal' | 'personal' | 'sensitive'
 export type MemoryChangeType = 'created' | 'corrected' | 'retracted' | 'restored' | 'confirmed'
 
+/**
+ * Provenance of a revision's sensitivity.
+ *
+ * `recorded` means the value was written by the code that performed the
+ * transition, so it is evidence. `inferred_backfill` means a migration copied
+ * the memory's sensitivity into an older revision: it is deliberately
+ * conservative for filtering, but it must never be presented as the value that
+ * was actually recorded at that time.
+ */
+export type MemorySensitivitySource = 'recorded' | 'inferred_backfill'
+
 export interface MemoryRecord {
   id: string
   originalText: string
@@ -36,6 +47,8 @@ export interface MemoryRevisionRecord {
   confidence: number
   /** Sensitivity as of this revision, so a later change is auditable. */
   sensitivity: MemorySensitivity
+  /** Whether `sensitivity` was recorded or inferred by a migration. */
+  sensitivitySource: MemorySensitivitySource
 }
 
 export type MemoryTransition =
@@ -48,43 +61,96 @@ export type MemoryTransition =
   | { type: 'confirm' }
 
 /**
- * Single-valued attributes: a person has one current residence, one employer,
- * one project code. Two records in the same family with different text are a
- * real contradiction and must reach the model as an unresolved conflict.
- * Preferences and goals are deliberately excluded: liking coffee and liking tea
- * is not a conflict.
+ * Fact attributes are deliberately narrow. A coarse family ("identity",
+ * "project") let a correction swap one fact for another inside the same family:
+ * editing "我叫小王" into "我今年 30 岁" passed an `identity == identity` check
+ * and rewrote the name. Each attribute below is a distinct fact slot.
+ *
+ * `preference` intentionally covers liking, disliking, hobbies and habits.
+ * Deterministic rules cannot separate "喜欢摄影" from "兴趣是摄影", and
+ * splitting them would reject legitimate rewording without adding safety.
  */
-export type FactAttribute = 'residence' | 'workplace' | 'project_code' | 'identity' | 'health' | 'preference' | 'study' | 'goal'
+export type FactAttribute =
+  | 'name'
+  | 'birth_date'
+  | 'age'
+  | 'residence'
+  | 'employer'
+  | 'job_role'
+  | 'study_topic'
+  | 'preference'
+  | 'project_name'
+  | 'project_code'
+  | 'relationship'
+  | 'health_fact'
+  | 'goal'
 
+/**
+ * Single-valued attributes: a person has one current name, one birth date, one
+ * age, one residence, one employer, one role, one project name and one project
+ * code. Two records in the same slot with different text are a real
+ * contradiction and must reach the model as an unresolved conflict.
+ *
+ * `relationship`, `preference`, `study_topic`, `health_fact` and `goal` are
+ * multi-valued: having a brother and a sister, or liking coffee and tea, is not
+ * a contradiction.
+ */
 export const SINGLE_VALUED_ATTRIBUTES: readonly FactAttribute[] = Object.freeze([
+  'name',
+  'birth_date',
+  'age',
   'residence',
-  'workplace',
-  'project_code',
-  'identity'
+  'employer',
+  'job_role',
+  'project_name',
+  'project_code'
 ])
 
 const FACT_ATTRIBUTE_RULES: ReadonlyArray<{ attribute: FactAttribute; pattern: RegExp }> = [
-  // Order matters: "我在大阪工作" is a workplace fact, "我住在杭州" is residence.
+  // Order matters. Birth date before age ("1996 年出生" has no 岁), project
+  // code before project name, and employer before job role ("我在甲公司工作").
+  { attribute: 'birth_date', pattern: /(?:出生|生于|生日)/u },
+  { attribute: 'age', pattern: /(?:年龄|\d{1,3}\s*岁)/u },
+  { attribute: 'name', pattern: /(?:我的?名字|我叫|姓名)/u },
+  { attribute: 'project_code', pattern: /(?:项目代号|代号)/u },
+  { attribute: 'project_name', pattern: /(?:项目名称|项目叫|项目是)/u },
   { attribute: 'residence', pattern: /(?:住在|居住|现居|定居|住址|搬家|搬到|搬离|迁居)/u },
-  { attribute: 'project_code', pattern: /(?:项目代号|代号|项目名称)/u },
-  { attribute: 'identity', pattern: /(?:我的名字|我叫|生日|年龄|岁数)/u },
-  // Health constraints are facts, but not single-valued: an allergy list can
-  // grow. The family still matters, because a correction must not move a
-  // health statement onto a residence record.
-  { attribute: 'health', pattern: /(?:过敏|忌口|不能吃|患有|确诊|病史)/u },
-  { attribute: 'workplace', pattern: /(?:工作|职业|公司|任职|就职|上班|实习)/u },
-  { attribute: 'study', pattern: /(?:学习|在学|学会|课程|读书)/u },
-  { attribute: 'preference', pattern: /(?:喜欢|偏好|讨厌|习惯|更愿意|更喜欢)/u },
-  { attribute: 'goal', pattern: /(?:计划|打算|准备|目标|希望)/u }
+  { attribute: 'employer', pattern: /(?:(?:在|于)[^，。；\n]{1,20}(?:公司|集团|单位|工作|上班|任职|就职|实习))|(?:我的?公司)/u },
+  { attribute: 'job_role', pattern: /(?:职业|职位|岗位|职务|职称)/u },
+  { attribute: 'study_topic', pattern: /(?:学习|在学|学会|课程|专业|读书)/u },
+  { attribute: 'health_fact', pattern: /(?:过敏|忌口|不能吃|患有|确诊|病史)/u },
+  { attribute: 'preference', pattern: /(?:喜欢|偏好|讨厌|习惯|兴趣|爱好|更愿意|更喜欢)/u },
+  { attribute: 'goal', pattern: /(?:计划|打算|准备|目标|希望)/u },
+  { attribute: 'relationship', pattern: /(?:男朋友|女朋友|丈夫|妻子|老公|老婆|伴侣|结婚|恋爱|离婚|未婚|父母|妈妈|爸爸|哥哥|姐姐|弟弟|妹妹|孩子|儿子|女儿)/u }
 ]
 
-/** The fact family a sentence talks about, or null when it is not a durable fact. */
+/** The fact slot a sentence talks about, or null when it cannot be named. */
 export function classifyFactAttribute(text: string): FactAttribute | null {
   const normalized = text.normalize('NFKC')
   for (const rule of FACT_ATTRIBUTE_RULES) {
     if (rule.pattern.test(normalized)) return rule.attribute
   }
   return null
+}
+
+/**
+ * Time reference is a separate axis from the fact attribute. A correction that
+ * flips between "used to live in Osaka" and "now lives in Kyoto" is not a
+ * wording fix: applying it would either erase a historical fact or promote a
+ * historical one to current, so it is refused instead of silently rewritten.
+ */
+export type TemporalReference = 'past' | 'present' | 'unspecified'
+
+const PAST_MARKERS = /(?:曾经|以前|过去|当年|那时候|小时候|上一份)/u
+const PRESENT_MARKERS = /(?:现在|目前|如今|当前|这阵子|最近)/u
+
+export function classifyTemporalReference(text: string): TemporalReference {
+  const normalized = text.normalize('NFKC')
+  const past = PAST_MARKERS.test(normalized)
+  const present = PRESENT_MARKERS.test(normalized)
+  if (past && !present) return 'past'
+  if (present && !past) return 'present'
+  return 'unspecified'
 }
 
 export function isSingleValuedAttribute(attribute: FactAttribute | null): boolean {

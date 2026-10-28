@@ -248,7 +248,10 @@ export class MemoryService {
       createdAt: record.updatedAt,
       previousRevision,
       confidence: record.confidence,
-      sensitivity: record.sensitivity
+      sensitivity: record.sensitivity,
+      // Every revision this service writes is a real observation: the
+      // sensitivity is the value in force when the transition happened.
+      sensitivitySource: 'recorded'
     }
   }
 

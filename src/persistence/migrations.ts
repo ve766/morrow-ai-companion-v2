@@ -1,9 +1,19 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { isProvablyRecordedAfter } from './timestamp-trust'
+
+export interface MigrationContext {
+  /**
+   * The instant this migration records as its own `applied_at`. It is passed in
+   * rather than read inside `up()` so the value used for a decision and the
+   * value persisted in `schema_migrations` are the same string.
+   */
+  appliedAt: string
+}
 
 export interface Migration {
   version: number
   name: string
-  up(database: DatabaseSync): void
+  up(database: DatabaseSync, context: MigrationContext): void
 }
 
 export const migrations: readonly Migration[] = [
@@ -881,6 +891,58 @@ export const migrations: readonly Migration[] = [
           );
       `)
     }
+  },
+  {
+    version: 24,
+    name: 'correction-binding-and-sensitivity-provenance',
+    up(database, context) {
+      // v23 filled `correction_target_revision` with the target's revision *at
+      // migration time*, and copied the memory's current sensitivity into every
+      // older revision. Neither value was recorded when the row was written, so
+      // neither can be trusted as history.
+      //
+      // The decision is not made in SQL. Text comparison (and even a shape check)
+      // cannot tell a real instant from `2026-13-45T00:00:00.000Z`, and a
+      // lexicographic `created_at < applied_at` happily trusts a future
+      // timestamp. `isProvablyRecordedAfter` requires a real calendar instant
+      // strictly between v23's applied_at and this migration's own applied_at;
+      // equality, future values, empty strings and unparseable values all fail
+      // closed.
+      //
+      // The upper bound is the timestamp this migration records in
+      // `schema_migrations`, so the decision is reproducible from the database
+      // afterwards and no wall clock is read here.
+      database.exec(`
+        ALTER TABLE memory_suggestions ADD COLUMN correction_binding TEXT NOT NULL DEFAULT 'recorded'
+          CHECK (correction_binding IN ('recorded', 'unverified'));
+        ALTER TABLE memory_revisions ADD COLUMN sensitivity_source TEXT NOT NULL DEFAULT 'recorded'
+          CHECK (sensitivity_source IN ('recorded', 'inferred_backfill'));
+      `)
+
+      const boundary = (database.prepare('SELECT applied_at FROM schema_migrations WHERE version = 23')
+        .get() as { applied_at?: string } | undefined)?.applied_at ?? null
+      const migrationAt = context.appliedAt
+
+      const suggestions = database
+        .prepare('SELECT id, created_at FROM memory_suggestions WHERE correction_target_id IS NOT NULL')
+        .all() as Array<{ id: string; created_at: string }>
+      const markSuggestion = database.prepare(`
+        UPDATE memory_suggestions SET correction_binding = 'unverified', correction_target_revision = NULL WHERE id = ?
+      `)
+      for (const row of suggestions) {
+        if (!isProvablyRecordedAfter(row.created_at, boundary, migrationAt)) markSuggestion.run(row.id)
+      }
+
+      const revisions = database
+        .prepare('SELECT memory_id, revision, created_at FROM memory_revisions')
+        .all() as Array<{ memory_id: string; revision: number; created_at: string }>
+      const markRevision = database.prepare(`
+        UPDATE memory_revisions SET sensitivity_source = 'inferred_backfill' WHERE memory_id = ? AND revision = ?
+      `)
+      for (const row of revisions) {
+        if (!isProvablyRecordedAfter(row.created_at, boundary, migrationAt)) markRevision.run(row.memory_id, row.revision)
+      }
+    }
   }
 ]
 
@@ -926,9 +988,10 @@ export function applyMigrations(
     if (migration.version <= current || migration.version > targetVersion) continue
     database.exec('BEGIN IMMEDIATE')
     try {
-      migration.up(database)
+      const appliedAt = new Date().toISOString()
+      migration.up(database, { appliedAt })
       database.prepare('INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)')
-        .run(migration.version, migration.name, new Date().toISOString())
+        .run(migration.version, migration.name, appliedAt)
       database.exec('COMMIT')
     } catch {
       try {

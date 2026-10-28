@@ -568,6 +568,46 @@
       ],
       "after": { "storedUserCount": 2, "storedAssistantCount": 2 },
       "realModel": null
+    }    ,
+    {
+      "id": "b11-sensitive-ceiling",
+      "capability": "B11_sensitive_ceiling_not_delivered",
+      "title": "A sensitive fact above the ceiling never reaches the request",
+      "claims": "The allergy record is sensitive and the turn does not raise the ceiling, so it must not be delivered and must not appear in the serialized context.",
+      "setup": {
+        "memories": [
+          {
+            "content": "我对花生严重过敏。",
+            "sensitivity": "sensitive"
+          },
+          {
+            "content": "我住在杭州。",
+            "sensitivity": "personal"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "content": "我中午吃什么好？",
+          "expect": {
+            "memoryEntries": 0,
+            "contextExcludes": [
+              "花生"
+            ]
+          }
+        },
+        {
+          "content": "我中午吃什么好？",
+          "includeSensitive": true,
+          "expect": {
+            "memoryEntries": 1,
+            "contextContains": [
+              "花生"
+            ]
+          }
+        }
+      ],
+      "realModel": null
     }
   ]
 }

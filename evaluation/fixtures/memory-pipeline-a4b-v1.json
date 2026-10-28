@@ -1,0 +1,530 @@
+{
+ "schemaVersion": 1,
+ "id": "memory-pipeline-a4b-v1",
+ "description": "Phase 2.2.10 eleven-scenario matrix: the A4 ten scenarios unchanged, plus an explicit sensitivity-ceiling boundary case. Synthetic data only; verdicts are deterministic.",
+ "cases": [
+  {
+   "id": "a4-in-session",
+   "capability": "B1_in_session_recall",
+   "title": "In-session allergy recall",
+   "claims": "The allergy is delivered and restated about the user.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我对花生严重过敏。",
+      "sensitivity": "sensitive"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "请记住：我对花生严重过敏，任何建议都不要含花生。",
+     "includeSensitive": true,
+     "expect": {
+      "memoryEntries": 1
+     }
+    },
+    {
+     "content": "我有什么食物过敏？",
+     "includeSensitive": true,
+     "expect": {
+      "memoryEntries": 1
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "花生"
+    ],
+    "judge": {
+     "current": [
+      "花生"
+     ],
+     "expectsAnswer": true
+    }
+   }
+  },
+  {
+   "id": "a4-cross-session",
+   "capability": "B2_cross_session_recall",
+   "title": "Cross-session project code",
+   "claims": "BLUE-731 comes from persistent memory, not old history.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我的项目代号是 BLUE-731。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "你还记得我的项目代号吗？",
+     "newConversation": true,
+     "expect": {
+      "memoryEntries": 1
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "BLUE-731"
+    ],
+    "judge": {
+     "current": [
+      "BLUE-731"
+     ],
+     "expectsAnswer": true,
+     "valueRelations": {
+      "BLUE-731": [
+       "项目代号",
+       "代号"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "a4-correction",
+   "capability": "B3_correction_is_current",
+   "title": "Correction to Osaka",
+   "claims": "Only Osaka is current after correction.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我住在杭州。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "我现在住在哪里？",
+     "op": {
+      "type": "correct",
+      "memoryIndex": 0,
+      "content": "我住在大阪。"
+     },
+     "expect": {
+      "contextContains": [
+       "大阪"
+      ],
+      "contextExcludes": [
+       "杭州"
+      ]
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "大阪"
+    ],
+    "mustNotMention": [
+     "杭州"
+    ],
+    "judge": {
+     "current": [
+      "大阪"
+     ],
+     "superseded": [
+      "杭州"
+     ],
+     "expectsAnswer": true,
+     "valueRelations": {
+      "大阪": [
+       "住"
+      ],
+      "杭州": [
+       "住"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "a4-old-not-current",
+   "capability": "B3_correction_is_current",
+   "title": "Old city is history, not current",
+   "claims": "The old value may be cited only as superseded.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我住在杭州。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "我以前住在哪里？",
+     "op": {
+      "type": "correct",
+      "memoryIndex": 0,
+      "content": "我住在大阪。"
+     },
+     "expect": {
+      "contextContains": [
+       "大阪"
+      ],
+      "contextExcludes": [
+       "杭州"
+      ]
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "大阪"
+    ],
+    "judge": {
+     "current": [
+      "大阪"
+     ],
+     "superseded": [
+      "杭州"
+     ],
+     "expectsAnswer": true,
+     "valueRelations": {
+      "大阪": [
+       "住"
+      ],
+      "杭州": [
+       "住"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "a4-conflict",
+   "capability": "B7_conflict_both_visible",
+   "title": "Two active cities conflict",
+   "claims": "Both values are delivered and the reply must disclose uncertainty.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我住在杭州。",
+      "sensitivity": "personal"
+     },
+     {
+      "content": "我住在大阪。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "我住在哪里？",
+     "expect": {
+      "memoryEntries": 2
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "杭州",
+     "大阪"
+    ],
+    "judge": {
+     "conflicting": [
+      "杭州",
+      "大阪"
+     ],
+     "expectsAnswer": true,
+     "acceptable": [
+      "杭州",
+      "大阪"
+     ]
+    }
+   }
+  },
+  {
+   "id": "a4-retracted",
+   "capability": "B4_retracted_not_used",
+   "title": "Retracted project code is not used",
+   "claims": "The retracted value never reaches the request.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我的项目代号是 BLUE-731。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "我的项目代号是什么？",
+     "op": {
+      "type": "retract",
+      "memoryIndex": 0
+     },
+     "expect": {
+      "memoryEntries": 0,
+      "contextExcludes": [
+       "BLUE-731"
+      ]
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustNotMention": [
+     "BLUE-731"
+    ],
+    "judge": {
+     "retracted": [
+      "BLUE-731"
+     ],
+     "expectsAnswer": true
+    }
+   }
+  },
+  {
+   "id": "a4-no-memory",
+   "capability": "B8_retrieval_miss_not_faked",
+   "title": "No memory means no invention",
+   "claims": "Nothing is delivered and no code is invented.",
+   "turns": [
+    {
+     "content": "你还记得我的项目代号吗？",
+     "expect": {
+      "memoryEntries": 0
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustNotMention": [
+     "BLUE-731"
+    ],
+    "judge": {
+     "expectsAnswer": true,
+     "acceptable": [
+      "不记得",
+      "不知道",
+      "没有记录"
+     ]
+    }
+   }
+  },
+  {
+   "id": "a4-irrelevant",
+   "capability": "B9_irrelevant_memory_bounded",
+   "title": "Unrelated question does not force a memory",
+   "claims": "A stored city is not injected into an unrelated question.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我一直住在杭州。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "给我一个完全无关的问题。",
+     "expect": {
+      "memoryEntries": 0,
+      "contextExcludes": [
+       "杭州"
+      ]
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustNotMention": [
+     "杭州"
+    ],
+    "judge": {
+     "expectsAnswer": true,
+     "acceptable": [
+      "不知道"
+     ]
+    }
+   }
+  },
+  {
+   "id": "a4-subject",
+   "capability": "B6_provenance_preserved",
+   "title": "User code is not the assistant's code",
+   "claims": "The user value is delivered and must be stated in the second person.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我的项目代号是 BLUE-731。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "我的项目代号是什么？",
+     "expect": {
+      "memoryEntries": 1
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "BLUE-731"
+    ],
+    "judge": {
+     "current": [
+      "BLUE-731"
+     ],
+     "expectsAnswer": true,
+     "valueRelations": {
+      "BLUE-731": [
+       "项目代号",
+       "代号"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "a4-long-correction",
+   "capability": "B3_correction_is_current",
+   "title": "Correction remains valid after a long conversation",
+   "claims": "Turn 7 uses Osaka and does not leak Hangzhou after six prior turns.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我住在杭州。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "今天地铁有点挤。",
+     "expect": {
+      "memoryEntriesAtMost": 1
+     }
+    },
+    {
+     "content": "下午开了两个会。",
+     "expect": {
+      "memoryEntriesAtMost": 1
+     }
+    },
+    {
+     "content": "晚上想早点睡。",
+     "expect": {
+      "memoryEntriesAtMost": 1
+     }
+    },
+    {
+     "content": "我把书桌整理了一下。",
+     "expect": {
+      "memoryEntriesAtMost": 1
+     }
+    },
+    {
+     "content": "窗外在下雨。",
+     "expect": {
+      "memoryEntriesAtMost": 1
+     }
+    },
+    {
+     "content": "我搬家了，现在住在大阪。",
+     "op": {
+      "type": "correct",
+      "memoryIndex": 0,
+      "content": "我住在大阪。"
+     },
+     "expect": {
+      "contextContains": [
+       "大阪"
+      ],
+      "contextExcludes": [
+       "杭州"
+      ]
+     }
+    },
+    {
+     "content": "我现在住在哪里？",
+     "expect": {
+      "contextContains": [
+       "大阪"
+      ],
+      "contextExcludes": [
+       "杭州"
+      ]
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustMention": [
+     "大阪"
+    ],
+    "mustNotMention": [
+     "杭州"
+    ],
+    "judge": {
+     "current": [
+      "大阪"
+     ],
+     "superseded": [
+      "杭州"
+     ],
+     "expectsAnswer": true,
+     "valueRelations": {
+      "大阪": [
+       "住"
+      ],
+      "杭州": [
+       "住"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "a4-sensitive-boundary",
+   "capability": "B11_sensitive_ceiling_not_delivered",
+   "title": "A sensitive memory stays out of the request and the reply",
+   "claims": "The allergy fact is above the default ceiling, so it must not be delivered and must not be mentioned.",
+   "setup": {
+    "memories": [
+     {
+      "content": "我对花生严重过敏。",
+      "sensitivity": "sensitive"
+     },
+     {
+      "content": "我住在杭州。",
+      "sensitivity": "personal"
+     }
+    ]
+   },
+   "turns": [
+    {
+     "content": "我中午吃什么好？",
+     "expect": {
+      "memoryEntries": 0,
+      "contextExcludes": [
+       "花生"
+      ]
+     }
+    }
+   ],
+   "realModel": {
+    "check": "substring",
+    "mustNotMention": [
+     "花生"
+    ],
+    "judge": {
+     "expectsAnswer": true
+    }
+   }
+  }
+ ]
+}
