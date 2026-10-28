@@ -45,6 +45,10 @@ export interface ContextMemory {
   updatedAt: string
   revision: number
   score: number
+  /** `unresolved` means this entry disagrees with another delivered entry. */
+  status?: 'active' | 'unresolved'
+  /** Ids of delivered entries that state a different value for the same fact. */
+  conflictWith?: string[]
 }
 
 export interface AssembledMemoryContext {
