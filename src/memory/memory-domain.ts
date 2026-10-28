@@ -34,13 +34,62 @@ export interface MemoryRevisionRecord {
   createdAt: string
   previousRevision: number | null
   confidence: number
+  /** Sensitivity as of this revision, so a later change is auditable. */
+  sensitivity: MemorySensitivity
 }
 
 export type MemoryTransition =
-  | { type: 'correct'; content: string }
+  // A correction may carry the sensitivity the user chose at review time. It is
+  // part of the same transition because a content change and a sensitivity
+  // change must not be written as two half-states.
+  | { type: 'correct'; content: string; sensitivity?: MemorySensitivity }
   | { type: 'retract' }
   | { type: 'restore' }
   | { type: 'confirm' }
+
+/**
+ * Single-valued attributes: a person has one current residence, one employer,
+ * one project code. Two records in the same family with different text are a
+ * real contradiction and must reach the model as an unresolved conflict.
+ * Preferences and goals are deliberately excluded: liking coffee and liking tea
+ * is not a conflict.
+ */
+export type FactAttribute = 'residence' | 'workplace' | 'project_code' | 'identity' | 'health' | 'preference' | 'study' | 'goal'
+
+export const SINGLE_VALUED_ATTRIBUTES: readonly FactAttribute[] = Object.freeze([
+  'residence',
+  'workplace',
+  'project_code',
+  'identity'
+])
+
+const FACT_ATTRIBUTE_RULES: ReadonlyArray<{ attribute: FactAttribute; pattern: RegExp }> = [
+  // Order matters: "我在大阪工作" is a workplace fact, "我住在杭州" is residence.
+  { attribute: 'residence', pattern: /(?:住在|居住|现居|定居|住址|搬家|搬到|搬离|迁居)/u },
+  { attribute: 'project_code', pattern: /(?:项目代号|代号|项目名称)/u },
+  { attribute: 'identity', pattern: /(?:我的名字|我叫|生日|年龄|岁数)/u },
+  // Health constraints are facts, but not single-valued: an allergy list can
+  // grow. The family still matters, because a correction must not move a
+  // health statement onto a residence record.
+  { attribute: 'health', pattern: /(?:过敏|忌口|不能吃|患有|确诊|病史)/u },
+  { attribute: 'workplace', pattern: /(?:工作|职业|公司|任职|就职|上班|实习)/u },
+  { attribute: 'study', pattern: /(?:学习|在学|学会|课程|读书)/u },
+  { attribute: 'preference', pattern: /(?:喜欢|偏好|讨厌|习惯|更愿意|更喜欢)/u },
+  { attribute: 'goal', pattern: /(?:计划|打算|准备|目标|希望)/u }
+]
+
+/** The fact family a sentence talks about, or null when it is not a durable fact. */
+export function classifyFactAttribute(text: string): FactAttribute | null {
+  const normalized = text.normalize('NFKC')
+  for (const rule of FACT_ATTRIBUTE_RULES) {
+    if (rule.pattern.test(normalized)) return rule.attribute
+  }
+  return null
+}
+
+export function isSingleValuedAttribute(attribute: FactAttribute | null): boolean {
+  return attribute !== null && SINGLE_VALUED_ATTRIBUTES.includes(attribute)
+}
 
 // A single age threshold for every memory is wrong in both directions: a
 // favourite food does not expire in six months, while "I am looking for a new
@@ -173,6 +222,10 @@ export function transitionMemory(
   const currentText = transition.type === 'correct' ? transition.content : record.currentText
   if (transition.type === 'correct') validateMemoryText(currentText)
   if (transition.type === 'correct' && currentText === record.currentText) throw new InvalidMemoryTransitionError()
+  const sensitivity = transition.type === 'correct' && transition.sensitivity !== undefined
+    ? transition.sensitivity
+    : record.sensitivity
+  validateMemorySensitivity(sensitivity)
   if (transition.type === 'confirm') {
     // Re-confirming identical content must still be meaningful: it refreshes
     // recency and can raise confidence, but a no-op confirm with unchanged
@@ -194,6 +247,7 @@ export function transitionMemory(
     ...record,
     currentText,
     status,
+    sensitivity,
     updatedAt: changedAt,
     revision: record.revision + 1,
     confidence,

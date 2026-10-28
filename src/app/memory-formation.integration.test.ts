@@ -121,17 +121,29 @@ describe('A2 automatic candidate formation', () => {
     }
   })
 
-  it('flags a conflicting residence candidate but keeps it pending for review', async () => {
+  it('treats a new present-tense residence statement as a conflicting fact, not a silent correction', async () => {
     const ctx = harness()
     try {
       const old = ctx.memories.create('我住在杭州。', 'personal')
       const conversation = ctx.companion.createConversation()
       await turn(ctx.companion, conversation.id, '我现在住在大阪。')
       const candidate = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+      // P1-B: "现在住" is a new statement. Only an explicit denial, a move, an
+      // acknowledged mistake or a past/present contrast may bind a target.
+      expect(candidate.candidateKind).toBe('fact')
+      expect(candidate.evidenceType).toBe('user_explicit_statement')
+      expect(candidate.correctionTargetId).toBeNull()
       expect(candidate.conflictWith).toContain(old.id)
-      expect(candidate.correctionTargetId).toBe(old.id)
       expect(candidate.status).toBe('pending')
       expect(ctx.memories.list().find((memory) => memory.id === old.id)?.currentText).toBe('我住在杭州。')
+
+      // Accepting it records a second fact; the old record is untouched and the
+      // contradiction is delivered to the model instead of being resolved by
+      // recency.
+      ctx.companion.reviewMemorySuggestion({ id: candidate.id, decision: 'accept', content: candidate.claim })
+      expect(ctx.memories.list().find((memory) => memory.id === old.id)?.currentText).toBe('我住在杭州。')
+      expect(ctx.memories.countActive()).toBe(2)
+      expect(ctx.memories.assembleContext('我住在哪', 'personal').text).toContain('unresolvedConflicts')
     } finally {
       ctx.database.close()
     }

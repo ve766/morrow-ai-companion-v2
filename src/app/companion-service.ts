@@ -26,7 +26,13 @@ import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROV
 import { isHttpsEndpoint, isLoopbackEndpoint, isValidRemoteModelId, normalizeOpenAIBaseUrl, isValidLocalModelName } from '../security/url-gate'
 import { COGNITIVE_ANALYZER_VERSION, withCognitiveContextEvidence, type CognitiveCoreSettings, type CognitiveHistoryMessage, type CognitiveTurnAnalysis, type CognitiveTurnRecord } from '../cognition/cognition'
 import { validateMemoryText, normalizedMemoryKey, significantMemoryTerms, sharedTermCount } from '../memory/memory-domain'
-import { classifyMemorySensitivity, extractFormationCandidates, sharesFactAttribute } from '../memory/memory-formation-domain'
+import {
+  canTargetCorrection,
+  classifyMemorySensitivity,
+  extractFormationCandidates,
+  sharesFactAttribute,
+  validateCorrectionTarget
+} from '../memory/memory-formation-domain'
 import type { SqliteDatabase } from '../persistence/database'
 import type { MemoryService } from '../memory/memory-service'
 import type { ConversationService } from '../conversation/conversation-service'
@@ -151,6 +157,7 @@ interface SuggestionRow {
   status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
   conflict_with_json: string
   correction_target_id: string | null
+  correction_target_revision: number | null
   provider_model: string
   created_at: string
   reviewed_at: string | null
@@ -212,6 +219,7 @@ function mapSuggestion(row: SuggestionRow): MemorySuggestion {
     status: row.status,
     conflictWith,
     correctionTargetId: row.correction_target_id,
+    correctionTargetRevision: row.correction_target_revision,
     providerModel: row.provider_model,
     createdAt: row.created_at,
     reviewedAt: row.reviewed_at,
@@ -1263,7 +1271,7 @@ export class MemorySuggestionService {
     const rows = this.database.connection.prepare(`
       SELECT id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
         confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
-        provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
+        correction_target_revision, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
       FROM memory_suggestions WHERE conversation_id = ? ORDER BY created_at DESC, id
     `).all(id) as unknown as SuggestionRow[]
     return rows.map(mapSuggestion)
@@ -1294,20 +1302,27 @@ export class MemorySuggestionService {
           (sharedTermCount(candidateTerms, significantMemoryTerms(memory.currentText)) >= 2 ||
             sharesFactAttribute(candidate.claim, memory.currentText)))
         let correctionTargetId: string | null = null
-        if (candidate.correctionHint && conflicts.length > 0) {
+        let correctionTargetRevision: number | null = null
+        if (candidate.correctionHint) {
+          // Only a memory in the same fact family may become a target. A
+          // preference statement must never be bound to a residence record,
+          // even before the user has edited anything.
+          const eligible = conflicts.filter((memory) => canTargetCorrection(candidate.claim, memory.currentText))
           const hinted = candidate.supersededHint
-            ? conflicts.find((memory) => hintedContains(candidate.supersededHint!, memory.currentText))
+            ? eligible.find((memory) => hintedContains(candidate.supersededHint!, memory.currentText))
             : undefined
-          correctionTargetId = (hinted ?? [...conflicts].sort((left, right) =>
+          const target = hinted ?? [...eligible].sort((left, right) =>
             sharedTermCount(candidateTerms, significantMemoryTerms(right.currentText)) -
-            sharedTermCount(candidateTerms, significantMemoryTerms(left.currentText)))[0])?.id ?? null
+            sharedTermCount(candidateTerms, significantMemoryTerms(left.currentText)))[0]
+          correctionTargetId = target?.id ?? null
+          correctionTargetRevision = target?.revision ?? null
         }
         this.database.connection.prepare(`
           INSERT OR IGNORE INTO memory_suggestions(
             id, conversation_id, source_message_id, claim, candidate_kind, subject,
             evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json,
-            correction_target_id, provider_model, evidence_hash, created_at
-          ) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, 'pending', ?, ?, 'local-rule-v1', ?, ?)
+            correction_target_id, correction_target_revision, provider_model, evidence_hash, created_at
+          ) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, 'pending', ?, ?, ?, 'local-rule-v1', ?, ?)
         `).run(
           normalizedUuid(this.makeId()),
           conversationId,
@@ -1320,6 +1335,7 @@ export class MemorySuggestionService {
           candidate.sensitivity,
           JSON.stringify(conflicts.slice(0, 5).map((memory) => memory.id)),
           correctionTargetId,
+          correctionTargetRevision,
           evidenceHash,
           input.occurredAt
         )
@@ -1383,7 +1399,7 @@ export class MemorySuggestionService {
     const row = this.database.connection.prepare(`
       SELECT id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
         confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
-        provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
+        correction_target_revision, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
       FROM memory_suggestions WHERE id = ?
     `).get(id) as unknown as SuggestionRow | undefined
     if (!row) throw new ApplicationError('NOT_FOUND')
@@ -1399,18 +1415,51 @@ export class MemorySuggestionService {
     }
     if (request.decision !== 'accept' || typeof request.content !== 'string') throw new ApplicationError('INVALID_INPUT')
     validateMemoryText(request.content)
-    const sensitivity = request.sensitivity ?? row.sensitivity
-    if (!sensitivityOrder.includes(sensitivity)) throw new ApplicationError('INVALID_INPUT')
+    const requestedSensitivity = request.sensitivity
+    if (requestedSensitivity !== undefined && !sensitivityOrder.includes(requestedSensitivity)) {
+      throw new ApplicationError('INVALID_INPUT')
+    }
     const content = request.content.trim()
     return this.database.transaction(() => {
-      const target = row.correction_target_id
-        ? this.memories.list().find((memory) => memory.id === row.correction_target_id)
-        : null
-      // A correction to an existing active record keeps its revision lineage.
-      // If the target disappeared before review, a reviewed claim still becomes
-      // a new memory rather than silently rewriting an unrelated record.
-      const memory = target && target.status === 'active'
-        ? this.memories.correct(target.id, content, id)
+      // The target is re-read inside the transaction and validated against the
+      // *edited* content. A candidate is a proposal about one version of one
+      // memory: if the target vanished, was retracted, changed revision, or the
+      // edit no longer describes the same subject and attribute, the acceptance
+      // is refused and the candidate stays pending for the user to re-review.
+      // It is never silently downgraded to a new memory and never applied to a
+      // different record.
+      const target = row.correction_target_id === null ? null : this.memories.get(row.correction_target_id)
+      if (row.correction_target_id !== null) {
+        const validation = validateCorrectionTarget({
+          editedContent: content,
+          target: target === null
+            ? null
+            : {
+                id: target.id,
+                currentText: target.currentText,
+                status: target.status,
+                revision: target.revision,
+                sensitivity: target.sensitivity
+              },
+          expectedRevision: row.correction_target_revision
+        })
+        if (!validation.ok) throw new ApplicationError('CONFLICT', `correction_rejected:${validation.reason}`)
+      }
+      // The client may raise sensitivity but never lower it below what the
+      // server classified, nor below what the target memory already carries.
+      // Without this a correction could launder a sensitive fact into `normal`.
+      const floor = maxSensitivity(classifyMemorySensitivity(content), target === null ? [] : [target.sensitivity])
+      if (requestedSensitivity !== undefined && sensitivityOrder.indexOf(requestedSensitivity) < sensitivityOrder.indexOf(floor)) {
+        throw new ApplicationError('INVALID_INPUT', 'sensitivity_below_floor')
+      }
+      // No explicit choice means "keep the server's floor", never "downgrade":
+      // an edit that added health information raises the record's sensitivity
+      // even if the user did not touch the selector.
+      const sensitivity = requestedSensitivity === undefined
+        ? maxSensitivity(row.sensitivity, [floor])
+        : requestedSensitivity
+      const memory = target !== null
+        ? this.memories.correct(target.id, content, id, sensitivity)
         : this.memories.create(content, sensitivity, {
             sourceCategory: 'model_inferred_confirmed',
             confidence: Math.max(50, row.confidence),

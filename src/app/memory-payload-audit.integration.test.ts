@@ -152,4 +152,52 @@ describe('A4 final payload audit', () => {
       ctx.database.close()
     }
   })
+
+  it('delivers a contradiction as an unresolved conflict instead of one current fact', async () => {
+    const ctx = harness()
+    try {
+      ctx.memories.create('我住在大阪。', 'personal')
+      ctx.memories.create('我现在住在京都。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await turn(ctx.companion, conversation.id, '我现在住在哪里？')
+      const system = systemOf(ctx.requests[0]!)
+      const block = JSON.parse(system.slice(system.indexOf('{'), system.lastIndexOf('}') + 1)) as {
+        currentFacts?: unknown
+        unresolvedConflicts?: Array<{ resolved: boolean; entries: Array<{ content: string }> }>
+      }
+      expect(block.currentFacts).toBeUndefined()
+      expect(block.unresolvedConflicts?.[0]?.resolved).toBe(false)
+      expect(block.unresolvedConflicts?.[0]?.entries.map((entry) => entry.content).sort())
+        .toEqual(['我住在大阪。', '我现在住在京都。'])
+      expect(system).toContain('never pick one')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('re-applies a reviewed sensitivity at the final payload boundary', async () => {
+    const ctx = harness()
+    try {
+      const old = ctx.memories.create('我住在大阪。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await turn(ctx.companion, conversation.id, '我不再住大阪了，现在搬到京都了。')
+      const candidate = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+      expect(candidate.correctionTargetId).toBe(old.id)
+      ctx.companion.reviewMemorySuggestion({
+        id: candidate.id,
+        decision: 'accept',
+        content: '我住在京都。',
+        sensitivity: 'sensitive'
+      })
+
+      // A turn that does not raise the ceiling must not see the value the user
+      // marked sensitive, even though the content is highly relevant.
+      await turn(ctx.companion, conversation.id, '我现在住在哪里？')
+      expect(systemOf(ctx.requests.at(-1)!)).not.toContain('京都')
+      await turn(ctx.companion, conversation.id, '我现在住在哪里？', true)
+      expect(systemOf(ctx.requests.at(-1)!)).toContain('京都')
+    } finally {
+      ctx.database.close()
+    }
+  })
 })

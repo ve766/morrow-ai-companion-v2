@@ -19,10 +19,16 @@ export type ApplicationErrorCode =
 
 export class ApplicationError extends Error {
   readonly code: ApplicationErrorCode
+  /**
+   * Optional machine-readable detail for a code that covers several causes
+   * (e.g. why a correction was refused). It never contains user content.
+   */
+  readonly detail: string | undefined
 
-  constructor(code: ApplicationErrorCode) {
+  constructor(code: ApplicationErrorCode, detail?: string) {
     super(code)
     this.name = 'ApplicationError'
     this.code = code
+    this.detail = detail
   }
 }

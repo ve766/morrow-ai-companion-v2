@@ -1,6 +1,8 @@
 import type { AssembledMemoryContext, ContextMemory, Sensitivity } from '../shared/companion'
 import {
+  classifyFactAttribute,
   classifyMemoryVolatility,
+  isSingleValuedAttribute,
   isStaleMemory,
   memoryAgeDays,
   normalizedMemoryKey,
@@ -159,6 +161,7 @@ const defaultContextLimit = 5
  */
 function assignConflictGroups(items: ContextMemory[]): void {
   const termSets = items.map((item) => significantMemoryTerms(item.content))
+  const attributes = items.map((item) => classifyFactAttribute(item.content))
   const assigned: Array<number | undefined> = items.map(() => undefined)
   let next = 0
   for (let index = 0; index < items.length; index += 1) {
@@ -166,8 +169,24 @@ function assignConflictGroups(items: ContextMemory[]): void {
     const members = [index]
     for (let other = index + 1; other < items.length; other += 1) {
       if (assigned[other] !== undefined) continue
+      // Two values for a single-valued attribute (residence, employer, project
+      // code, identity) contradict each other even when the sentences share few
+      // words: "我住在大阪" and "我现在住在京都" overlap only on 住在. Lexical
+      // overlap alone missed that pair. Multi-valued families (preferences,
+      // goals, study) are excluded, because liking coffee and liking tea is not
+      // a contradiction.
+      const sameAttribute = isSingleValuedAttribute(attributes[index]!) &&
+        attributes[index] === attributes[other]
+      // Lexical overlap is evidence only outside a known multi-valued family.
+      // Inside one, sharing words is normal ("我喜欢手冲咖啡" / "我喜欢冷萃
+      // 咖啡"), so overlap would manufacture conflicts the user never raised.
+      const knownMultiValued = attributes[index] !== null &&
+        attributes[index] === attributes[other] &&
+        !isSingleValuedAttribute(attributes[index]!)
+      const lexicalConflict = !knownMultiValued &&
+        sharedTermCount(termSets[index]!, termSets[other]!) >= 2
       if (
-        sharedTermCount(termSets[index]!, termSets[other]!) >= 2 &&
+        (sameAttribute || lexicalConflict) &&
         normalizedMemoryKey(items[index]!.content) !== normalizedMemoryKey(items[other]!.content)
       ) {
         members.push(other)

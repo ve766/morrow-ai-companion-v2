@@ -134,7 +134,7 @@ function isTrustedSender(event: IpcEventLike, trustedRendererUrl: string): boole
   return isTrustedRendererUrl(event.senderFrame.url, trustedRendererUrl)
 }
 
-function failure(code: IpcErrorCode): IpcResult<never> {
+function failure(code: IpcErrorCode, detail?: string): IpcResult<never> {
   const messages: Record<IpcErrorCode, string> = {
     INVALID_INPUT: '输入无效，请检查后重试。',
     FORBIDDEN: '此请求不被允许。',
@@ -155,13 +155,13 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     PROVIDER_NETWORK: '无法连接 DeepSeek，请检查网络后重试。',
     PROVIDER_CANCELLED: '请求已取消。'
   }
-  return { ok: false, error: { code, message: messages[code] } }
+  return { ok: false, error: detail === undefined ? { code, message: messages[code] } : { code, message: messages[code], detail } }
 }
 
 function toFailure(error: unknown): IpcResult<never> {
   if (error instanceof InputValidationError || error instanceof GoalValidationError || error instanceof ReminderValidationError) return failure('INVALID_INPUT')
 
-  if (error instanceof ApplicationError) return failure(error.code)
+  if (error instanceof ApplicationError) return failure(error.code, error.detail)
   return failure('INTERNAL_ERROR')
 }
 

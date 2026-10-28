@@ -111,7 +111,10 @@ export type IpcErrorCode =
 
 export type IpcResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: { code: IpcErrorCode; message: string } }
+  // `detail` is a machine-readable reason for codes that cover several causes
+  // (e.g. why a correction was refused). It never contains user content and is
+  // absent when there is nothing more specific to say.
+  | { ok: false; error: { code: IpcErrorCode; message: string; detail?: string } }
 
 export interface AppInfo {
   name: string

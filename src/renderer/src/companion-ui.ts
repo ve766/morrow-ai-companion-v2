@@ -12,13 +12,13 @@ import type {
 } from '../../shared/companion'
 
 class UiError extends Error {
-  constructor(message: string, readonly code: string) {
+  constructor(message: string, readonly code: string, readonly detail: string | undefined = undefined) {
     super(message)
   }
 }
 
 function unwrap<T>(result: IpcResult<T>): T {
-  if (!result.ok) throw new UiError(result.error.message, result.error.code)
+  if (!result.ok) throw new UiError(result.error.message, result.error.code, result.error.detail)
   return result.data
 }
 
@@ -42,8 +42,22 @@ function button(label: string, className: string, action: () => void | Promise<v
   return item
 }
 
+// A refused correction is not a transient failure: the user has to understand
+// why it was refused and what to do next. The server sends a stable detail code
+// so the message never has to guess from a generic CONFLICT.
+const refusalMessages: Record<string, string> = {
+  'correction_rejected:attribute_mismatch': '这条候选已经不再描述原记忆的那件事，没有保存。请重新提出更正，或直接编辑原记忆。',
+  'correction_rejected:target_inactive': '原记忆已被撤回，这次更正没有执行。',
+  'correction_rejected:target_changed': '原记忆在你审核期间已经更新，请重新提出更正。',
+  'correction_rejected:target_missing': '原记忆已不存在，这次更正没有执行。',
+  'correction_rejected:subject_mismatch': '候选内容不再是关于你的陈述，没有保存。',
+  'correction_rejected:content_unchanged': '候选内容与原记忆相同，不需要更正。',
+  sensitivity_below_floor: '敏感度不能低于系统判定或原记忆已有的级别。'
+}
+
 function errorText(error: unknown): string {
-  return error instanceof UiError ? error.message : '操作未完成，请重试。'
+  if (!(error instanceof UiError)) return '操作未完成，请重试。'
+  return (error.detail === undefined ? undefined : refusalMessages[error.detail]) ?? error.message
 }
 
 function sensitivityName(value: Sensitivity): string {

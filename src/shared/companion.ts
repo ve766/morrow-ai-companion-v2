@@ -239,6 +239,8 @@ export interface MemorySuggestion {
   status: MemorySuggestionStatus
   conflictWith: string[]
   correctionTargetId: string | null
+  /** Revision of the target memory this candidate was built against. */
+  correctionTargetRevision: number | null
   providerModel: string
   createdAt: string
   reviewedAt: string | null

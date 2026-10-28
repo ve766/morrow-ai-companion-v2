@@ -224,6 +224,36 @@ describe('bounded memory context assembly', () => {
     expect(parsed.instruction).toContain('ask which is current')
   })
 
+  it('groups two values of a single-valued attribute even when they share almost no words', () => {
+    // "我住在大阪" and "我现在住在京都" share only 住在, which the old
+    // two-shared-terms rule missed. A person has one current residence, so the
+    // model must be told the two entries contradict instead of silently picking
+    // the newer one.
+    const result = assembler.assemble('我住在哪', [
+      memory('00000000-0000-4000-8000-0000000000b1', '我住在大阪。', 'personal'),
+      memory('00000000-0000-4000-8000-0000000000b2', '我现在住在京都。', 'personal')
+    ], 'personal')
+    const parsed = JSON.parse(result.text) as { currentFacts?: unknown; unresolvedConflicts?: unknown }
+    const encoded = flattenMemoryBlock(parsed)
+    expect(encoded.map((item) => item.status)).toEqual(['conflict', 'conflict'])
+    expect(encoded.map((item) => item.conflictGroup)).toEqual([0, 0])
+    expect(parsed.currentFacts).toBeUndefined()
+    expect(parsed.unresolvedConflicts).toBeDefined()
+  })
+
+  it('does not treat two preferences as a contradiction just because they share words', () => {
+    // Liking coffee and not liking coffee *is* a change of preference, but the
+    // preference family is multi-valued; grouping it would turn every pair of
+    // taste statements into a false conflict.
+    const result = assembler.assemble('我喝什么咖啡', [
+      memory('00000000-0000-4000-8000-0000000000c1', '我喜欢手冲咖啡。', 'personal'),
+      memory('00000000-0000-4000-8000-0000000000c2', '我不喜欢咖啡。', 'personal')
+    ], 'personal')
+    const encoded = flattenMemoryBlock(JSON.parse(result.text))
+    expect(encoded.every((item) => item.conflictGroup === null)).toBe(true)
+    expect(encoded.every((item) => item.status === 'current')).toBe(true)
+  })
+
   it('does not group two unrelated records just because both are present', () => {
     const result = assembler.assemble('我住在哪里', [
       memory('00000000-0000-4000-8000-0000000000a1', '我住在杭州。', 'personal'),
