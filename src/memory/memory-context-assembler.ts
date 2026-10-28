@@ -135,7 +135,8 @@ export class MemoryContextAssembler {
         // the two values are provably equivalent. `uncertain` (for example
         // 喜欢猫 vs 喜欢猫狗) is neither equivalent nor contradictory, so it
         // cannot be used as admission evidence either.
-        const slotMatch = Boolean(querySlot && memorySlot && querySlot.predicate === memorySlot.predicate && timeCompatible &&
+        const slotMatch = Boolean(querySlot && memorySlot && memorySlot.kind !== 'uncertain' &&
+          querySlot.predicate === memorySlot.predicate && timeCompatible &&
           (querySlot.kind === 'question' || compareFactValues(querySlot, memorySlot) === 'equivalent'))
         const sourceReliability = record.sourceCategory === 'user_explicit_input' ? 1 : 0.5
         const score = WEIGHTS.slot * Number(slotMatch) +
