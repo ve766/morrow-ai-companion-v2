@@ -99,8 +99,19 @@ const reviewIds = new Set(review.samples.map((sample) => `${sample.runId.split('
 check('runs without review', [...rawRunIds].filter((id) => !reviewIds.has(id)).length, 0)
 check('reviews without run', [...reviewIds].filter((id) => !rawRunIds.has(id)).length, 0)
 
+// Everything below is recomputed from the per-run rows, not from the stored
+// summaries: a stale summary must not be able to turn into a passing report.
 const referenceMatched = rescored.reduce((sum, item) => sum + item.runs.filter((run) => run.reference.matched).length, 0)
-const changed = rescored.reduce((sum, item) => sum + item.totals.changed, 0)
+const changedRows = rescored.flatMap((item) => item.runs.filter((run) => run.before !== run.after))
+const changed = changedRows.length
+for (const item of rescored) {
+  const rows = item.runs
+  check(`${item.condition.id} runs (rows vs summary)`, rows.length, item.totals.runs)
+  check(`${item.condition.id} used (rows vs summary)`, rows.filter((run) => run.after === 'used_correctly').length, item.totals.usedCorrectly)
+  check(`${item.condition.id} unknown (rows vs summary)`, rows.filter((run) => run.after === 'reasonable_unknown').length, item.totals.reasonableUnknown)
+  check(`${item.condition.id} unsupported (rows vs summary)`, rows.filter((run) => run.after === 'unsupported_answer').length, item.totals.unsupported)
+  check(`${item.condition.id} changed (rows vs summary)`, rows.filter((run) => run.before !== run.after).length, item.totals.changed)
+}
 
 // The markdown must state the same numbers.
 const markdown = existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : ''
@@ -151,6 +162,21 @@ const summary = {
   disagreements,
   perCondition: rescored.map((item) => ({ condition: item.condition.id, ...item.totals })),
   perScenario: scenarioTotals,
+  changedDirections: changedRows.reduce<Record<string, number>>((accumulator, run) => {
+    const key = `${run.before ?? 'none'}->${run.after}`
+    accumulator[key] = (accumulator[key] ?? 0) + 1
+    return accumulator
+  }, {}),
+  sources: {
+    keywordReference: 'computed from rescored run rows (reference.matched)',
+    humanCorrectness: 'computed from phase23-human-review.json labels (single reviewer)',
+    semanticConsistency: 'computed by the evaluator; not independently re-derived here'
+  },
+  limits: [
+    'single human reviewer: this is not inter-annotator agreement',
+    'keyword reference matching is a lexical proxy, not correctness',
+    'the verifier checks report-vs-data consistency, not model capability'
+  ],
   codeSha: raw[0]?.provenance.codeSha ?? 'unknown',
   ok: failures.length === 0,
   failures
