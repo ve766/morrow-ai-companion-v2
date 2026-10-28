@@ -1,5 +1,6 @@
 import type { MemoryRecord, MemorySourceCategory } from '../memory/memory-domain'
 import type { CognitiveTurnRecord } from '../cognition/cognition'
+import type { TurnEvaluation } from '../cognition/turn-evaluation'
 
 export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com'
 export const DEEPSEEK_MODEL = 'deepseek-flash' as const
@@ -147,6 +148,8 @@ export interface ChatResult {
   userMessage: ConversationMessage
   assistantMessage: ConversationMessage
   includedMemoryCount: number
+  /** Phase 2 ledger record: intent, evidence, payload, provider and answer outcome. */
+  evaluation?: TurnEvaluation
 }
 
 export interface ChatStreamEvent {

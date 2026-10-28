@@ -1,0 +1,132 @@
+/**
+ * Turn evaluation ledger, Phase 2 (work package E).
+ *
+ * One record links what the system decided to what actually happened:
+ *
+ *   intent  ->  selected memories  ->  payload hash  ->  provider outcome
+ *           ->  answer assessment
+ *
+ * It is a *record*, not a policy. Nothing in this module can change memory,
+ * personality, retrieval or permissions: a single answer score must never
+ * rewrite the user's long-term model. The ledger is returned to the caller and
+ * optionally written to the event journal, which is append-only.
+ */
+import type { Sensitivity } from '../shared/companion'
+import type { AnswerEvidenceAssessment } from './answer-evidence-evaluation'
+import type { IntentDecision, IntentLabel } from './intent-decision'
+
+export const TURN_EVALUATION_SCHEMA_VERSION = 1 as const
+export type ProviderTurnOutcome = 'succeeded' | 'failed' | 'cancelled'
+
+export interface TurnEvaluation {
+  schemaVersion: typeof TURN_EVALUATION_SCHEMA_VERSION
+  conversationId: string
+  requestId: string
+  userMessageId: string
+  intent: IntentDecision
+  retrieval: {
+    intent: IntentLabel
+    selectedMemoryIds: string[]
+    conflictMemoryIds: string[]
+    omitted: number
+    maximumSensitivity: Sensitivity
+  }
+  payload: { sha256: string; characters: number }
+  provider: { providerId: string; model: string; outcome: ProviderTurnOutcome }
+  answer: AnswerEvidenceAssessment | null
+  recordedAt: string
+}
+
+export interface TurnEvaluationInput {
+  conversationId: string
+  requestId: string
+  userMessageId: string
+  decision: IntentDecision
+  selectedMemoryIds: readonly string[]
+  conflictMemoryIds: readonly string[]
+  omitted: number
+  maximumSensitivity: Sensitivity
+  payloadSha256: string
+  payloadCharacters: number
+  providerId: string
+  model: string
+  providerOutcome: ProviderTurnOutcome
+  answer: AnswerEvidenceAssessment | null
+  recordedAt: string
+}
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+const sha256Pattern = /^[0-9a-f]{64}$/u
+
+export function buildTurnEvaluation(input: TurnEvaluationInput): TurnEvaluation {
+  if (!uuidPattern.test(input.conversationId) || !uuidPattern.test(input.requestId) || !uuidPattern.test(input.userMessageId)) {
+    throw new TypeError('Turn evaluation requires conversation, request and message ids.')
+  }
+  if (!sha256Pattern.test(input.payloadSha256)) throw new TypeError('Turn evaluation requires a payload digest.')
+  const recordedAt = new Date(input.recordedAt)
+  if (!Number.isFinite(recordedAt.getTime())) throw new TypeError('Turn evaluation requires an ISO timestamp.')
+  return {
+    schemaVersion: TURN_EVALUATION_SCHEMA_VERSION,
+    conversationId: input.conversationId.toLowerCase(),
+    requestId: input.requestId.toLowerCase(),
+    userMessageId: input.userMessageId.toLowerCase(),
+    intent: input.decision,
+    retrieval: {
+      intent: input.decision.intent,
+      selectedMemoryIds: [...new Set(input.selectedMemoryIds)].slice(0, 25),
+      conflictMemoryIds: [...new Set(input.conflictMemoryIds)].slice(0, 25),
+      omitted: Math.max(0, input.omitted),
+      maximumSensitivity: input.maximumSensitivity
+    },
+    payload: { sha256: input.payloadSha256, characters: Math.max(0, input.payloadCharacters) },
+    provider: { providerId: input.providerId, model: input.model, outcome: input.providerOutcome },
+    answer: input.answer,
+    recordedAt: recordedAt.toISOString()
+  }
+}
+
+export function isTurnEvaluation(value: unknown): value is TurnEvaluation {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  if (record.schemaVersion !== TURN_EVALUATION_SCHEMA_VERSION) return false
+  for (const key of ['conversationId', 'requestId', 'userMessageId']) {
+    if (typeof record[key] !== 'string' || !uuidPattern.test(record[key] as string)) return false
+  }
+  if (!record.intent || typeof record.intent !== 'object') return false
+  if (!record.retrieval || typeof record.retrieval !== 'object') return false
+  if (!record.payload || typeof record.payload !== 'object') return false
+  if (!record.provider || typeof record.provider !== 'object') return false
+  const payload = record.payload as Record<string, unknown>
+  if (typeof payload.sha256 !== 'string' || !sha256Pattern.test(payload.sha256)) return false
+  const provider = record.provider as Record<string, unknown>
+  if (!['succeeded', 'failed', 'cancelled'].includes(String(provider.outcome))) return false
+  if (typeof record.recordedAt !== 'string' || !Number.isFinite(Date.parse(record.recordedAt))) return false
+  if (record.answer !== null) {
+    const answer = record.answer as Record<string, unknown>
+    if (!answer || typeof answer !== 'object') return false
+    if (!['used_correctly', 'delivered_not_used', 'used_wrong_or_stale', 'contradicts_evidence', 'reasonable_unknown', 'not_scorable'].includes(String(answer.outcome))) return false
+    if (typeof answer.scored !== 'boolean') return false
+    if (!Array.isArray(answer.evidenceIds) || !Array.isArray(answer.matchedEvidenceIds) || !Array.isArray(answer.contradictedEvidenceIds)) return false
+    if (typeof answer.detail !== 'string' || answer.detail.length > 64) return false
+  }
+  return true
+}
+
+/** Journal payload: bounded, no reply text, no memory content. */
+export function turnEvaluationEventPayload(evaluation: TurnEvaluation): Record<string, unknown> {
+  return {
+    intent: evaluation.intent.intent,
+    legacyIntent: evaluation.intent.legacyIntent,
+    confidence: evaluation.intent.confidence,
+    reasons: evaluation.intent.reasons.slice(0, 8),
+    selectedMemoryCount: evaluation.retrieval.selectedMemoryIds.length,
+    conflictCount: evaluation.retrieval.conflictMemoryIds.length,
+    omittedCount: evaluation.retrieval.omitted,
+    maximumSensitivity: evaluation.retrieval.maximumSensitivity,
+    payloadCharacters: evaluation.payload.characters,
+    providerOutcome: evaluation.provider.outcome,
+    answerOutcome: evaluation.answer?.outcome ?? 'not_scored',
+    answerScored: evaluation.answer?.scored ?? false,
+    answerDetail: evaluation.answer?.detail ?? 'not_scored'
+  }
+}
