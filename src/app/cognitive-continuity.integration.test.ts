@@ -335,4 +335,133 @@ describe('slice 1: lexical overlap alone must not inject a private memory', () =
       ctx.database.close()
     }
   })
+
+})
+
+describe('slice 2: time facts, conflicts and no-evidence at the payload', () => {
+  it('retrieves a dated fact when the question is about that event', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我明天要去医院复查。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我明天去医院要带什么？')
+      expect(memoryBlock(lastSystem(ctx.previews))).toContain('医院复查')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not admit a record that shares only a time word', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我明天要去医院复查。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '明天要交报告。')
+      expect(memoryBlock(lastSystem(ctx.previews))).not.toContain('医院复查')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('marks two values of the same fact as unresolved instead of choosing one', async () => {
+    const ctx = setup()
+    try {
+      const hangzhou = ctx.memories.create('我住在杭州。', 'personal')
+      const osaka = ctx.memories.create('我住在大阪。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我住在哪里？')
+
+      const block = memoryBlock(lastSystem(ctx.previews))
+      expect(block).toContain('杭州')
+      expect(block).toContain('大阪')
+      expect(block).toContain('"status":"unresolved"')
+      expect(block).toContain(hangzhou.id)
+      expect(block).toContain(osaka.id)
+      expect(block).toContain('never silently pick one')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not treat a rewording of the same value as a conflict', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我住在杭州。', 'personal')
+      ctx.memories.create('我现居杭州市。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我住在哪里？')
+      expect(memoryBlock(lastSystem(ctx.previews))).not.toContain('unresolved')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('sends no memory block entry when there is no evidence at all', async () => {
+    const ctx = setup()
+    try {
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我的车牌号是多少？')
+      expect(memoryBlock(lastSystem(ctx.previews))).not.toContain('"id"')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+})
+
+describe('slice 2.1: time compatibility and tri-state comparison', () => {
+  it('recalls a next-week arrangement and keeps tomorrow out of it', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我下周要去上海参加行业会议。', 'personal')
+      ctx.memories.create('我明天要去医院复查。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我下周有哪些安排？')
+      const block = memoryBlock(lastSystem(ctx.previews))
+      expect(block).toContain('行业会议')
+      expect(block).not.toContain('医院复查')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not inject a dated record when only the time word is shared', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我去年去过成都。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '去年发生了什么？')
+      expect(memoryBlock(lastSystem(ctx.previews))).not.toContain('成都')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not mark a substring value as a conflict or as agreement', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我喜欢猫。', 'personal')
+      ctx.memories.create('我喜欢猫狗。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我喜欢什么？')
+      const block = memoryBlock(lastSystem(ctx.previews))
+      // Both may be delivered as separate facts, but neither is declared
+      // equivalent to the other, and neither is declared contradictory.
+      expect(block).not.toContain('"status":"unresolved"')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('keeps the age and health values usable for a slot question', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我今年30岁。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我的年龄是多少？')
+      expect(memoryBlock(lastSystem(ctx.previews))).toContain('30')
+    } finally {
+      ctx.database.close()
+    }
+  })
 })
