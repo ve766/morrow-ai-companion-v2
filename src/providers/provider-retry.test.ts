@@ -138,6 +138,42 @@ describe('phase 2.3 B: provider retry', () => {
     expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
+  it('stops retrying when the remaining budget cannot cover the backoff', async () => {
+    // 60ms budget, 40ms backoff: the second wait cannot fit, so it is a deadline.
+    const secrets = new MemorySecretStore()
+    secrets.set('deepseek', 'test-only-secret')
+    const fetcher = vi.fn(async () => jsonResponse({}, 500))
+    const provider = new OpenAICompatibleProvider(config, secrets, fetcher, 45_000, { maxAttempts: 3, baseDelayMs: 40, maxDelayMs: 40, totalBudgetMs: 60 })
+    await expect(provider.generate(input)).rejects.toMatchObject({ code: 'PROVIDER_DEADLINE' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a total budget as a deadline, not as a single-attempt timeout', async () => {
+    const secrets = new MemorySecretStore()
+    secrets.set('deepseek', 'test-only-secret')
+    let calls = 0
+    const fetcher = vi.fn(async () => {
+      calls += 1
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      return jsonResponse({}, 503)
+    })
+    const provider = new OpenAICompatibleProvider(config, secrets, fetcher, 45_000, { maxAttempts: 5, baseDelayMs: 5, maxDelayMs: 5, totalBudgetMs: 40 })
+    await expect(provider.generate(input)).rejects.toMatchObject({ code: 'PROVIDER_DEADLINE' })
+    expect(calls).toBeLessThan(5)
+  })
+
+  it('never uses a response that arrives after the attempt was aborted', async () => {
+    const secrets = new MemorySecretStore()
+    secrets.set('deepseek', 'test-only-secret')
+    // The fetcher ignores the abort signal and answers 30ms after a 10ms timeout.
+    const fetcher = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      return ok()
+    })
+    const provider = new OpenAICompatibleProvider(config, secrets, fetcher, 10, { maxAttempts: 1, baseDelayMs: 1, maxDelayMs: 1, sleep: async () => {} })
+    await expect(provider.generate(input)).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT' })
+  })
+
   it('never replays a stream that already produced text', async () => {
     const encoder = new TextEncoder()
     const partial = new Response(new ReadableStream<Uint8Array>({

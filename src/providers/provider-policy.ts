@@ -29,6 +29,12 @@ export interface ProviderOutput {
   attempts?: number
 }
 
+/**
+ * Budget for one logical request: every attempt plus every backoff must finish
+ * inside it. Kept here so the app and the provider share one number.
+ */
+export const DEFAULT_PROVIDER_TOTAL_BUDGET_MS = 90_000
+
 export interface ProviderPort {
   profile: ProviderProfile
   generate(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput>

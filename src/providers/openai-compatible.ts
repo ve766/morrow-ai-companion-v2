@@ -1,5 +1,6 @@
 import type { ProviderConfigRecord } from '../shared/companion'
 import { isRemoteConfigValid } from './provider-registry'
+import { DEFAULT_PROVIDER_TOTAL_BUDGET_MS } from './provider-policy'
 import { ApplicationError, type ApplicationErrorCode } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
@@ -21,6 +22,8 @@ export interface RetryOptions {
   maxAttempts?: number
   baseDelayMs?: number
   maxDelayMs?: number
+  /** Budget for the whole logical request, retries and backoff included. */
+  totalBudgetMs?: number
   /** Injected in tests so a backoff does not slow the suite down. */
   sleep?: (ms: number) => Promise<void>
 }
@@ -170,11 +173,15 @@ export class OpenAICompatibleProvider implements ProviderPort {
   }
 
   /** Bounded retry: only transient failures, never auth/quota/model/cancel. */
-  private async delayBeforeRetry(attempt: number, retryAfterMs: number | null, signal?: AbortSignal): Promise<void> {
+  private retryDelayMs(attempt: number, retryAfterMs: number | null): number {
     const base = this.retry.baseDelayMs ?? 400
     const cap = this.retry.maxDelayMs ?? 30_000
     const backoff = Math.min(cap, base * 2 ** (attempt - 1))
-    const waitMs = Math.min(cap, retryAfterMs ?? backoff)
+    return Math.min(cap, retryAfterMs ?? backoff)
+  }
+
+  private async delayBeforeRetry(attempt: number, retryAfterMs: number | null, signal?: AbortSignal, remainingMs?: number): Promise<void> {
+    const waitMs = Math.max(1, Math.min(this.retryDelayMs(attempt, retryAfterMs), remainingMs ?? Number.MAX_SAFE_INTEGER))
     if (signal?.aborted) throw new ApplicationError('PROVIDER_CANCELLED')
     const sleep = this.retry.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
     if (!signal) {
@@ -195,29 +202,37 @@ export class OpenAICompatibleProvider implements ProviderPort {
 
   async generate(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
     const maxAttempts = Math.max(1, this.retry.maxAttempts ?? 3)
+    const budget = Math.max(1, this.retry.totalBudgetMs ?? DEFAULT_PROVIDER_TOTAL_BUDGET_MS)
+    const deadline = Date.now() + budget
+    const remaining = (): number => deadline - Date.now()
     let attempt = 0
     for (;;) {
+      if (remaining() <= 0) throw new ApplicationError('PROVIDER_DEADLINE')
       attempt += 1
       let emitted = false
       try {
         const output = await this.generateOnce(input, (delta) => {
           emitted = true
           onDelta?.(delta)
-        })
+        }, remaining())
         return { ...output, attempts: attempt }
       } catch (error) {
+        if (error instanceof ApplicationError && error.code === 'PROVIDER_DEADLINE') throw error
         const failure = error instanceof ApplicationError ? error : new ApplicationError('PROVIDER_NETWORK')
         const retryable = RETRYABLE_CODES.has(failure.code) && !emitted && attempt < maxAttempts
         if (!retryable) throw failure
         // A stream that already produced text must not be replayed.
         const retryAfter = failure instanceof RetryableProviderError ? failure.retryAfterMs : null
-        await this.delayBeforeRetry(attempt, retryAfter, input.signal)
+        // A backoff that cannot finish inside the budget is a deadline, not a
+        // retry: fail now instead of sleeping past the ceiling.
+        if (this.retryDelayMs(attempt, retryAfter) >= remaining()) throw new ApplicationError('PROVIDER_DEADLINE')
+        await this.delayBeforeRetry(attempt, retryAfter, input.signal, remaining())
       }
     }
   }
 
   /** One HTTP attempt. Throws a classified ApplicationError on failure. */
-  private async generateOnce(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
+  private async generateOnce(input: ProviderInput, onDelta?: ProviderDeltaHandler, budgetMs?: number): Promise<ProviderOutput> {
     const payload = input.requestPayload as OpenAIChatPayload
     if (
       !this.isConfigShapeValid() ||
@@ -234,10 +249,12 @@ export class OpenAICompatibleProvider implements ProviderPort {
     const cancelFromCaller = (): void => controller.abort()
     if (input.signal?.aborted) cancelFromCaller()
     else input.signal?.addEventListener('abort', cancelFromCaller, { once: true })
+    // A single attempt may never outlive the request budget.
+    const attemptTimeout = Math.max(1, Math.min(this.timeoutMs, budgetMs ?? this.timeoutMs))
     const timeout = setTimeout(() => {
       timedOut = true
       controller.abort()
-    }, this.timeoutMs)
+    }, attemptTimeout)
 
     try {
       let key: string | undefined
@@ -284,6 +301,8 @@ export class OpenAICompatibleProvider implements ProviderPort {
       }
       const text = data.choices?.[0]?.message?.content
       if (typeof text !== 'string' || text.trim().length === 0 || text.length > 100_000) throw new ApplicationError('PROVIDER_RESPONSE')
+      // A response that arrived after the attempt was aborted must not be used.
+      if (controller.signal.aborted) throw new ApplicationError(timedOut ? 'PROVIDER_TIMEOUT' : 'PROVIDER_CANCELLED')
       if (input.signal?.aborted) throw new ApplicationError('PROVIDER_CANCELLED')
       return { text: text.trim(), modelId: typeof data.model === 'string' ? data.model : this.config.model }
     } catch (error) {
