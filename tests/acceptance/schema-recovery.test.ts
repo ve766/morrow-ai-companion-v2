@@ -262,21 +262,92 @@ describe('a database written by an older build still opens with its data', () =>
       .toEqual({ sensitivity_source: 'recorded' })
   })
 
-  it('marks unprovable timestamps conservatively during the v24 upgrade', () => {
+  it('trusts only timestamps that provably fall between v23 and v24, for both provenance fields', () => {
     const { databasePath } = tempProfile()
-    const ids = {
-      before: '90000000-0000-4000-8000-000000000001',
-      equal: '90000000-0000-4000-8000-000000000002',
-      future: '90000000-0000-4000-8000-000000000003',
-      empty: '90000000-0000-4000-8000-000000000004',
-      garbage: '90000000-0000-4000-8000-000000000005'
-    }
+    const BOUNDARY = '2026-10-27T00:00:00.000Z'
+    const cases: ReadonlyArray<{ key: string; createdAt: string; trusted: boolean; why: string }> = [
+      { key: 'before', createdAt: '2026-10-26T23:59:59.999Z', trusted: false, why: 'written before v23' },
+      { key: 'equal', createdAt: BOUNDARY, trusted: false, why: 'equality is not proof of order' },
+      { key: 'after', createdAt: '2026-10-27T12:00:00.000Z', trusted: true, why: 'a real instant after v23 and before v24' },
+      { key: 'future', createdAt: '2099-01-01T00:00:00.000Z', trusted: false, why: 'obviously in the future' },
+      { key: 'empty', createdAt: '', trusted: false, why: 'empty' },
+      { key: 'garbage', createdAt: 'not-a-date', trusted: false, why: 'unparseable' },
+      { key: 'badmonth', createdAt: '2026-13-45T00:00:00.000Z', trusted: false, why: 'shape looks right, month is impossible' },
+      { key: 'badday', createdAt: '2026-02-30T00:00:00.000Z', trusted: false, why: 'shape looks right, day does not exist' }
+    ]
+
     const connection = new DatabaseSync(databasePath)
-    let appliedAt = ''
     try {
       applyMigrations(connection, 23)
       connection.exec('PRAGMA foreign_keys = ON')
-      appliedAt = (connection.prepare('SELECT applied_at FROM schema_migrations WHERE version = 23').get() as { applied_at: string }).applied_at
+      // Pin v23's instant to a fixed past date so the fixture is deterministic;
+      // the runtime only checks version + name, and a real v23 build could
+      // legitimately have been applied at any time.
+      connection.prepare('UPDATE schema_migrations SET applied_at = ? WHERE version = 23').run(BOUNDARY)
+      connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, '合成的对话', T0, T0)
+      connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', '我住在大阪。', T0, 1, '55555555-5555-4555-8555-555555555555')
+
+      const insertMemory = connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
+        VALUES (?, ?, ?, 'user_explicit_input', 'active', ?, 'personal', ?, 1, 85, ?)
+      `)
+      const insertRevision = connection.prepare(`
+        INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
+        VALUES (?, 1, ?, 'user_explicit_input', 'active', 'created', ?, NULL, 85, 'personal')
+      `)
+      const insertSuggestion = connection.prepare(`
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+          confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+          correction_target_revision, provider_model, evidence_hash, created_at
+        ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'personal', 'pending', '[]', ?, 1, 'local-rule-v1', ?, ?)
+      `)
+      cases.forEach((item, index) => {
+        const memoryId = `91000000-0000-4000-8000-00000000000${index}`
+        const suggestionId = `92000000-0000-4000-8000-00000000000${index}`
+        insertMemory.run(memoryId, `我住在大阪${index}。`, `我住在大阪${index}。`, T0, T0, T0)
+        insertRevision.run(memoryId, `我住在大阪${index}。`, item.createdAt)
+        insertSuggestion.run(suggestionId, conversationId, messageId, `我住在京都${index}。`, `我住在京都${index}。`, memoryId, 'e'.repeat(64), item.createdAt)
+      })
+    } finally {
+      connection.close()
+    }
+
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    const readSuggestion = (key: string): unknown => {
+      const index = cases.findIndex((item) => item.key === key)
+      return database.connection.prepare('SELECT correction_binding, correction_target_revision FROM memory_suggestions WHERE id = ?')
+        .get(`92000000-0000-4000-8000-00000000000${index}`)
+    }
+    const readRevision = (key: string): unknown => {
+      const index = cases.findIndex((item) => item.key === key)
+      return database.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?')
+        .get(`91000000-0000-4000-8000-00000000000${index}`)
+    }
+
+    for (const item of cases) {
+      expect(readSuggestion(item.key), `${item.key}: ${item.why}`).toEqual(item.trusted
+        ? { correction_binding: 'recorded', correction_target_revision: 1 }
+        : { correction_binding: 'unverified', correction_target_revision: null })
+      // The revision field must follow the same rule; a guess may not be
+      // presented as recorded history.
+      expect(readRevision(item.key), `${item.key}: ${item.why}`)
+        .toEqual({ sensitivity_source: item.trusted ? 'recorded' : 'inferred_backfill' })
+    }
+    expect(database.connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+    expect(database.connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+  })
+
+  it('treats every row as unproven when v23 applied_at cannot be parsed', () => {
+    const { databasePath } = tempProfile()
+    const connection = new DatabaseSync(databasePath)
+    try {
+      applyMigrations(connection, 23)
+      connection.exec('PRAGMA foreign_keys = ON')
+      connection.prepare('UPDATE schema_migrations SET applied_at = ? WHERE version = 23').run('not-a-date')
       connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
         .run(conversationId, '合成的对话', T0, T0)
       connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
@@ -285,42 +356,28 @@ describe('a database written by an older build still opens with its data', () =>
         INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
         VALUES (?, ?, ?, 'user_explicit_input', 'active', ?, 'personal', ?, 1, 85, ?)
       `).run(memoryId, '我住在大阪。', '我住在大阪。', T0, T0, T0)
-      const insert = connection.prepare(`
+      connection.prepare(`
+        INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
+        VALUES (?, 1, ?, 'user_explicit_input', 'active', 'created', ?, NULL, 85, 'personal')
+      `).run(memoryId, '我住在大阪。', '2026-10-27T12:00:00.000Z')
+      connection.prepare(`
         INSERT INTO memory_suggestions(
           id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
           confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
           correction_target_revision, provider_model, evidence_hash, created_at
         ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'personal', 'pending', '[]', ?, 1, 'local-rule-v1', ?, ?)
-      `)
-      for (const [key, createdAt] of Object.entries({
-        before: T0,
-        equal: appliedAt,
-        future: '2099-01-01T00:00:00.000Z',
-        empty: '',
-        garbage: 'not-a-date'
-      })) {
-        insert.run(ids[key as keyof typeof ids], conversationId, messageId, `我住在${key}。`, `我住在${key}。`, memoryId, 'd'.repeat(64), createdAt)
-      }
+      `).run('93000000-0000-4000-8000-000000000001', conversationId, messageId, '我住在京都。', '我住在京都。', memoryId, 'f'.repeat(64), '2026-10-27T12:00:00.000Z')
     } finally {
       connection.close()
     }
 
     const database = SqliteDatabase.open(databasePath)
     openDatabases.push(database)
-    const bindingOf = (id: string): unknown =>
-      database.connection.prepare('SELECT correction_binding, correction_target_revision FROM memory_suggestions WHERE id = ?').get(id)
-
-    // Created before the migration: the revision cannot be proven.
-    expect(bindingOf(ids.before)).toEqual({ correction_binding: 'unverified', correction_target_revision: null })
-    // Stamped at the migration instant or later: the migration never inserts
-    // suggestions, so these rows really did record their revision.
-    expect(bindingOf(ids.equal)).toEqual({ correction_binding: 'recorded', correction_target_revision: 1 })
-    expect(bindingOf(ids.future)).toEqual({ correction_binding: 'recorded', correction_target_revision: 1 })
-    // Empty or unparseable timestamps prove nothing and are treated as unproven
-    // rather than trusted because they do not compare as "before".
-    expect(bindingOf(ids.empty)).toEqual({ correction_binding: 'unverified', correction_target_revision: null })
-    expect(bindingOf(ids.garbage)).toEqual({ correction_binding: 'unverified', correction_target_revision: null })
-    expect(database.connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+    expect(database.connection.prepare('SELECT correction_binding, correction_target_revision FROM memory_suggestions WHERE id = ?')
+      .get('93000000-0000-4000-8000-000000000001'))
+      .toEqual({ correction_binding: 'unverified', correction_target_revision: null })
+    expect(database.connection.prepare('SELECT sensitivity_source FROM memory_revisions WHERE memory_id = ?').get(memoryId))
+      .toEqual({ sensitivity_source: 'inferred_backfill' })
   })
 
   it('keeps the v21 selection column unset so the default rule still applies', () => {
