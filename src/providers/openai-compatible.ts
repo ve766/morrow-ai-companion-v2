@@ -1,4 +1,5 @@
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, type ProviderConfigRecord } from '../shared/companion'
+import type { ProviderConfigRecord } from '../shared/companion'
+import { isRemoteConfigValid } from './provider-registry'
 import { ApplicationError } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
@@ -25,6 +26,21 @@ function parseStreamChunk(data: string): StreamChunk {
     return JSON.parse(data) as StreamChunk
   } catch {
     throw new ApplicationError('PROVIDER_RESPONSE')
+  }
+}
+
+/**
+ * Reads a bounded part of an error body and returns the provider's numeric code
+ * when it has one. The body itself is discarded: it can contain request data.
+ */
+async function readProviderErrorCode(response: Response): Promise<number | null> {
+  try {
+    const text = (await response.text()).slice(0, 4096)
+    const parsed = JSON.parse(text) as { code?: unknown; error?: { code?: unknown } } | null
+    const raw = parsed?.error && typeof parsed.error === 'object' ? parsed.error.code : parsed?.code
+    return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+  } catch {
+    return null
   }
 }
 
@@ -113,9 +129,11 @@ export class OpenAICompatibleProvider implements ProviderPort {
 
   private isConfigShapeValid(): boolean {
     if (this.config.providerClass === 'remote') {
+      // Registry-based: the host must be allow-listed and the model id must
+      // match the provider's shape, so a second OpenAI-compatible provider can
+      // be configured without opening the URL check.
       return this.config.apiKeyConfigured &&
-        this.config.endpoint === DEEPSEEK_API_BASE_URL &&
-        this.config.model === DEEPSEEK_MODEL
+        isRemoteConfigValid(this.config.id, this.config.endpoint, this.config.model)
     }
     return isLoopbackEndpoint(this.config.endpoint) && isValidLocalModelName(this.config.model)
   }
@@ -160,6 +178,12 @@ export class OpenAICompatibleProvider implements ProviderPort {
         redirect: 'error'
       })
       if (!response.ok) {
+        // The body carries a provider error code; it separates "bad key" from
+        // "no order/quota" and "no such model". Only the code is read, never
+        // the whole body, and it is never echoed back to the caller.
+        const providerCode = await readProviderErrorCode(response)
+        if (response.status === 400 && providerCode === 10404) throw new ApplicationError('PROVIDER_MODEL')
+        if (response.status === 403 && providerCode === 11200) throw new ApplicationError('PROVIDER_QUOTA')
         if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
         if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT')
         if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')

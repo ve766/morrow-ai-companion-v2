@@ -150,6 +150,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     PROVIDER_RESPONSE: 'DeepSeek 返回了无效响应，请稍后重试。',
     PROVIDER_AUTH: 'DeepSeek 未接受该 API 密钥或请求权限。',
     PROVIDER_RATE_LIMIT: 'DeepSeek 请求过于频繁，请稍后重试。',
+    PROVIDER_QUOTA: '该 Provider 账户没有有效订单或额度不足，请先在服务控制台开通或充值。',
     PROVIDER_MODEL: 'DeepSeek 未找到所选模型。',
     PROVIDER_TIMEOUT: 'DeepSeek 请求超时，可重试。',
     PROVIDER_NETWORK: '无法连接 DeepSeek，请检查网络后重试。',

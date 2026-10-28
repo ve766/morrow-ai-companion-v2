@@ -21,7 +21,7 @@ import type {
   ProviderId,
   Sensitivity
 } from '../shared/companion'
-import { DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput } from '../shared/companion'
+import { DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, SPARK_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput, type SparkProviderConfigInput } from '../shared/companion'
 import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
 import { COGNITIVE_ANALYZER_VERSION, withCognitiveContextEvidence, type CognitiveCoreSettings, type CognitiveHistoryMessage, type CognitiveTurnAnalysis, type CognitiveTurnRecord } from '../cognition/cognition'
 import { validateMemoryText } from '../memory/memory-domain'
@@ -36,6 +36,7 @@ import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
 import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognition/cognitive-turn-analyzer'
 import { policyForIntent } from '../memory/retrieval-policy'
+import { remoteSpecFor } from '../providers/provider-registry'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
 import { buildTurnEvaluation, turnEvaluationEventPayload, type TurnEvaluation } from '../cognition/turn-evaluation'
@@ -280,12 +281,17 @@ export class ProviderConfigService {
   }
 
   save(input: ProviderConfigInput): ProviderConfigRecord {
-    if (input.providerId === LOCAL_PROVIDER_ID) return this.saveLocal(input)
-    return this.saveDeepSeek(input)
+    switch (input.providerId) {
+      case LOCAL_PROVIDER_ID: return this.saveLocal(input as LocalProviderConfigInput)
+      case DEEPSEEK_PROVIDER_ID:
+      case SPARK_PROVIDER_ID: return this.saveRemote(input as DeepSeekProviderConfigInput | SparkProviderConfigInput)
+      default: throw new ApplicationError('INVALID_INPUT')
+    }
   }
 
-  private saveDeepSeek(input: DeepSeekProviderConfigInput): ProviderConfigRecord {
-    if (input.model !== DEEPSEEK_MODEL || typeof input.enabled !== 'boolean') throw new ApplicationError('INVALID_INPUT')
+  private saveRemote(input: DeepSeekProviderConfigInput | SparkProviderConfigInput): ProviderConfigRecord {
+    const spec = remoteSpecFor(input.providerId)
+    if (!spec || !spec.modelPattern.test(input.model) || typeof input.enabled !== 'boolean') throw new ApplicationError('INVALID_INPUT')
     let apiKey: string | undefined
     if (input.apiKey !== undefined) {
       if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
@@ -295,7 +301,7 @@ export class ProviderConfigService {
     if (apiKey || input.enabled) {
       try {
         if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        existingCredential = this.secrets.get(DEEPSEEK_PROVIDER_ID)
+        existingCredential = this.secrets.get(input.providerId)
       } catch (error) {
         throw mapProviderSecretError(error)
       }
@@ -312,12 +318,12 @@ export class ProviderConfigService {
         VALUES (?, 'remote', ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
           model = excluded.model, enabled = excluded.enabled, updated_at = excluded.updated_at
-      `).run(DEEPSEEK_PROVIDER_ID, DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL, input.enabled ? 1 : 0, now)
+      `).run(input.providerId, spec.baseUrl, input.model, input.enabled ? 1 : 0, now)
       if (apiKey) {
         try {
-          this.secrets.set(DEEPSEEK_PROVIDER_ID, apiKey)
+          this.secrets.set(input.providerId, apiKey)
           credentialWriteCompleted = true
-          if (!this.secrets.isAvailable() || this.secrets.get(DEEPSEEK_PROVIDER_ID) !== apiKey) {
+          if (!this.secrets.isAvailable() || this.secrets.get(input.providerId) !== apiKey) {
             throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
           }
         } catch (error) {
@@ -336,8 +342,8 @@ export class ProviderConfigService {
       }
       if (credentialWriteCompleted) {
         try {
-          if (existingCredential === undefined) this.secrets.delete(DEEPSEEK_PROVIDER_ID)
-          else this.secrets.set(DEEPSEEK_PROVIDER_ID, existingCredential)
+          if (existingCredential === undefined) this.secrets.delete(input.providerId)
+          else this.secrets.set(input.providerId, existingCredential)
         } catch {
           throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
         }
@@ -345,7 +351,7 @@ export class ProviderConfigService {
       if (error instanceof ApplicationError) throw error
       throw new ApplicationError('STORAGE_ERROR')
     }
-    const result = this.get(DEEPSEEK_PROVIDER_ID)
+    const result = this.get(input.providerId)
     if (!result) throw new ApplicationError('STORAGE_ERROR')
     if ((apiKey || input.enabled) && !result.apiKeyConfigured) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
     return result
@@ -451,6 +457,11 @@ export class ProviderConfigService {
       this.assertUsable(local)
       return local
     }
+    const spark = this.get(SPARK_PROVIDER_ID)
+    if (spark && spark.enabled) {
+      this.assertUsable(spark)
+      return spark
+    }
     const deepseek = this.get(DEEPSEEK_PROVIDER_ID)
     if (deepseek && deepseek.enabled) {
       this.assertUsable(deepseek)
@@ -470,7 +481,9 @@ export class ProviderConfigService {
   }
 
   private toRecord(row: ProviderRow): ProviderConfigRecord {
-    const providerId = row.id === LOCAL_PROVIDER_ID ? LOCAL_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
+    const providerId = row.id === LOCAL_PROVIDER_ID
+      ? LOCAL_PROVIDER_ID
+      : row.id === SPARK_PROVIDER_ID ? SPARK_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
     return {
       id: providerId,
       providerClass: row.provider_class === 'local' ? 'local' : 'remote',
@@ -1141,9 +1154,9 @@ export class MemorySuggestionService {
       action: 'memory-proposal',
       conversationId: prepared.conversationId,
       sourceMessageId: prepared.source.id,
-      providerId: preview.providerId as typeof DEEPSEEK_PROVIDER_ID,
-      endpoint: DEEPSEEK_API_BASE_URL,
-      model: DEEPSEEK_MODEL,
+      providerId: prepared.provider.id,
+      endpoint: prepared.provider.endpoint,
+      model: prepared.provider.model,
       payloadSha256: preview.payloadSha256,
       payloadCharacters: preview.exactPayload.length
     }

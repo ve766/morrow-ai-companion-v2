@@ -7,7 +7,16 @@ export const DEEPSEEK_MODEL = 'deepseek-flash' as const
 export const DEEPSEEK_PROVIDER_ID = 'deepseek' as const
 export const LOCAL_PROVIDER_ID = 'local-openai' as const
 
-export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID
+/**
+ * 讯飞星火 MaaS, OpenAI-compatible entrance. The `/v1` suffix is part of the
+ * base URL: `/v1/chat/completions` and `/v1/models` are routed by the gateway
+ * while `/v1/messages` is not (verified 2026-10-28: 401 for the routed paths,
+ * 404 for the unrouted one).
+ */
+export const SPARK_PROVIDER_ID = 'spark' as const
+export const SPARK_MAAS_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v1'
+
+export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID | typeof SPARK_PROVIDER_ID
 export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
@@ -83,8 +92,8 @@ export interface ProviderConfigRecord {
 }
 
 export interface DeepSeekProviderConfigInput {
-  providerId: typeof DEEPSEEK_PROVIDER_ID
-  model: typeof DEEPSEEK_MODEL
+  providerId: ProviderId
+  model: string
   enabled: boolean
   apiKey?: string
 }
@@ -97,7 +106,15 @@ export interface LocalProviderConfigInput {
   apiKey?: string
 }
 
-export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput
+export interface SparkProviderConfigInput {
+  providerId: typeof SPARK_PROVIDER_ID
+  /** A model id the account actually exposes; verified against GET /v1/models. */
+  model: string
+  enabled: boolean
+  apiKey?: string
+}
+
+export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput | SparkProviderConfigInput
 
 export interface ProviderConnectionRequest {
   providerId: ProviderId

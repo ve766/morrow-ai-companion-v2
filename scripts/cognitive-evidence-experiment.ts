@@ -35,7 +35,7 @@ import { SqliteConversationRepository } from '../src/persistence/conversation-re
 import { SqliteMemoryRepository } from '../src/persistence/memory-repository'
 import { MemorySecretStore } from '../src/security/secrets'
 import { OpenAICompatibleProvider } from '../src/providers/openai-compatible'
-import { LOCAL_PROVIDER_ID } from '../src/shared/companion'
+import { LOCAL_PROVIDER_ID, SPARK_MAAS_BASE_URL, SPARK_PROVIDER_ID } from '../src/shared/companion'
 import { ApplicationError } from '../src/shared/errors'
 import type { ProviderConsentPreview } from '../src/providers/provider-policy'
 import type { TurnEvaluation } from '../src/cognition/turn-evaluation'
@@ -44,11 +44,16 @@ import { RequestLedger } from '../src/evaluation/request-ledger'
 import { validateReportIntegrity } from '../src/evaluation/report-integrity'
 import { captureProvenance, reconcileProvenance } from '../src/evaluation/code-provenance'
 
+const providerKind = (process.env.MORROW_EVIDENCE_PROVIDER ?? 'local').toLowerCase()
+const sparkApiKey = process.env.MORROW_SPARK_API_KEY ?? ''
+const sparkModel = process.env.MORROW_SPARK_MODEL ?? 'xdeepseekv3'
 const endpoint = process.env.MORROW_PHASE2_ENDPOINT ?? ''
-const model = process.env.MORROW_PHASE2_MODEL ?? ''
+const model = providerKind === 'spark' ? sparkModel : process.env.MORROW_PHASE2_MODEL ?? ''
+if (providerKind === 'spark' && sparkApiKey.length === 0) throw new Error('MORROW_SPARK_API_KEY is required when MORROW_EVIDENCE_PROVIDER=spark.')
+if (providerKind !== 'spark' && providerKind !== 'local') throw new Error('MORROW_EVIDENCE_PROVIDER must be local or spark.')
 const conditionId = (process.env.MORROW_EVIDENCE_CONDITION ?? 'A').toUpperCase()
 const repeats = Number(process.env.MORROW_EVIDENCE_REPEATS ?? '5')
-if (!endpoint || !model) throw new Error('MORROW_PHASE2_ENDPOINT and MORROW_PHASE2_MODEL are required.')
+if (providerKind === 'local' && (!endpoint || !model)) throw new Error('MORROW_PHASE2_ENDPOINT and MORROW_PHASE2_MODEL are required for the local provider.')
 
 interface Condition {
   id: 'A' | 'B' | 'C' | 'D'
@@ -180,7 +185,13 @@ function buildStack(): { companion: CompanionService; memories: MemoryService; p
       }
     }
   })
-  companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+  if (providerKind === 'spark') {
+    // The key is stored through the app's secret store; it is never written to
+    // the report or the console.
+    companion.saveProvider({ providerId: SPARK_PROVIDER_ID, model, enabled: true, apiKey: sparkApiKey })
+  } else {
+    companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+  }
   companion.saveCognitiveSettings({ enabled: true })
   return {
     companion,
@@ -349,7 +360,21 @@ async function main(): Promise<void> {
     startedAt,
     generatedAt: new Date().toISOString(),
     condition,
-    model: { name: model, source: 'local ollama', endpoint, parameters: { temperature: 'provider default', maxTokens: 'provider default' } },
+    model: {
+      provider: providerKind === 'spark' ? 'iflytek-spark-maas' : 'local-ollama',
+      name: model,
+      // Only the endpoint origin is recorded; it carries no credential.
+      endpoint: providerKind === 'spark' ? SPARK_MAAS_BASE_URL : endpoint,
+      protocol: 'OpenAI Chat Completions',
+      parameters: {
+        // The payload builder sends model, messages, max_tokens, stream and
+        // (for DeepSeek) thinking. temperature is NOT sent: it stays at the
+        // provider default and is recorded as such rather than claimed as fixed.
+        temperature: 'not sent (provider default)',
+        maxTokens: process.env.MORROW_MAX_TOKENS ?? 'app default',
+        stream: false
+      }
+    },
     provenance,
     repeats,
     counts: {
@@ -382,7 +407,8 @@ async function main(): Promise<void> {
     }))
   })
 
-  const outputPath = join(process.cwd(), 'evaluation', 'reports', `phase22-${condition.id}-${report.runId}.json`)
+  const outputPrefix = process.env.MORROW_EVIDENCE_OUTPUT ?? 'phase22'
+  const outputPath = join(process.cwd(), 'evaluation', 'reports', `${outputPrefix}-${condition.id}-${report.runId}.json`)
   mkdirSync(join(process.cwd(), 'evaluation', 'reports'), { recursive: true })
   writeFileSync(outputPath, JSON.stringify({ ...report, integrity }, null, 2), 'utf8')
   console.log(JSON.stringify({
