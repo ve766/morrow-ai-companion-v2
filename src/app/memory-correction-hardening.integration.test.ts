@@ -293,6 +293,43 @@ describe('P1-1 a candidate without a proven target revision cannot be accepted',
     }
   })
 
+  it('refuses a legacy candidate whatever happened to its target in the meantime', async () => {
+    // The requirement is not "detect each change" but "never accept without a
+    // proven revision": unchanged, advanced, retracted and deleted targets all
+    // end in the same refusal, and none of them writes anything.
+    const scenarios: ReadonlyArray<{ name: string; mutate: (ctx: ReturnType<typeof harness>, id: string) => void }> = [
+      { name: 'unchanged', mutate: () => undefined },
+      { name: 'advanced', mutate: (ctx, id) => { ctx.memories.correct(id, '我现在住在奈良。') } },
+      { name: 'retracted', mutate: (ctx, id) => { ctx.memories.retract(id) } },
+      { name: 'deleted', mutate: (ctx, id) => { ctx.memories.delete(id) } }
+    ]
+    for (const scenario of scenarios) {
+      const ctx = harness()
+      try {
+        const old = ctx.memories.create('我现在住在大阪。', 'personal')
+        const conversation = ctx.companion.createConversation()
+        await turn(ctx.companion, conversation.id, '我不再住大阪了，现在搬到京都了。')
+        const candidate = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+        scenario.mutate(ctx, old.id)
+        ctx.database.connection.prepare(
+          "UPDATE memory_suggestions SET correction_binding = 'unverified', correction_target_revision = NULL WHERE id = ?"
+        ).run(candidate.id)
+
+        const detail = rejectionDetail(() => ctx.companion.reviewMemorySuggestion({
+          id: candidate.id,
+          decision: 'accept',
+          content: '我住在京都。'
+        }))
+        expect(detail, scenario.name).toBe('correction_rejected:binding_unverified')
+        // No new memory, and the surviving target (if any) keeps its own text.
+        expect(ctx.memories.list().filter((memory) => memory.status === 'active').map((memory) => memory.currentText))
+          .toEqual(scenario.name === 'retracted' || scenario.name === 'deleted' ? [] : [scenario.name === 'advanced' ? '我现在住在奈良。' : '我现在住在大阪。'])
+      } finally {
+        ctx.database.close()
+      }
+    }
+  })
+
   it('records the target revision on every candidate it creates', async () => {
     const ctx = harness()
     try {

@@ -101,7 +101,7 @@ UPDATE memory_revisions SET sensitivity_source='inferred_backfill'
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 类型检查 | `tsc --noEmit` | 通过 |
-| 全量单测/集成 | `vitest run` | **674 / 674**，65 文件 |
+| 全量单测/集成 | `vitest run` | **675 / 675**，65 文件 |
 | 迁移/恢复验收 | `vitest run tests/acceptance/schema-recovery.test.ts` | 13 / 13 |
 | 构建 | `electron-vite build` | 通过（main / preload / renderer） |
 | 离线评估 | `npm run evaluate` | 通过，precision 1.0 / recall 1.0，0 泄漏 |
@@ -113,7 +113,7 @@ UPDATE memory_revisions SET sensitivity_source='inferred_backfill'
 
 失败与重试：首次全量运行 3 条失败，原因是新增能力项后 v1/v2 数据集未覆盖（不是实现缺陷），补齐 `b11-sensitive-ceiling` 用例后全绿；无跳过、无降低断言。CI 结果见 PR #8。
 
-新增/修改测试统计：+40（领域 32 条中新增 12 条对照 + 6 条边界）、集成 +4、迁移 +2、备份 +1、时间线 +1、评测数据集 +1 用例（v1/v2 各一条）。
+新增/修改测试统计：领域 20→32（9 行对照表 + 6 条边界）、集成 8→13（绑定失效 1 条、旧候选四种目标状态 1 条、属性槽 2 条、revision 记录 1 条）、迁移 +2、备份 +1、时间线 +1、评测数据集 +1 用例（v1/v2 各一条）。
 
 ## E. 真实模型实验
 
@@ -171,6 +171,6 @@ P=pass, F=fail, U=uncertain。合计 **9 pass / 23 fail / 23 uncertain**。
 
 **PASS_WITH_LIMITATIONS**
 
-- 工程验收项均有证据：三个 P1 缺陷已复现、修复并被回归测试锁定；迁移、重复启动、备份恢复、事务回滚均验证；全量 674 条测试与四个离线评估通过。
+- 工程验收项均有证据：三个 P1 缺陷已复现、修复并被回归测试锁定；迁移、重复启动、备份恢复、事务回滚均验证；全量 675 条测试与四个离线评估通过。
 - 非阻塞限制已明确记录：真实模型（0.5B）能力不足，冲突披露 0/5、长对话更正 0/5，payload 正确但模型不用；属性分类与否认检测仍是确定性启发式；无人工复核。
 - 未做：合并、发布、改 `main`、付费云调用、引入研究算法包、大规模重构。
