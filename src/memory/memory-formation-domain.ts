@@ -5,8 +5,6 @@ import {
   classifyTemporalReference,
   isSingleValuedAttribute,
   normalizedMemoryKey,
-  sharedTermCount,
-  significantMemoryTerms,
   type FactAttribute
 } from './memory-domain'
 
@@ -109,8 +107,12 @@ export function classifyMemorySensitivity(claim: string): Sensitivity {
 export function sharesFactAttribute(left: string, right: string): boolean {
   const leftAttribute = classifyFactAttribute(left)
   const rightAttribute = classifyFactAttribute(right)
-  if (leftAttribute !== null && rightAttribute !== null) return leftAttribute === rightAttribute
-  return sharedTermCount(significantMemoryTerms(left), significantMemoryTerms(right)) >= 2
+  // Shared words are not proof of a shared fact. "我养了一只叫咪咪的猫" and
+  // "我养了一只叫花花的猫" overlap almost completely and still describe
+  // different values; when the slot cannot be named, the honest answer is "I
+  // cannot tell", which must not be turned into "same fact".
+  if (leftAttribute === null || rightAttribute === null) return false
+  return leftAttribute === rightAttribute
 }
 
 function claimForSentence(sentence: string): string {
@@ -193,9 +195,11 @@ export function extractFormationCandidates(text: string): FormationCandidate[] {
 export function canTargetCorrection(claim: string, memoryText: string): boolean {
   const claimAttribute = classifyFactAttribute(claim)
   const memoryAttribute = classifyFactAttribute(memoryText)
-  if (claimAttribute !== null && memoryAttribute !== null) return claimAttribute === memoryAttribute
-  // Unknown families fall back to evidence, not to a keyword guess.
-  return sharedTermCount(significantMemoryTerms(claim), significantMemoryTerms(memoryText)) >= 2
+  // A candidate may only be bound to a memory whose fact slot is known and the
+  // same. Unclassified statements get no target at all, so they can never
+  // rewrite an existing record by accident.
+  if (claimAttribute === null || memoryAttribute === null) return false
+  return claimAttribute === memoryAttribute
 }
 
 
@@ -319,30 +323,31 @@ export function validateCorrectionTarget(input: {
   }
   const editedAttribute: FactAttribute | null = classifyFactAttribute(content)
   const targetAttribute: FactAttribute | null = classifyFactAttribute(target.currentText)
-  if (editedAttribute !== null && targetAttribute !== null) {
-    if (editedAttribute !== targetAttribute) {
-      return {
-        ok: false,
-        reason: 'attribute_mismatch',
-        detail: `The edited content is about ${editedAttribute}, the target memory is about ${targetAttribute}.`
-      }
-    }
-    if (isPureDenialOfTarget(content, target.currentText, editedAttribute)) {
-      return {
-        ok: false,
-        reason: 'negation_mismatch',
-        detail: 'The edited content only denies the old value; retract the memory instead.'
-      }
-    }
-    return { ok: true, reason: null, detail: 'Same subject and fact attribute.' }
-  }
-  const shared = sharedTermCount(significantMemoryTerms(content), significantMemoryTerms(target.currentText))
-  if (shared < 2) {
+  // Unknown on either side means the relationship cannot be established at all.
+  // Word overlap is not a substitute: it is exactly the signal that let a
+  // different fact be written into an existing record.
+  if (editedAttribute === null || targetAttribute === null) {
     return {
       ok: false,
       reason: 'attribute_mismatch',
-      detail: 'The edited content cannot be shown to describe the same fact as the target memory.'
+      detail: 'The fact attribute cannot be reliably established; manual review is required.'
     }
   }
-  return { ok: true, reason: null, detail: 'Shared evidence ties the edited content to the target.' }
+  if (editedAttribute !== targetAttribute) {
+    return {
+      ok: false,
+      reason: 'attribute_mismatch',
+      detail: `The edited content is about ${editedAttribute}, the target memory is about ${targetAttribute}.`
+    }
+  }
+  if (isPureDenialOfTarget(content, target.currentText, editedAttribute)) {
+    return {
+      ok: false,
+      reason: 'negation_mismatch',
+      detail: 'The edited content only denies the old value; retract the memory instead.'
+    }
+  }
+  // Same slot is necessary, not sufficient: subject, time and denial are checked
+  // above, and a candidate still needs a recorded revision to be accepted.
+  return { ok: true, reason: null, detail: 'Same subject and fact attribute.' }
 }

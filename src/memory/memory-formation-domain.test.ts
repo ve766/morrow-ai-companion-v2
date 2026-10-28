@@ -124,11 +124,14 @@ describe('P1-A correction target re-validation', () => {
       .toMatchObject({ ok: false, reason: 'content_unchanged' })
   })
 
-  it('falls back to shared evidence for facts the classifier cannot name', () => {
+  it('refuses an unclassified edit instead of trusting shared keywords', () => {
     const pet = { ...target, currentText: '我养了一只叫咪咪的猫。' }
-    expect(validateCorrectionTarget({ editedContent: '我养了一只叫花花的猫。', target: pet, expectedRevision: 3 }).ok).toBe(true)
-    expect(validateCorrectionTarget({ editedContent: '我最近在读一本小说。', target: pet, expectedRevision: 3 }))
-      .toMatchObject({ ok: false, reason: 'attribute_mismatch' })
+    // Both sentences share most of their words, and neither is classifiable.
+    // Overlap is not proof that they describe the same fact, so the edit goes
+    // back to the user rather than silently rewriting the record.
+    const result = validateCorrectionTarget({ editedContent: '我养了一只叫花花的猫。', target: pet, expectedRevision: 3 })
+    expect(result).toMatchObject({ ok: false, reason: 'attribute_mismatch' })
+    expect(result.detail).toContain('cannot be reliably established')
   })
 
 })
@@ -201,5 +204,48 @@ describe('P1-2 fact attributes are fine-grained enough to block same-family swap
   it('refuses any correction whose creation-time revision is unknown', () => {
     expect(validateCorrectionTarget({ editedContent: '我住在京都。', target: target('我住在大阪。'), expectedRevision: null }))
       .toMatchObject({ ok: false, reason: 'revision_unproven' })
+  })
+
+})
+
+describe('unknown fact attributes never fall back to shared keywords', () => {
+  // These sentences are genuinely unclassified by the real classifier
+  // (`classifyFactAttribute` returns null); the test was written after checking
+  // that, not from an assumption about what it would do.
+  const UNCLASSIFIED_A = '我养了一只叫咪咪的猫。'
+  const UNCLASSIFIED_B = '我养了一只叫花花的猫。'
+
+  it('does not treat word overlap as evidence of the same fact', () => {
+    expect(sharesFactAttribute(UNCLASSIFIED_A, UNCLASSIFIED_B)).toBe(false)
+    expect(canTargetCorrection(UNCLASSIFIED_A, UNCLASSIFIED_B)).toBe(false)
+  })
+
+  it('still links two statements in the same known slot', () => {
+    expect(sharesFactAttribute('我现在住在大阪。', '我住在杭州。')).toBe(true)
+    expect(canTargetCorrection('我搬到京都了。', '我现在住在大阪。')).toBe(true)
+  })
+
+  it('still refuses two different known slots', () => {
+    // Both are project facts, but a code is not a name.
+    expect(canTargetCorrection('我负责 Morrow 项目代号 Alpha', '我负责 Morrow 项目名称 Alpha')).toBe(false)
+  })
+
+  it('rejects an unclassified acceptance even when everything else matches', () => {
+    const result = validateCorrectionTarget({
+      editedContent: UNCLASSIFIED_B,
+      target: { id: 'memory-1', currentText: UNCLASSIFIED_A, status: 'active', revision: 1, sensitivity: 'normal' },
+      expectedRevision: 1
+    })
+    expect(result).toMatchObject({ ok: false, reason: 'attribute_mismatch' })
+    expect(result.detail).toContain('cannot be reliably established')
+  })
+
+  it('accepts a correction whose slot is known and whose other checks pass', () => {
+    const result = validateCorrectionTarget({
+      editedContent: '我现在住在京都。',
+      target: { id: 'memory-1', currentText: '我现在住在大阪。', status: 'active', revision: 1, sensitivity: 'normal' },
+      expectedRevision: 1
+    })
+    expect(result).toMatchObject({ ok: true })
   })
 })

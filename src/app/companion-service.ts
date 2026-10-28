@@ -1431,6 +1431,14 @@ export class MemorySuggestionService {
       // is refused and the candidate stays pending for the user to re-review.
       // It is never silently downgraded to a new memory and never applied to a
       // different record.
+      // A correction must correct something. A targetless correction candidate
+      // (created when no memory could be bound, or when the target was deleted
+      // and the foreign key nulled the reference) used to fall through to
+      // `create()`, which silently turned a correction into a brand-new memory.
+      // It is refused instead, and the candidate stays pending.
+      if (row.candidate_kind === 'correction' && row.correction_target_id === null) {
+        throw new ApplicationError('CONFLICT', 'correction_rejected:target_missing')
+      }
       // A candidate written before trustworthy revision tracking cannot be
       // checked, so it cannot be accepted. It is not silently applied, and it
       // is not silently turned into a new memory either: the user has to state

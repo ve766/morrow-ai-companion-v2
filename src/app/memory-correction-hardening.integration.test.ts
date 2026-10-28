@@ -297,11 +297,13 @@ describe('P1-1 a candidate without a proven target revision cannot be accepted',
     // The requirement is not "detect each change" but "never accept without a
     // proven revision": unchanged, advanced, retracted and deleted targets all
     // end in the same refusal, and none of them writes anything.
-    const scenarios: ReadonlyArray<{ name: string; mutate: (ctx: ReturnType<typeof harness>, id: string) => void }> = [
-      { name: 'unchanged', mutate: () => undefined },
-      { name: 'advanced', mutate: (ctx, id) => { ctx.memories.correct(id, '我现在住在奈良。') } },
-      { name: 'retracted', mutate: (ctx, id) => { ctx.memories.retract(id) } },
-      { name: 'deleted', mutate: (ctx, id) => { ctx.memories.delete(id) } }
+    const scenarios: ReadonlyArray<{ name: string; reason: string; mutate: (ctx: ReturnType<typeof harness>, id: string) => void }> = [
+      { name: 'unchanged', reason: 'correction_rejected:binding_unverified', mutate: () => undefined },
+      { name: 'advanced', reason: 'correction_rejected:binding_unverified', mutate: (ctx, id) => { ctx.memories.correct(id, '我现在住在奈良。') } },
+      { name: 'retracted', reason: 'correction_rejected:binding_unverified', mutate: (ctx, id) => { ctx.memories.retract(id) } },
+      // Deleting the target nulls the foreign key, so the candidate has no
+      // target at all and is refused as such.
+      { name: 'deleted', reason: 'correction_rejected:target_missing', mutate: (ctx, id) => { ctx.memories.delete(id) } }
     ]
     for (const scenario of scenarios) {
       const ctx = harness()
@@ -320,7 +322,7 @@ describe('P1-1 a candidate without a proven target revision cannot be accepted',
           decision: 'accept',
           content: '我住在京都。'
         }))
-        expect(detail, scenario.name).toBe('correction_rejected:binding_unverified')
+        expect(detail, scenario.name).toBe(scenario.reason)
         // No new memory, and the surviving target (if any) keeps its own text.
         expect(ctx.memories.list().filter((memory) => memory.status === 'active').map((memory) => memory.currentText))
           .toEqual(scenario.name === 'retracted' || scenario.name === 'deleted' ? [] : [scenario.name === 'advanced' ? '我现在住在奈良。' : '我现在住在大阪。'])
@@ -385,6 +387,76 @@ describe('P1-2 attribute slots are enforced end to end', () => {
       expect(ctx.memories.history(old.id).map((revision) => revision.content)).toEqual(['我叫小王。', '我叫小李。'])
       // The replaced value is no longer any record's current text.
       expect(ctx.memories.list().map((memory) => memory.currentText)).toEqual(['我叫小李。'])
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+})
+
+describe('P1-3 a correction candidate without a target never becomes a new memory', () => {
+  it('refuses a targetless correction candidate and keeps it pending', async () => {
+    const ctx = harness()
+    try {
+      // A record exists, but the statement describes something the classifier
+      // cannot place in a fact slot, so no target can be bound.
+      ctx.memories.create('我住在杭州。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await turn(ctx.companion, conversation.id, '我不再使用旧的邮箱了，现在换成新的。')
+      const candidate = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+      expect(candidate.candidateKind).toBe('correction')
+      expect(candidate.correctionTargetId).toBeNull()
+
+      const detail = rejectionDetail(() => ctx.companion.reviewMemorySuggestion({
+        id: candidate.id,
+        decision: 'accept',
+        content: '我正在使用新的邮箱。'
+      }))
+      expect(detail).toBe('correction_rejected:target_missing')
+      // The acceptance must not fall through to create().
+      expect(ctx.memories.countActive()).toBe(1)
+      expect(ctx.memories.list().map((memory) => memory.currentText)).toEqual(['我住在杭州。'])
+      expect(ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!.status).toBe('pending')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('refuses a correction whose target was deleted before review', async () => {
+    const ctx = harness()
+    try {
+      const old = ctx.memories.create('我现在住在大阪。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await turn(ctx.companion, conversation.id, '我不再住大阪了，现在搬到京都了。')
+      const candidate = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+      expect(candidate.correctionTargetId).toBe(old.id)
+
+      ctx.memories.delete(old.id)
+      // The foreign key nulls the reference; the candidate is now targetless.
+      const after = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+      expect(after.correctionTargetId).toBeNull()
+
+      const detail = rejectionDetail(() => ctx.companion.reviewMemorySuggestion({
+        id: candidate.id,
+        decision: 'accept',
+        content: '我住在京都。'
+      }))
+      expect(detail).toBe('correction_rejected:target_missing')
+      expect(ctx.memories.countActive()).toBe(0)
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('still lets a targetless correction be rejected or withdrawn', async () => {
+    const ctx = harness()
+    try {
+      const conversation = ctx.companion.createConversation()
+      await turn(ctx.companion, conversation.id, '我不再使用旧的邮箱了，现在换成新的。')
+      const candidate = ctx.companion.listMemorySuggestions({ conversationId: conversation.id })[0]!
+      const remaining = ctx.companion.reviewMemorySuggestion({ id: candidate.id, decision: 'reject' })
+      expect(remaining[0]!.status).toBe('rejected')
+      expect(ctx.memories.countActive()).toBe(0)
     } finally {
       ctx.database.close()
     }

@@ -262,6 +262,67 @@ describe('a database written by an older build still opens with its data', () =>
       .toEqual({ sensitivity_source: 'recorded' })
   })
 
+  it('marks unprovable timestamps conservatively during the v24 upgrade', () => {
+    const { databasePath } = tempProfile()
+    const ids = {
+      before: '90000000-0000-4000-8000-000000000001',
+      equal: '90000000-0000-4000-8000-000000000002',
+      future: '90000000-0000-4000-8000-000000000003',
+      empty: '90000000-0000-4000-8000-000000000004',
+      garbage: '90000000-0000-4000-8000-000000000005'
+    }
+    const connection = new DatabaseSync(databasePath)
+    let appliedAt = ''
+    try {
+      applyMigrations(connection, 23)
+      connection.exec('PRAGMA foreign_keys = ON')
+      appliedAt = (connection.prepare('SELECT applied_at FROM schema_migrations WHERE version = 23').get() as { applied_at: string }).applied_at
+      connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, '合成的对话', T0, T0)
+      connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', '我住在大阪。', T0, 1, '55555555-5555-4555-8555-555555555555')
+      connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, sensitivity, updated_at, revision, confidence, last_confirmed_at)
+        VALUES (?, ?, ?, 'user_explicit_input', 'active', ?, 'personal', ?, 1, 85, ?)
+      `).run(memoryId, '我住在大阪。', '我住在大阪。', T0, T0, T0)
+      const insert = connection.prepare(`
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+          confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+          correction_target_revision, provider_model, evidence_hash, created_at
+        ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'personal', 'pending', '[]', ?, 1, 'local-rule-v1', ?, ?)
+      `)
+      for (const [key, createdAt] of Object.entries({
+        before: T0,
+        equal: appliedAt,
+        future: '2099-01-01T00:00:00.000Z',
+        empty: '',
+        garbage: 'not-a-date'
+      })) {
+        insert.run(ids[key as keyof typeof ids], conversationId, messageId, `我住在${key}。`, `我住在${key}。`, memoryId, 'd'.repeat(64), createdAt)
+      }
+    } finally {
+      connection.close()
+    }
+
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    const bindingOf = (id: string): unknown =>
+      database.connection.prepare('SELECT correction_binding, correction_target_revision FROM memory_suggestions WHERE id = ?').get(id)
+
+    // Created before the migration: the revision cannot be proven.
+    expect(bindingOf(ids.before)).toEqual({ correction_binding: 'unverified', correction_target_revision: null })
+    // Stamped at the migration instant or later: the migration never inserts
+    // suggestions, so these rows really did record their revision.
+    expect(bindingOf(ids.equal)).toEqual({ correction_binding: 'recorded', correction_target_revision: 1 })
+    expect(bindingOf(ids.future)).toEqual({ correction_binding: 'recorded', correction_target_revision: 1 })
+    // Empty or unparseable timestamps prove nothing and are treated as unproven
+    // rather than trusted because they do not compare as "before".
+    expect(bindingOf(ids.empty)).toEqual({ correction_binding: 'unverified', correction_target_revision: null })
+    expect(bindingOf(ids.garbage)).toEqual({ correction_binding: 'unverified', correction_target_revision: null })
+    expect(database.connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+  })
+
   it('keeps the v21 selection column unset so the default rule still applies', () => {
     const { databasePath } = tempProfile()
     seedAtVersion(databasePath, 20)

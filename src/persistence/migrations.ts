@@ -908,12 +908,19 @@ export const migrations: readonly Migration[] = [
         UPDATE memory_suggestions
           SET correction_binding = 'unverified', correction_target_revision = NULL
           WHERE correction_target_id IS NOT NULL
-            AND created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version = 23), '9999');
+            AND (
+              -- A timestamp that is missing, empty or unparseable proves nothing.
+              -- Comparing it as text would let it look "after" the migration and
+              -- be trusted, so shape is checked before ordering.
+              created_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'
+              OR created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version = 23), '9999')
+            );
         ALTER TABLE memory_revisions ADD COLUMN sensitivity_source TEXT NOT NULL DEFAULT 'recorded'
           CHECK (sensitivity_source IN ('recorded', 'inferred_backfill'));
         UPDATE memory_revisions
           SET sensitivity_source = 'inferred_backfill'
-          WHERE created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version = 23), '9999');
+          WHERE created_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'
+             OR created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version = 23), '9999');
       `)
     }
   }
