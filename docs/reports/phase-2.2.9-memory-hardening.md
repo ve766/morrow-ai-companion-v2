@@ -162,6 +162,8 @@ UPDATE memory_revisions SET sensitivity = COALESCE((SELECT sensitivity FROM memo
 | `npm run evaluate:companion` | 31 / 31 |
 | `npm run evaluate:context` | 22 / 22，90 条断言 |
 
+远端 CI（run `40619577931` @ `d3bd41e`）：`Typecheck, tests, build and smoke (ubuntu-latest)`、`(windows-latest)`、`Windows upgrade path (schema migrations under the real app)` 三个 job 全部 success。
+
 关于首次全量运行的 3 个失败：`scenario G` 的 `PROVIDER_NETWORK` 是已知本地 HTTP 端口抖动（A4 轮已记录），另两个失败来自沙箱拦截了 `%TEMP%` 下的写入（`morrow-run-id-*/.git/config.lock`、`morrow-reminder-replay-*`）。解除沙箱拦截后同一提交全绿，未修改任何断言来换取绿色。
 
 新增 / 修改的测试：
@@ -174,6 +176,14 @@ UPDATE memory_revisions SET sensitivity = COALESCE((SELECT sensitivity FROM memo
 | `src/memory/memory-context-assembler.test.ts` | 21 → 23 条：单值属性冲突正例、多值属性反例 |
 | `src/app/ipc.test.ts` | 13 → 14 条：拒绝原因穿透 IPC |
 | `tests/acceptance/schema-recovery.test.ts` | 10 → 11 条：v22 → v23 回填与数据完整 |
+
+### 提交与 PR
+
+| 内容 | 提交 |
+|---|---|
+| 代码 + 测试（21 文件，+909/−58） | `cdf61ad` |
+| 本报告 | `d3bd41e` |
+| Draft PR | #7，base `fix/memory-reliability-v0.1`，未合并 |
 
 ## 9. 端到端场景证据
 
