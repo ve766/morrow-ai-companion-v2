@@ -339,7 +339,11 @@ describe('a database written by an older build still opens with its data', () =>
     }
     expect(database.connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
     expect(database.connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
-  })
+    // This case builds a full 23-step schema, seeds eight rows into three
+    // tables, then upgrades to v24 with a backup copy. Windows CI is several
+    // times slower at exactly this file I/O, so the default 20s is not enough
+    // headroom for a real timeout rather than a slow run.
+  }, 60_000)
 
   it('treats every row as unproven when v23 applied_at cannot be parsed', () => {
     const { databasePath } = tempProfile()
