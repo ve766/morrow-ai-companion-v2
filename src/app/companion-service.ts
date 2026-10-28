@@ -53,7 +53,7 @@ const fixedPrinciples = [
 export function cognitivePromptGuidance(analysis: CognitiveTurnAnalysis): string {
   const guidance = [
     `A local rule-based reading of this turn: intent=${analysis.intent}; response route=${analysis.strategy}; uncertainty=${analysis.uncertainty}. These rules are uncalibrated hints, not facts about the user.`,
-    analysis.strategy === 'clarify' ? 'The reference is unresolved. Ask one concise clarifying question instead of guessing or retrieving long-term memories.' : '',
+    analysis.strategy === 'clarify' ? 'The reference is unresolved. Ask one concise clarifying question instead of guessing. Saved memories below are background only; do not use them to decide what the reference means.' : '',
     analysis.strategy === 'retrieve_memory' ? 'Use only the explicitly saved, active memories included below. If none match or they conflict, say so; do not invent or update a memory.' : '',
     analysis.signals.correction || analysis.signals.changedMind ? 'Treat the current correction or change of mind as the newest user statement for this turn. Do not silently edit stored memory; make any conflict explicit.' : '',
     analysis.signals.explicitMemorySaveRequest ? 'The user may be asking to save something. Do not claim it was saved; only the explicit memory controls can change persistent memory.' : '',
@@ -62,6 +62,40 @@ export function cognitivePromptGuidance(analysis: CognitiveTurnAnalysis): string
     analysis.intent === 'feedback' ? 'Treat this as feedback on the current interaction, not as sufficient evidence to change long-term personality.' : ''
   ]
   return guidance.filter(Boolean).join('\n')
+}
+
+/**
+ * Builds the query used to look up saved memories for this turn.
+ *
+ * The current message always participates. That is the whole point: a plain
+ * question ("我的猫叫什么名字？") must be able to reach the fact the user saved
+ * earlier, not only an explicit "do you remember" turn. The old code passed an
+ * empty string for every strategy other than `retrieve_memory`, which silently
+ * disabled recall during ordinary conversation.
+ *
+ * A follow-up additionally includes the message the analyzer actually resolved
+ * as its referent, so "那后天呢？" is answered against the sentence it refers
+ * to instead of a keyword guess. An explicit recall request may widen further
+ * to the previous user message.
+ */
+export function buildRetrievalQuery(input: {
+  content: string
+  referencedBody?: string | null | undefined
+  priorUserBody?: string | null | undefined
+  widen: boolean
+}): string {
+  const parts: string[] = []
+  const push = (value: string | null | undefined): void => {
+    if (typeof value !== 'string') return
+    const trimmed = value.trim()
+    if (trimmed.length === 0) return
+    if (parts.some((part) => part === trimmed)) return
+    parts.push(trimmed)
+  }
+  push(input.content)
+  push(input.referencedBody)
+  if (input.widen) push(input.priorUserBody)
+  return parts.join('\n').slice(0, 20_000)
 }
 
 const defaultPersonality: PersonalityInput = {
@@ -861,11 +895,13 @@ export class ChatService {
           ? cognitiveHistory.find((message) => message.id === firstPass.topicReferenceMessageId)
           : undefined
         const priorUserMessage = [...cognitiveHistory].reverse().find((message) => message.role === 'user')
-        const retrievalQuery = [
+        const retrievalQuery = buildRetrievalQuery({
           content,
-          ...(firstPass.strategy === 'retrieve_memory' ? [referencedMessage?.body, priorUserMessage?.body] : [])
-        ].filter((value): value is string => typeof value === 'string' && value.length > 0).join('\n').slice(0, 20_000)
-        memory = this.memories.assembleContext(firstPass.strategy === 'retrieve_memory' ? retrievalQuery : '', max)
+          referencedBody: referencedMessage?.body,
+          priorUserBody: priorUserMessage?.body,
+          widen: firstPass.strategy === 'retrieve_memory'
+        })
+        memory = this.memories.assembleContext(retrievalQuery, max)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         const stateView = this.feelings.snapshot(evaluationAt)
