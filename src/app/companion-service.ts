@@ -36,6 +36,7 @@ import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
 import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognition/cognitive-turn-analyzer'
 import { policyForIntent } from '../memory/retrieval-policy'
+import { guardAnswerFacts } from '../cognition/answer-fact-guard'
 import { remoteSpecFor } from '../providers/provider-registry'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
@@ -920,6 +921,25 @@ export class ChatService {
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'cancelled', answer: null })
         throw new ApplicationError('PROVIDER_CANCELLED')
       }
+      // Pre-delivery fact guard: a specific personal fact may only be stated
+      // when a delivered, active, unambiguous entry supports it. A rewritten
+      // reply names no value, so nothing invented can reach the user.
+      const guard = guardAnswerFacts({
+        reply: output.text,
+        question: request.content,
+        memories: verified.memory.selected.map((item) => ({
+          id: item.id,
+          content: item.content,
+          ...(item.status ? { status: item.status } : {}),
+          // The conflict links are what tie a group to this fact; without them
+          // the guard cannot tell which group a claim belongs to.
+          ...(item.conflictWith && item.conflictWith.length > 0 ? { conflictWith: item.conflictWith } : {})
+        }))
+      })
+      const deliveredText = guard.reply
+      if (guard.verdict === 'rewrite') {
+        console.warn(`Fact guard replaced an unsupported personal claim (${guard.reason}, ${guard.unsupportedClaims.length} claim(s)).`)
+      }
       const current = this.conversations.read(conversationId)
       let assistantMessage = current.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
       if (!assistantMessage) {
@@ -934,12 +954,12 @@ export class ChatService {
             }
           : undefined
         try {
-          const appended = this.conversations.appendMessage(conversationId, 'assistant', output.text, requestId, afterPersist ? { afterPersist } : {})
+          const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, afterPersist ? { afterPersist } : {})
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
         } catch {
           if (!afterPersist) throw new ApplicationError('STORAGE_ERROR')
           console.warn('Local feeling-state update was unavailable; preserving the completed assistant response.')
-          const appended = this.conversations.appendMessage(conversationId, 'assistant', output.text, requestId)
+          const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId)
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
         }
       }
@@ -958,13 +978,13 @@ export class ChatService {
         }
       }
       const answer = evaluateAnswerEvidence({
-        reply: output.text,
+        reply: deliveredText,
         callSucceeded: true,
         callOutcome: 'succeeded',
         question: request.content,
         memories: verified.memory.selected.map((item) => ({ id: item.id, content: item.content, ...(item.status ? { status: item.status } : {}), ...(item.conflictWith ? { conflictWith: item.conflictWith } : {}) }))
       })
-      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer })
+      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
       return {
         conversation: this.conversations.read(conversationId).conversation,
         userMessage,
@@ -993,6 +1013,7 @@ export class ChatService {
     maximumSensitivity: Sensitivity
     outcome: 'succeeded' | 'failed' | 'cancelled'
     answer: ReturnType<typeof evaluateAnswerEvidence> | null
+    guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
   }): TurnEvaluation | undefined {
     if (!input.prepared.decision) return undefined
     try {
@@ -1011,6 +1032,7 @@ export class ChatService {
         model: input.config.model,
         providerOutcome: input.outcome,
         answer: input.answer,
+        guard: input.guard ?? null,
         recordedAt: this.now()
       })
       if (this.ledger) {

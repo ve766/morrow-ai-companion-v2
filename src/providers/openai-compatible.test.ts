@@ -67,7 +67,7 @@ describe('DeepSeek V4.1 Flash adapter', () => {
     const provider = makeProvider(fetcher)
     const deltas: string[] = []
     await expect(provider.generate(input(), (delta) => deltas.push(delta)))
-      .resolves.toEqual({ text: 'Hello world', modelId: 'deepseek-flash' })
+      .resolves.toEqual({ text: 'Hello world', modelId: 'deepseek-flash', attempts: 1 })
     expect(deltas).toEqual(['Hello', ' world'])
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
