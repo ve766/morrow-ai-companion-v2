@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareFactValues, readFactSlot, slotsConflict, valuesDisagree } from './fact-slot'
+import { compareFactValues, effectiveFactTime, factsTimeCompatible, readFactSlot, slotsConflict, valuesDisagree } from './fact-slot'
 
 describe('explainable fact slots', () => {
   it('extracts the value for every predicate instead of consuming it', () => {
@@ -121,5 +121,92 @@ describe('slice 2.2: sentence mood, negation scope and time state', () => {
     const past = { ...slot('我住在杭州。')!, time: 'past' as const }
     const present = { ...slot('我住在大阪。')!, time: 'present' as const }
     expect(compareFactValues(past, present)).toBe('uncertain')
+  })
+})
+
+describe('phase 2 A1: mood comes from the extractor, not from a question mark', () => {
+  const slot = (text: string) => readFactSlot(text)
+
+  it('separates a stated value from the same predicate asked as a question', () => {
+    expect(slot('我今年30岁')).toMatchObject({ predicate: 'age', value: '30', kind: 'assertion' })
+    expect(slot('我今年多少岁')).toMatchObject({ predicate: 'age', value: '', kind: 'question' })
+    expect(slot('我今年几岁')).toMatchObject({ predicate: 'age', value: '', kind: 'question' })
+    expect(slot('我喜欢猫吗？')).toMatchObject({ predicate: 'preference', value: '', kind: 'question' })
+    expect(slot('我住在杭州吗？')).toMatchObject({ predicate: 'residence', value: '', kind: 'question' })
+    expect(slot('我住在杭州')).toMatchObject({ predicate: 'residence', value: '杭州', kind: 'assertion' })
+  })
+
+  it('distinguishes a negation from an uncertain double negation', () => {
+    expect(slot('我不喜欢猫')).toMatchObject({ kind: 'negated', value: '猫' })
+    expect(slot('我不再喜欢猫了')).toMatchObject({ kind: 'negated', value: '猫' })
+    expect(slot('我不是不喜欢猫')).toMatchObject({ kind: 'uncertain', value: '' })
+  })
+
+  it('never turns a hypothesis or reported speech into a value', () => {
+    expect(slot('如果我喜欢猫呢')).toMatchObject({ kind: 'uncertain', value: '' })
+    expect(slot('听说我喜欢猫')).toMatchObject({ kind: 'uncertain', value: '' })
+  })
+})
+
+describe('phase 2 A2: health polarity and two-state sentences', () => {
+  const slot = (text: string) => readFactSlot(text)
+
+  it('reads each health polarity correctly', () => {
+    expect(slot('我对花生严重过敏')).toMatchObject({ predicate: 'health', value: '花生', kind: 'assertion' })
+    expect(slot('我对花生不过敏')).toMatchObject({ predicate: 'health', value: '花生', kind: 'negated' })
+    expect(slot('我没有花生过敏')).toMatchObject({ predicate: 'health', value: '花生', kind: 'negated' })
+    expect(slot('我可能对花生过敏')).toMatchObject({ kind: 'uncertain', value: '' })
+    expect(slot('听说我对花生过敏')).toMatchObject({ kind: 'uncertain', value: '' })
+  })
+
+  it('keeps a two-state sentence undecided instead of merging it', () => {
+    expect(slot('我以前对花生过敏，现在不过敏了')).toMatchObject({ kind: 'uncertain', time: 'mixed', value: '' })
+    expect(slot('我以前喜欢猫，但现在不喜欢了')).toMatchObject({ kind: 'uncertain', time: 'mixed', value: '' })
+    // A two-state sentence never becomes evidence for either single state.
+    expect(compareFactValues(slot('我以前对花生过敏，现在不过敏了'), slot('我对花生不过敏'))).toBe('uncertain')
+    expect(compareFactValues(slot('我以前喜欢猫，但现在不喜欢了'), slot('我喜欢猫'))).toBe('uncertain')
+  })
+})
+
+describe('phase 2 A3: one time rule for statements and questions', () => {
+  const slot = (text: string) => readFactSlot(text)
+
+  it('labels past, present and future explicitly', () => {
+    expect(slot('我以前住在杭州')).toMatchObject({ time: 'past' })
+    expect(slot('我现在住在杭州')).toMatchObject({ time: 'present' })
+    expect(slot('我下周的安排是去大阪出差')).toMatchObject({ predicate: 'schedule', time: 'future' })
+    expect(slot('我明天的安排是去大阪出差')).toMatchObject({ predicate: 'schedule', time: 'future' })
+    expect(slot('我住在杭州')).toMatchObject({ time: 'unspecified' })
+  })
+
+  it('treats an undated statement as current only against a current question', () => {
+    expect(factsTimeCompatible('unspecified', 'unspecified')).toBe(true)
+    expect(factsTimeCompatible('unspecified', 'present')).toBe(true)
+    expect(factsTimeCompatible('present', 'past')).toBe(false)
+    expect(factsTimeCompatible('present', 'future')).toBe(false)
+    expect(factsTimeCompatible('mixed', 'present')).toBe(false)
+    expect(effectiveFactTime('unspecified')).toBe('present')
+    expect(effectiveFactTime('past')).toBe('past')
+  })
+
+  it('does not let a past state answer a present question', () => {
+    const pastHangzhou = slot('我以前住在杭州')!
+    const currentOsaka = slot('我现在住在大阪')!
+    const question = slot('我现在住在哪里？')!
+    expect(compareFactValues(question, pastHangzhou)).toBe('uncertain')
+    expect(compareFactValues(question, currentOsaka)).toBe('uncertain')
+    expect(compareFactValues(pastHangzhou, currentOsaka)).toBe('uncertain')
+  })
+
+  it('does not let shared time words prove equivalence', () => {
+    const past = slot('我以前对花生过敏')!
+    const present = slot('我现在对花生不过敏')!
+    expect(compareFactValues(past, present)).toBe('uncertain')
+    expect(slotsConflict(past, present)).toBe(false)
+  })
+
+  it('keeps a different value of a multi-valued fact out of the conflict set', () => {
+    expect(compareFactValues(slot('我喜欢猫'), slot('我喜欢狗'))).toBe('uncertain')
+    expect(compareFactValues(slot('我住在杭州'), slot('我住在上海'))).toBe('conflict')
   })
 })
