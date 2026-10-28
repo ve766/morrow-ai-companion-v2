@@ -34,6 +34,11 @@ export interface TurnEvaluation {
   payload: { sha256: string; characters: number }
   provider: { providerId: string; model: string; outcome: ProviderTurnOutcome }
   answer: AnswerEvidenceAssessment | null
+  /**
+   * Whether the pre-delivery fact guard changed the text that was delivered.
+   * `claims` is a count, never the claim text.
+   */
+  guard: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
   recordedAt: string
 }
 
@@ -52,6 +57,7 @@ export interface TurnEvaluationInput {
   model: string
   providerOutcome: ProviderTurnOutcome
   answer: AnswerEvidenceAssessment | null
+  guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
   recordedAt: string
 }
 
@@ -81,6 +87,7 @@ export function buildTurnEvaluation(input: TurnEvaluationInput): TurnEvaluation 
     payload: { sha256: input.payloadSha256, characters: Math.max(0, input.payloadCharacters) },
     provider: { providerId: input.providerId, model: input.model, outcome: input.providerOutcome },
     answer: input.answer,
+    guard: input.guard ?? null,
     recordedAt: recordedAt.toISOString()
   }
 }
@@ -104,6 +111,12 @@ export function isTurnEvaluation(value: unknown): value is TurnEvaluation {
   // Phase-2.1 assessments carry dimensions; Phase-2 records without them stay
   // readable, so the nested validator accepts both shapes.
   if (record.answer !== null && !isAnswerEvidenceAssessment(record.answer)) return false
+  if (record.guard !== undefined && record.guard !== null) {
+    const guard = record.guard as Record<string, unknown>
+    if (guard.verdict !== 'allow' && guard.verdict !== 'rewrite') return false
+    if (typeof guard.reason !== 'string' || !/^[a-z_]{3,48}$/u.test(guard.reason)) return false
+    if (typeof guard.claims !== 'number' || guard.claims < 0 || guard.claims > 100) return false
+  }
   return true
 }
 

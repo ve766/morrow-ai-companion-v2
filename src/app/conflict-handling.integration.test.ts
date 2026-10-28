@@ -96,9 +96,13 @@ describe('phase 2.1 C: unresolved conflict evidence', () => {
       expect(notice).toContain(' vs ')
       expect(memoryBlock(system)).toContain('"status":"unresolved"')
       expect(result.evaluation?.retrieval.conflictMemoryIds.sort()).toEqual([hangzhou.id, osaka.id].sort())
-      // The stub reply picked one side, so the ledger must say so.
-      expect(result.evaluation?.answer).toMatchObject({ outcome: 'used_wrong_or_stale' })
-      expect(result.evaluation?.answer?.unacknowledgedConflictIds.sort()).toEqual([hangzhou.id, osaka.id].sort())
+      // The stub reply picked one side; the fact guard replaces it with a
+      // disclosure that names both stored values and asks which is current.
+      expect(result.evaluation?.guard).toMatchObject({ verdict: 'rewrite', reason: 'conflicting_evidence' })
+      expect(result.assistantMessage.body).toContain('杭州')
+      expect(result.assistantMessage.body).toContain('大阪')
+      expect(result.assistantMessage.body).toContain('不一致')
+      expect(result.evaluation?.answer).toMatchObject({ outcome: 'used_correctly' })
     } finally {
       ctx.database.close()
     }
@@ -232,15 +236,20 @@ describe('phase 2.1 C: unresolved conflict evidence', () => {
     }
   })
 
-  it('4. reports the conflict as unacknowledged when the reply only restates one side', async () => {
+  it('4. does not deliver a one-sided answer when the evidence conflicts', async () => {
+    // Phase 2.3 added a pre-delivery fact guard: a conflicting value may not be
+    // stated as settled fact, so the reply is replaced before it reaches the
+    // user and the ledger records the rewrite.
     const ctx = setup('你住在杭州。')
     try {
       ctx.memories.create('我住在杭州。', 'personal')
       ctx.memories.create('我住在大阪。', 'personal')
       const conversation = ctx.companion.createConversation()
       const result = await send(ctx.companion, conversation.id, '我住在哪里？')
-      expect(result.evaluation?.answer?.dimensions.conflictAcknowledged).toEqual({ status: 'fail', reason: 'silently_picked_one_side' })
-      expect(result.evaluation?.answer?.outcome).toBe('used_wrong_or_stale')
+      // The one-sided reply is never delivered: the guard discloses both values.
+      expect(result.evaluation?.guard).toMatchObject({ verdict: 'rewrite' })
+      expect(result.assistantMessage.body).toContain('两种不一致的说法')
+      expect(result.evaluation?.answer?.unacknowledgedConflictIds ?? []).toEqual([])
     } finally {
       ctx.database.close()
     }
