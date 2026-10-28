@@ -170,6 +170,11 @@ unsupportedSideSelected / clarificationRequested / relevant / outcome
 
 默认并发下曾出现 DB 用例 5s 超时（与上阶段相同），降并发后全绿，未删改任何断言。
 
+**CI 状态：本阶段 GitHub Actions 未执行。** 推送后 run `40672878083` 的三个 job 在 2 秒内失败，注解为
+「The job was not started because recent account payments have failed or your spending limit needs to be increased」；
+重跑一次结果相同。这是账户计费限制，不是代码或测试失败。因此本阶段的验收依据是本地实跑结果（上表），
+**不声称 CI 通过**。基线 `abf4a80` 的 CI（run `40665790626`）在计费问题出现前已三平台 pass。
+
 ## 7. 真实模型结果
 
 条件：`qwen2.5:0.5b`（本地 ollama，loopback `127.0.0.1:11434`），提示词 v1 / v2，每条件 **2 次重复 × 53 运行 = 106 运行 / 124 请求**。15 个场景类全部保留；冲突、否定、时间状态、无证据探测各 5 轮。
