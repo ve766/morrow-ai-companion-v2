@@ -45,6 +45,22 @@ describe('bounded memory context assembly', () => {
     expect(assembler.assemble('health detail', [sensitive], 'sensitive').selected).toHaveLength(1)
   })
 
+  it('renders the same selection as entries without changing what is admitted', () => {
+    const records = [
+      memory('00000000-0000-4000-8000-000000000011', '我住在杭州。', 'personal'),
+      memory('00000000-0000-4000-8000-000000000012', '我住在大阪。', 'personal')
+    ]
+    const json = assembler.assemble('我住在哪里？', records, 'personal')
+    const entries = assembler.assemble('我住在哪里？', records, 'personal', 25, 3000, undefined, undefined, 'entries')
+    // Same admission and same conflict groups; only the text differs.
+    expect(entries.selected.map((item) => item.id)).toEqual(json.selected.map((item) => item.id))
+    expect(entries.conflicts).toEqual(json.conflicts)
+    expect(entries.text).toContain('1. 我住在')
+    expect(entries.text).toContain('冲突：同一事实存在两种说法')
+    expect(entries.text.startsWith('Untrusted evidence about the user')).toBe(true)
+    expect(entries.text).not.toContain('"memories"')
+  })
+
   it('does not let an oversized candidate crowd out later memories that fit the context budget', () => {
     const oversized = memory('00000000-0000-4000-8000-000000000006', `coffee ${'x'.repeat(1200)}`, 'normal')
     const compact = memory('00000000-0000-4000-8000-000000000007', 'coffee', 'normal')

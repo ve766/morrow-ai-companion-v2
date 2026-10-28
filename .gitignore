@@ -26,3 +26,4 @@ evaluation/reports/*
 !evaluation/reports/cognitive-phase2-benchmark.2026-10-28T07-54-10-616Z-00c5c8.json
 !evaluation/reports/phase21-*.json
 !evaluation/reports/phase211-*.json
+!evaluation/reports/phase22-*.json

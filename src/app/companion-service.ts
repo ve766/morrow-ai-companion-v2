@@ -36,6 +36,7 @@ import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
 import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognition/cognitive-turn-analyzer'
 import { policyForIntent } from '../memory/retrieval-policy'
+import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
 import { buildTurnEvaluation, turnEvaluationEventPayload, type TurnEvaluation } from '../cognition/turn-evaluation'
 import type { IntentDecision } from '../cognition/intent-decision'
@@ -55,7 +56,7 @@ const fixedPrinciples = [
   'Privacy and safety boundaries override style preferences.'
 ].join('\n')
 
-export type EvidenceGuidanceVariant = 'v1' | 'v2'
+export type EvidenceGuidanceVariant = 'v1' | 'v2' | 'v3' | 'v4'
 
 export function cognitivePromptGuidance(
   analysis: CognitiveTurnAnalysis,
@@ -73,6 +74,8 @@ export function cognitivePromptGuidance(
     // v2 makes the evidence relationship explicit without turning the reply
     // into an audit report; the benchmark compares it against v1.
     hasEvidence && variant === 'v2' ? 'The saved entries below are the only source for facts about the user in this reply. When one of them answers the question, state the fact naturally in your own words instead of quoting the list. When none of them answers it, say that you do not have it saved and ask for it. Never present an inference as something the user said.' : '',
+    hasEvidence && (variant === 'v3' || variant === 'v4') ? 'The saved entries are the only source for facts about the user. Read each entry literally: an entry that says 不 is a denial, not the opposite; an entry marked past describes an earlier state and says nothing about now; an entry marked unspecified was never dated. If no entry answers the question, say it is not saved and ask, instead of guessing. When you use an entry, state the fact plainly, not as a quotation of the record.' : '',
+    hasEvidence && variant === 'v4' ? 'If two entries disagree about the same fact, list both values exactly as stored and ask the user which one is current. Do not choose one yourself.' : '',
     analysis.strategy === 'clarify' ? 'The reference is unresolved. Ask one concise clarifying question instead of guessing. Saved memories below are background only; do not use them to decide what the reference means.' : '',
     analysis.strategy === 'retrieve_memory' ? 'Use only the explicitly saved, active memories included below. If none match or they conflict, say so; do not invent or update a memory.' : '',
     analysis.signals.correction || analysis.signals.changedMind ? 'Treat the current correction as the newest statement. Name the difference from the stored entry. Do not silently edit stored memory; never claim the record was changed.' : '',
@@ -622,6 +625,7 @@ export class CompanionService {
   readonly chat: ChatService
   readonly memorySuggestions: MemorySuggestionService
   private readonly guidanceVariant: EvidenceGuidanceVariant
+  private readonly evidencePresentation: EvidencePresentation
 
   constructor(options: {
     database: SqliteDatabase
@@ -641,10 +645,13 @@ export class CompanionService {
      * attributing a change to the model or to the prompt by guesswork.
      */
     guidanceVariant?: EvidenceGuidanceVariant
+    /** `json` (production) or `entries` (Phase 2.2 experiment only). */
+    evidencePresentation?: EvidencePresentation
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
     this.guidanceVariant = options.guidanceVariant ?? 'v2'
+    this.evidencePresentation = options.evidencePresentation ?? 'json'
     this.providers = new ProviderConfigService(options.database, options.secrets, options.authorize, clock, options.providerFactory)
     this.personality = new PersonalityService(options.database, clock)
     this.cognition = new CognitiveSettingsService(options.database, clock)
@@ -701,7 +708,7 @@ export class CompanionService {
         }
       : undefined
     const ledger = options.ledger ?? journal
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -768,7 +775,9 @@ export class ChatService {
     /** Append-only ledger hook. It records; it can never change a decision. */
     private readonly ledger?: (evaluation: TurnEvaluation) => void,
     /** Evidence-instruction variant; see CompanionService options. */
-    private readonly guidanceVariant: EvidenceGuidanceVariant = 'v2'
+    private readonly guidanceVariant: EvidenceGuidanceVariant = 'v2',
+    /** How delivered evidence is rendered; see CompanionService options. */
+    private readonly evidencePresentation: EvidencePresentation = 'json'
   ) {}
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
@@ -1038,7 +1047,7 @@ export class ChatService {
         })
         // The intent narrows the search; it never widens permission, status or
         // sensitivity, which are applied inside the assembler.
-        memory = this.memories.assembleContext(retrievalQuery, max, policyForIntent(decision.intent))
+        memory = this.memories.assembleContext(retrievalQuery, max, policyForIntent(decision.intent), this.evidencePresentation)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         const stateView = this.feelings.snapshot(evaluationAt)
