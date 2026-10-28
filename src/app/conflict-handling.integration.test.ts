@@ -198,6 +198,40 @@ describe('phase 2.1 C: unresolved conflict evidence', () => {
     }
   })
 
+  it('12. never lets a sensitive entry create a conflict at a lower sensitivity ceiling', async () => {
+    const ctx = setup('你住在杭州。')
+    try {
+      ctx.memories.create('我住在杭州。', 'personal')
+      ctx.memories.create('我住在大阪。', 'sensitive')
+      const conversation = ctx.companion.createConversation()
+      const result = await send(ctx.companion, conversation.id, '我住在哪里？')
+      const system = systemOf(ctx.previews.at(-1)!)
+      expect(system).not.toContain('Two saved entries disagree')
+      expect(memoryBlock(system)).not.toContain('大阪')
+      expect(result.evaluation?.retrieval.conflictMemoryIds).toEqual([])
+      expect(result.evaluation?.answer?.conflict.outcome).toBe('unscored')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('13. keeps the corrected fact as evidence without rewriting it or inventing a conflict', async () => {
+    const ctx = setup('你在杭州住过，但现在住哪里我并不确定，能确认一下吗？')
+    try {
+      const stored = ctx.memories.create('我住在杭州。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      const result = await send(ctx.companion, conversation.id, '我刚才说错了，我住在大阪。')
+      // The stored record is untouched, and one stored fact is not a conflict.
+      expect(ctx.memories.list().find((memory) => memory.id === stored.id)?.currentText).toBe('我住在杭州。')
+      expect(result.evaluation?.answer?.conflict.outcome).toBe('unscored')
+      // The reply used the stored value, so it is not scored as an invented fact.
+      expect(result.evaluation?.answer?.dimensions.unsupportedClaimDetected).toMatchObject({ status: 'pass' })
+      expect(memoryBlock(systemOf(ctx.previews.at(-1)!))).toContain('杭州')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
   it('4. reports the conflict as unacknowledged when the reply only restates one side', async () => {
     const ctx = setup('你住在杭州。')
     try {
