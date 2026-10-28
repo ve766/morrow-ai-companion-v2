@@ -50,6 +50,48 @@ describe('phase 2.3 P0-1: support is equality, not substring', () => {
   })
 })
 
+describe('phase 2.3 review: a slot only supports its own predicate', () => {
+  it('accepts a slot of the same type with the same value', () => {
+    const result = guardAnswerFacts({ reply: '你住在杭州。', question: '我住在哪里？', memories: [memory('m1', '我住在杭州。')] })
+    expect(result.verdict).toBe('allow')
+  })
+
+  it('does not let a different predicate support the claim through an equal value', () => {
+    // 职业=杭州 is not evidence for 住在杭州.
+    const result = guardAnswerFacts({ reply: '你住在杭州。', question: '我住在哪里？', memories: [memory('m1', '我的职业是杭州。')] })
+    expect(result.verdict).toBe('rewrite')
+    expect(result.reply).not.toContain('杭州')
+
+    // The reverse direction is outside the guard's coverage: 职业 is not one of
+    // the seven protected kinds, so such a claim is not inspected at all. This is
+    // the documented coverage limit, not a type-confusion pass.
+    const reverse = guardAnswerFacts({ reply: '你的职业是杭州。', question: '我的职业是什么？', memories: [memory('m1', '我住在杭州。')] })
+    expect(reverse.verdict).toBe('allow')
+    expect(reverse.reason).toBe('no_unsupported_claim')
+  })
+
+  it('does not let a name slot support an address, or the reverse', () => {
+    expect(guardAnswerFacts({ reply: '你住在张三。', question: '我住在哪里？', memories: [memory('m1', '我叫张三。')] }).verdict).toBe('rewrite')
+    expect(guardAnswerFacts({ reply: '你的名字是杭州。', question: '我叫什么名字？', memories: [memory('m1', '我住在杭州。')] }).verdict).toBe('rewrite')
+  })
+
+  it('does not let an unresolved or retracted entry support the claim', () => {
+    const unresolved = guardAnswerFacts({
+      reply: '你住在杭州。',
+      question: '我住在哪里？',
+      memories: [{ id: 'm1', content: '我住在杭州。', status: 'unresolved' }]
+    })
+    expect(unresolved.verdict).toBe('rewrite')
+    // A retracted entry is not delivered, so the guard sees an empty context.
+    expect(guardAnswerFacts({ reply: '你住在杭州。', question: '我住在哪里？', memories: [] }).verdict).toBe('rewrite')
+  })
+
+  it('still allows a legitimate answer of each type', () => {
+    expect(guardAnswerFacts({ reply: '你今年 30 岁。', question: '我今年多大了？', memories: [memory('m1', '我今年30岁。')] }).verdict).toBe('allow')
+    expect(guardAnswerFacts({ reply: '你叫张三。', question: '我叫什么名字？', memories: [memory('m1', '我叫张三。')] }).verdict).toBe('allow')
+  })
+})
+
 describe('phase 2.3 P0-2: conflict disclosure must concern the intercepted fact', () => {
   const unresolved = (id: string, content: string, other: string) => ({ id, content, status: 'unresolved' as const, conflictWith: [other] })
 

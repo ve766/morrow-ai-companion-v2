@@ -89,6 +89,22 @@ const EXACT_KINDS: ReadonlySet<ClaimKind> = new Set(['vehicle_plate', 'phone', '
 const SEPARATORS = /[\s\-_.·•/\\]/gu
 const ADMIN_SUFFIX = /(?:特别行政区|自治区|省|市|区|县|镇|乡|街道)$/u
 
+/**
+ * Which structured predicates may support which claim. A slot of another type is
+ * not evidence for this fact, even when the strings are equal: 职业=杭州 must
+ * never support 住在杭州. Exact kinds have no structured predicate at all, so a
+ * slot never supports them — only the sentence patterns and an exact bare value.
+ */
+const SLOT_PREDICATES_BY_KIND: Readonly<Record<ClaimKind, readonly string[]>> = {
+  vehicle_plate: [],
+  phone: [],
+  document: [],
+  address: ['residence'],
+  age: ['age'],
+  birthday: ['age'],
+  name: ['name']
+}
+
 const PREDICATE_BY_KIND: Readonly<Record<ClaimKind, string | null>> = {
   vehicle_plate: null,
   phone: null,
@@ -133,7 +149,8 @@ function strip(value: string): string {
 function memoryValues(memory: FactGuardMemory, kind: ClaimKind, now: string[] = []): string[] {
   const values: string[] = [...now]
   const slot = readFactSlot(memory.content)
-  if (slot && slot.value.length > 0) values.push(slot.value)
+  // Only a slot of a compatible type may contribute its value.
+  if (slot && slot.value.length > 0 && SLOT_PREDICATES_BY_KIND[kind].includes(slot.predicate)) values.push(slot.value)
   const pattern = CLAIM_PATTERNS.find((item) => item.kind === kind)
   if (pattern) {
     for (const match of memory.content.matchAll(build(pattern, MEMORY_SUBJECT))) {
