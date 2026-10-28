@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-28T13:21:35.569Z",
+  "generatedAt": "2026-10-28T13:41:58.814Z",
   "totals": {
     "runs": 100,
     "requests": 100,
     "succeeded": 99,
     "failed": 1,
+    "cancelled": 0,
     "integrity": true,
     "reproducible": true
   },
@@ -93,6 +94,8 @@
     "the verifier checks report-vs-data consistency, not model capability"
   ],
   "codeSha": "f05ae22bf4c0166b8f2d2fe463354bee953071f1",
-  "ok": true,
-  "failures": []
+  "ok": false,
+  "failures": [
+    "A used (report): data says 20, report says 19"
+  ]
 }
