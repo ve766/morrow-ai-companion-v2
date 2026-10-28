@@ -25,7 +25,7 @@ PR 依赖链（2026-10-28 实测）：
 
 ## B. 缺陷清单
 
-本轮共修复 6 个缺陷：P1-1/2/3 为首次交付内容（SHA `48697e2` 之前），P1-4/5/6 为本轮按最新审查补充。每条都先写复现测试、确认失败，再改实现。
+本轮共修复 7 个缺陷：P1-1/2/3 为首次交付内容，P1-4/5/6 为严格属性校验与无目标拒绝，P1-7 为时间戳可信性（取代不充分的 P1-6）。每条都先写复现测试、确认失败，再改实现。
 
 ### P1-1（高）旧候选的 `correction_target_revision` 是迁移时的猜测
 
@@ -74,14 +74,26 @@ PR 依赖链（2026-10-28 实测）：
 - 修复后：`correction` 且无目标 → `CONFLICT` + `correction_rejected:target_missing`，候选保持 pending，不写入任何记忆；界面禁用保存并说明「没有对应的原记忆」。拒绝/撤回仍然可用。
 - 回归测试：`memory-correction-hardening.integration.test.ts` 新增 3 条（无目标候选被拒且不写入、目标删除后外键置空仍被拒、无目标候选仍可拒绝）。既有「旧候选四种目标状态」用例同步区分 `target_missing`（删除）与 `binding_unverified`（其余）。
 
-### P1-6（中）迁移时间戳无法解析时被当作「迁移之后」
+### P1-6（中）迁移时间戳无法解析时被当作「迁移之后」（已被 P1-7 取代）
 
 - 位置：`src/persistence/migrations.ts` v24
 - 根因：v24 用 `created_at < applied_at` 判断记录是否早于 v23。空串与无法解析的字符串在文本比较中可能「大于」时间戳，于是被当成迁移后写入、保留 `recorded`。
-- 修复后：先校验时间戳形状（`GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'`），形状不符即视为不可证明，标 `unverified` / `inferred_backfill`。等于迁移时刻或更晚的合法时间戳仍视为记录值（迁移本身从不写入候选，因此该边界只会出现在迁移之后）。
-- 回归测试：`schema-recovery.test.ts` 新增 1 条，覆盖早于、等于、未来、空串、乱码五种时间戳。
+- 当时的修复：增加时间戳形状校验（`GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'`）。**该修复不充分**：它只拦住了外观不对的值，合法外观的未来时间戳与「与迁移时刻相等」的值仍被判为可信。见 P1-7。
 
-### 复核 2.2.9 已有修复（未破坏）
+### P1-7（高）合法外观的未来/相等时间戳被当作可信来源
+
+- 位置：`src/persistence/migrations.ts` v24、新增 `src/persistence/timestamp-trust.ts`
+- 根因：形状检查 + 字典序比较无法证明「这条记录是在 v23 之后、v24 之前写的」。`2099-01-01T00:00:00.000Z` 外观合法、字典序更大，于是被判为 `recorded`；`2026-13-45T00:00:00.000Z` 同样能通过形状检查（SQLite 的 `date()` 会把 2 月 30 日规范化，不能靠它兜底）；与 `v23.applied_at` 完全相等的值也只是相等，不构成先后证明。
+- 修复前：两类来源字段（`correction_binding`、`sensitivity_source`）都可能被异常时间戳误导为「可信」。
+- 修复后：
+  - 新增纯函数 `parseStrictIsoTimestamp()`：只接受真实的 ISO-8601 UTC 瞬间，逐项校验年/月/日/时/分/秒与闰年，拒绝 `2026-13-45`、`2026-02-30`、`2025-02-29`、空串与乱码；
+  - `isProvablyRecordedAfter(createdAt, boundary, migrationAt)`：要求 `createdAt` 严格大于 `v23.applied_at` 且严格小于**本次迁移自己的 applied_at**；相等、未来、无法解析、边界缺失一律返回 `false`；
+  - 判定不在 SQL 里做，改为迁移内按行计算后定向 UPDATE；边界值取自 `schema_migrations` 中 v23 的记录，上界取自本次迁移即将写入的 `applied_at`，因此同一数据库迁移完成后的判定可由数据库自身复算，不额外读取系统时钟；
+  - `Migration.up` 增加 `context.appliedAt`，`applyMigrations` 把「用于判定的时间」和「写入 `schema_migrations` 的时间」统一为同一个字符串。
+- 影响面：只影响迁移期的来源标记，不改变敏感度过滤（过滤始终用记忆当前敏感度），不改变任何记忆正文，不新增迁移版本。
+- 回归测试：`src/persistence/timestamp-trust.test.ts` 8 条（解析与判定）、`schema-recovery.test.ts` 2 条（八类时间戳 × 两类字段、v23 时间戳不可解析）。
+
+### 复核 2.2.9 已有修复（未破坏）### 复核 2.2.9 已有修复（未破坏）
 
 | 链路 | 证据 |
 |---|---|
@@ -99,62 +111,85 @@ PR 依赖链（2026-10-28 实测）：
 
 ## C. 数据迁移
 
-**v24 `correction-binding-and-sensitivity-provenance`**
+**v24 `correction-binding-and-sensitivity-provenance`**（版本号未变，判定逻辑在本轮重写）
 
 ```sql
+-- 1. 只增列
 ALTER TABLE memory_suggestions ADD COLUMN correction_binding TEXT NOT NULL DEFAULT 'recorded'
   CHECK (correction_binding IN ('recorded','unverified'));
-UPDATE memory_suggestions
-  SET correction_binding='unverified', correction_target_revision=NULL
-  WHERE correction_target_id IS NOT NULL
-    AND created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version=23), '9999');
 ALTER TABLE memory_revisions ADD COLUMN sensitivity_source TEXT NOT NULL DEFAULT 'recorded'
   CHECK (sensitivity_source IN ('recorded','inferred_backfill'));
-UPDATE memory_revisions SET sensitivity_source='inferred_backfill'
-  WHERE created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version=23), '9999');
 ```
+
+```ts
+// 2. 逐行判定（迁移内，事务中）
+const boundary = schema_migrations.applied_at WHERE version = 23   // 缺失/不可解析 → null
+const migrationAt = context.appliedAt                              // 本次迁移即将写入的 applied_at
+for (row of suggestions with correction_target_id) {
+  if (!isProvablyRecordedAfter(row.created_at, boundary, migrationAt)) {
+    // correction_binding='unverified', correction_target_revision=NULL
+  }
+}
+for (row of revisions) {
+  if (!isProvablyRecordedAfter(row.created_at, boundary, migrationAt)) {
+    // sensitivity_source='inferred_backfill'
+  }
+}
+```
+
+`isProvablyRecordedAfter` 的判定表：
+
+| `created_at` | 结果 | 原因 |
+|---|---|---|
+| 早于 v23 `applied_at` | 不可信 | 由旧构建写入 |
+| 等于 v23 `applied_at` | 不可信 | 相等不构成先后证明 |
+| 严格介于 v23 与 v24 之间 | **可信** | 唯一可证明的区间 |
+| 等于或晚于 v24 `applied_at` | 不可信 | 迁移不写这些行，晚于迁移说明时钟异常或篡改 |
+| 空串 / 乱码 / 月份或日期不存在 | 不可信 | 不是真实瞬间 |
+| v23 `applied_at` 缺失或不可解析 | 全部不可信 | 没有下界就无法证明 |
 
 - 只增列 + 定向 UPDATE，不重建表、不删数据、不改记忆正文。
 - 历史不确定数据：旧候选**失去自动接受权**（需重新提出更正），旧修订敏感度**标为推测**。二者都不再被当作已核实事实。
+- 确定性：判定只依赖数据库内的两个时间字符串（v23 与 v24 的 `applied_at`），迁移完成后可用 SQL 复算；不读系统时钟，不随机器或运行时刻改变已完成迁移的结果。
 - 重复启动：`schema_migrations` 记录使 v24 只执行一次，二次打开不改绑定（测试覆盖）。
-- 备份/恢复：`keeps sensitivity provenance across a backup and restore` 证明来源标记随备份往返。
+- 备份/恢复：`keeps sensitivity provenance across a backup and restore` 证明来源标记随备份往返；`integrity_check` 与 `foreign_key_check` 在迁移后均为通过。
 - 回滚：无破坏性变更，回退代码即可；旧版本打开 v24 会按既有 fail-closed 行为拒绝，不会静默降级。
 
 ## D. 测试结果
 
-命令均在本轮分支执行。三个 SHA 必须分开读：
+命令均在本轮分支执行。四个 SHA 必须分开读：
 
 | 用途 | SHA | 说明 |
 |---|---|---|
-| 代码（本轮修复） | `48697e2` | 严格属性校验 + 无目标拒绝 + v24 时间戳形状 |
-| 测试 | `48697e2` | 新增测试与实现同一提交 |
-| 界面提示补充 | `2bce65b` | 仅渲染层文案，payload 不变 |
-| 真实模型运行 | `2bce65b` | `codeState=clean`，5 轮 × 11 场景 |
+| 代码（时间戳可信性） | `02184dc` | 新增 `timestamp-trust` + 重写 v24 判定 + 迁移上下文 |
+| 测试 | `02184dc` | 新增 9 条测试，与实现同一提交 |
 | 报告（本文件） | 见 PR #8 最后一个 docs 提交 | 不改代码 |
-| 上一轮基线 | `a68b52b` | 2.2.10 首次交付 |
+| 上一轮代码基线 | `2bce65b` | 界面提示提交，模型矩阵对应此 SHA |
+| 首次交付 | `48697e2` | 严格属性校验 + 无目标拒绝 |
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
 | 类型检查 | `tsc --noEmit` | 通过 |
-| 全量单测/集成 | `vitest run` | **684 / 684**，65 文件 |
-| 迁移/恢复验收 | `vitest run tests/acceptance/schema-recovery.test.ts` | 14 / 14 |
+| 全量单测/集成 | `vitest run` | **693 / 693**，66 文件 |
+| 迁移/恢复验收 | `vitest run tests/acceptance/schema-recovery.test.ts` | **15 / 15** |
 | 构建 | `electron-vite build` | 通过（main / preload / renderer） |
 | 离线评估 | `npm run evaluate` | 通过，precision 1.0 / recall 1.0，0 泄漏 |
 | 认知评估 | `npm run evaluate:cognition` | 三套数据集 gate 全过 |
 | 陪伴核心 | `npm run evaluate:companion` | 31 / 31 |
-| 上下文记忆 | `npm run evaluate:context` | **23 / 23**，94 条断言 |
+| 上下文记忆 | `npm run evaluate:context` | 23 / 23，94 条断言 |
 
-**674 / 675 / 684 的差异说明**
+**674 / 675 / 684 / 693 的差异说明**
 
 | 数字 | 来源 |
 |---|---|
-| 674 | 上一版报告写作时的全量结果，早于「旧候选四种目标状态」用例 |
-| 675 | 提交 `b119131` 补上该用例后的结果（+1） |
-| 684 | 本轮新增 9 条：领域 5（未知属性）、集成 3（无目标更正）、迁移 1（时间戳边界） |
+| 674 | 首次交付报告写作时的全量结果 |
+| 675 | `b119131` 补「旧候选四种目标状态」用例（+1） |
+| 684 | 严格属性校验与无目标拒绝：领域 +5、集成 +3、迁移 +1 |
+| 693 | 本轮：`timestamp-trust.test.ts` 8 条、迁移验收 +1（共 66 个文件） |
 
-三次数字变化都对应可指认的测试文件与提交，没有删除或跳过任何用例。
+每次变化都对应可指认的测试文件与提交，没有删除、跳过或弱化任何用例。
 
-**失败与重试**：本轮先写测试并确认失败（领域 3 条、集成 2 条、迁移 1 条），再改实现；实现后全部通过。全量运行没有出现失败或跳过。上一轮曾因新增能力项导致 v1/v2 数据集覆盖不足而失败 3 条，已补齐用例，不是本轮问题。
+**失败与重试**：本轮先用新规则重写验收断言（旧实现下「未来时间戳」与「相等时间戳」会被判为可信，新断言必然失败），再替换实现；替换后全量通过。无跳过、无临时忽略。
 
 ## E. 真实模型实验
 
@@ -213,7 +248,25 @@ P=pass, F=fail, U=uncertain。合计 **9 pass / 23 fail / 23 uncertain**。
 
 **PASS_WITH_LIMITATIONS**
 
-- 工程验收项均有证据：六个 P1 缺陷（含本轮 P1-4/5/6）已复现、修复并被回归测试锁定；迁移、重复启动、备份恢复、事务回滚、时间戳边界均验证；全量 684 条测试与四个离线评估通过。
+- 工程验收项均有证据：七个 P1 缺陷已复现、修复并被回归测试锁定；迁移、重复启动、备份恢复、事务回滚、时间戳八类边界均验证；全量 693 条测试与四个离线评估通过。
 - 建议在独立审查通过后关闭记忆可靠性专项，冻结基线；本轮不扩大范围。
 - 非阻塞限制已明确记录：真实模型（0.5B）能力不足，冲突披露 0/5，payload 正确但模型不用；属性分类与否认检测仍是确定性启发式；未知属性的事实不再支持自动更正；无人工复核。
 - 未做：合并、发布、改 `main`、付费云调用、引入研究算法包、大规模重构。
+
+## H. 本轮四个问题的回答
+
+**1. 哪些时间戳能够证明可信来源，哪些不能？**
+
+只有一种：真实存在的 ISO-8601 UTC 瞬间，且**严格晚于** v23 的 `applied_at`、**严格早于** v24 自己的 `applied_at`。其余全部不可信：早于 v23、与 v23 时刻相等、等于或晚于 v24 时刻（含明显未来）、空串、乱码、外观合法但月份/日期不存在（`2026-13-45`、`2026-02-30`、`2025-02-29`）、以及 v23 时间戳缺失或不可解析。
+
+**2. 两类来源字段是否都按保守规则处理？**
+
+是。`memory_suggestions.correction_binding` 与 `memory_revisions.sensitivity_source` 使用同一个判定函数、同一对边界值，验收测试对八类时间戳逐项同时断言两者：不可信时分别是 `unverified`（并清空 `correction_target_revision`）与 `inferred_backfill`。敏感度过滤始终使用记忆当前敏感度，未因本轮修复而降低。
+
+**3. 迁移与恢复测试是否通过？**
+
+通过。`schema-recovery.test.ts` 15/15，覆盖 v11/v17/v18/v20/v22 → v24 升级、时间戳八类边界、v23 时间戳不可解析、二次启动稳定性、受控失败保留恢复副本、备份/恢复往返、`integrity_check` 与 `foreign_key_check`。
+
+**4. 最新代码 SHA 和 CI 结果是什么？**
+
+代码 `02184dc`；报告提交见 PR #8 末次 docs 提交。CI 见 PR #8 最新运行（三平台：Ubuntu、Windows、Windows schema upgrade）。
