@@ -114,6 +114,22 @@ limit  = min(默认上限, policy.maxMemories)
 额外   = policy.predicateFilter 命中 且 (允许 or 不冲突)
 ```
 
-### 回答评估（六类）
+### 回答评估（六维 + 六类结果）
 
-`used_correctly` / `delivered_not_used` / `used_wrong_or_stale` / `contradicts_evidence` / `reasonable_unknown` / `not_scorable`。极性检查在取值前后各取窗口，且检查每一处出现。
+维度（每维可 `unscored` 并带原因码，默认不通过）：
+
+| 维度 | 判定 |
+|---|---|
+| `evidenceMentioned` | 投递取值是否出现在回答里（每处出现都检查） |
+| `polarityConsistent` | 取值前后窗口内的否定是否与记忆极性一致 |
+| `temporalConsistent` | 取值附近 ±12 字符的过去/现在标记是否与记忆时间一致 |
+| `conflictAcknowledged` | 投递冲突的双方取值是否都出现，或是否明确说明两种说法不同 |
+| `answersCurrentQuestion` | 有参考答案看答案词，否则看问题与回答的内容词重叠 |
+| `uncertaintyAppropriate` | 无证据时是否承认不知道 |
+
+结果 `outcome` 由维度推导：`used_correctly` / `delivered_not_used` / `used_wrong_or_stale` / `contradicts_evidence` / `reasonable_unknown` / `unsupported_answer` / `not_scorable`。提及取值但反问或答非所问，不计为 `used_correctly`。
+
+### 冲突分组与请求记账（Phase 2.1）
+
+- 装配器在选中集合内按事实槽位判定冲突，输出 `conflicts[{predicate, memoryIds, values}]`；提示词据此点名两种说法并要求澄清，不依赖回答里的关键词。
+- 基准脚本用 `RequestLedger` 在 Provider 边界逐条记录请求（`primary|probe|setup`），指标一律声明分子/分母/排除/不可评分处理，失败与取消不从分母消失。
