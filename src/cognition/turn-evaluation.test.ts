@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildTurnEvaluation, isTurnEvaluation, turnEvaluationEventPayload } from './turn-evaluation'
 import { decideIntent } from './intent-decision'
+import { evaluateAnswerEvidence } from './answer-evidence-evaluation'
 
 const ids = {
   conversationId: '11111111-1111-4111-8111-111111111111',
@@ -22,7 +23,11 @@ function build(overrides: Partial<Parameters<typeof buildTurnEvaluation>[0]> = {
     providerId: 'deepseek',
     model: 'deepseek-flash',
     providerOutcome: 'succeeded',
-    answer: { outcome: 'used_correctly', scored: true, evidenceIds: ['44444444-4444-4444-8444-444444444444'], matchedEvidenceIds: ['44444444-4444-4444-8444-444444444444'], contradictedEvidenceIds: [], detail: 'delivered_value_used' },
+    answer: evaluateAnswerEvidence({
+      reply: '你住在杭州。',
+      callSucceeded: true,
+      memories: [{ id: '44444444-4444-4444-8444-444444444444', content: '我住在杭州。' }]
+    }),
     recordedAt: '2026-10-28T07:00:00.000Z',
     ...overrides
   })

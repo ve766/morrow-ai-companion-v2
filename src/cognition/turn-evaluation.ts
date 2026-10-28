@@ -12,7 +12,7 @@
  * optionally written to the event journal, which is append-only.
  */
 import type { Sensitivity } from '../shared/companion'
-import type { AnswerEvidenceAssessment } from './answer-evidence-evaluation'
+import { isAnswerEvidenceAssessment, type AnswerEvidenceAssessment } from './answer-evidence-evaluation'
 import type { IntentDecision, IntentLabel } from './intent-decision'
 
 export const TURN_EVALUATION_SCHEMA_VERSION = 1 as const
@@ -101,14 +101,9 @@ export function isTurnEvaluation(value: unknown): value is TurnEvaluation {
   const provider = record.provider as Record<string, unknown>
   if (!['succeeded', 'failed', 'cancelled'].includes(String(provider.outcome))) return false
   if (typeof record.recordedAt !== 'string' || !Number.isFinite(Date.parse(record.recordedAt))) return false
-  if (record.answer !== null) {
-    const answer = record.answer as Record<string, unknown>
-    if (!answer || typeof answer !== 'object') return false
-    if (!['used_correctly', 'delivered_not_used', 'used_wrong_or_stale', 'contradicts_evidence', 'reasonable_unknown', 'not_scorable'].includes(String(answer.outcome))) return false
-    if (typeof answer.scored !== 'boolean') return false
-    if (!Array.isArray(answer.evidenceIds) || !Array.isArray(answer.matchedEvidenceIds) || !Array.isArray(answer.contradictedEvidenceIds)) return false
-    if (typeof answer.detail !== 'string' || answer.detail.length > 64) return false
-  }
+  // Phase-2.1 assessments carry dimensions; Phase-2 records without them stay
+  // readable, so the nested validator accepts both shapes.
+  if (record.answer !== null && !isAnswerEvidenceAssessment(record.answer)) return false
   return true
 }
 
