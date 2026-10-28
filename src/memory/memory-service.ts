@@ -19,6 +19,7 @@ import {
 } from './memory-domain'
 
 import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
+import type { RetrievalPolicy } from './retrieval-policy'
 import { MemoryContextAssembler } from './memory-context-assembler'
 import type { MorrowEvent } from '../persistence/event-log'
 
@@ -151,9 +152,9 @@ export class MemoryService {
     return this.repository.search(query.trim())
   }
 
-  assembleContext(query: string, maximumSensitivity: Sensitivity): AssembledMemoryContext {
+  assembleContext(query: string, maximumSensitivity: Sensitivity, policy?: RetrievalPolicy): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
-    return this.contextAssembler.assemble(query, this.repository.listActiveForContext(1000), maximumSensitivity)
+    return this.contextAssembler.assemble(query, this.repository.listActiveForContext(1000), maximumSensitivity, undefined, undefined, undefined, policy)
   }
 
   history(id: string): MemoryRevisionRecord[] {
