@@ -96,7 +96,7 @@ UPDATE memory_revisions SET sensitivity_source='inferred_backfill'
 
 ## D. 测试结果
 
-命令均在本轮分支执行，代码 SHA `a68b52b`（干净工作区）。
+命令均在本轮分支执行，代码 SHA `a68b52b`（干净工作区）；报告与运行证据随后以 `a4dcfde` 提交，代码未变。
 
 | 检查 | 命令 | 结果 |
 |---|---|---|
@@ -108,6 +108,8 @@ UPDATE memory_revisions SET sensitivity_source='inferred_backfill'
 | 认知评估 | `npm run evaluate:cognition` | 三套数据集 gate 全过 |
 | 陪伴核心 | `npm run evaluate:companion` | 31 / 31 |
 | 上下文记忆 | `npm run evaluate:context` | **23 / 23**，94 条断言 |
+
+远端 CI（run `40624845040` @ `a4dcfde`）：`Typecheck, tests, build and smoke (ubuntu-latest)`、`(windows-latest)`、`Windows upgrade path (schema migrations under the real app)` 三个 job 全部 success。
 
 失败与重试：首次全量运行 3 条失败，原因是新增能力项后 v1/v2 数据集未覆盖（不是实现缺陷），补齐 `b11-sensitive-ceiling` 用例后全绿；无跳过、无降低断言。CI 结果见 PR #8。
 
