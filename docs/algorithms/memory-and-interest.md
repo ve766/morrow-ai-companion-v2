@@ -129,6 +129,12 @@ limit  = min(默认上限, policy.maxMemories)
 
 结果 `outcome` 由维度推导：`used_correctly` / `delivered_not_used` / `used_wrong_or_stale` / `contradicts_evidence` / `reasonable_unknown` / `unsupported_answer` / `not_scorable`。提及取值但反问或答非所问，不计为 `used_correctly`。
 
+### 冲突分组、请求记账与完整性（Phase 2.1 / 2.1.1）
+
+- 每个已投递冲突组独立评估：`mentioned / valuesIdentified / relationshipExplained / unsupportedSideSelected / clarificationRequested / relevant`；只点名双方而不说明关系不算成功，与问题无关的组记 `unscored`。
+- 「表达不确定」与「无证据断言」是两个维度：同一条回复里既说不知道又给出具体事实，判 `unsupported_answer`。
+- 请求账本按 `{scenarioId, scenarioRunId, purpose, requestId, conversationId}` 作用域逐条记录，`primary/probe/setup` 在调用时绑定；报告写出前跑 `validateReportIntegrity()`，不变量不成立则以非零码退出。
+
 ### 冲突分组与请求记账（Phase 2.1）
 
 - 装配器在选中集合内按事实槽位判定冲突，输出 `conflicts[{predicate, memoryIds, values}]`；提示词据此点名两种说法并要求澄清，不依赖回答里的关键词。
