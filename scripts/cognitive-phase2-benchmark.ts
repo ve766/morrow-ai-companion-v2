@@ -30,7 +30,8 @@
  *     MORROW_PHASE2_PROMPT=v2 \
  *     MORROW_PHASE2_RUNS=3 node /tmp/phase21.cjs
  */
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { execSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -48,6 +49,7 @@ import type { ProviderConsentPreview } from '../src/providers/provider-policy'
 import type { TurnEvaluation } from '../src/cognition/turn-evaluation'
 import type { EvidenceGuidanceVariant } from '../src/app/companion-service'
 import { RequestLedger } from '../src/evaluation/request-ledger'
+import { validateReportIntegrity } from '../src/evaluation/report-integrity'
 import { evaluateAnswerEvidence } from '../src/cognition/answer-evidence-evaluation'
 
 const endpoint = process.env.MORROW_PHASE2_ENDPOINT ?? ''
@@ -79,7 +81,7 @@ const CLASSES = [
 type ScenarioClass = typeof CLASSES[number]
 
 /** Conflict, negation and time semantics get five repeats (task book §7). */
-const HIGH_REPEAT: ReadonlySet<ScenarioClass> = new Set(['explicit_conflict', 'negation', 'time_state'])
+const HIGH_REPEAT: ReadonlySet<ScenarioClass> = new Set(['explicit_conflict', 'negation', 'time_state', 'fabrication_probe'])
 
 const ledger = new RequestLedger()
 
@@ -109,12 +111,29 @@ interface Spec {
   run: (stack: Stack) => Promise<Outcome>
 }
 
+/**
+ * Which requests belong to the current scenario run. `turn()` assigns them by
+ * purpose at the moment of the call, so a probe that runs after the primary
+ * answer can never be mistaken for it.
+ */
+interface RunRequests {
+  primaryRequestId: string | null
+  probeRequestIds: string[]
+  setupRequestIds: string[]
+}
+
 interface Stack {
   companion: CompanionService
   memories: MemoryService
   takePayload: () => string
   cleanup: () => void
   lastEvaluation: () => TurnEvaluation | null
+  run: RunRequests
+  resetRun: () => void
+}
+
+function emptyRun(): RunRequests {
+  return { primaryRequestId: null, probeRequestIds: [], setupRequestIds: [] }
 }
 
 function buildStack(providerFails: boolean): Stack {
@@ -174,9 +193,16 @@ function buildStack(providerFails: boolean): Stack {
   })
   companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
   companion.saveCognitiveSettings({ enabled: true })
+  const run = emptyRun()
   return {
     companion,
     memories,
+    run,
+    resetRun: () => {
+      run.primaryRequestId = null
+      run.probeRequestIds.length = 0
+      run.setupRequestIds.length = 0
+    },
     takePayload: () => {
       const value = lastPayload
       lastPayload = ''
@@ -210,13 +236,24 @@ async function turn(
   purpose: 'primary' | 'probe' | 'setup' = 'primary'
 ): Promise<{ reply: string; ok: boolean; evaluation: TurnEvaluation | null; requestId: string }> {
   const requestId = randomUUID()
-  ledger.scope(scenarioId, purpose, requestId)
+  // The association is assigned here, by purpose, at call time. Nothing later
+  // has to guess which request was the primary answer.
+  if (purpose === 'primary') stack.run.primaryRequestId = requestId
+  else if (purpose === 'probe') stack.run.probeRequestIds.push(requestId)
+  else stack.run.setupRequestIds.push(requestId)
+  ledger.scope({ scenarioId, scenarioRunId: currentRunId(), purpose, requestId, conversationId })
   try {
     const result = await stack.companion.sendChat({ conversationId, requestId, content, includeSensitive }, () => undefined)
     return { reply: result.assistantMessage.body, ok: true, evaluation: result.evaluation ?? null, requestId }
   } catch {
     return { reply: '', ok: false, evaluation: null, requestId }
   }
+}
+
+/** The run currently being executed, used to tag every request it creates. */
+let activeRunId = ''
+function currentRunId(): string {
+  return activeRunId
 }
 
 const scenarios: Spec[] = [
@@ -391,15 +428,18 @@ const scenarios: Spec[] = [
   {
     id: 'p21-provider-failure', klass: 'provider_failure', title: 'Provider 失败',
     expectedEvidence: null, forbiddenEvidence: [], forbiddenInReply: [],
-    run: async () => {
-      const stack = buildStack(true)
+    run: async (outer) => {
+      const failing = buildStack(true)
+      failing.resetRun()
       try {
-        const conversation = stack.companion.createConversation()
-        const result = await turn(stack, 'p21-provider-failure', conversation.id, '我住在哪里？')
-        const recorded = stack.lastEvaluation()
+        const conversation = failing.companion.createConversation()
+        const result = await turn(failing, 'p21-provider-failure', conversation.id, '我住在哪里？')
+        // The failing stack owns the request; record it on the run under test.
+        outer.run.primaryRequestId = result.requestId
+        const recorded = failing.lastEvaluation()
         return {
           reply: result.reply,
-          system: systemOf(stack.takePayload()),
+          system: systemOf(failing.takePayload()),
           callSucceeded: result.ok,
           evaluation: result.evaluation ?? recorded,
           storedMemoryUnchanged: null,
@@ -407,7 +447,7 @@ const scenarios: Spec[] = [
           recordedOutcome: recorded?.answer?.outcome ?? (recorded ? 'not_scored' : null)
         }
       } finally {
-        stack.cleanup()
+        failing.cleanup()
       }
     }
   }
@@ -415,11 +455,13 @@ const scenarios: Spec[] = [
 
 interface RunRecord {
   runId: string
+  scenarioRunId: string
   scenarioId: string
   klass: ScenarioClass
   runIndex: number
-  requestId: string
-  probeRequestId: string | null
+  primaryRequestId: string | null
+  probeRequestIds: string[]
+  setupRequestIds: string[]
   probeReply: string | null
   reply: string
   intent: string | null
@@ -440,7 +482,8 @@ interface RunRecord {
   failureLayer: 'none' | 'call' | 'evidence' | 'payload' | 'semantics' | 'conflict' | 'fabrication' | 'echo'
 }
 
-function score(spec: Spec, outcome: Outcome, runIndex: number): RunRecord {
+function score(spec: Spec, outcome: Outcome, stack: Stack, runIndex: number): RunRecord {
+  if (promptText.length === 0 && outcome.system.length > 0) promptText = outcome.system
   const block = memoryBlock(outcome.system)
   const evidenceSelected = spec.expectedEvidence === null ? null : block.includes(spec.expectedEvidence)
   const payloadLeaked = spec.forbiddenEvidence.some((needle) => block.includes(needle))
@@ -455,9 +498,12 @@ function score(spec: Spec, outcome: Outcome, runIndex: number): RunRecord {
   // The probe reply counts too: a probe that echoes the payload is not an
   // invented plate number.
   const promptEcho = ECHO.test(outcome.reply) || (outcome.probeReply ? ECHO.test(outcome.probeReply) : false)
+  const patternMatch = spec.fabricationPattern ? spec.fabricationPattern.exec(outcome.reply) : null
+  // A pattern that matches a question ("我的猫的名字是什么") is not a claim.
+  const patternClaim = patternMatch !== null && !/(?:什么|啥|谁|哪个|哪只)/u.test(patternMatch[0])
   const fabricated = promptEcho
     ? null
-    : outcome.fabricated ?? (spec.fabricationPattern && delivered === 0 ? spec.fabricationPattern.test(outcome.reply) : null)
+    : outcome.fabricated ?? (spec.fabricationPattern && delivered === 0 ? patternClaim : null)
   const dimensions = outcome.evaluation?.answer?.dimensions ?? null
   // Reference-based relevance: the service cannot know the answer, so this is
   // re-scored here with the scenario's own answer terms and reported as its own
@@ -476,14 +522,23 @@ function score(spec: Spec, outcome: Outcome, runIndex: number): RunRecord {
   else if (promptEcho) failureLayer = 'echo'
   else if (fabricated === true) failureLayer = 'fabrication'
 
-  const requestId = ledger.records.filter((record) => record.scenarioId === spec.id).at(-1)?.requestId ?? ''
+  const runId = `${spec.id}#${runIndex}`
+  // Ids come from the run record that `turn()` filled in, and are accepted
+  // only if the ledger actually holds them (a call that never reached the
+  // provider must not appear as a request).
+  const known = (id: string | null): string | null => id !== null && ledger.records.some((record) => record.requestId === id) ? id : null
+  const primaryRequestId = known(stack.run.primaryRequestId)
+  const probeRequestIds = stack.run.probeRequestIds.map((id) => known(id)).filter((id): id is string => id !== null)
+  const setupRequestIds = stack.run.setupRequestIds.map((id) => known(id)).filter((id): id is string => id !== null)
   return {
-    runId: `${spec.id}#${runIndex}`,
+    runId,
+    scenarioRunId: runId,
     scenarioId: spec.id,
     klass: spec.klass,
     runIndex,
-    requestId,
-    probeRequestId: outcome.probeRequestId ?? null,
+    primaryRequestId,
+    probeRequestIds,
+    setupRequestIds,
     probeReply: outcome.probeReply ?? null,
     reply: outcome.reply.slice(0, 400),
     intent: outcome.evaluation?.intent.intent ?? null,
@@ -511,6 +566,24 @@ function metric(numerator: number, denominator: number, extra: Record<string, un
   return { numerator, denominator, value: ratio(numerator, denominator), ...extra }
 }
 
+function resolveCodeSha(): string {
+  if (process.env.MORROW_CODE_SHA) return process.env.MORROW_CODE_SHA
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
+/**
+ * The assembled system prompt of the first run, used as a prompt fingerprint.
+ * Only its hash and length are reported; the text itself is never written out.
+ */
+let promptText = ''
+function promptSnapshot(): { text: string } {
+  return { text: promptText }
+}
+
 async function main(): Promise<void> {
   const startedAt = new Date().toISOString()
   const results: Array<{ id: string; klass: ScenarioClass; title: string; runs: RunRecord[] }> = []
@@ -519,12 +592,14 @@ async function main(): Promise<void> {
     const collected: RunRecord[] = []
     for (let index = 0; index < repeats; index += 1) {
       const stack = buildStack(false)
+      stack.resetRun()
+      activeRunId = `${spec.id}#${index}`
       try {
-        collected.push(score(spec, await spec.run(stack), index))
+        collected.push(score(spec, await spec.run(stack), stack, index))
       } catch {
         collected.push({
-          runId: `${spec.id}#${index}`, scenarioId: spec.id, klass: spec.klass, runIndex: index,
-          requestId: ledger.records.at(-1)?.requestId ?? '', probeRequestId: null, reply: '',
+          runId: `${spec.id}#${index}`, scenarioRunId: `${spec.id}#${index}`, scenarioId: spec.id, klass: spec.klass, runIndex: index,
+          primaryRequestId: null, probeRequestIds: [], setupRequestIds: [], probeReply: null, reply: '',
           intent: null, answerOutcome: null, scored: false, dimensions: null,
           evidenceSelected: null, payloadLeaked: false, replyLeaked: false, fabricated: null, promptEcho: false, answersQuestion: null,
           storedMemoryUnchanged: null, personalityUnchanged: null, callSucceeded: false, failureLayer: 'call'
@@ -546,7 +621,8 @@ async function main(): Promise<void> {
   const noEvidence = flat.filter((run) => (run.dimensions?.evidenceMentioned?.reason ?? '') === 'no_evidence_delivered')
   const noEvidenceNeedingAnswer = noEvidence.filter((run) => ['information_query', 'continuation', 'correction', 'self_fact'].includes(run.intent ?? ''))
   const fabricationMeasured = flat.filter((run) => run.fabricated !== null)
-  const attempted = flat.filter((run) => requests.some((record) => record.requestId === run.requestId))
+  const runRequestIds = (run: RunRecord): string[] => [run.primaryRequestId, ...run.probeRequestIds, ...run.setupRequestIds].filter((id): id is string => typeof id === 'string')
+  const attempted = flat.filter((run) => runRequestIds(run).length > 0)
   const unscorable = flat.filter((run) => !run.scored)
   const relevanceMeasured = flat.filter((run) => run.answersQuestion !== null)
 
@@ -559,7 +635,7 @@ async function main(): Promise<void> {
     }
     return [klass, {
       runs: items.length,
-      requests: requests.filter((record) => items.some((run) => run.requestId === record.requestId)).length,
+      requests: requests.filter((record) => items.some((run) => runRequestIds(run).includes(record.requestId))).length,
       clean: items.filter((run) => run.failureLayer === 'none').length,
       scored: items.filter((run) => run.scored).length,
       outcomes,
@@ -567,15 +643,21 @@ async function main(): Promise<void> {
     }]
   }))
 
+  const codeSha = resolveCodeSha()
+  const systemPrompt = promptSnapshot()
   const report = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     runId: `${new Date().toISOString().replace(/[:.]/gu, '-')}-${randomUUID().slice(0, 6)}`,
     generatedAt: new Date().toISOString(),
     startedAt,
+    codeSha,
     condition: {
       model,
+      modelSource: 'local ollama',
       endpoint,
       promptVariant,
+      promptHash: createHash('sha256').update(systemPrompt.text).digest('hex').slice(0, 16),
+      promptCharacters: systemPrompt.text.length,
       requestedRepeats: runs,
       highRepeatClasses: [...HIGH_REPEAT],
       providerClass: 'local'
@@ -626,20 +708,20 @@ async function main(): Promise<void> {
         rawRecords: 'runs[].dimensions.polarityConsistent, runs[].dimensions.temporalConsistent'
       },
       conflictHandlingRate: {
-        numerator: 'runs where dimensions.conflictAcknowledged.status === pass',
-        denominator: 'runs where that dimension was scored',
-        included: 'runs with two or more delivered entries that disagree',
-        excluded: 'runs with no delivered conflict',
-        unscorable: 'reason no_conflict_delivered',
-        rawRecords: 'runs[].dimensions.conflictAcknowledged'
+        numerator: 'runs where every relevant conflict group passed (both values named AND the disagreement explained or a clarification requested)',
+        denominator: 'runs where at least one conflict group was relevant to the question and scored',
+        included: 'delivered groups whose predicate or values match the question',
+        excluded: 'groups that do not concern the question (scored unscored per group), runs with no delivered conflict',
+        unscorable: 'reason no_conflict_delivered or no_relevant_conflict',
+        rawRecords: 'runs[].dimensions.conflictAcknowledged, runs[].conflict?.groups[]'
       },
       uncertaintyAdmissionRate: {
-        numerator: 'runs where no evidence was delivered and the reply admitted uncertainty',
+        numerator: 'runs with no delivered evidence where uncertaintyAppropriate === pass (uncertainty expressed AND no unsupported claim)',
         denominator: 'runs with no delivered evidence where the intent was information_query, continuation, correction or self_fact',
         included: 'evidence-free turns that still asked about the user',
         excluded: 'new_topic / preference / emotion turns where no admission was required (reported as notApplicable)',
-        unscorable: 'none — a non-admission is a failure of this metric, not an exclusion',
-        rawRecords: 'runs[].dimensions.uncertaintyAppropriate'
+        unscorable: 'none — a non-admission, or an admission followed by an invented fact, is a failure of this metric',
+        rawRecords: 'runs[].dimensions.uncertaintyAppropriate, runs[].dimensions.unsupportedClaimDetected'
       },
       fabricationRate: {
         numerator: 'runs where a specific unverifiable fact was stated with no evidence delivered',
@@ -694,6 +776,8 @@ async function main(): Promise<void> {
       answerRelevanceRate: metric(relevanceMeasured.filter((run) => run.answersQuestion === true).length, relevanceMeasured.length, { notMeasured: flat.length - relevanceMeasured.length }),
       protectedLeaks: { payload: flat.filter((run) => run.payloadLeaked).length, reply: flat.filter((run) => run.replyLeaked).length },
       promptEchoRuns: flat.filter((run) => run.promptEcho).length,
+      unsupportedClaimRuns: flat.filter((run) => run.dimensions?.unsupportedClaimDetected?.status === 'fail').length,
+      conflictFailures: flat.filter((run) => run.dimensions?.conflictAcknowledged?.status === 'fail').length,
       scorable: {
         scored: flat.length - unscorable.length,
         notScorable: unscorable.length,
@@ -718,10 +802,28 @@ async function main(): Promise<void> {
     runs: flat
   }
 
+  // The report is only trustworthy if its records agree with each other and
+  // with the per-run references. A failure exits non-zero instead of writing a
+  // clean-looking result.
+  const integrity = validateReportIntegrity({
+    counts: report.counts,
+    requests,
+    runs: flat.map((run) => ({
+      runId: run.runId,
+      scenarioId: run.scenarioId,
+      scenarioRunId: run.scenarioRunId,
+      primaryRequestId: run.primaryRequestId,
+      probeRequestIds: run.probeRequestIds,
+      setupRequestIds: run.setupRequestIds,
+      callSucceeded: run.callSucceeded
+    }))
+  })
+  const finalReport = { ...report, integrity }
   const outputPath = join(process.cwd(), 'evaluation', 'reports', `${outputName}.${report.runId}.json`)
   mkdirSync(join(process.cwd(), 'evaluation', 'reports'), { recursive: true })
-  writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf8')
-  console.log(JSON.stringify({ runId: report.runId, condition: report.condition, counts: report.counts, metrics: report.metrics, report: outputPath }))
+  writeFileSync(outputPath, JSON.stringify(finalReport, null, 2), 'utf8')
+  console.log(JSON.stringify({ runId: report.runId, codeSha, condition: report.condition, counts: report.counts, integrity: { ok: integrity.ok, failures: integrity.failures }, metrics: report.metrics, report: outputPath }))
+  if (!integrity.ok) process.exitCode = 1
 }
 
 void main()
