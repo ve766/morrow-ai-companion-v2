@@ -192,6 +192,14 @@ export function initializeCompanion(): void {
       if (suggestion.correctionTargetId) {
         card.append(node('p', 'companion-muted', `这是一条更正候选，确认后会保留原记忆的修订历史（目标 ${suggestion.correctionTargetId}）。`))
       }
+      // A correction must correct something. A targetless correction (the
+      // statement could not be tied to an existing record, or the record was
+      // deleted) cannot be saved: it would become a brand-new memory under the
+      // label "correction". The user is asked to restate it or add a memory.
+      const targetless = suggestion.candidateKind === 'correction' && suggestion.correctionTargetId === null
+      if (targetless) {
+        card.append(node('p', 'companion-muted', '这条更正没有对应的原记忆，无法保存。请重新描述更正，或直接新增一条记忆。'))
+      }
       // A candidate created before revision tracking has no provable target
       // version. Saving it could overwrite a newer fact, so it is shown as
       // needing a fresh statement instead of offering a save button.
@@ -246,7 +254,7 @@ export function initializeCompanion(): void {
             withdraw.disabled = false
           }
         })
-        if (bindingUnverified) accept.disabled = true
+        if (bindingUnverified || targetless) accept.disabled = true
         actions.append(accept, reject, withdraw)
         card.append(input, sensitivity, actions)
       } else {
