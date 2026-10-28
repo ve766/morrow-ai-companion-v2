@@ -175,6 +175,39 @@ describe('a database written by an older build still opens with its data', () =>
     })
   }
 
+  it('upgrades v22 to v23 by pinning existing correction candidates and backfilling revision sensitivity', () => {
+    const { databasePath } = tempProfile()
+    seedAtVersion(databasePath, 22)
+    const suggestionId = '77777777-7777-4777-8777-777777777777'
+    // A v22 build could point a candidate at a memory but had no way to record
+    // which revision it was built against.
+    const legacy = new DatabaseSync(databasePath)
+    try {
+      legacy.exec('PRAGMA foreign_keys = ON')
+      legacy.prepare(`
+        INSERT INTO memory_suggestions(
+          id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
+          confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
+          provider_model, evidence_hash, created_at
+        ) VALUES (?, ?, ?, ?, 'correction', 'user', 'user_explicit_correction', 85, ?, 'sensitive', 'pending', '[]', ?, 'local-rule-v1', ?, ?)
+      `).run(suggestionId, conversationId, messageId, '我现在对坚果过敏。', '我现在对坚果过敏。', memoryId, 'b'.repeat(64), T0)
+    } finally {
+      legacy.close()
+    }
+
+    const database = SqliteDatabase.open(databasePath)
+    openDatabases.push(database)
+    expect(database.schemaVersion).toBe(23)
+    expect(database.connection.prepare('SELECT correction_target_revision FROM memory_suggestions WHERE id = ?').get(suggestionId))
+      .toEqual({ correction_target_revision: 1 })
+    // The revision history had no sensitivity column before v23; the backfill
+    // copies the memory's value, which cannot under-report it.
+    expect(database.connection.prepare('SELECT sensitivity FROM memory_revisions WHERE memory_id = ?').get(memoryId))
+      .toEqual({ sensitivity: 'sensitive' })
+    expect(database.connection.prepare('SELECT current_text, status FROM memories WHERE id = ?').get(memoryId))
+      .toEqual({ current_text: '我对花生过敏。', status: 'active' })
+  })
+
   it('keeps the v21 selection column unset so the default rule still applies', () => {
     const { databasePath } = tempProfile()
     seedAtVersion(databasePath, 20)

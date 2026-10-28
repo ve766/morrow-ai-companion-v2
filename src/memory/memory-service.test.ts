@@ -40,6 +40,7 @@ describe('traceable local memory lifecycle', () => {
     expect(service.history(record.id)).toEqual([{
       memoryId: record.id,
       revision: 1,
+      sensitivity: 'personal',
       content: record.currentText,
       sourceCategory: 'user_explicit_input',
       status: 'active',

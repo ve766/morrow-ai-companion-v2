@@ -189,6 +189,34 @@ describe('main-frame IPC authorization and error boundary', () => {
     }
   })
 
+  it('carries a refused-correction reason to the renderer instead of a bare CONFLICT', async () => {
+    const companion = {
+      reviewMemorySuggestion: () => {
+        throw new ApplicationError('CONFLICT', 'correction_rejected:target_changed')
+      }
+    } as unknown as CompanionActions
+    const harness = createHarness(undefined, undefined, companion)
+    try {
+      const result = await call(harness.handlers, IPC_CHANNELS.memorySuggestionsReview, trustedEvent(), {
+        id: '11111111-1111-4111-8111-111111111111',
+        decision: 'accept',
+        content: '我住在京都。'
+      })
+      // The message stays generic; the reason is machine-readable and contains
+      // no memory text.
+      expect(result).toEqual({
+        ok: false,
+        error: {
+          code: 'CONFLICT',
+          message: '记录状态已变化，请刷新后重试。',
+          detail: 'correction_rejected:target_changed'
+        }
+      })
+    } finally {
+      harness.close()
+    }
+  })
+
   it('rejects malformed, unknown-field and invalid-ID requests without echoing memory text', async () => {
     const harness = createHarness()
     try {

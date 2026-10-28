@@ -848,6 +848,39 @@ export const migrations: readonly Migration[] = [
         DROP TABLE memory_suggestions_v21;
       `)
     }
+  },
+  {
+    version: 23,
+    name: 'correction-target-revision-and-revision-sensitivity',
+    up(database) {
+      // A correction candidate is a proposal about a specific *version* of a
+      // target memory. Storing the revision it was built against is what makes
+      // "the target changed while you were reviewing" detectable instead of
+      // silently overwriting a newer fact. Existing candidates are pinned to
+      // the target's current revision, which is the only honest approximation.
+      //
+      // `memory_revisions.sensitivity` closes an audit gap: the content history
+      // recorded what changed but not how sensitive it was, so a correction
+      // that raised sensitivity left no trace. Backfill copies the memory's
+      // current sensitivity, which can only over-report (never under-report)
+      // the sensitivity of an older revision.
+      database.exec(`
+        ALTER TABLE memory_suggestions ADD COLUMN correction_target_revision INTEGER
+          CHECK (correction_target_revision IS NULL OR correction_target_revision > 0);
+        UPDATE memory_suggestions
+          SET correction_target_revision = (
+            SELECT m.revision FROM memories m WHERE m.id = memory_suggestions.correction_target_id
+          )
+          WHERE correction_target_id IS NOT NULL;
+        ALTER TABLE memory_revisions ADD COLUMN sensitivity TEXT NOT NULL DEFAULT 'personal'
+          CHECK (sensitivity IN ('normal', 'personal', 'sensitive'));
+        UPDATE memory_revisions
+          SET sensitivity = COALESCE(
+            (SELECT m.sensitivity FROM memories m WHERE m.id = memory_revisions.memory_id),
+            'personal'
+          );
+      `)
+    }
   }
 ]
 

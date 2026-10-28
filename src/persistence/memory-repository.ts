@@ -27,6 +27,7 @@ interface RevisionRow {
   created_at: string
   previous_revision: number | null
   confidence: number
+  sensitivity: string
 }
 
 export interface MemoryRepository {
@@ -69,7 +70,8 @@ function mapRevision(row: RevisionRow): MemoryRevisionRecord {
     changeType: row.change_type as MemoryChangeType,
     createdAt: row.created_at,
     previousRevision: row.previous_revision,
-    confidence: row.confidence
+    confidence: row.confidence,
+    sensitivity: row.sensitivity as MemoryRevisionRecord['sensitivity']
   }
 }
 
@@ -152,9 +154,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
       if (!previous) throw new ApplicationError('CONFLICT')
       const result = this.database.connection.prepare(`
         UPDATE memories
-        SET current_text = ?, status = ?, updated_at = ?, revision = ?, confidence = ?, last_confirmed_at = ?
+        SET current_text = ?, status = ?, updated_at = ?, revision = ?, confidence = ?, last_confirmed_at = ?, sensitivity = ?
         WHERE id = ? AND revision = ?
-      `).run(record.currentText, record.status, record.updatedAt, record.revision, record.confidence, record.lastConfirmedAt, record.id, previousRevision)
+      `).run(record.currentText, record.status, record.updatedAt, record.revision, record.confidence, record.lastConfirmedAt, record.sensitivity, record.id, previousRevision)
       if (result.changes !== 1) throw new ApplicationError('CONFLICT')
       this.insertRevision(revision)
       if (record.status === 'retracted') recordDeletionState(this.database, 'memory', record.id, 'retracted', record.updatedAt)
@@ -172,8 +174,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
 
   private insertRevision(revision: MemoryRevisionRecord): void {
     this.database.connection.prepare(`
-      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       revision.memoryId,
       revision.revision,
@@ -183,7 +185,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
       revision.changeType,
       revision.createdAt,
       revision.previousRevision,
-      revision.confidence
+      revision.confidence,
+      revision.sensitivity
     )
   }
 }

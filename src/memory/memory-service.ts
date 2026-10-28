@@ -169,9 +169,25 @@ export class MemoryService {
     return history
   }
 
-  correct(id: string, content: string, correlationId?: string): MemoryRecord {
+  /**
+   * `sensitivity` is the value the user chose when reviewing the candidate that
+   * produced this correction. It travels with the transition so content and
+   * sensitivity cannot end up inconsistent, and it is validated by the domain
+   * transition rather than trusted from the caller.
+   */
+  correct(id: string, content: string, correlationId?: string, sensitivity?: MemoryRecord['sensitivity']): MemoryRecord {
     validateMemoryText(content)
-    return this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
+    if (sensitivity !== undefined) validateMemorySensitivity(sensitivity)
+    return this.transition(
+      id,
+      sensitivity === undefined ? { type: 'correct', content } : { type: 'correct', content, sensitivity },
+      'corrected',
+      correlationId
+    )
+  }
+
+  get(id: string): MemoryRecord | null {
+    return this.repository.get(id)
   }
 
   retract(id: string, correlationId?: string): MemoryRecord {
@@ -231,7 +247,8 @@ export class MemoryService {
       changeType,
       createdAt: record.updatedAt,
       previousRevision,
-      confidence: record.confidence
+      confidence: record.confidence,
+      sensitivity: record.sensitivity
     }
   }
 
