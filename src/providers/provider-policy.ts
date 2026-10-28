@@ -25,6 +25,8 @@ export type ProviderDeltaHandler = (delta: string) => void
 export interface ProviderOutput {
   text: string
   modelId: string
+  /** How many HTTP attempts were needed (1 when no retry happened). */
+  attempts?: number
 }
 
 export interface ProviderPort {

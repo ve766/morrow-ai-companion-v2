@@ -1,6 +1,6 @@
 import type { ProviderConfigRecord } from '../shared/companion'
 import { isRemoteConfigValid } from './provider-registry'
-import { ApplicationError } from '../shared/errors'
+import { ApplicationError, type ApplicationErrorCode } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
 import type { SecretStore } from '../security/secrets'
@@ -15,6 +15,36 @@ export interface OpenAIChatPayload {
 }
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
+
+export interface RetryOptions {
+  /** Total attempts, including the first. Default 3. */
+  maxAttempts?: number
+  baseDelayMs?: number
+  maxDelayMs?: number
+  /** Injected in tests so a backoff does not slow the suite down. */
+  sleep?: (ms: number) => Promise<void>
+}
+
+/** Only transient failures are retried; auth, quota, model and cancel never are. */
+const RETRYABLE_CODES: ReadonlySet<ApplicationErrorCode> = new Set(['PROVIDER_RATE_LIMIT', 'PROVIDER_TIMEOUT', 'PROVIDER_NETWORK'])
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
+
+class RetryableProviderError extends ApplicationError {
+  constructor(code: ApplicationErrorCode, readonly retryAfterMs: number | null) {
+    super(code)
+    this.name = 'RetryableProviderError'
+  }
+}
+
+/** `Retry-After` is either delta-seconds or an HTTP date; both are capped later. */
+function parseRetryAfter(value: string | null, now = Date.now()): number | null {
+  if (!value) return null
+  const seconds = Number(value.trim())
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000)
+  const date = Date.parse(value)
+  if (!Number.isFinite(date)) return null
+  return Math.max(0, date - now)
+}
 
 type StreamChunk = {
   model?: unknown
@@ -118,7 +148,8 @@ export class OpenAICompatibleProvider implements ProviderPort {
     private readonly config: ProviderConfigRecord,
     private readonly secrets: SecretStore,
     private readonly fetcher: FetchLike = (input, init) => fetch(input, init),
-    private readonly timeoutMs = 45_000
+    private readonly timeoutMs = 45_000,
+    private readonly retry: RetryOptions = {}
   ) {
     this.profile = {
       id: config.id,
@@ -138,7 +169,55 @@ export class OpenAICompatibleProvider implements ProviderPort {
     return isLoopbackEndpoint(this.config.endpoint) && isValidLocalModelName(this.config.model)
   }
 
+  /** Bounded retry: only transient failures, never auth/quota/model/cancel. */
+  private async delayBeforeRetry(attempt: number, retryAfterMs: number | null, signal?: AbortSignal): Promise<void> {
+    const base = this.retry.baseDelayMs ?? 400
+    const cap = this.retry.maxDelayMs ?? 30_000
+    const backoff = Math.min(cap, base * 2 ** (attempt - 1))
+    const waitMs = Math.min(cap, retryAfterMs ?? backoff)
+    if (signal?.aborted) throw new ApplicationError('PROVIDER_CANCELLED')
+    const sleep = this.retry.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+    if (!signal) {
+      await sleep(waitMs)
+      return
+    }
+    // Wake up immediately when the caller cancels mid-backoff.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, waitMs)
+      const onAbort = (): void => {
+        clearTimeout(timer)
+        resolve()
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+    if (signal.aborted) throw new ApplicationError('PROVIDER_CANCELLED')
+  }
+
   async generate(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
+    const maxAttempts = Math.max(1, this.retry.maxAttempts ?? 3)
+    let attempt = 0
+    for (;;) {
+      attempt += 1
+      let emitted = false
+      try {
+        const output = await this.generateOnce(input, (delta) => {
+          emitted = true
+          onDelta?.(delta)
+        })
+        return { ...output, attempts: attempt }
+      } catch (error) {
+        const failure = error instanceof ApplicationError ? error : new ApplicationError('PROVIDER_NETWORK')
+        const retryable = RETRYABLE_CODES.has(failure.code) && !emitted && attempt < maxAttempts
+        if (!retryable) throw failure
+        // A stream that already produced text must not be replayed.
+        const retryAfter = failure instanceof RetryableProviderError ? failure.retryAfterMs : null
+        await this.delayBeforeRetry(attempt, retryAfter, input.signal)
+      }
+    }
+  }
+
+  /** One HTTP attempt. Throws a classified ApplicationError on failure. */
+  private async generateOnce(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
     const payload = input.requestPayload as OpenAIChatPayload
     if (
       !this.isConfigShapeValid() ||
@@ -185,9 +264,11 @@ export class OpenAICompatibleProvider implements ProviderPort {
         if (response.status === 400 && providerCode === 10404) throw new ApplicationError('PROVIDER_MODEL')
         if (response.status === 403 && providerCode === 11200) throw new ApplicationError('PROVIDER_QUOTA')
         if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
-        if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT')
         if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')
-        if (response.status === 408 || response.status === 504) throw new ApplicationError('PROVIDER_TIMEOUT')
+        const retryAfter = parseRetryAfter(response.headers.get('retry-after'))
+        if (response.status === 408 || response.status === 504) throw new RetryableProviderError('PROVIDER_TIMEOUT', retryAfter)
+        if (response.status === 429) throw new RetryableProviderError('PROVIDER_RATE_LIMIT', retryAfter)
+        if (RETRYABLE_STATUS.has(response.status)) throw new RetryableProviderError('PROVIDER_NETWORK', retryAfter)
         throw new ApplicationError('PROVIDER_NETWORK')
       }
       if (payload.stream) {
