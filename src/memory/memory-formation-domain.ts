@@ -2,6 +2,8 @@ import type { Sensitivity } from '../shared/companion'
 import { classifyInterestIntent, isQuestionSentence } from '../self-model/interest-intent'
 import {
   classifyFactAttribute,
+  classifyTemporalReference,
+  isSingleValuedAttribute,
   normalizedMemoryKey,
   sharedTermCount,
   significantMemoryTerms,
@@ -196,12 +198,49 @@ export function canTargetCorrection(claim: string, memoryText: string): boolean 
   return sharedTermCount(significantMemoryTerms(claim), significantMemoryTerms(memoryText)) >= 2
 }
 
+
+/**
+ * Text that is not a plain assertion cannot become the new value of a memory.
+ * A hypothetical ("如果我搬去京都") or an explicit "I am not sure" is not
+ * evidence, and a quotation is someone else's words.
+ */
+const NON_ASSERTION_MARKERS = /(?:如果|假设|假如|要是|万一|可能|也许|或许|说不定|不确定|不知道|记不清|据说|听说|你说过|他说过|「|」|“|”)/u
+
+function isPlainAssertion(text: string): boolean {
+  return !NON_ASSERTION_MARKERS.test(text.normalize('NFKC'))
+}
+
+/**
+ * A single-valued fact has one value. "我不再住在大阪" denies the old value but
+ * asserts nothing about where the user lives now, so writing it as the new
+ * value would replace a fact with a denial. Retraction is the honest action.
+ *
+ * Preference is exempt: "我不喜欢摄影" is itself a (negative) preference value.
+ */
+function isPureDenialOfTarget(edited: string, targetText: string, attribute: FactAttribute | null): boolean {
+  if (!isSingleValuedAttribute(attribute)) return false
+  const normalizedEdited = edited.normalize('NFKC')
+  if (!/(?:不再|不住|不是|并非|没有|已经不)/u.test(normalizedEdited)) return false
+  const stripped = normalizedEdited
+    .replace(/(?:已经)?不再|已经不住|不住|不是|并非|没有|已经|不/gu, '')
+    .replace(/[\s。！？!?，,；;、]/gu, '')
+  if (stripped.length < 2) return false
+  return normalizedMemoryKey(targetText).replace(/[\s。！？!?，,；;、]/gu, '').includes(stripped)
+}
+
 export type CorrectionRejectionReason =
   | 'target_missing'
   | 'target_inactive'
   | 'target_changed'
+  /** The candidate predates trustworthy revision tracking; nothing is proven. */
+  | 'revision_unproven'
   | 'attribute_mismatch'
   | 'subject_mismatch'
+  | 'temporal_mismatch'
+  /** A hypothetical, quoted, conditional or explicitly uncertain edit. */
+  | 'not_an_assertion'
+  /** The edit only denies the old value without stating a new one. */
+  | 'negation_mismatch'
   | 'content_unchanged'
 
 export interface CorrectionTargetSnapshot {
@@ -239,7 +278,13 @@ export function validateCorrectionTarget(input: {
   if (target.status !== 'active') {
     return { ok: false, reason: 'target_inactive', detail: 'The target memory is no longer active.' }
   }
-  if (expectedRevision !== null && target.revision !== expectedRevision) {
+  // A candidate whose creation-time revision is unknown cannot be checked at
+  // all. Treating "unknown" as "matches" is exactly how a stale candidate
+  // overwrites a newer fact, so it is refused instead.
+  if (expectedRevision === null) {
+    return { ok: false, reason: 'revision_unproven', detail: 'The revision this candidate was built against is unknown.' }
+  }
+  if (target.revision !== expectedRevision) {
     return { ok: false, reason: 'target_changed', detail: 'The target memory changed after this candidate was created.' }
   }
   const content = editedContent.normalize('NFKC').trim()
@@ -248,8 +293,29 @@ export function validateCorrectionTarget(input: {
   }
   // The block is about the user. A correction that switches subject would move
   // the fact to someone else while keeping the user's record id.
-  if (!/(?:^|[，。；\s])我/u.test(content) || THIRD_PARTY_OR_ADDRESSING.test(content)) {
+  // "如果我住在京都" is still a first-person statement; requiring 我 at a
+  // clause boundary rejected it for the wrong reason. What matters is that the
+  // content is about the user and not about someone else.
+  if (!content.includes('我') || THIRD_PARTY_OR_ADDRESSING.test(content)) {
     return { ok: false, reason: 'subject_mismatch', detail: 'The edited content is not a first-person statement about the user.' }
+  }
+  if (!isPlainAssertion(content)) {
+    return { ok: false, reason: 'not_an_assertion', detail: 'The edited content is hypothetical, quoted or explicitly uncertain.' }
+  }
+  // A past/present flip is not a wording fix. Accepting it would erase a
+  // historical fact (past -> present) or demote a current one (present -> past)
+  // without the user ever seeing that choice.
+  const editedTemporal = classifyTemporalReference(content)
+  const targetTemporal = classifyTemporalReference(target.currentText)
+  if (
+    (editedTemporal === 'past' && targetTemporal === 'present') ||
+    (editedTemporal === 'present' && targetTemporal === 'past')
+  ) {
+    return {
+      ok: false,
+      reason: 'temporal_mismatch',
+      detail: 'The edited content refers to a different time than the target memory.'
+    }
   }
   const editedAttribute: FactAttribute | null = classifyFactAttribute(content)
   const targetAttribute: FactAttribute | null = classifyFactAttribute(target.currentText)
@@ -259,6 +325,13 @@ export function validateCorrectionTarget(input: {
         ok: false,
         reason: 'attribute_mismatch',
         detail: `The edited content is about ${editedAttribute}, the target memory is about ${targetAttribute}.`
+      }
+    }
+    if (isPureDenialOfTarget(content, target.currentText, editedAttribute)) {
+      return {
+        ok: false,
+        reason: 'negation_mismatch',
+        detail: 'The edited content only denies the old value; retract the memory instead.'
       }
     }
     return { ok: true, reason: null, detail: 'Same subject and fact attribute.' }

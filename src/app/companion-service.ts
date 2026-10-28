@@ -158,6 +158,7 @@ interface SuggestionRow {
   conflict_with_json: string
   correction_target_id: string | null
   correction_target_revision: number | null
+  correction_binding: 'recorded' | 'unverified'
   provider_model: string
   created_at: string
   reviewed_at: string | null
@@ -220,6 +221,7 @@ function mapSuggestion(row: SuggestionRow): MemorySuggestion {
     conflictWith,
     correctionTargetId: row.correction_target_id,
     correctionTargetRevision: row.correction_target_revision,
+    correctionBinding: row.correction_binding,
     providerModel: row.provider_model,
     createdAt: row.created_at,
     reviewedAt: row.reviewed_at,
@@ -1271,7 +1273,7 @@ export class MemorySuggestionService {
     const rows = this.database.connection.prepare(`
       SELECT id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
         confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
-        correction_target_revision, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
+        correction_target_revision, correction_binding, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
       FROM memory_suggestions WHERE conversation_id = ? ORDER BY created_at DESC, id
     `).all(id) as unknown as SuggestionRow[]
     return rows.map(mapSuggestion)
@@ -1321,8 +1323,9 @@ export class MemorySuggestionService {
           INSERT OR IGNORE INTO memory_suggestions(
             id, conversation_id, source_message_id, claim, candidate_kind, subject,
             evidence_type, confidence, claim_key, sensitivity, status, conflict_with_json,
-            correction_target_id, correction_target_revision, provider_model, evidence_hash, created_at
-          ) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, 'pending', ?, ?, ?, 'local-rule-v1', ?, ?)
+            correction_target_id, correction_target_revision, correction_binding,
+            provider_model, evidence_hash, created_at
+          ) VALUES (?, ?, ?, ?, ?, 'user', ?, ?, ?, ?, 'pending', ?, ?, ?, 'recorded', 'local-rule-v1', ?, ?)
         `).run(
           normalizedUuid(this.makeId()),
           conversationId,
@@ -1399,7 +1402,7 @@ export class MemorySuggestionService {
     const row = this.database.connection.prepare(`
       SELECT id, conversation_id, source_message_id, claim, candidate_kind, subject, evidence_type,
         confidence, claim_key, sensitivity, status, conflict_with_json, correction_target_id,
-        correction_target_revision, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
+        correction_target_revision, correction_binding, provider_model, created_at, reviewed_at, accepted_memory_id, accepted_content
       FROM memory_suggestions WHERE id = ?
     `).get(id) as unknown as SuggestionRow | undefined
     if (!row) throw new ApplicationError('NOT_FOUND')
@@ -1428,6 +1431,14 @@ export class MemorySuggestionService {
       // is refused and the candidate stays pending for the user to re-review.
       // It is never silently downgraded to a new memory and never applied to a
       // different record.
+      // A candidate written before trustworthy revision tracking cannot be
+      // checked, so it cannot be accepted. It is not silently applied, and it
+      // is not silently turned into a new memory either: the user has to state
+      // the correction again, which produces a candidate with a recorded
+      // revision.
+      if (row.correction_binding === 'unverified') {
+        throw new ApplicationError('CONFLICT', 'correction_rejected:binding_unverified')
+      }
       const target = row.correction_target_id === null ? null : this.memories.get(row.correction_target_id)
       if (row.correction_target_id !== null) {
         const validation = validateCorrectionTarget({

@@ -1,4 +1,4 @@
-import type { MemoryChangeType, MemoryRevisionRecord, MemoryStatus } from './memory-domain'
+import type { MemoryChangeType, MemoryRevisionRecord, MemorySensitivity, MemorySensitivitySource, MemoryStatus } from './memory-domain'
 
 export interface MemoryTimelineEntry {
   key: string
@@ -8,6 +8,13 @@ export interface MemoryTimelineEntry {
   status: MemoryStatus
   content: string
   sourceCategory: MemoryRevisionRecord['sourceCategory']
+  sensitivity: MemorySensitivity
+  /**
+   * `inferred_backfill` means the sensitivity was copied in by a migration and
+   * is not evidence of what was recorded at the time. Callers must label it as
+   * an inference instead of presenting it as the original value.
+   */
+  sensitivitySource: MemorySensitivitySource
   recordedAt: string
   recordedAtValid: boolean
 }
@@ -38,6 +45,8 @@ export function buildMemoryTimeline(revisions: readonly MemoryRevisionRecord[]):
       status: record.status,
       content: record.content,
       sourceCategory: record.sourceCategory,
+      sensitivity: record.sensitivity,
+      sensitivitySource: record.sensitivitySource,
       recordedAt: record.createdAt,
       recordedAtValid: valid,
       order

@@ -28,6 +28,7 @@ interface RevisionRow {
   previous_revision: number | null
   confidence: number
   sensitivity: string
+  sensitivity_source: string
 }
 
 export interface MemoryRepository {
@@ -71,7 +72,8 @@ function mapRevision(row: RevisionRow): MemoryRevisionRecord {
     createdAt: row.created_at,
     previousRevision: row.previous_revision,
     confidence: row.confidence,
-    sensitivity: row.sensitivity as MemoryRevisionRecord['sensitivity']
+    sensitivity: row.sensitivity as MemoryRevisionRecord['sensitivity'],
+    sensitivitySource: row.sensitivity_source as MemoryRevisionRecord['sensitivitySource']
   }
 }
 
@@ -174,8 +176,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
 
   private insertRevision(revision: MemoryRevisionRecord): void {
     this.database.connection.prepare(`
-      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, sensitivity, sensitivity_source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       revision.memoryId,
       revision.revision,
@@ -186,7 +188,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
       revision.createdAt,
       revision.previousRevision,
       revision.confidence,
-      revision.sensitivity
+      revision.sensitivity,
+      revision.sensitivitySource
     )
   }
 }

@@ -881,6 +881,41 @@ export const migrations: readonly Migration[] = [
           );
       `)
     }
+  },
+  {
+    version: 24,
+    name: 'correction-binding-and-sensitivity-provenance',
+    up(database) {
+      // v23 filled `correction_target_revision` with the target's revision *at
+      // migration time*. That number was never recorded by the candidate, so
+      // presenting it as the revision the candidate was built against lets a
+      // stale candidate pass the revision check and overwrite a newer fact.
+      //
+      // Rows written before v23 are therefore marked `unverified` and their
+      // revision is cleared, so no code path can mistake a guess for a record.
+      // Rows written after v23 stored the revision at creation and keep it.
+      //
+      // `memory_revisions.sensitivity` has the same problem: v23 copied the
+      // memory's current value into every older revision. That value stays
+      // useful for conservative filtering, but it is marked
+      // `inferred_backfill` so it is never read back as audit evidence.
+      //
+      // The `9999` fallback means "v23 applied_at unknown": every existing row
+      // is then treated as unproven, which is the safe direction.
+      database.exec(`
+        ALTER TABLE memory_suggestions ADD COLUMN correction_binding TEXT NOT NULL DEFAULT 'recorded'
+          CHECK (correction_binding IN ('recorded', 'unverified'));
+        UPDATE memory_suggestions
+          SET correction_binding = 'unverified', correction_target_revision = NULL
+          WHERE correction_target_id IS NOT NULL
+            AND created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version = 23), '9999');
+        ALTER TABLE memory_revisions ADD COLUMN sensitivity_source TEXT NOT NULL DEFAULT 'recorded'
+          CHECK (sensitivity_source IN ('recorded', 'inferred_backfill'));
+        UPDATE memory_revisions
+          SET sensitivity_source = 'inferred_backfill'
+          WHERE created_at < COALESCE((SELECT applied_at FROM schema_migrations WHERE version = 23), '9999');
+      `)
+    }
   }
 ]
 

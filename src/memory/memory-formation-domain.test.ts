@@ -130,4 +130,76 @@ describe('P1-A correction target re-validation', () => {
     expect(validateCorrectionTarget({ editedContent: '我最近在读一本小说。', target: pet, expectedRevision: 3 }))
       .toMatchObject({ ok: false, reason: 'attribute_mismatch' })
   })
+
+})
+
+describe('P1-2 fact attributes are fine-grained enough to block same-family swaps', () => {
+  const target = (currentText: string) => ({
+    id: '11111111-1111-4111-8111-111111111111',
+    currentText,
+    status: 'active' as const,
+    revision: 2,
+    sensitivity: 'personal' as const
+  })
+
+  // The comparison table the hardening round requires. Each row names the
+  // target memory, the edited candidate and the expected refusal reason
+  // (`null` means "may proceed to the same-attribute correction check").
+  const rows: ReadonlyArray<{ target: string; edited: string; reason: string | null }> = [
+    { target: '我叫小王。', edited: '我今年 30 岁。', reason: 'attribute_mismatch' },
+    { target: '我出生于 1996 年。', edited: '我现在住在京都。', reason: 'attribute_mismatch' },
+    { target: '我住在大阪。', edited: '我喜欢独自研究。', reason: 'attribute_mismatch' },
+    { target: '我在甲公司工作。', edited: '我在学习 Blender。', reason: 'attribute_mismatch' },
+    // A project name and a project code are different slots; "both are about a
+    // project" is not evidence that one may replace the other.
+    { target: '我的项目代号是 BLUE-731。', edited: '我的项目名称是 Morrow。', reason: 'attribute_mismatch' },
+    { target: '我现在住在大阪。', edited: '我现在住在京都。', reason: null },
+    // A historical fact must not be rewritten into a current one.
+    { target: '我以前住在大阪。', edited: '我现在住在京都。', reason: 'temporal_mismatch' },
+    // A preference reversal is a value change, not a denial of the slot.
+    { target: '我喜欢摄影。', edited: '我不喜欢摄影。', reason: null },
+    { target: '我在学习 Blender。', edited: '我现在在大阪工作。', reason: 'attribute_mismatch' }
+  ]
+
+  for (const row of rows) {
+    it(`"${row.target}" <- "${row.edited}" => ${row.reason ?? 'allowed'}`, () => {
+      const result = validateCorrectionTarget({ editedContent: row.edited, target: target(row.target), expectedRevision: 2 })
+      if (row.reason === null) {
+        expect(result).toMatchObject({ ok: true })
+        return
+      }
+      expect(result).toMatchObject({ ok: false, reason: row.reason })
+    })
+  }
+
+  it('refuses third-person, quoted, conditional, hypothetical and uncertain edits', () => {
+    const base = target('我住在大阪。')
+    const cases: ReadonlyArray<{ edited: string; reason: string }> = [
+      { edited: '他住在京都。', reason: 'subject_mismatch' },
+      { edited: '我听说「我住在京都」。', reason: 'not_an_assertion' },
+      { edited: '如果我住在京都。', reason: 'not_an_assertion' },
+      { edited: '假设我住在京都。', reason: 'not_an_assertion' },
+      { edited: '我可能住在京都。', reason: 'not_an_assertion' },
+      { edited: '我不确定我现在住在哪里。', reason: 'not_an_assertion' }
+    ]
+    for (const item of cases) {
+      expect(validateCorrectionTarget({ editedContent: item.edited, target: base, expectedRevision: 2 }), item.edited)
+        .toMatchObject({ ok: false, reason: item.reason })
+    }
+  })
+
+  it('refuses a pure denial of a single-valued fact and points at retraction', () => {
+    const result = validateCorrectionTarget({
+      editedContent: '我不再住在大阪。',
+      target: target('我住在大阪。'),
+      expectedRevision: 2
+    })
+    expect(result).toMatchObject({ ok: false, reason: 'negation_mismatch' })
+    expect(result.detail).toContain('retract')
+  })
+
+  it('refuses any correction whose creation-time revision is unknown', () => {
+    expect(validateCorrectionTarget({ editedContent: '我住在京都。', target: target('我住在大阪。'), expectedRevision: null }))
+      .toMatchObject({ ok: false, reason: 'revision_unproven' })
+  })
 })

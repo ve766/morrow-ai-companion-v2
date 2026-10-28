@@ -56,7 +56,10 @@ export const CONTEXT_MEMORY_CAPABILITIES = [
   'C2_single_prompt_does_not_rewrite',
   'C3_agreement_request_is_not_identity',
   'C4_conflict_uncertainty_delivered',
-  'C5_own_error_visible_to_model'
+  'C5_own_error_visible_to_model',
+  // A sensitive fact above the request's ceiling must not be delivered at all,
+  // so this capability is about the boundary, not about model compliance.
+  'B11_sensitive_ceiling_not_delivered'
 ] as const
 
 export type ContextMemoryCapability = typeof CONTEXT_MEMORY_CAPABILITIES[number]

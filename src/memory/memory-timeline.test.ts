@@ -13,7 +13,8 @@ function revision(overrides: Partial<MemoryRevisionRecord> & { revision: number 
     createdAt: overrides.createdAt ?? '2026-10-25T00:00:00.000Z',
     previousRevision: overrides.previousRevision ?? (overrides.revision > 1 ? overrides.revision - 1 : null),
     confidence: overrides.confidence ?? 80,
-    sensitivity: overrides.sensitivity ?? 'personal'
+    sensitivity: overrides.sensitivity ?? 'personal',
+    sensitivitySource: overrides.sensitivitySource ?? 'recorded'
   }
 }
 
@@ -84,5 +85,14 @@ describe('memory timeline builder', () => {
     const singleton = [revision({ revision: 1 })]
     buildMemoryTimeline(singleton)
     expect(singleton).toHaveLength(1)
+  })
+
+  it('keeps an inferred sensitivity labelled instead of presenting it as recorded', () => {
+    const timeline = buildMemoryTimeline([
+      revision({ revision: 1, sensitivity: 'sensitive', sensitivitySource: 'inferred_backfill' }),
+      revision({ revision: 2, sensitivity: 'personal', sensitivitySource: 'recorded' })
+    ])
+    expect(timeline.map((entry) => entry.sensitivitySource)).toEqual(['inferred_backfill', 'recorded'])
+    expect(timeline.map((entry) => entry.sensitivity)).toEqual(['sensitive', 'personal'])
   })
 })

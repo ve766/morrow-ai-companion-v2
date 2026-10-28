@@ -41,6 +41,7 @@ describe('traceable local memory lifecycle', () => {
       memoryId: record.id,
       revision: 1,
       sensitivity: 'personal',
+      sensitivitySource: 'recorded',
       content: record.currentText,
       sourceCategory: 'user_explicit_input',
       status: 'active',

@@ -241,6 +241,12 @@ export interface MemorySuggestion {
   correctionTargetId: string | null
   /** Revision of the target memory this candidate was built against. */
   correctionTargetRevision: number | null
+  /**
+   * `unverified` means the revision was never recorded by the candidate (it
+   * predates revision tracking); such a candidate must be re-stated, not
+   * accepted.
+   */
+  correctionBinding: 'recorded' | 'unverified'
   providerModel: string
   createdAt: string
   reviewedAt: string | null

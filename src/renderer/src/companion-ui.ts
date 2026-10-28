@@ -52,6 +52,11 @@ const refusalMessages: Record<string, string> = {
   'correction_rejected:target_missing': '原记忆已不存在，这次更正没有执行。',
   'correction_rejected:subject_mismatch': '候选内容不再是关于你的陈述，没有保存。',
   'correction_rejected:content_unchanged': '候选内容与原记忆相同，不需要更正。',
+  'correction_rejected:temporal_mismatch': '候选描述的时间与原记忆不同，不能直接覆盖历史或当前事实。',
+  'correction_rejected:revision_unproven': '无法确认候选针对的目标版本，已拒绝保存。',
+  'correction_rejected:binding_unverified': '这条候选没有记录目标版本，无法安全保存。请重新提出更正。',
+  'correction_rejected:not_an_assertion': '这段内容包含假设、引用或不确定表述，不能作为记忆保存。',
+  'correction_rejected:negation_mismatch': '这段内容只是否定了原记忆，没有说明新的值。如果事实不再成立，请直接撤回该记忆。',
   sensitivity_below_floor: '敏感度不能低于系统判定或原记忆已有的级别。'
 }
 
@@ -187,6 +192,13 @@ export function initializeCompanion(): void {
       if (suggestion.correctionTargetId) {
         card.append(node('p', 'companion-muted', `这是一条更正候选，确认后会保留原记忆的修订历史（目标 ${suggestion.correctionTargetId}）。`))
       }
+      // A candidate created before revision tracking has no provable target
+      // version. Saving it could overwrite a newer fact, so it is shown as
+      // needing a fresh statement instead of offering a save button.
+      const bindingUnverified = suggestion.correctionBinding === 'unverified'
+      if (bindingUnverified) {
+        card.append(node('p', 'companion-muted', '这条候选创建时没有记录目标版本，无法确认它是否仍然对应当前记忆。请重新说一次更正，系统会生成可核对的新候选。'))
+      }
       if (suggestion.status === 'pending') {
         const input = node('textarea', 'suggestion-edit')
         input.value = suggestion.claim
@@ -234,6 +246,7 @@ export function initializeCompanion(): void {
             withdraw.disabled = false
           }
         })
+        if (bindingUnverified) accept.disabled = true
         actions.append(accept, reject, withdraw)
         card.append(input, sensitivity, actions)
       } else {
