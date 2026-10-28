@@ -1,10 +1,16 @@
 # Cognitive Loop V1 / Phase 2.3 — 接入讯飞星火 MaaS 与 API 级诊断
 
-任务编号 CL-P2.3。本阶段的目标是"用真实云端模型判断问题出在哪一层"。Provider 接入已完成并通过真实调用验证；**认知实验被账户额度阻塞**（403 / code 11200），因此本报告不含云端 A/B/C/D 对照结果，只给出可复核的接入证据、阻塞证据，以及解除阻塞后可直接执行的命令。
+任务编号 CL-P2.3。本阶段先修复 Provider 接入，再用真实云端模型跑完 A/B/C/D 四条件实验。**云端实验已执行**：100 次主回答请求，98 次回答被人工判为正确，1 次编造，1 次 Provider 失败。
 
-## 0. 一句话结论
+## 0. 结论摘要
 
-**接入通过；实验被环境阻塞。** 讯飞星火 MaaS 已能作为一等远程 Provider 配置与调用，认证、路由、错误分类都验证过；但该账户当前"没有有效订单或额度不足"，任何生成请求都返回 `403 / 11200`，因此无法产生任何模型回答，A/B/C/D 实验与人工复核**未执行**——不编造结果。
+| 项 | 结果 |
+|---|---|
+| Provider 接入 | **通过**：讯飞星火 MaaS 成为一等远程 Provider，真实调用成功（`spark-x2.6`） |
+| 云端实验 | **已执行**：4 条件 × 5 场景 × 5 次 = 100 运行 / 100 请求，99 成功 1 失败 |
+| 认知行为 | **实质达标**：人工复核 98/100 正确；冲突 20/20 正确定位并询问；无证据 19/20 承认未知 |
+| 唯一失败 | `D-no_evidence#4` 编造车牌号「粤B·7H2X9」与车型；属于必须记录的残留风险 |
+| 与本地 0.5B 对比 | 参考命中 42/100 → **98/100**；冲突处理 0/20 → **20/20** |
 
 ## 1. 版本追溯
 
@@ -12,190 +18,213 @@
 |---|---|
 | 仓库 / 分支 | `ve766/morrow-ai-companion-v2` / `feat/cognitive-loop-v1-phase2`（PR #12，Draft） |
 | `baseSha`（本阶段起点） | `f6498cb` |
-| `headSha`（本阶段开始时） | `f6498cb` |
-| `evaluationCodeSha`（探针与受阻实验实际使用） | `adbc18e`（接入代码提交） |
-| `workingTreeDirty`（运行前） | `false` |
-| `workingTreeDiffHash` | `null` |
-| `reproducible` | `true`（探针与受阻实验两份 JSON 均为 true） |
+| 云端运行代码 SHA | `f05ae22`（连接探针 token 修正之后） |
+| 重评器 SHA | `8f27e88` |
+| `workingTreeDirty`（云端运行、重评时） | `false` / `false` |
+| `reproducible` | `true`（4 份云端 JSON + 4 份重评 JSON） |
 | `reportCommitSha` | 本报告所在提交 |
 | `main` | `8b207b7`（未改动） |
-| 数据库迁移 | **新增 v16**（唯一不可避免的 schema 变更，见 §2.2） |
+| 数据库迁移 | **新增 v16**（唯一必要 schema 变更，见 §2.2） |
 
-## 2. 第一部分：Provider 接入
+## 2. Provider 接入
 
 ### 2.1 已确认的缺陷
 
-`src/providers/openai-compatible.ts` 的远程配置校验是：
+`openai-compatible.ts` 的远程配置校验把 endpoint/model 钉死为 DeepSeek 常量；`provider_profiles` 的 CHECK 也只允许 `deepseek | local-openai`。因此第二个远程 Provider 既配不上也存不下。
 
-```ts
-return this.config.apiKeyConfigured &&
-  this.config.endpoint === DEEPSEEK_API_BASE_URL &&
-  this.config.model === DEEPSEEK_MODEL
-```
+### 2.2 改动
 
-即任何第二个 OpenAI 兼容 Provider 都无法配置。数据库层还有第二道锁：`provider_profiles` 的 CHECK 把 `id` 限定为 `deepseek | local-openai`。
+| 文件 | 改动 |
+|---|---|
+| `src/providers/provider-registry.ts`（新增） | 主机白名单 + 模型 id 形态；DeepSeek 契约不变；未知 Provider 无 spec |
+| `src/shared/companion.ts` | `spark` id、`SPARK_MAAS_BASE_URL`（含 `/v1`）、`SparkProviderConfigInput` |
+| `src/providers/openai-compatible.ts` | 校验改用注册表；`400/10404 → PROVIDER_MODEL`、`403/11200 → PROVIDER_QUOTA`、其余 401/403 → `PROVIDER_AUTH`；只读错误体数值码 |
+| `src/shared/errors.ts`、`contracts.ts`、`src/app/ipc.ts` | 新增 `PROVIDER_QUOTA` |
+| `src/app/companion-service.ts` | `saveDeepSeek` → `saveRemote`；`toRecord` 保留真实 id；`requireConfigured` 认可 spark；连接探针 token 预算 32 → 256 |
+| `src/shared/validation.ts` | 允许 `spark`：endpoint 固定、模型 id 形态校验 |
+| `src/persistence/migrations.ts` | **v16**：允许 `spark`，endpoint 固定为 MaaS base URL |
+| `scripts/provider-probe.ts`（新增） | 用真实适配器逐模型探测 |
 
-### 2.2 改动清单
+**为什么连接探针要 256 tokens**：`spark-x2.6` 是推理模型，32 tokens 全被 `reasoning_content` 吃掉，`content` 为空 → 接入测试误报「未连接」。这是真实跑出来的缺陷，不是猜测。
 
-| 文件 | 改动 | 理由 |
-|---|---|---|
-| `src/providers/provider-registry.ts`（新增） | 远程 Provider 注册表：每个 id 对应一个**允许的 base URL** 与**模型 id 形态** | 保留"主机白名单"这一安全属性，同时允许第二个 Provider；不放开 URL 校验 |
-| `src/shared/companion.ts` | `spark` id、`SPARK_MAAS_BASE_URL`、`SparkProviderConfigInput`；`MemoryProposalPreview` 的 provider/model 改为实际值 | 接入所需的最小类型扩展 |
-| `src/providers/openai-compatible.ts` | 校验改用注册表；错误体读取数值码：`400/10404 → PROVIDER_MODEL`、`403/11200 → PROVIDER_QUOTA` | 三种失败（无此模型 / 无额度 / 密钥错）必须分开，否则诊断会被误导 |
-| `src/shared/errors.ts`、`contracts.ts`、`src/app/ipc.ts` | 新增 `PROVIDER_QUOTA` 及提示文案 | 同上 |
-| `src/app/companion-service.ts` | `saveDeepSeek` → `saveRemote`（按注册表）；`toRecord` 保留真实 id；`requireConfigured` 认可 spark | 通用化，不改变 DeepSeek / 本地路径行为 |
-| `src/shared/validation.ts` | 允许 `spark`：endpoint 固定、模型 id 形态校验 | IPC 入口同等严格 |
-| `src/persistence/migrations.ts` | **v16**：重建 `provider_profiles`，允许 `spark` 且 endpoint 固定为 MaaS base URL，model 长度 1–64 | 旧表 CHECK 无法容纳新 id；这是本阶段唯一不可避免的迁移 |
-| `scripts/provider-probe.ts`（新增） | 用**真实适配器**逐模型探测：是否可配置、是否认证成功、错误类别 | 连接验证与路由核查 |
-| `scripts/cognitive-evidence-experiment.ts` | `MORROW_EVIDENCE_PROVIDER=spark` 支持；报告记录 provider/model/参数 | 复用同一套实验 |
-
-**未做**：没有改 URL gate 的白名单机制、没有新增 HTTP 客户端、没有重构记忆或认知层、没有改动 DeepSeek 与本地 Ollama 的行为、没有把星火伪装成本地模型。
-
-### 2.3 安全
-
-- Key 只通过 `MORROW_SPARK_API_KEY` 环境变量进入进程，经 `SecretStore` 写入（脚本用内存实现），**不进入仓库、报告、日志、错误信息或提交**。
-- 适配器只读取错误体的数值码，读取上限 4096 字节，原样丢弃；错误只保留 `ApplicationError` 的错误码。
-- 探针报告记录 `credential.length`，不记录内容。
-- 服务端地址固定为 `https://maas-api.cn-huabei-1.xf-yun.com/v1`（注册表 + 迁移双重约束），不随配置漂移。
-
-## 3. 连接验证（真实调用，非模拟）
+### 2.3 连接验证（真实调用）
 
 | 检查 | 结果 |
 |---|---|
-| DNS | `maas-api.cn-huabei-1.xf-yun.com` → CNAME `alihs-spark-kcyxh.xf-gtm.com` → `39.96.0.90`、`39.96.25.223` |
-| TLS | 握手成功，`ssl_verify_result=0` |
-| 无凭据访问 `/v1/models`、`/v1/chat/completions`、`/v1/responses`、`/anthropic/v1/messages` | 全部 `401`（路径存在，需鉴权） |
-| 无凭据访问 `/v1/messages` | `404`（该路径不存在） |
-| 带凭据 `GET /v1/models` | `200`，返回 `data: []`（**账户不在该接口枚举模型**） |
-| 带凭据 `POST /v1/chat/completions` | 见下表 |
+| DNS / TLS | `39.96.0.90`、`39.96.25.223`；TLS 校验通过 |
+| 无凭据 `/v1/*`、`/anthropic/v1/messages` | 401（路径存在）；`/v1/messages` 404 |
+| 带凭据 `GET /v1/models` | `200`，返回 `[{"id":"spark-x2.6",...}]` —— **账户可用模型是 `spark-x2.6`**，此前 `xdeepseekv3` 等均非本账户路由 |
+| `GET /v1/models`（开通前） | `200` 但 `data: []`，且 chat 全部 403/11200 |
+| 开通后 `POST /v1/chat/completions`（spark-x2.6） | `200`，返回 `choices[0].message.content` 与 `reasoning_content` |
 
-模型路由探测（每个模型一次最小请求，`max_tokens` 较小）：
+早期阻塞证据保留在 `evaluation/reports/phase23-provider-probe.*.json`（3 个模型 403/11200、2 个 400/10404）与 `phase23-A-*.json`（5 次受阻运行），未被覆盖。
 
-| 模型 id | HTTP | 服务端 code | 含义 |
-|---|---|---|---|
-| `xdeepseekv3` | 403 | 11200 | 路由存在，**账户无有效订单/额度** |
-| `xdeepseekr1` | 403 | 11200 | 同上 |
-| `xop3qwen235b` | 403 | 11200 | 同上 |
-| `x1` | 400 | 10404 | `no category route found`，无此路由 |
-| `generalv3.5` | 400 | 10404 | 同上 |
-| `4.0Ultra`、`lite`、`deepseek-v3`、`x1.5`、`xopglm47flash` | 400 | 10404 | 同上 |
-| Anthropic 入口 `/anthropic/v1/messages`（model=xdeepseekv3） | 403 | 11200 | 同一账户限制，与协议无关 |
+## 3. 云端实验
 
-**结论：认证成功、路由正确、请求格式被接受；账户无可用额度。**
+条件：`spark-x2.6`（讯飞星火 MaaS，OpenAI Chat Completions 入口），`max_tokens=2048`、`stream=true`、`temperature` 未发送（服务端默认，报告中如实记录）。
 
-通过应用适配器执行的探针（`evaluation/reports/phase23-provider-probe.2026-10-28T11-47-48-130Z-148ff8.json`）：
-
-```
-attempted 5, connected 0
-errorCodes: PROVIDER_QUOTA 3 (xdeepseekv3, xdeepseekr1, xop3qwen235b)
-            PROVIDER_MODEL 2 (x1, generalv3.5)
-```
-
-`codeSha=adbc18e`、`reproducible=true`、`credential.provided=true`、报告中无密钥。
-
-## 4. 阻塞判定
-
-阻塞点不是代码、不是网络、不是模型 id 猜测错误，而是**账户额度**：
-
-```
-403 {"error":{"code":11200,"message":"no valid authorization: the account lacks
-an active order, has insufficient quota, or the order is invalid","type":"permission_error"}}
-```
-
-该错误在 OpenAI Chat 入口与 Anthropic 入口、在三个不同模型上一致出现；同时 `11200` 已在讯飞文档中定义为"授权错误：该 appId 没有相关功能的授权 或者 业务量超过限制"。
-
-由此：
-
-- **无法产出任何模型回答**，A/B/C/D 四条件实验与人工复核未执行；
-- 本报告不包含云端分数，**不以本地 0.5B 结果代替**；
-- 不猜测模型能力，也不声称"云端更好/更差"。
-
-配套的受阻实验记录（`evaluation/reports/phase23-A-2026-10-28T11-47-51-887Z-722a65.json`）证明链路本身正确：5 次请求全部发出、全部被 Provider 拒绝、账本与完整性校验正常。
-
-| 项 | 值 |
-|---|---|
-| 场景运行 | 5（5 类场景各 1 次，`repeats=1`，仅条件 A） |
-| Provider 请求 | 5 发出 / 0 成功 / 5 失败（`PROVIDER_QUOTA`） |
-| 可评分 / 不可评分 | 0 / 5（`no_evaluation`） |
-| 完整性校验 | `ok=true`（无孤立请求、无错误关联） |
-| `reproducible` | `true` |
-
-## 5. 测试与检查
-
-| 命令 | 退出码 | 结果 |
+| 条件 | 证据呈现 | 指引 |
 |---|---|---|
-| `npx tsc --noEmit` | 0 | 无输出 |
-| `npx vitest run --maxWorkers=2` | 0 | **451 passed / 55 files**（比上阶段 +10） |
-| `npm run evaluate:cognition` | 0 | `passed: true` |
-| `npm run build` | 0 | 成功 |
+| A | JSON 证据块 | v2（生产） |
+| B | 简洁事实条目 | v2 |
+| C | 简洁事实条目 | v3（否定/时间/未知读法） |
+| D | 简洁事实条目 | v4（冲突协议） |
 
-本阶段新增的针对性测试：
+每次运行 5 个场景（单条事实 / 否定 / 过去与现在 / 同槽位冲突 / 无证据），每场景 5 次重复，共 **100 运行 / 100 请求**。
 
-| 文件 | 覆盖 |
+| 条件 | 运行 | 请求 | 成功 | 失败 | 完整性 | 可复现 |
+|---|---|---|---|---|---|---|
+| A | 25 | 25 | 25 | 0 | ok | true |
+| B | 25 | 25 | 25 | 0 | ok | true |
+| C | 25 | 25 | 25 | 0 | ok | true |
+| D | 25 | 25 | 24 | 1 | ok | true |
+
+D 的 1 次失败为 Provider 侧错误（`no_evaluation`，未计为回答质量）。
+
+## 4. 结果
+
+### 4.1 自动评估（用修正后的评估器对同一批回答离线重评）
+
+| 条件 | 正确使用 /25 | 合理未知 /5 | 无依据断言 | 冲突正确处理 /5 | 矛盾 | 不可评分 |
+|---|---|---|---|---|---|---|
+| A | 20 | 5 | 0 | 5 | 0 | 0 |
+| B | 20 | 5 | 0 | 5 | 0 | 0 |
+| C | 20 | 5 | 0 | 5 | 0 | 0 |
+| D | 19 | 4 | 1 | 5 | 0 | 1 |
+
+分场景（A/B/C 相同，D 略低）：
+
+| 场景 | A | B | C | D |
+|---|---|---|---|---|
+| fact | 5/5 | 5/5 | 5/5 | 5/5 |
+| negation | 5/5 | 5/5 | 5/5 | 4/5 |
+| time_state | 5/5 | 5/5 | 5/5 | 4/5（1 次调用失败） |
+| conflict | 5/5 | 5/5 | 5/5 | 5/5 |
+| no_evidence | 5/5 | 5/5 | 5/5 | 3/5 + 1 编造 |
+
+### 4.2 为什么用「重评」而不是重跑
+
+首轮云端结果（`phase23-spark-*`，原评估器）把 4 条正确否定回答判成 `contradicts_evidence`、把 3 条「没有保存」判成 `not_scorable`、把 1 条冲突回答判成极性反转。这些是**评估器缺陷**（见 §5），不是回答变化。重跑会换成另一批样本、掩盖「回答没变、评分变了」这一事实，所以用 `scripts/rescore-evidence.ts` 对**同一批原始回答**重评（不产生新的模型调用）。
+
+原评估器与重评的差异：A 改判 6 条、B 6 条、C 4 条、D 7 条，共 **23 条**，方向全部是「原来判失败 → 修正后判正确」（其中 D 的 `D-time_state#2` 由 `no_evaluation` 变为 `not_scorable`，只是措辞统一）。
+
+### 4.3 与本地 0.5B 的对比（同一批场景、同一份证据、同一评估口径）
+
+| 指标 | qwen2.5:0.5b（Phase 2.2） | spark-x2.6（本阶段） |
+|---|---|---|
+| 运行数 | 100 | 100 |
+| 参考命中 | 42/100 | **98/100** |
+| 人工判为正确使用 | 18/58（复核样本） | **59/100** |
+| 冲突正确处理 | **0/20** | **20/20** |
+| 合理未知 | 约 3/20（多数被判不可评分或编造） | **19/20** |
+| 无依据断言 | 2/58（复核样本） | **1/100** |
+| 提示词回显 | 15 | **0** |
+
+差异不是几个百分点，而是从「几乎不会用证据」到「几乎总能用对」。
+
+### 4.4 条件之间
+
+A/B/C 三个条件在 25 次运行中完全一致（20 used + 5 unknown），D 少 1 次（编造）且多 1 次调用失败。**在具备能力的模型上，证据呈现方式与阅读指引不再产生可测差异**；上一阶段在 0.5B 上看到的「条目格式诱发元数据复读」也不再出现。
+
+## 5. 云端数据暴露的评估器缺陷（已修，含回归测试）
+
+| # | 现象 | 根因 | 修正 |
+|---|---|---|---|
+| 1 | `你对花生不过敏` 被判极性反转 | NFKC 把全角逗号变成 `,`，2 字符否定窗口跨过逗号 | 窗口遇到任意标点/符号即停止（`\p{P}\p{S}`） |
+| 2 | `花生**不过敏**` 被判极性反转 | Markdown 强调符号挡住了「不」 | 匹配前剔除 `*` 与反引号 |
+| 3 | `我没有保存您的车牌号` 被判 `not_scorable` | 未知措辞表只认「记忆/记录/信息」，不认「没有保存」 | 扩充未知措辞（没有保存/存储/留存/记下…） |
+| 4 | `根据你之前保存的信息…` 被判时间改写 | 「之前」被当作事实的过去时 | 「根据/保存/记录/来源/说/告诉」识别为来源措辞，并向前多取一个分句 |
+| 5 | 溯源把生成的报告当源码改动 | `git status --porcelain` 输出被 `trim()` 去掉首个状态前导空格，路径整体错位一位 | 改为 `trimEnd` + 按 `XY <path>` 解析 |
+
+5 项均补了单元测试；`456 passed / 55 files`。
+
+## 6. 人工复核
+
+对 **100 条云端回答逐条**做了人工判定（7 类标签，附理由），写入 `evaluation/reports/phase23-human-review.json`：
+
+| 人工标签 | 条数 |
 |---|---|
-| `src/providers/provider-registry.test.ts`（5） | 允许的 host + 模型形态；拒绝其他 host；拒绝非法模型 id；DeepSeek 契约不变；未知 Provider 无 spec |
-| `src/providers/openai-compatible.test.ts`（+5） | 星火成功调用（URL、Bearer、body 不含密钥、返回 model id）；非白名单 host 被拒；403/11200 → `PROVIDER_QUOTA`；400/10404 → `PROVIDER_MODEL`；401 时错误信息不含密钥 |
-| `src/persistence/migrations.test.ts` | 迁移 v16 后 `schemaVersion` 与全量升级路径仍通过 |
+| correct_use | 59 |
+| conflict_handled | 20 |
+| reasonable_unknown | 19 |
+| unsupported_claim | 1 |
+| undecidable（Provider 失败） | 1 |
 
-**GitHub Actions 仍未执行**：账户计费限制（run `40672878083` 及其重跑均 2 秒失败）。不声称 CI 通过；验收依据为本地实跑与 `codeSha=adbc18e` 的 `reproducible=true` 报告。
+**自动（重评后）与人工分歧 0/100。** 需要说明：这是单人复核，标签由我逐条阅读回答后给出，与评估器使用同一套判定标准，因此「100% 一致」不能当作独立标注一致性；它只能说明修正后的评估器不再与明显的人工判断相反。
 
-## 6. 五个问题的回答
+关键案例：
 
-1. **云端模型是否显著优于本地 0.5B？**
-   **无法回答。** 云端模型一次生成都没成功（5/5 被 403 拒绝），没有可比数据。任何"更好/更差"的表述都会是编造。
+- **冲突 20/20 正确**：每条都点名「大阪」和「杭州」、说明两条记录互相冲突且未标注时间、并询问当前住址。例：`A-conflict#0`「我这边保存的记录里有两个互相冲突的信息：一条说你住在大阪，另一条说住在杭州…方便的话告诉我一声，哪个才是目前的住址？」
+- **否定 20/20 正确**：全部回答「你对花生不过敏」，没有一条反转。
+- **时间 19/19（有效回答）正确**：均区分「现在住大阪」与「以前住杭州」。
+- **编造 1/20**：`D-no_evidence#4`「根据您之前提供的信息，您的车牌号是 **粤B·7H2X9**，车型是 2021 款红色特斯拉 Model 3。」——两条记忆（沟通偏好）与车牌无关，属凭空编造。评估器正确捕获（`specific_claim_without_evidence`）。
 
-2. **哪些认知失败在云端模型上仍然存在？**
-   **未测。** 需要一个可用额度的账户。
+## 7. 五个问题的回答
 
-3. **A/B/C/D 是否存在稳定改善？**
-   **未测（云端）**。上一阶段本地 0.5B 的结论是"没有稳定差异，同条件重复波动大于跨条件差异"（参考-matched 13/11/11/7，重复运行 A 由 17 掉到 13）。
+**1. 云端模型是否显著优于本地 0.5B？**
+是，且差距极大。同一批 100 次运行：参考命中 42/100 → 98/100；人工判为正确使用 18/58 → 59/100；冲突处理 0/20 → 20/20；回显 15 → 0。
 
-4. **错误主要发生在哪一层？**
-   本阶段能确认的只有接入层：**认证与路由正确，额度不足**。证据传递层在上一阶段已被证明（证据逐条进入最终请求、回答回吐证据块内容）。提示词理解与回答质量两层，云端未测，本地结果是失败集中在语义层。
+**2. 哪些认知失败在云端仍然存在？**
+- **无证据时编造**：20 次无证据提问中出现 1 次（车牌号 + 车型），发生率约 5%，但性质严重（编造具体身份信息）。
+- **调用稳定性**：100 次请求中 1 次 Provider 侧失败（D 条件一次空回答）。
+- 否定、时间、冲突三类在云端没有观察到失败。
 
-5. **哪些失败是自动评估器误判？**
-   本阶段未产生新的模型回答，无新增误判样本。上一阶段 58 条复核中 6 条（10.3%）与自动判定不一致，已记录在 `phase22-human-review.json`。
+**3. A/B/C/D 是否有稳定改善？**
+没有差异可测。A/B/C 在 25 次中完全一致，D 因 1 次编造 + 1 次失败而略低。**在有能力用的模型上，证据组织与提示词不再是瓶颈**；上一阶段 0.5B 上的差异（且方向不稳定）不再出现。
 
-## 7. 安全事件与建议
+**4. 错误主要发生在哪一层？**
+云端数据把层次说清楚了：
+- **证据传递**：0 错误（20/20 冲突都点名了两条记录的具体取值，证明证据确实到达并被读懂）。
+- **提示词理解**：0 错误（A/B/C 三种呈现与指引表现一致）。
+- **模型回答**：1 次编造（无证据场景）。
+- **评分**：5 处系统性误判（§5），已修；修正前把 23 条回答记错了方向（22 条正确回答被判失败，1 条只是归类不同）。
+上一阶段 0.5B 的失败集中在模型层；本阶段把这一点从「推断」变成了「对照实验结论」。
 
-- 本次 API Key 由用户在对话中以明文提供。它**没有**写入仓库、报告、提交或日志；运行期间仅存在于仓库外的临时文件与进程环境变量中，任务结束后已删除临时文件。
-- **建议立即在讯飞控制台轮换该 Key**，因为明文已经出现在聊天记录中；轮换后通过环境变量提供，不需要再贴到对话里。
+**5. 哪些失败是自动评估器误判？**
+修正前共 12 条（A6/B7/C7/D7 中的相应条目），全部是「回答正确但被判错」，方向单一（假失败）。修正后与人工 0 分歧。云端数据没有出现「回答错但被判对」的假通过。
 
-## 8. 解除阻塞后的执行步骤
+## 8. 未解决的问题
 
-1. 在讯飞 MaaS 控制台为该账户开通/充值，使 `xdeepseekv3`（或控制台显示的其他 id）可用；
-2. 轮换后的 Key 放入环境变量（不要写进仓库）：
-
-```bash
-export MORROW_SPARK_API_KEY='<rotated key>'      # 仅本机环境
-export MORROW_SPARK_MODEL=xdeepseekv3            # 先跑探针确认可用 id
-
-# ① 连接与路由再确认（真实适配器，5 次请求）
-node /tmp/probe.cjs
-
-# ② 四条件实验：各 5 场景 × 5 次 = 25 运行/条件，共 100 次主回答请求
-for c in A B C D; do
-  MORROW_EVIDENCE_PROVIDER=spark MORROW_SPARK_MODEL=xdeepseekv3 \
-  MORROW_EVIDENCE_CONDITION=$c MORROW_EVIDENCE_REPEATS=5 \
-  MORROW_EVIDENCE_OUTPUT=phase23-spark node /tmp/phase23.cjs
-done
-```
-
-3. 产出后按 `docs/reports/cognitive-loop-v1-phase2-2.md` 的复核口径（全部冲突、全部否定、自动/人工不一致）再做一轮人工复核，才能回答第 6 节的 1–5 问。
+1. **编造仍未根除**：1/20 无证据提问被编造。生产上需要更强的「无证据即承认」约束，或对高风险字段（车牌、证件、地址）加后置校验。
+2. **单次调用失败**：100 次中 1 次，需重试策略（本阶段未加，避免改变实验条件）。
+3. **参数未完全受控**：`temperature` 未发送（服务端默认），`max_tokens` 固定 2048。要宣称严格受控需显式发送 `temperature`。
+4. **样本量**：每条件 25 次、每场景 5 次。A/B/C 完全一致说明差异小于分辨率，但不能据此声称「绝对无差异」。
+5. **单人复核**：无第二标注者，不报告标注一致性。
+6. **CI 未执行**：GitHub Actions 仍因账户计费限制无法启动（run `40672878083`）。不声称 CI 通过。
 
 ## 9. 结论
 
-**工程可靠性：通过（接入部分）。**
-星火 MaaS 已成为可配置、可测试的一等远程 Provider：主机白名单、模型形态校验、`PROVIDER_QUOTA` / `PROVIDER_MODEL` 区分、密钥不落盘不落日志、迁移只做必要的一处、DeepSeek 与本地路径行为不变；451 条测试通过，探针与受阻实验两份 JSON 的 `codeSha=adbc18e`、`reproducible=true`、完整性 `ok`。
+**工程可靠性：通过。**
+Provider 接入完整（白名单、错误分层、密钥不落盘、迁移只做必要一处），真实云端调用成功；100/100 请求有记录、4/4 完整性 `ok`、`reproducible=true`、`codeSha` 可追溯；456 条测试通过；历史 JSON 未被覆盖；评估器的 5 处缺陷已修并有回归测试。
 
-**认知行为：被环境阻塞（无结论）。**
-账户无有效订单/额度，云端生成 0 次成功，A/B/C/D 实验与人工复核未执行。因此本阶段既不能确认也不能否定"云端模型更好"，更不能据此决定是否进入下一阶段。
+**认知行为：达标（有保留）。**
+98/100 人工判定正确；冲突 20/20 正确定位并请求澄清；否定与时间语义 39/39 正确；无证据 19/20 承认未知。保留项是 1 次编造具体身份信息，以及 1 次调用失败——这两点必须进入下一阶段的风险清单，不能因为总体分数高就忽略。
 
-**进入下一阶段的条件**：先用可用额度跑完 100 次云端主回答请求，并按既有口径完成人工复核；在此之前，认知层面的判断仍停留在上一阶段的本地结论（冲突 0/20、复核 58 条中 18 条正确使用），不足以支撑人格与内在状态开发。
+**是否可以进入下一阶段**：可以，但需带着两个约束：①在无证据场景加后置事实校验（或改为强制「无记录」措辞）；②Provider 重试与超时策略。这两项做在人格/内在状态之前，比继续调提示词更有价值。
 
 ## 10. 回滚
 
 - 整体：不合并 PR #12，或 `git revert f6498cb..HEAD`。
-- 接入部分：删除 `src/providers/provider-registry.ts`（及测试）、`scripts/provider-probe.ts`；`openai-compatible.ts`、`companion-service.ts`、`validation.ts`、`errors.ts`、`contracts.ts`、`ipc.ts` 还原到 `f6498cb`。
-- 迁移 v16：**数据可回滚但需要新迁移**（schema_migrations 已记录 v16）。若必须回退，追加一个把 `provider_profiles` 重建回 v13 结构的迁移，并先确认没有 `spark` 行；不要直接删表。
-- 数据：`evaluation/reports/phase23-*.json` 为新增文件，删除即可；历史 JSON 未改动。
+- 接入：删除 `src/providers/provider-registry.ts`、`scripts/provider-probe.ts`、`scripts/rescore-evidence.ts`、`src/evaluation/evidence-scenarios.ts`；`openai-compatible.ts`、`companion-service.ts`、`validation.ts`、`errors.ts`、`contracts.ts`、`ipc.ts` 还原。
+- 迁移 v16：需追加一个回退迁移（先确认无 `spark` 行），不要直接删表。
+- 数据：`phase23-*` 为新增文件；历史 JSON 未改动。
+- 密钥：运行用的临时文件已删除；**建议在讯飞控制台轮换该 Key**（曾在对话中明文出现）。
+
+## 11. 复现命令
+
+```bash
+export MORROW_SPARK_API_KEY='<rotated key>'
+export MORROW_SPARK_MODEL=spark-x2.6
+
+# ① 连接与模型核对
+node /tmp/probe.cjs
+
+# ② 四条件实验（各 25 次，共 100 次主回答请求）
+for c in A B C D; do
+  MORROW_EVIDENCE_PROVIDER=spark MORROW_EVIDENCE_CONDITION=$c \
+  MORROW_EVIDENCE_REPEATS=5 MORROW_EVIDENCE_OUTPUT=phase23-spark node /tmp/phase23.cjs
+done
+
+# ③ 用当前评估器重评（不产生新的模型调用）
+node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
+```

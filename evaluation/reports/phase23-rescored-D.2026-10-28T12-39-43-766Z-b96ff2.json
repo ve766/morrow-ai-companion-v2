@@ -1,40 +1,38 @@
 {
   "schemaVersion": 1,
-  "runId": "2026-10-28T12-37-50-601Z-2e7888",
-  "source": "phase23-spark-C-2026-10-28T12-13-00-863Z-14bc66.json",
+  "runId": "2026-10-28T12-39-43-766Z-b96ff2",
+  "source": "phase23-spark-D-2026-10-28T12-18-00-927Z-fbe647.json",
   "condition": {
-    "id": "C",
+    "id": "D",
     "presentation": "entries",
-    "variant": "v3",
-    "description": "entries + explicit negation/time/unknown reading rules"
+    "variant": "v4",
+    "description": "entries + conflict protocol: both values, ask which is current"
   },
   "codeSha": "f05ae22bf4c0166b8f2d2fe463354bee953071f1",
   "evaluator": "answer-evidence-evaluation@schema3 (re-scored offline)",
   "scorer": {
-    "baseSha": "a611150d6e740c7a90660177be025809c986950f",
-    "headSha": "a611150d6e740c7a90660177be025809c986950f",
-    "codeSha": "a611150d6e740c7a90660177be025809c986950f",
+    "baseSha": "8f27e882b7914fa299427b2e918cd0d60d279575",
+    "headSha": "8f27e882b7914fa299427b2e918cd0d60d279575",
+    "codeSha": "8f27e882b7914fa299427b2e918cd0d60d279575",
     "codeShaSource": "git",
-    "workingTreeDirty": true,
-    "workingTreeDiffHash": "9c711bb7465cf3392b3f8329fd6b0617626d0e9c2fcab9efaba0a322b1086d0b",
-    "workingTreeFiles": [
-      "M src/evaluation/code-provenance.ts"
-    ],
-    "reproducible": false,
-    "reproducibleReason": "working_tree_dirty",
-    "capturedAt": "2026-10-28T12:37:51.563Z"
+    "workingTreeDirty": false,
+    "workingTreeDiffHash": null,
+    "workingTreeFiles": [],
+    "reproducible": true,
+    "reproducibleReason": null,
+    "capturedAt": "2026-10-28T12:39:44.745Z"
   },
   "note": "Replies are unchanged; only the assessment was recomputed with the corrected evaluator.",
   "totals": {
     "runs": 25,
-    "scored": 25,
-    "usedCorrectly": 20,
-    "reasonableUnknown": 5,
-    "unsupported": 0,
+    "scored": 24,
+    "usedCorrectly": 19,
+    "reasonableUnknown": 4,
+    "unsupported": 1,
     "conflictPass": 5,
     "contradictions": 0,
-    "notScorable": 0,
-    "changed": 4
+    "notScorable": 1,
+    "changed": 7
   },
   "byScenario": {
     "fact": {
@@ -52,7 +50,7 @@
     },
     "negation": {
       "runs": 5,
-      "referenceMatched": 5,
+      "referenceMatched": 4,
       "forbiddenHit": 0,
       "scored": 5,
       "usedCorrectly": 5,
@@ -61,20 +59,20 @@
       "conflictPass": 0,
       "contradictions": 0,
       "notScorable": 0,
-      "changed": 0
+      "changed": 2
     },
     "time_state": {
       "runs": 5,
-      "referenceMatched": 5,
+      "referenceMatched": 4,
       "forbiddenHit": 4,
-      "scored": 5,
-      "usedCorrectly": 5,
+      "scored": 4,
+      "usedCorrectly": 4,
       "reasonableUnknown": 0,
       "unsupported": 0,
       "conflictPass": 0,
       "contradictions": 0,
-      "notScorable": 0,
-      "changed": 0
+      "notScorable": 1,
+      "changed": 3
     },
     "conflict": {
       "runs": 5,
@@ -91,24 +89,24 @@
     },
     "no_evidence": {
       "runs": 5,
-      "referenceMatched": 5,
+      "referenceMatched": 4,
       "forbiddenHit": 0,
       "scored": 5,
       "usedCorrectly": 0,
-      "reasonableUnknown": 5,
-      "unsupported": 0,
+      "reasonableUnknown": 4,
+      "unsupported": 1,
       "conflictPass": 0,
       "contradictions": 0,
       "notScorable": 0,
-      "changed": 4
+      "changed": 2
     }
   },
   "runs": [
     {
-      "runId": "C-fact#0",
+      "runId": "D-fact#0",
       "scenarioId": "fact",
       "callSucceeded": true,
-      "replyCharacters": 63,
+      "replyCharacters": 84,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -154,10 +152,10 @@
       }
     },
     {
-      "runId": "C-fact#1",
+      "runId": "D-fact#1",
       "scenarioId": "fact",
       "callSucceeded": true,
-      "replyCharacters": 44,
+      "replyCharacters": 18,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -203,59 +201,10 @@
       }
     },
     {
-      "runId": "C-fact#2",
+      "runId": "D-fact#2",
       "scenarioId": "fact",
       "callSucceeded": true,
-      "replyCharacters": 95,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "C-fact#3",
-      "scenarioId": "fact",
-      "callSucceeded": true,
-      "replyCharacters": 97,
+      "replyCharacters": 75,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -301,10 +250,10 @@
       }
     },
     {
-      "runId": "C-fact#4",
+      "runId": "D-fact#3",
       "scenarioId": "fact",
       "callSucceeded": true,
-      "replyCharacters": 90,
+      "replyCharacters": 56,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -350,57 +299,8 @@
       }
     },
     {
-      "runId": "C-negation#0",
-      "scenarioId": "negation",
-      "callSucceeded": true,
-      "replyCharacters": 72,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "pass",
-          "reason": "uncertainty_expressed"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "C-negation#1",
-      "scenarioId": "negation",
+      "runId": "D-fact#4",
+      "scenarioId": "fact",
       "callSucceeded": true,
       "replyCharacters": 77,
       "before": "used_correctly",
@@ -448,10 +348,10 @@
       }
     },
     {
-      "runId": "C-negation#2",
+      "runId": "D-negation#0",
       "scenarioId": "negation",
       "callSucceeded": true,
-      "replyCharacters": 77,
+      "replyCharacters": 64,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -497,10 +397,10 @@
       }
     },
     {
-      "runId": "C-negation#3",
+      "runId": "D-negation#1",
       "scenarioId": "negation",
       "callSucceeded": true,
-      "replyCharacters": 26,
+      "replyCharacters": 79,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -527,8 +427,57 @@
           "reason": "topic_overlap"
         },
         "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
           "status": "unscored",
-          "reason": "no_uncertainty_language"
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": false,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-negation#2",
+      "scenarioId": "negation",
+      "callSucceeded": true,
+      "replyCharacters": 140,
+      "before": "contradicts_evidence",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
         },
         "unsupportedClaimDetected": {
           "status": "pass",
@@ -546,7 +495,7 @@
       }
     },
     {
-      "runId": "C-negation#4",
+      "runId": "D-negation#3",
       "scenarioId": "negation",
       "callSucceeded": true,
       "replyCharacters": 99,
@@ -595,109 +544,11 @@
       }
     },
     {
-      "runId": "C-time_state#0",
-      "scenarioId": "time_state",
+      "runId": "D-negation#4",
+      "scenarioId": "negation",
       "callSucceeded": true,
-      "replyCharacters": 55,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": "杭州"
-      }
-    },
-    {
-      "runId": "C-time_state#1",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 83,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": "杭州"
-      }
-    },
-    {
-      "runId": "C-time_state#2",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 17,
-      "before": "used_correctly",
+      "replyCharacters": 60,
+      "before": "contradicts_evidence",
       "after": "used_correctly",
       "scored": true,
       "detail": "delivered_value_used",
@@ -742,10 +593,10 @@
       }
     },
     {
-      "runId": "C-time_state#3",
+      "runId": "D-time_state#0",
       "scenarioId": "time_state",
       "callSucceeded": true,
-      "replyCharacters": 103,
+      "replyCharacters": 117,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -791,10 +642,10 @@
       }
     },
     {
-      "runId": "C-time_state#4",
+      "runId": "D-time_state#1",
       "scenarioId": "time_state",
       "callSucceeded": true,
-      "replyCharacters": 32,
+      "replyCharacters": 82,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -840,10 +691,157 @@
       }
     },
     {
-      "runId": "C-conflict#0",
+      "runId": "D-time_state#2",
+      "scenarioId": "time_state",
+      "callSucceeded": false,
+      "replyCharacters": 0,
+      "before": null,
+      "after": "not_scorable",
+      "scored": false,
+      "detail": "provider_call_failed",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "answersCurrentQuestion": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": false,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-time_state#3",
+      "scenarioId": "time_state",
+      "callSucceeded": true,
+      "replyCharacters": 72,
+      "before": "delivered_not_used",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": "杭州"
+      }
+    },
+    {
+      "runId": "D-time_state#4",
+      "scenarioId": "time_state",
+      "callSucceeded": true,
+      "replyCharacters": 65,
+      "before": "contradicts_evidence",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": "杭州"
+      }
+    },
+    {
+      "runId": "D-conflict#0",
       "scenarioId": "conflict",
       "callSucceeded": true,
-      "replyCharacters": 143,
+      "replyCharacters": 68,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -870,8 +868,8 @@
           "reason": "topic_overlap"
         },
         "uncertaintyExpressed": {
-          "status": "pass",
-          "reason": "uncertainty_expressed"
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
         },
         "unsupportedClaimDetected": {
           "status": "pass",
@@ -889,10 +887,10 @@
       }
     },
     {
-      "runId": "C-conflict#1",
+      "runId": "D-conflict#1",
       "scenarioId": "conflict",
       "callSucceeded": true,
-      "replyCharacters": 105,
+      "replyCharacters": 116,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -938,10 +936,10 @@
       }
     },
     {
-      "runId": "C-conflict#2",
+      "runId": "D-conflict#2",
       "scenarioId": "conflict",
       "callSucceeded": true,
-      "replyCharacters": 94,
+      "replyCharacters": 123,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -987,10 +985,10 @@
       }
     },
     {
-      "runId": "C-conflict#3",
+      "runId": "D-conflict#3",
       "scenarioId": "conflict",
       "callSucceeded": true,
-      "replyCharacters": 97,
+      "replyCharacters": 160,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -1005,8 +1003,8 @@
           "reason": "polarity_matches"
         },
         "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
+          "status": "pass",
+          "reason": "time_matches"
         },
         "conflictAcknowledged": {
           "status": "pass",
@@ -1036,10 +1034,10 @@
       }
     },
     {
-      "runId": "C-conflict#4",
+      "runId": "D-conflict#4",
       "scenarioId": "conflict",
       "callSucceeded": true,
-      "replyCharacters": 149,
+      "replyCharacters": 94,
       "before": "used_correctly",
       "after": "used_correctly",
       "scored": true,
@@ -1054,8 +1052,8 @@
           "reason": "polarity_matches"
         },
         "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
+          "status": "pass",
+          "reason": "time_matches"
         },
         "conflictAcknowledged": {
           "status": "pass",
@@ -1066,8 +1064,8 @@
           "reason": "topic_overlap"
         },
         "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
+          "status": "pass",
+          "reason": "uncertainty_expressed"
         },
         "unsupportedClaimDetected": {
           "status": "pass",
@@ -1085,10 +1083,59 @@
       }
     },
     {
-      "runId": "C-no_evidence#0",
+      "runId": "D-no_evidence#0",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 95,
+      "replyCharacters": 188,
+      "before": "not_scorable",
+      "after": "reasonable_unknown",
+      "scored": true,
+      "detail": "uncertainty_admitted",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "pass",
+          "reason": "uncertainty_admitted"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-no_evidence#1",
+      "scenarioId": "no_evidence",
+      "callSucceeded": true,
+      "replyCharacters": 100,
       "before": "reasonable_unknown",
       "after": "reasonable_unknown",
       "scored": true,
@@ -1134,10 +1181,10 @@
       }
     },
     {
-      "runId": "C-no_evidence#1",
+      "runId": "D-no_evidence#2",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 84,
+      "replyCharacters": 43,
       "before": "not_scorable",
       "after": "reasonable_unknown",
       "scored": true,
@@ -1183,11 +1230,11 @@
       }
     },
     {
-      "runId": "C-no_evidence#2",
+      "runId": "D-no_evidence#3",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 131,
-      "before": "not_scorable",
+      "replyCharacters": 81,
+      "before": "reasonable_unknown",
       "after": "reasonable_unknown",
       "scored": true,
       "detail": "uncertainty_admitted",
@@ -1232,14 +1279,14 @@
       }
     },
     {
-      "runId": "C-no_evidence#3",
+      "runId": "D-no_evidence#4",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 105,
-      "before": "not_scorable",
-      "after": "reasonable_unknown",
+      "replyCharacters": 92,
+      "before": "unsupported_answer",
+      "after": "unsupported_answer",
       "scored": true,
-      "detail": "uncertainty_admitted",
+      "detail": "specific_claim_without_evidence",
       "dimensions": {
         "evidenceMentioned": {
           "status": "unscored",
@@ -1262,70 +1309,21 @@
           "reason": "topic_overlap"
         },
         "uncertaintyExpressed": {
-          "status": "pass",
-          "reason": "uncertainty_expressed"
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
         },
         "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
         },
         "uncertaintyAppropriate": {
-          "status": "pass",
-          "reason": "uncertainty_admitted"
+          "status": "fail",
+          "reason": "claim_without_evidence"
         }
       },
       "conflict": "unscored",
       "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "C-no_evidence#4",
-      "scenarioId": "no_evidence",
-      "callSucceeded": true,
-      "replyCharacters": 123,
-      "before": "not_scorable",
-      "after": "reasonable_unknown",
-      "scored": true,
-      "detail": "uncertainty_admitted",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "unscored",
-          "reason": "no_evidence_delivered"
-        },
-        "polarityConsistent": {
-          "status": "unscored",
-          "reason": "no_value_named"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "no_value_named"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "pass",
-          "reason": "uncertainty_expressed"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "pass",
-          "reason": "uncertainty_admitted"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
+        "matched": false,
         "forbiddenHit": null
       }
     }
