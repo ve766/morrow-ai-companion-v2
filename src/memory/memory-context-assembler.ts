@@ -1,4 +1,4 @@
-import type { AssembledMemoryContext, ContextMemory, Sensitivity } from '../shared/companion'
+import type { AssembledMemoryContext, ContextConflict, ContextMemory, Sensitivity } from '../shared/companion'
 import type { MemoryRecord } from './memory-domain'
 import { compareFactValues, readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
 import type { RetrievalPolicy } from './retrieval-policy'
@@ -228,8 +228,30 @@ export class MemoryContextAssembler {
         if (!b.conflictWith.includes(a.id)) b.conflictWith.push(a.id)
       }
     }
+    // Conflicts are also exposed structurally, so neither the prompt nor the
+    // evaluator has to guess them from keywords in a reply.
+    const conflicts: ContextConflict[] = []
+    const seenGroups = new Set<string>()
+    for (const item of selected) {
+      if (!item.conflictWith || item.conflictWith.length === 0) continue
+      const key = [item.id, ...item.conflictWith].sort().join('|')
+      if (seenGroups.has(key)) continue
+      seenGroups.add(key)
+      const ids = [item.id, ...item.conflictWith]
+      const values = ids
+        .map((id) => slots.get(id)?.value ?? '')
+        .filter((value) => value.length > 0)
+      if (values.length < 2) continue
+      conflicts.push({ predicate: slots.get(item.id)?.predicate ?? 'unknown', memoryIds: ids, values })
+    }
     text = encode(selected)
 
-    return { text, selected, omitted: eligible.length - selected.length, characterCount: text.length }
+    return {
+      text,
+      selected,
+      omitted: eligible.length - selected.length,
+      characterCount: text.length,
+      ...(conflicts.length > 0 ? { conflicts } : {})
+    }
   }
 }

@@ -52,11 +52,24 @@ export interface ContextMemory {
   conflictWith?: string[]
 }
 
+/**
+ * One unresolved disagreement inside the delivered set. It is computed from the
+ * fact slots of the delivered entries, never from keywords in the reply.
+ */
+export interface ContextConflict {
+  predicate: string
+  memoryIds: string[]
+  /** The distinct values the entries state, in delivery order. */
+  values: string[]
+}
+
 export interface AssembledMemoryContext {
   text: string
   selected: ContextMemory[]
   omitted: number
   characterCount: number
+  /** Present only when two delivered entries state different values. */
+  conflicts?: ContextConflict[]
 }
 
 export interface ProviderConfigRecord {
