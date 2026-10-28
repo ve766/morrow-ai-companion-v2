@@ -261,7 +261,10 @@ function connectionInput(config: ProviderConfigRecord): ProviderInput {
     context: { text: '', selected: [], omitted: 0, characterCount: 0 },
     endpoint: `${config.endpoint}/chat/completions`,
     maximumSensitivity: 'normal',
-    requestPayload: makeRequestPayload(config.model, [{ role: 'user', content: prompt }], true, 32, config.id === DEEPSEEK_PROVIDER_ID)
+    // 256 rather than 32: a reasoning model spends its first tokens on a
+    // preamble, and a 32-token budget returns an empty answer that looks like a
+    // failed connection.
+    requestPayload: makeRequestPayload(config.model, [{ role: 'user', content: prompt }], true, 256, config.id === DEEPSEEK_PROVIDER_ID)
   }
 }
 

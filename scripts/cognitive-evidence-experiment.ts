@@ -371,8 +371,9 @@ async function main(): Promise<void> {
         // (for DeepSeek) thinking. temperature is NOT sent: it stays at the
         // provider default and is recorded as such rather than claimed as fixed.
         temperature: 'not sent (provider default)',
-        maxTokens: process.env.MORROW_MAX_TOKENS ?? 'app default',
-        stream: false
+        // The chat payload builder sends a fixed 2048-token budget and stream=true.
+        maxTokens: 2048,
+        stream: true
       }
     },
     provenance,
