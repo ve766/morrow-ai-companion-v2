@@ -31,7 +31,9 @@ const CORPUS: MemoryRecord[] = [
   memory('00000000-0000-4000-8000-000000000003', '我明天要去医院复查。'),
   memory('00000000-0000-4000-8000-000000000004', '我最近在学吉他。'),
   memory('00000000-0000-4000-8000-000000000005', '我的签证截止日期是 12 月 31 日。'),
-  memory('00000000-0000-4000-8000-000000000006', '我养了一只叫咪咪的猫。')
+  memory('00000000-0000-4000-8000-000000000006', '我养了一只叫咪咪的猫。'),
+  memory('00000000-0000-4000-8000-000000000007', '我下周要去上海参加行业会议。'),
+  memory('00000000-0000-4000-8000-000000000008', '我去年去过成都。')
 ]
 
 interface Case {
@@ -51,6 +53,10 @@ const CASES: readonly Case[] = [
   { id: 'deadline-fact', query: '签证什么时候截止？', expectIds: ['00000000-0000-4000-8000-000000000005'], forbidIds: [] },
   { id: 'unrelated-topic', query: '帮我写一段排序算法。', expectIds: [], forbidIds: CORPUS.map((item) => item.id) },
   { id: 'pet-fact', query: '我的猫叫什么名字？', expectIds: ['00000000-0000-4000-8000-000000000006'], forbidIds: [] },
+  { id: 'next-week-only', query: '下周有什么新政策？', expectIds: [], forbidIds: ['00000000-0000-4000-8000-000000000007'] },
+  { id: 'next-week-arrangement', query: '我下周有哪些安排？', expectIds: ['00000000-0000-4000-8000-000000000007'], forbidIds: ['00000000-0000-4000-8000-000000000003'] },
+  { id: 'last-year-only', query: '去年发生了什么？', expectIds: [], forbidIds: ['00000000-0000-4000-8000-000000000008'] },
+  { id: 'deadline-rewording', query: '签证的截止日期是哪天？', expectIds: ['00000000-0000-4000-8000-000000000005'], forbidIds: [] },
   { id: 'retracted-never', query: '我住在哪里？', expectIds: [], forbidIds: [] }
 ]
 

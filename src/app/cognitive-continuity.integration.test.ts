@@ -406,4 +406,62 @@ describe('slice 2: time facts, conflicts and no-evidence at the payload', () => 
       ctx.database.close()
     }
   })
+
+})
+
+describe('slice 2.1: time compatibility and tri-state comparison', () => {
+  it('recalls a next-week arrangement and keeps tomorrow out of it', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我下周要去上海参加行业会议。', 'personal')
+      ctx.memories.create('我明天要去医院复查。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我下周有哪些安排？')
+      const block = memoryBlock(lastSystem(ctx.previews))
+      expect(block).toContain('行业会议')
+      expect(block).not.toContain('医院复查')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not inject a dated record when only the time word is shared', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我去年去过成都。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '去年发生了什么？')
+      expect(memoryBlock(lastSystem(ctx.previews))).not.toContain('成都')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not mark a substring value as a conflict or as agreement', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我喜欢猫。', 'personal')
+      ctx.memories.create('我喜欢猫狗。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我喜欢什么？')
+      const block = memoryBlock(lastSystem(ctx.previews))
+      // Both may be delivered as separate facts, but neither is declared
+      // equivalent to the other, and neither is declared contradictory.
+      expect(block).not.toContain('"status":"unresolved"')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('keeps the age and health values usable for a slot question', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我今年30岁。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我的年龄是多少？')
+      expect(memoryBlock(lastSystem(ctx.previews))).toContain('30')
+    } finally {
+      ctx.database.close()
+    }
+  })
 })

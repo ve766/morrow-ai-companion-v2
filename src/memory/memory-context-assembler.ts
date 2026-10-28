@@ -1,6 +1,6 @@
 import type { AssembledMemoryContext, ContextMemory, Sensitivity } from '../shared/companion'
 import type { MemoryRecord } from './memory-domain'
-import { readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
+import { compareFactValues, readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
 
 const order: readonly Sensitivity[] = ['normal', 'personal', 'sensitive']
 const stopWords = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'have', 'are', 'was', 'were', 'will', 'your', 'about', '我', '你', '他', '她', '它', '的', '了', '是', '在', '和', '有', '就', '都', '而', '及', '与', '着', '或', '一个'])
@@ -16,7 +16,17 @@ const stopWords = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 
  * what admit a record. Time words are treated the same way rather than being
  * deleted, because "明天" can be the very fact a question is about.
  */
-const frameWords = new Set(['我不', '不喜', '喜欢', '我最', '最近', '近在', '在学', '明天', '今天', '这个', '那个'])
+const frameWords = ['我不', '不喜', '喜欢', '我最', '最近', '近在', '在学', '这个', '那个'] as const
+
+/**
+ * Time words are the same kind of evidence as frames: they say *when*, not
+ * *what*. Keeping one list for both removes the earlier mismatch where a time
+ * word missing from `frameWords` still entered the content set as a bigram.
+ */
+const timeWords = ['今天', '明天', '后天', '昨天', '去年', '前年', '本周', '这周', '下周', '上周', '这个月', '上个月', '下个月', '今年', '明年', '月底', '年底', '截止日期'] as const
+
+/** Weak evidence: may rank a record, may never admit it on its own. */
+const weakWords: readonly string[] = [...frameWords, ...timeWords]
 
 /**
  * Weights are hand-set, bounded and tested on a fixed fixture; they are a
@@ -28,7 +38,7 @@ const frameWords = new Set(['我不', '不喜', '喜欢', '我最', '最近', '�
  *   source   0.20  user-typed memories outrank model-inferred ones
  */
 const WEIGHTS = Object.freeze({ slot: 1, lexical: 1, temporal: 0.25, source: 0.2 })
-const TIME_MARKERS = /(?:今天|明天|后天|昨天|本周|这周|下周|上周|这个月|下个月|今年|明年|年底|月底)/gu
+const TIME_MARKERS = new RegExp(`(?:${timeWords.join('|')})`, 'gu')
 
 function normalize(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase()
@@ -36,7 +46,7 @@ function normalize(value: string): string {
 
 function frameCoverage(normalized: string): Uint8Array {
   const covered = new Uint8Array(normalized.length)
-  for (const frame of frameWords) {
+  for (const frame of weakWords) {
     let at = normalized.indexOf(frame)
     while (at >= 0) {
       for (let index = at; index < at + frame.length; index += 1) covered[index] = 1
@@ -64,7 +74,7 @@ function queryTermsOf(value: string): { content: string[]; weak: string[] } {
   for (const match of normalized.matchAll(/[\p{L}\p{N}]+/gu)) {
     const token = match[0]
     const start = match.index ?? 0
-    const frameToken = frameWords.has(token)
+    const frameToken = weakWords.includes(token)
     if (token.length > 1 && !stopWords.has(token)) add(token, frameToken)
     const characters = Array.from(token)
     if (characters.length >= 2 && /\p{Script=Han}/u.test(token)) {
@@ -115,12 +125,18 @@ export class MemoryContextAssembler {
         for (const term of queryTerms.content) if (normalizedContent.includes(term)) contentOverlap += 1
         for (const term of queryTerms.weak) if (normalizedContent.includes(term)) frameOverlap += 1
         const memorySlot = readFactSlot(record.currentText, { observedAt: record.updatedAt, sourceId: record.id })
-        // A slot match needs the same predicate AND compatible values: asking
-        // "我住在哪里" matches any residence record, but "我不喜欢这个方案"
-        // does not match "我不喜欢吃香菜" just because both are preferences.
-        const slotMatch = Boolean(querySlot && memorySlot && querySlot.predicate === memorySlot.predicate &&
-          (querySlot.question || !slotsConflict(querySlot, memorySlot)))
-        const sharedTime = [...queryTimes].some((marker) => normalizedContent.includes(marker))
+        const memoryTimes = timeMarkers(record.currentText)
+        const sharedTime = [...queryTimes].some((marker) => memoryTimes.has(marker))
+        // A question about "next week" must not match an appointment that is
+        // explicitly "tomorrow". Only apply the constraint when both sides
+        // name a time, so undated records still match dated questions.
+        const timeCompatible = queryTimes.size === 0 || memoryTimes.size === 0 || sharedTime
+        // A slot admits a record only when the query asks about that fact or
+        // the two values are provably equivalent. `uncertain` (for example
+        // 喜欢猫 vs 喜欢猫狗) is neither equivalent nor contradictory, so it
+        // cannot be used as admission evidence either.
+        const slotMatch = Boolean(querySlot && memorySlot && querySlot.predicate === memorySlot.predicate && timeCompatible &&
+          (querySlot.kind === 'question' || compareFactValues(querySlot, memorySlot) === 'equivalent'))
         const sourceReliability = record.sourceCategory === 'user_explicit_input' ? 1 : 0.5
         const score = WEIGHTS.slot * Number(slotMatch) +
           WEIGHTS.lexical * Math.min(1, contentOverlap / 2) +
