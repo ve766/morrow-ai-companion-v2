@@ -8,10 +8,13 @@ const fixture = JSON.parse(readFileSync(resolve(process.cwd(), 'evaluation/fixtu
 describe('offline cognitive-turn evaluation', () => {
   it('compares the fixed synthetic corpus with a simple baseline and repeats deterministically', () => {
     const report = runCognitiveEvaluation(fixture)
-    expect(report.dataset).toMatchObject({ source: 'synthetic', caseCount: 26, schemaVersion: 1, version: '1.1.0' })
+    expect(report.dataset).toMatchObject({ source: 'synthetic', caseCount: 26, schemaVersion: 1, version: '1.2.0' })
     expect(report.comparison.baseline).toMatchObject({
-      intentAccuracy: 0.3462,
-      strategyAccuracy: 0.8077,
+      // The baseline is "always answer with the majority class". Changing the
+      // expected labels of three cases (two now ambiguous, one a topic switch)
+      // changed the majority class, so these baseline numbers moved with it.
+      intentAccuracy: 0.2692,
+      strategyAccuracy: 0.6154,
       topicReferenceAccuracy: 0.9231,
       correctionPrecision: null,
       correctionRecall: 0,

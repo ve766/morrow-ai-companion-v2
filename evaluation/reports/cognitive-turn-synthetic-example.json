@@ -3,18 +3,18 @@
   "evaluatorVersion": "1.1.0",
   "dataset": {
     "id": "cognitive-turn-synthetic-v1",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "schemaVersion": 1,
     "source": "synthetic",
     "seed": 26024,
     "caseCount": 26,
-    "inputSetHash": "f94356532099a3d95a6e87f8065e9dadbe2e07db6bd717d568f23b06790f8f0c"
+    "inputSetHash": "0dde0ef57cc7500f3ae0f27b93e191dbe33c42ab17096bbfcbf276840300754b"
   },
   "comparison": {
     "baseline": {
       "strategy": "majority-class intent; always route to answer; do not resolve topic references or predict correction/goal signals",
-      "intentAccuracy": 0.3462,
-      "strategyAccuracy": 0.8077,
+      "intentAccuracy": 0.2692,
+      "strategyAccuracy": 0.6154,
       "topicReferenceAccuracy": 0.9231,
       "correctionAccuracy": 0.9231,
       "goalAccuracy": 0.9615,
@@ -50,8 +50,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "5a46cb2944f38d6b70caa04cfd02451fef622b8e68a461d14fdb2cf74161fa68",
-    "repeatedResultHash": "5a46cb2944f38d6b70caa04cfd02451fef622b8e68a461d14fdb2cf74161fa68"
+    "resultHash": "7142cdede9177c3e9578cfbbccd6f4ff49b1b693ed766ae58e9eea0f2c8e49c7",
+    "repeatedResultHash": "7142cdede9177c3e9578cfbbccd6f4ff49b1b693ed766ae58e9eea0f2c8e49c7"
   },
   "safety": {
     "automaticMemoryWrites": 0,
@@ -103,7 +103,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 84,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -141,7 +141,8 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [
-          "information_query"
+          "information_query",
+          "uncertain"
         ],
         "confidenceScore": 88,
         "confidenceBasis": "unvalidated_rule_strength",
@@ -240,7 +241,7 @@
       "input": "You misunderstood; I meant the 2025 plan.",
       "expected": {
         "intent": "correction",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": true,
         "changedMind": false,
@@ -250,7 +251,7 @@
       },
       "actual": {
         "intent": "correction",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": true,
         "changedMind": false,
@@ -280,7 +281,7 @@
       "input": "I changed my mind. I would rather choose the blue one.",
       "expected": {
         "intent": "correction",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": true,
@@ -290,7 +291,7 @@
       },
       "actual": {
         "intent": "correction",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": true,
@@ -356,7 +357,7 @@
       "input": "Help me plan the next steps for my move.",
       "expected": {
         "intent": "planning",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": false,
@@ -366,7 +367,7 @@
       },
       "actual": {
         "intent": "planning",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": false,
@@ -394,7 +395,7 @@
       "input": "My goal is to finish the draft by Friday.",
       "expected": {
         "intent": "planning",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": false,
@@ -404,14 +405,14 @@
       },
       "actual": {
         "intent": "planning",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": false,
         "explicitGoal": true,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 88,
+        "confidenceScore": 92,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -449,7 +450,7 @@
         "explicitGoal": false,
         "explicitConstraint": true,
         "alternativeIntents": [],
-        "confidenceScore": 28,
+        "confidenceScore": 30,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "high"
       },
@@ -487,9 +488,9 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 62,
         "confidenceBasis": "unvalidated_rule_strength",
-        "uncertainty": "low"
+        "uncertainty": "medium"
       },
       "checks": {
         "intent": true,
@@ -525,9 +526,9 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 64,
+        "confidenceScore": 88,
         "confidenceBasis": "unvalidated_rule_strength",
-        "uncertainty": "medium"
+        "uncertainty": "low"
       },
       "checks": {
         "intent": true,
@@ -563,7 +564,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 86,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -584,7 +585,7 @@
       "input": "I meant the larger file, not the smaller one.",
       "expected": {
         "intent": "correction",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": true,
         "changedMind": false,
@@ -594,7 +595,7 @@
       },
       "actual": {
         "intent": "correction",
-        "strategy": "answer",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "correction": true,
         "changedMind": false,
@@ -681,7 +682,7 @@
         "alternativeIntents": [
           "information_query"
         ],
-        "confidenceScore": 86,
+        "confidenceScore": 74,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "high"
       },
@@ -701,7 +702,7 @@
       "id": "clarify-missing-context-cn",
       "input": "那怎么办？",
       "expected": {
-        "intent": "information_query",
+        "intent": "uncertain",
         "strategy": "clarify",
         "topicReferenceMessageId": null,
         "correction": false,
@@ -711,17 +712,19 @@
         "alternativeIntents": []
       },
       "actual": {
-        "intent": "information_query",
+        "intent": "uncertain",
         "strategy": "clarify",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": false,
         "explicitGoal": false,
         "explicitConstraint": false,
-        "alternativeIntents": [],
-        "confidenceScore": 80,
+        "alternativeIntents": [
+          "information_query"
+        ],
+        "confidenceScore": 74,
         "confidenceBasis": "unvalidated_rule_strength",
-        "uncertainty": "low"
+        "uncertainty": "high"
       },
       "checks": {
         "intent": true,
@@ -739,7 +742,7 @@
       "id": "clarify-missing-reference-en",
       "input": "How should I handle it?",
       "expected": {
-        "intent": "information_query",
+        "intent": "uncertain",
         "strategy": "clarify",
         "topicReferenceMessageId": null,
         "correction": false,
@@ -749,17 +752,19 @@
         "alternativeIntents": []
       },
       "actual": {
-        "intent": "information_query",
+        "intent": "uncertain",
         "strategy": "clarify",
         "topicReferenceMessageId": null,
         "correction": false,
         "changedMind": false,
         "explicitGoal": false,
         "explicitConstraint": false,
-        "alternativeIntents": [],
-        "confidenceScore": 80,
+        "alternativeIntents": [
+          "information_query"
+        ],
+        "confidenceScore": 74,
         "confidenceBasis": "unvalidated_rule_strength",
-        "uncertainty": "low"
+        "uncertainty": "high"
       },
       "checks": {
         "intent": true,
@@ -795,7 +800,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 90,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -833,7 +838,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 90,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -871,9 +876,9 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 62,
         "confidenceBasis": "unvalidated_rule_strength",
-        "uncertainty": "low"
+        "uncertainty": "medium"
       },
       "checks": {
         "intent": true,
@@ -909,7 +914,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 92,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -947,7 +952,7 @@
         "explicitGoal": false,
         "explicitConstraint": true,
         "alternativeIntents": [],
-        "confidenceScore": 28,
+        "confidenceScore": 30,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "high"
       },
@@ -985,7 +990,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 84,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -1063,7 +1068,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 80,
+        "confidenceScore": 84,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -1080,5 +1085,5 @@
       }
     }
   ],
-  "reportSha256": "01673292eca4ef12f719a3314388aec88c523da7dd4dfdf61651781f6e2d9bec"
+  "reportSha256": "a499e0b032e70338221b200c129874084d6e8e24b4473dac2f14bbc4f957aa74"
 }

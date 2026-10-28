@@ -125,7 +125,9 @@ describe('slice 1: an ordinary turn keeps continuity', () => {
       await send(ctx.companion, conversation.id, '我下周要去杭州出差。')
       await send(ctx.companion, conversation.id, '那后天呢？')
 
-      expect(lastSystem(ctx.previews)).toContain('response route=answer')
+      // Phase 2: a follow-up now routes through retrieval, because the turn is
+      // resolved against the referenced message and may need saved evidence.
+      expect(lastSystem(ctx.previews)).toContain('response route=retrieve_memory')
       expect(memoryBlock(lastSystem(ctx.previews))).toContain('杭州')
     } finally {
       ctx.database.close()
