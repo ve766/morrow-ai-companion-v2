@@ -78,3 +78,64 @@ confidence(evidence, conversations)
 - 未确认 inference 条目 → consistency_note（逐条，≤2）；
 - memory.created 派生新话题 → 至多 1 个 interest_candidate（落库为 candidate，不晋升）。
 - 上限：8 findings/趟；**6 趟/小时**硬限；绝不自触发（仅手动/startup/显式调用）；findings 全部带 evidence 引用与 1–100 置信度。
+
+## 三、Phase 2 扩展点（意图 → 检索 → 证据 → 评估）
+
+模块边界，供后续算法替换：
+
+| 模块 | 文件 | 可替换内容 | 不可绕过 |
+|---|---|---|---|
+| 意图决策 | `src/cognition/intent-decision.ts` | `collectSignals` 的规则与权重、类别集合 | 输出必须带 `reasons`；`mayProduceMemoryCandidate` 只代表「可生成候选」 |
+| 检索策略 | `src/memory/retrieval-policy.ts` | 每个意图的上限、谓词过滤、准入要求 | 不能放宽 `status`、敏感度上限、撤回状态 |
+| 事实读法 | `src/memory/fact-slot.ts` | 谓词抽取器、时间词表、合并规则 | `uncertain` 永远不能作为等价证据 |
+| 回答评估 | `src/cognition/answer-evidence-evaluation.ts` | 六类判定规则 | `not_scorable` 不得计入通过 |
+| 回合账本 | `src/cognition/turn-evaluation.ts` | 字段与落库通道 | 只追加，不改记忆/人格/准入 |
+
+### 事实读法（派生，不落库）
+
+```
+clauses = split(text, 标点)                 // 不按 但/不过 切，避免 不过敏 被切断
+per clause: predicate → value → mood/polarity → time
+merge: 转述/假设/模态/双重否定 → uncertain
+       两个不同确定时间 或 两种不同极性 → mixed + uncertain
+       同谓词同极性同值 → 保留
+```
+
+时间语义：`past | present | future | mixed | unspecified`；`effectiveTime(unspecified)=present` 只在比较时生效，槽位本身保留 `unspecified`。
+
+### 检索策略（只收窄）
+
+```
+policy = policyForIntent(intent)
+limit  = min(默认上限, policy.maxMemories)
+准入   = policy.requireSlotMatch ? S_slot
+       : policy.requireContentOverlap ? (短语 or 内容词)
+       : (短语 or 内容词 or S_slot)
+额外   = policy.predicateFilter 命中 且 (允许 or 不冲突)
+```
+
+### 回答评估（六维 + 六类结果）
+
+维度（每维可 `unscored` 并带原因码，默认不通过）：
+
+| 维度 | 判定 |
+|---|---|
+| `evidenceMentioned` | 投递取值是否出现在回答里（每处出现都检查） |
+| `polarityConsistent` | 取值前后窗口内的否定是否与记忆极性一致 |
+| `temporalConsistent` | 取值附近 ±12 字符的过去/现在标记是否与记忆时间一致 |
+| `conflictAcknowledged` | 投递冲突的双方取值是否都出现，或是否明确说明两种说法不同 |
+| `answersCurrentQuestion` | 有参考答案看答案词，否则看问题与回答的内容词重叠 |
+| `uncertaintyAppropriate` | 无证据时是否承认不知道 |
+
+结果 `outcome` 由维度推导：`used_correctly` / `delivered_not_used` / `used_wrong_or_stale` / `contradicts_evidence` / `reasonable_unknown` / `unsupported_answer` / `not_scorable`。提及取值但反问或答非所问，不计为 `used_correctly`。
+
+### 冲突分组、请求记账与完整性（Phase 2.1 / 2.1.1）
+
+- 每个已投递冲突组独立评估：`mentioned / valuesIdentified / relationshipExplained / unsupportedSideSelected / clarificationRequested / relevant`；只点名双方而不说明关系不算成功，与问题无关的组记 `unscored`。
+- 「表达不确定」与「无证据断言」是两个维度：同一条回复里既说不知道又给出具体事实，判 `unsupported_answer`。
+- 请求账本按 `{scenarioId, scenarioRunId, purpose, requestId, conversationId}` 作用域逐条记录，`primary/probe/setup` 在调用时绑定；报告写出前跑 `validateReportIntegrity()`，不变量不成立则以非零码退出。
+
+### 冲突分组与请求记账（Phase 2.1）
+
+- 装配器在选中集合内按事实槽位判定冲突，输出 `conflicts[{predicate, memoryIds, values}]`；提示词据此点名两种说法并要求澄清，不依赖回答里的关键词。
+- 基准脚本用 `RequestLedger` 在 Provider 边界逐条记录请求（`primary|probe|setup`），指标一律声明分子/分母/排除/不可评分处理，失败与取消不从分母消失。

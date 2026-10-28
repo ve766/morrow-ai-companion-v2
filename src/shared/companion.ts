@@ -1,12 +1,22 @@
 import type { MemoryRecord, MemorySourceCategory } from '../memory/memory-domain'
 import type { CognitiveTurnRecord } from '../cognition/cognition'
+import type { TurnEvaluation } from '../cognition/turn-evaluation'
 
 export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com'
 export const DEEPSEEK_MODEL = 'deepseek-flash' as const
 export const DEEPSEEK_PROVIDER_ID = 'deepseek' as const
 export const LOCAL_PROVIDER_ID = 'local-openai' as const
 
-export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID
+/**
+ * 讯飞星火 MaaS, OpenAI-compatible entrance. The `/v1` suffix is part of the
+ * base URL: `/v1/chat/completions` and `/v1/models` are routed by the gateway
+ * while `/v1/messages` is not (verified 2026-10-28: 401 for the routed paths,
+ * 404 for the unrouted one).
+ */
+export const SPARK_PROVIDER_ID = 'spark' as const
+export const SPARK_MAAS_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v1'
+
+export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID | typeof SPARK_PROVIDER_ID
 export type ProviderClassKind = 'remote' | 'local'
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
@@ -51,11 +61,24 @@ export interface ContextMemory {
   conflictWith?: string[]
 }
 
+/**
+ * One unresolved disagreement inside the delivered set. It is computed from the
+ * fact slots of the delivered entries, never from keywords in the reply.
+ */
+export interface ContextConflict {
+  predicate: string
+  memoryIds: string[]
+  /** The distinct values the entries state, in delivery order. */
+  values: string[]
+}
+
 export interface AssembledMemoryContext {
   text: string
   selected: ContextMemory[]
   omitted: number
   characterCount: number
+  /** Present only when two delivered entries state different values. */
+  conflicts?: ContextConflict[]
 }
 
 export interface ProviderConfigRecord {
@@ -69,8 +92,8 @@ export interface ProviderConfigRecord {
 }
 
 export interface DeepSeekProviderConfigInput {
-  providerId: typeof DEEPSEEK_PROVIDER_ID
-  model: typeof DEEPSEEK_MODEL
+  providerId: ProviderId
+  model: string
   enabled: boolean
   apiKey?: string
 }
@@ -83,7 +106,15 @@ export interface LocalProviderConfigInput {
   apiKey?: string
 }
 
-export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput
+export interface SparkProviderConfigInput {
+  providerId: typeof SPARK_PROVIDER_ID
+  /** A model id the account actually exposes; verified against GET /v1/models. */
+  model: string
+  enabled: boolean
+  apiKey?: string
+}
+
+export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput | SparkProviderConfigInput
 
 export interface ProviderConnectionRequest {
   providerId: ProviderId
@@ -147,6 +178,8 @@ export interface ChatResult {
   userMessage: ConversationMessage
   assistantMessage: ConversationMessage
   includedMemoryCount: number
+  /** Phase 2 ledger record: intent, evidence, payload, provider and answer outcome. */
+  evaluation?: TurnEvaluation
 }
 
 export interface ChatStreamEvent {

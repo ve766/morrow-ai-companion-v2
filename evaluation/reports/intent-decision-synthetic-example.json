@@ -1,0 +1,816 @@
+{
+  "evaluatorVersion": "1.0.0",
+  "decisionVersion": "intent-rules-v1",
+  "dataset": {
+    "id": "intent-decision-synthetic-v1",
+    "version": "1.0.0",
+    "caseCount": 25,
+    "source": "synthetic"
+  },
+  "metrics": {
+    "intentAccuracy": 1,
+    "routingAccuracy": 1,
+    "needsMemoryRetrievalAccuracy": 1,
+    "dependsOnPriorTurnAccuracy": 1,
+    "candidateAccuracy": 1,
+    "missingReasons": 0,
+    "perClass": {
+      "information_query": {
+        "correct": 4,
+        "total": 4
+      },
+      "continuation": {
+        "correct": 2,
+        "total": 2
+      },
+      "correction": {
+        "correct": 2,
+        "total": 2
+      },
+      "preference_expression": {
+        "correct": 2,
+        "total": 2
+      },
+      "emotion_expression": {
+        "correct": 2,
+        "total": 2
+      },
+      "goal_or_plan": {
+        "correct": 2,
+        "total": 2
+      },
+      "new_topic": {
+        "correct": 2,
+        "total": 2
+      },
+      "ambiguous": {
+        "correct": 3,
+        "total": 3
+      },
+      "self_fact": {
+        "correct": 2,
+        "total": 2
+      },
+      "feedback": {
+        "correct": 1,
+        "total": 1
+      },
+      "explanation": {
+        "correct": 2,
+        "total": 2
+      },
+      "exploration": {
+        "correct": 1,
+        "total": 1
+      }
+    }
+  },
+  "determinism": {
+    "passed": true
+  },
+  "gate": {
+    "passed": true,
+    "failedChecks": []
+  },
+  "cases": [
+    {
+      "id": "iq-residence",
+      "input": "我住在哪里？",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 88,
+        "confidenceLevel": "high",
+        "reasons": [
+          "question_marker",
+          "question_punctuation",
+          "fact_predicate_question"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "iq-general",
+      "input": "What is the capital of Portugal?",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 84,
+        "confidenceLevel": "high",
+        "reasons": [
+          "question_marker",
+          "question_punctuation"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "iq-pet",
+      "input": "我的猫叫什么名字？",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 84,
+        "confidenceLevel": "high",
+        "reasons": [
+          "question_marker",
+          "question_punctuation"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "iq-schedule",
+      "input": "我下周有哪些安排？",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "information_query",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 88,
+        "confidenceLevel": "high",
+        "reasons": [
+          "question_marker",
+          "question_punctuation",
+          "fact_predicate_question"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "cont-then-what",
+      "input": "那后来呢？",
+      "hasPriorTurn": true,
+      "expected": {
+        "intent": "continuation",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "continuation",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 86,
+        "confidenceLevel": "high",
+        "reasons": [
+          "reference_to_prior_turn"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "cont-how-to",
+      "input": "那怎么办？",
+      "hasPriorTurn": true,
+      "expected": {
+        "intent": "continuation",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "continuation",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 86,
+        "confidenceLevel": "high",
+        "reasons": [
+          "reference_to_prior_turn"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "corr-said-wrong",
+      "input": "我刚才说错了，我住在大阪。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "correction",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "correction",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 94,
+        "confidenceLevel": "high",
+        "reasons": [
+          "explicit_correction_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "corr-changed-mind",
+      "input": "我改主意了，还是坐火车吧。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "correction",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "correction",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 88,
+        "confidenceLevel": "high",
+        "reasons": [
+          "changed_mind_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "pref-cat",
+      "input": "我喜欢猫。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "preference_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "preference_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 84,
+        "confidenceLevel": "high",
+        "reasons": [
+          "preference_marker",
+          "fact_predicate_preference"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "pref-tea-en",
+      "input": "I prefer jasmine tea.",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "preference_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "preference_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 80,
+        "confidenceLevel": "high",
+        "reasons": [
+          "preference_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "emotion-anxious",
+      "input": "我最近很焦虑，压力很大。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "emotion_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "emotion_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 86,
+        "confidenceLevel": "high",
+        "reasons": [
+          "affect_lexicon"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "emotion-en",
+      "input": "I feel overwhelmed by work.",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "emotion_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "emotion_expression",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 86,
+        "confidenceLevel": "high",
+        "reasons": [
+          "affect_lexicon"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "goal-job",
+      "input": "我计划明年换工作。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "goal_or_plan",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "goal_or_plan",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 96,
+        "confidenceLevel": "high",
+        "reasons": [
+          "goal_or_plan_marker",
+          "explicit_goal_statement",
+          "fact_predicate_goal"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "goal-draft-en",
+      "input": "My goal is to finish the draft by Friday.",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "goal_or_plan",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "goal_or_plan",
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 92,
+        "confidenceLevel": "high",
+        "reasons": [
+          "goal_or_plan_marker",
+          "explicit_goal_statement"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "topic-cn",
+      "input": "换个话题，帮我看看排序算法。",
+      "hasPriorTurn": true,
+      "expected": {
+        "intent": "new_topic",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "new_topic",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 90,
+        "confidenceLevel": "high",
+        "reasons": [
+          "explicit_topic_switch"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "topic-en",
+      "input": "By the way, how do I cook rice?",
+      "hasPriorTurn": true,
+      "expected": {
+        "intent": "new_topic",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "new_topic",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 90,
+        "confidenceLevel": "high",
+        "reasons": [
+          "explicit_topic_switch"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "ambiguous-filler",
+      "input": "嗯。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "ambiguous",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "ambiguous",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 30,
+        "confidenceLevel": "low",
+        "reasons": [
+          "no_rule_matched",
+          "single_weak_signal"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "ambiguous-no-context",
+      "input": "那怎么办？",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "ambiguous",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "ambiguous",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 74,
+        "confidenceLevel": "medium",
+        "reasons": [
+          "reference_without_context"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "ambiguous-pronoun",
+      "input": "How should I handle it?",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "ambiguous",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "ambiguous",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 74,
+        "confidenceLevel": "medium",
+        "reasons": [
+          "reference_without_context"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "self-fact-cn",
+      "input": "我住在杭州。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "self_fact",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "self_fact",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 62,
+        "confidenceLevel": "medium",
+        "reasons": [
+          "self_disclosure_marker",
+          "single_weak_signal"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "self-fact-en",
+      "input": "I usually drink green tea.",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "self_fact",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true
+      },
+      "actual": {
+        "intent": "self_fact",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": true,
+        "confidence": 62,
+        "confidenceLevel": "medium",
+        "reasons": [
+          "self_disclosure_marker",
+          "single_weak_signal"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "feedback-thanks",
+      "input": "这个回答很有帮助，谢谢。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "feedback",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "feedback",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 88,
+        "confidenceLevel": "high",
+        "reasons": [
+          "feedback_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "explanation-why",
+      "input": "为什么天空是蓝色的？",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "explanation",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "explanation",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 88,
+        "confidenceLevel": "high",
+        "reasons": [
+          "explanation_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "exploration-brainstorm",
+      "input": "我们一起头脑风暴周末可以做什么。",
+      "hasPriorTurn": false,
+      "expected": {
+        "intent": "exploration",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "exploration",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": false,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 84,
+        "confidenceLevel": "high",
+        "reasons": [
+          "exploration_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    },
+    {
+      "id": "cont-with-explanation",
+      "input": "What does that mean?",
+      "hasPriorTurn": true,
+      "expected": {
+        "intent": "explanation",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false
+      },
+      "actual": {
+        "intent": "explanation",
+        "needsMemoryRetrieval": false,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": false,
+        "confidence": 88,
+        "confidenceLevel": "high",
+        "reasons": [
+          "explanation_marker"
+        ]
+      },
+      "checks": {
+        "intent": true,
+        "needsMemoryRetrieval": true,
+        "dependsOnPriorTurn": true,
+        "mayProduceMemoryCandidate": true,
+        "reasonsPresent": true
+      }
+    }
+  ],
+  "reportSha256": "e664606565843dbeda4a9f4e6543639ed2c7a86bc8a00cac07bdcb38b9b33a14"
+}

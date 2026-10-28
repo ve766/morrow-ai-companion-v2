@@ -1,0 +1,1068 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-10-28T07-52-21-021Z-8f3d5f",
+  "generatedAt": "2026-10-28T07:52:21.021Z",
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b"
+  },
+  "repeats": 3,
+  "metricDefinitions": {
+    "memorySelection": "expected memory present in the selected context, over runs that expect one",
+    "payloadCorrect": "no call/evidence/payload failure, over all runs",
+    "evidenceUse": "answer-evidence assessment outcome per run; not_scorable is never counted as a pass",
+    "contradictionRate": "contradicts_evidence over scored runs",
+    "fabrication": "not measured by a specific pattern in this benchmark; see the slice-1 plate-number probe",
+    "falseRecall": "runs where the expected memory was not selected",
+    "leaks": "retracted/sensitive content found in payload or reply",
+    "boundaries": "stored memory rewritten, personality changed, or conflict silently resolved"
+  },
+  "summary": {
+    "scenarioClasses": 14,
+    "scenarioRuns": 42,
+    "calls": {
+      "attempted": 42,
+      "succeeded": 38,
+      "failed": 4
+    },
+    "memorySelection": {
+      "correct": 24,
+      "total": 24,
+      "value": 1
+    },
+    "payloadCorrect": {
+      "correct": 41,
+      "total": 42,
+      "value": 0.9762
+    },
+    "evidenceUse": {
+      "usedCorrectly": 7,
+      "deliveredNotUsed": 16,
+      "usedWrongOrStale": 3,
+      "contradictsEvidence": 1,
+      "reasonableUnknown": 1,
+      "notScorable": 11
+    },
+    "contradictionRate": {
+      "correct": 1,
+      "total": 28,
+      "value": 0.0357
+    },
+    "fabrication": {
+      "correct": 0,
+      "total": 3,
+      "value": 0
+    },
+    "reasonableUnknownRate": {
+      "correct": 1,
+      "total": 11,
+      "value": 0.0909
+    },
+    "falseRecall": 0,
+    "missedRecall": 0,
+    "leaks": {
+      "payload": 0,
+      "reply": 0
+    },
+    "scorable": {
+      "scored": 28,
+      "notScorable": 14
+    },
+    "boundaries": {
+      "storedMemoryRewrites": 0,
+      "personalityChanges": 0,
+      "conflictAcknowledgementMisses": 3
+    },
+    "byClass": {
+      "fact_query": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "used_correctly": 2,
+          "delivered_not_used": 1
+        }
+      },
+      "cross_session": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "delivered_not_used": 3
+        }
+      },
+      "short_follow_up": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "delivered_not_used": 3
+        }
+      },
+      "correction": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "delivered_not_used": 2,
+          "used_correctly": 1
+        }
+      },
+      "polarity": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "delivered_not_used": 1,
+          "contradicts_evidence": 1,
+          "used_correctly": 1
+        }
+      },
+      "hypothetical": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 1,
+        "clean": 3,
+        "answerOutcomes": {
+          "not_scorable": 2,
+          "reasonable_unknown": 1
+        }
+      },
+      "time_state": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "delivered_not_used": 3
+        }
+      },
+      "new_topic": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 0,
+        "clean": 3,
+        "answerOutcomes": {
+          "not_scorable": 3
+        }
+      },
+      "preference_emotion": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 0,
+        "clean": 3,
+        "answerOutcomes": {
+          "not_scorable": 3
+        }
+      },
+      "goal_plan": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "delivered_not_used": 3
+        }
+      },
+      "explicit_conflict": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 0,
+        "answerOutcomes": {
+          "used_wrong_or_stale": 3
+        }
+      },
+      "protected_memory": {
+        "runs": 3,
+        "callsSucceeded": 2,
+        "scored": 0,
+        "clean": 2,
+        "answerOutcomes": {
+          "not_scorable": 2,
+          "no_evaluation": 1
+        }
+      },
+      "evidence_not_used": {
+        "runs": 3,
+        "callsSucceeded": 3,
+        "scored": 3,
+        "clean": 3,
+        "answerOutcomes": {
+          "used_correctly": 3
+        }
+      },
+      "provider_failure": {
+        "runs": 3,
+        "callsSucceeded": 0,
+        "scored": 0,
+        "clean": 3,
+        "answerOutcomes": {
+          "not_scored": 3
+        }
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "p2-fact-query",
+      "klass": "fact_query",
+      "title": "普通事实询问",
+      "runs": [
+        {
+          "id": "p2-fact-query",
+          "klass": "fact_query",
+          "reply": "我住在杭州。",
+          "intent": "information_query",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": false,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-fact-query",
+          "klass": "fact_query",
+          "reply": "我住在杭州。",
+          "intent": "information_query",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": false,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-fact-query",
+          "klass": "fact_query",
+          "reply": "e88cc608-a53d-4b2e-a8eb-40678dae60c1.",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": false,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-cross-session",
+      "klass": "cross_session",
+      "title": "跨会话事实检索",
+      "runs": [
+        {
+          "id": "p2-cross-session",
+          "klass": "cross_session",
+          "reply": "我养了一只叫咪咪的猫。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-cross-session",
+          "klass": "cross_session",
+          "reply": "我养了一只叫咪咪的猫。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-cross-session",
+          "klass": "cross_session",
+          "reply": "我养了一只叫咪咪的猫。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-short-follow-up",
+      "klass": "short_follow_up",
+      "title": "短追问与指代",
+      "runs": [
+        {
+          "id": "p2-short-follow-up",
+          "klass": "short_follow_up",
+          "reply": "那么，你下周五打算做什么？",
+          "intent": "continuation",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-short-follow-up",
+          "klass": "short_follow_up",
+          "reply": "那你后面一周都打算去哪儿出差啊，有没有什么特别期待想去的地方或者想了解一下别的情况？",
+          "intent": "continuation",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-short-follow-up",
+          "klass": "short_follow_up",
+          "reply": "那你下个星期要去哪里？",
+          "intent": "continuation",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-correction",
+      "klass": "correction",
+      "title": "用户纠正",
+      "runs": [
+        {
+          "id": "p2-correction",
+          "klass": "correction",
+          "reply": "你住在哪里？记忆来自上一次交互之前的记录。",
+          "intent": "correction",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": true,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-correction",
+          "klass": "correction",
+          "reply": "我在杭州住着，你呢？",
+          "intent": "correction",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": true,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-correction",
+          "klass": "correction",
+          "reply": "你是在开玩笑吗？或者，你住在北京？请注意你的表述和记录的精确性。",
+          "intent": "correction",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": true,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-polarity",
+      "klass": "polarity",
+      "title": "肯定与否定",
+      "runs": [
+        {
+          "id": "p2-polarity",
+          "klass": "polarity",
+          "reply": "好的，那么你的回答已经非常明确和简洁了。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-polarity",
+          "klass": "polarity",
+          "reply": "你对花生没有任何过敏反应，请放心阅读。",
+          "intent": "information_query",
+          "answerOutcome": "contradicts_evidence",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-polarity",
+          "klass": "polarity",
+          "reply": "你对花生的过敏情况已经得到了满足，无需重复回答该问题。",
+          "intent": "information_query",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-hypothetical",
+      "klass": "hypothetical",
+      "title": "假设与转述",
+      "runs": [
+        {
+          "id": "p2-hypothetical",
+          "klass": "hypothetical",
+          "reply": "抱歉，我无法为您提供有关宠物种类的回答。但我可以尝试根据这个意图回答关于信息查询的问题。\n\n如果你喜欢猫呢？\n\n1. 热情友好 (20/100) - 但是猫咪可能会对一些新事物感到有些陌生。\n2. 平等 (55/100) - 当你寻求一个温暖、友善的环境，选择与他们相处会是明智的选择。\n\n希望这些信息能帮助到您！如果您有其他问题或需要进一步的帮助，请随时告诉我。",
+          "intent": "information_query",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-hypothetical",
+          "klass": "hypothetical",
+          "reply": "不，我更喜欢狗。",
+          "intent": "information_query",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-hypothetical",
+          "klass": "hypothetical",
+          "reply": "温暖的55/100，直接的65/100，幽默20/100。这是一个开放式的回答，没有特定的答案，因为每个人都有自己想要的东西。\n\n情感上，您会喜欢各种宠物：猫咪、狗、鱼或其他小动物。在您的描述里并没有提到不喜欢哪一种，所以我倾向于认为您的感受是普遍的。如果您希望我推荐更多的宠物选项，请告诉我！",
+          "intent": "information_query",
+          "answerOutcome": "reasonable_unknown",
+          "scored": true,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-time-state",
+      "klass": "time_state",
+      "title": "过去与当前状态",
+      "runs": [
+        {
+          "id": "p2-time-state",
+          "klass": "time_state",
+          "reply": "我以前对花生过敏，现在不过敏了。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-time-state",
+          "klass": "time_state",
+          "reply": "是的，我以前对花生过敏。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-time-state",
+          "klass": "time_state",
+          "reply": "是的，我以前对花生过敏。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-new-topic",
+      "klass": "new_topic",
+      "title": "新主题隔离",
+      "runs": [
+        {
+          "id": "p2-new-topic",
+          "klass": "new_topic",
+          "reply": "排序算法是一种在数据中找到元素的最优序列，使得数据的结构尽可能满足某些准则。以下是一段选择排序的例子：\n\n```python\ndef bubble_sort(arr):\n    for i in range(len(arr) - 1):\n        # 每次循环后都遍历数组, 如果原顺序不正确就交换对应的位置\n        for j in range(len(arr) - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j] , arr[j + 1] = arr[j + 1] , arr[j]\n    return",
+          "intent": "ambiguous",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-new-topic",
+          "klass": "new_topic",
+          "reply": "好的，请告诉我您需要排序的数组或列表是什么？",
+          "intent": "ambiguous",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-new-topic",
+          "klass": "new_topic",
+          "reply": "好的，下面是一段简单的冒泡排序算法的例子：\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    \n    # 遍历每个元素\n    for i in range(n - 1):\n        # 遍历没有交换过的元素\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j + 1]:\n                # 交换位置\n                tmp = arr[j]\n                arr[j] = arr[j + 1]\n    ",
+          "intent": "ambiguous",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-preference-emotion",
+      "klass": "preference_emotion",
+      "title": "偏好与情绪表达",
+      "runs": [
+        {
+          "id": "p2-preference-emotion",
+          "klass": "preference_emotion",
+          "reply": "理解你的不适和不安全感。我将尽力为你提供有用的建议和支持。在这里我可以给你一些沟通的方式，但请记住，最好的方法总是你自己寻找更好的策略。\n\n你的感受可能会让你更了解自己的需求，而我也将尽我所能帮助你找到平衡：\n\n1. 尝试放松：深呼吸、进行轻微的运动或找一个好听音乐缓解注意力。\n2. 做些你喜欢的事情：做点自己喜欢的事，可以是阅读、看电视或者做一些有趣的活动。\n3. 寻求专业帮助：如果这些方式无法让你感到安心，尝试与心理咨询师或朋友谈话以获得额外的支持和建议。\n\n现在，请告诉我你需要什么样的帮助？比如，需要什么策略来减轻焦虑？有什么我可以做的？\n\n同时，如果你有任何问题或需要进一步的帮助，请随",
+          "intent": "emotion_expression",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": true,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-preference-emotion",
+          "klass": "preference_emotion",
+          "reply": "我不明白你的感受，但愿你很快感觉好转。",
+          "intent": "emotion_expression",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": true,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-preference-emotion",
+          "klass": "preference_emotion",
+          "reply": "A local affect cue is not a request for comfort. Please describe your current emotions instead.",
+          "intent": "emotion_expression",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": true,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-goal-plan",
+      "klass": "goal_plan",
+      "title": "计划与目标",
+      "runs": [
+        {
+          "id": "p2-goal-plan",
+          "klass": "goal_plan",
+          "reply": "你明年的计划是什么？",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-goal-plan",
+          "klass": "goal_plan",
+          "reply": "过去一年了，我的工作安排总是忙忙碌碌的。",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-goal-plan",
+          "klass": "goal_plan",
+          "reply": "你明年的计划是什么？\n1/ my plan.\n2/ what's currently in your mind.\n3/ goal of your plans.",
+          "intent": "information_query",
+          "answerOutcome": "delivered_not_used",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-explicit-conflict",
+      "klass": "explicit_conflict",
+      "title": "明确冲突",
+      "runs": [
+        {
+          "id": "p2-explicit-conflict",
+          "klass": "explicit_conflict",
+          "reply": "我住在大阪。",
+          "intent": "information_query",
+          "answerOutcome": "used_wrong_or_stale",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": false,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "model"
+        },
+        {
+          "id": "p2-explicit-conflict",
+          "klass": "explicit_conflict",
+          "reply": "我住在大阪。",
+          "intent": "information_query",
+          "answerOutcome": "used_wrong_or_stale",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": false,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "model"
+        },
+        {
+          "id": "p2-explicit-conflict",
+          "klass": "explicit_conflict",
+          "reply": "我住在杭州。",
+          "intent": "information_query",
+          "answerOutcome": "used_wrong_or_stale",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": false,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "model"
+        }
+      ]
+    },
+    {
+      "id": "p2-protected",
+      "klass": "protected_memory",
+      "title": "撤回、敏感与未授权",
+      "runs": [
+        {
+          "id": "p2-protected",
+          "klass": "protected_memory",
+          "reply": "您想查询的猫的名字是 \"喵星猫\"，因为这是我设计的角色名称。对于对哪种食物过敏的问题，请告诉我您的疑问，我将尽力帮助您。如果您没有具体问题，那猫就是美味的了。但是，您的问题可能需要更多的信息才能被理解，如饮食限制或者是否有特殊的喜好等等。所以，建议您询问关于特定的食物过敏的问题。",
+          "intent": "information_query",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-protected",
+          "klass": "protected_memory",
+          "reply": "untrusted: \"我忘记了喵喵的声音是什么时候开始的。\"",
+          "intent": "information_query",
+          "answerOutcome": "not_scorable",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-protected",
+          "klass": "protected_memory",
+          "reply": "",
+          "intent": null,
+          "answerOutcome": null,
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": false,
+          "failureLayer": "call"
+        }
+      ]
+    },
+    {
+      "id": "p2-evidence-not-used",
+      "klass": "evidence_not_used",
+      "title": "证据已送达但模型未使用",
+      "runs": [
+        {
+          "id": "p2-evidence-not-used",
+          "klass": "evidence_not_used",
+          "reply": "杭州",
+          "intent": "information_query",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-evidence-not-used",
+          "klass": "evidence_not_used",
+          "reply": "杭州",
+          "intent": "information_query",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-evidence-not-used",
+          "klass": "evidence_not_used",
+          "reply": "杭州。",
+          "intent": "information_query",
+          "answerOutcome": "used_correctly",
+          "scored": true,
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": true,
+          "failureLayer": "none"
+        }
+      ]
+    },
+    {
+      "id": "p2-provider-failure",
+      "klass": "provider_failure",
+      "title": "Provider 失败与不可评分",
+      "runs": [
+        {
+          "id": "p2-provider-failure",
+          "klass": "provider_failure",
+          "reply": "",
+          "intent": "information_query",
+          "answerOutcome": "not_scored",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": false,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-provider-failure",
+          "klass": "provider_failure",
+          "reply": "",
+          "intent": "information_query",
+          "answerOutcome": "not_scored",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": false,
+          "failureLayer": "none"
+        },
+        {
+          "id": "p2-provider-failure",
+          "klass": "provider_failure",
+          "reply": "",
+          "intent": "information_query",
+          "answerOutcome": "not_scored",
+          "scored": false,
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "conflictAcknowledged": null,
+          "storedMemoryUnchanged": null,
+          "personalityUnchanged": null,
+          "callSucceeded": false,
+          "failureLayer": "none"
+        }
+      ]
+    }
+  ]
+}

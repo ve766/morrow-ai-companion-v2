@@ -615,6 +615,38 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
       `)
     }
+  },
+  {
+    version: 16,
+    name: 'spark-provider-profile',
+    up(database) {
+      // A second remote provider has to be persisted. The v13 table pinned the
+      // id to deepseek/local-openai and its endpoint/model per id, so the table
+      // is rebuilt with `spark` allowed and its endpoint pinned to the verified
+      // MaaS base URL. The model id stays free-form (shape-checked in code)
+      // because the account decides which ids exist.
+      database.exec(`
+        CREATE TABLE provider_profiles_v16 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (id IN ('deepseek', 'local-openai', 'spark')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (
+            (id = 'deepseek' AND endpoint = 'https://api.deepseek.com')
+            OR (id = 'spark' AND endpoint = 'https://maas-api.cn-huabei-1.xf-yun.com/v1')
+            OR (id = 'local-openai' AND length(endpoint) BETWEEN 8 AND 2000)
+          ),
+          model TEXT NOT NULL CHECK (
+            (id = 'deepseek' AND model = 'deepseek-flash')
+            OR (id IN ('spark', 'local-openai') AND length(model) BETWEEN 1 AND 64)
+          ),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO provider_profiles_v16(id, provider_class, endpoint, model, enabled, updated_at)
+          SELECT id, provider_class, endpoint, model, enabled, updated_at FROM provider_profiles;
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v16 RENAME TO provider_profiles;
+      `)
+    }
   }
 ]
 

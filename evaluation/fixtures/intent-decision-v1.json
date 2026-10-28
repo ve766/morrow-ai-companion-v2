@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "intent-decision-synthetic-v1",
+  "datasetVersion": "1.0.0",
+  "source": "synthetic",
+  "cases": [
+    { "id": "iq-residence", "input": "我住在哪里？", "hasPriorTurn": false, "expected": { "intent": "information_query", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "iq-general", "input": "What is the capital of Portugal?", "hasPriorTurn": false, "expected": { "intent": "information_query", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "iq-pet", "input": "我的猫叫什么名字？", "hasPriorTurn": false, "expected": { "intent": "information_query", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "iq-schedule", "input": "我下周有哪些安排？", "hasPriorTurn": false, "expected": { "intent": "information_query", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "cont-then-what", "input": "那后来呢？", "hasPriorTurn": true, "expected": { "intent": "continuation", "needsMemoryRetrieval": true, "dependsOnPriorTurn": true, "mayProduceMemoryCandidate": false } },
+    { "id": "cont-how-to", "input": "那怎么办？", "hasPriorTurn": true, "expected": { "intent": "continuation", "needsMemoryRetrieval": true, "dependsOnPriorTurn": true, "mayProduceMemoryCandidate": false } },
+    { "id": "corr-said-wrong", "input": "我刚才说错了，我住在大阪。", "hasPriorTurn": false, "expected": { "intent": "correction", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "corr-changed-mind", "input": "我改主意了，还是坐火车吧。", "hasPriorTurn": false, "expected": { "intent": "correction", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "pref-cat", "input": "我喜欢猫。", "hasPriorTurn": false, "expected": { "intent": "preference_expression", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "pref-tea-en", "input": "I prefer jasmine tea.", "hasPriorTurn": false, "expected": { "intent": "preference_expression", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "emotion-anxious", "input": "我最近很焦虑，压力很大。", "hasPriorTurn": false, "expected": { "intent": "emotion_expression", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "emotion-en", "input": "I feel overwhelmed by work.", "hasPriorTurn": false, "expected": { "intent": "emotion_expression", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "goal-job", "input": "我计划明年换工作。", "hasPriorTurn": false, "expected": { "intent": "goal_or_plan", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "goal-draft-en", "input": "My goal is to finish the draft by Friday.", "hasPriorTurn": false, "expected": { "intent": "goal_or_plan", "needsMemoryRetrieval": true, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "topic-cn", "input": "换个话题，帮我看看排序算法。", "hasPriorTurn": true, "expected": { "intent": "new_topic", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "topic-en", "input": "By the way, how do I cook rice?", "hasPriorTurn": true, "expected": { "intent": "new_topic", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "ambiguous-filler", "input": "嗯。", "hasPriorTurn": false, "expected": { "intent": "ambiguous", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "ambiguous-no-context", "input": "那怎么办？", "hasPriorTurn": false, "expected": { "intent": "ambiguous", "needsMemoryRetrieval": false, "dependsOnPriorTurn": true, "mayProduceMemoryCandidate": false } },
+    { "id": "ambiguous-pronoun", "input": "How should I handle it?", "hasPriorTurn": false, "expected": { "intent": "ambiguous", "needsMemoryRetrieval": false, "dependsOnPriorTurn": true, "mayProduceMemoryCandidate": false } },
+    { "id": "self-fact-cn", "input": "我住在杭州。", "hasPriorTurn": false, "expected": { "intent": "self_fact", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "self-fact-en", "input": "I usually drink green tea.", "hasPriorTurn": false, "expected": { "intent": "self_fact", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": true } },
+    { "id": "feedback-thanks", "input": "这个回答很有帮助，谢谢。", "hasPriorTurn": false, "expected": { "intent": "feedback", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "explanation-why", "input": "为什么天空是蓝色的？", "hasPriorTurn": false, "expected": { "intent": "explanation", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "exploration-brainstorm", "input": "我们一起头脑风暴周末可以做什么。", "hasPriorTurn": false, "expected": { "intent": "exploration", "needsMemoryRetrieval": false, "dependsOnPriorTurn": false, "mayProduceMemoryCandidate": false } },
+    { "id": "cont-with-explanation", "input": "What does that mean?", "hasPriorTurn": true, "expected": { "intent": "explanation", "needsMemoryRetrieval": false, "dependsOnPriorTurn": true, "mayProduceMemoryCandidate": false } }
+  ]
+}

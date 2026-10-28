@@ -75,8 +75,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "fe55a7654a8d35d303841d40f5e6911698d54e37faae8e09d9d477ce7762c3c5",
-    "repeatedResultHash": "fe55a7654a8d35d303841d40f5e6911698d54e37faae8e09d9d477ce7762c3c5"
+    "resultHash": "c4acd88f4a0b4ff4a9b3747069d149ef5a67100074cb0ae3c887a11defb609d8",
+    "repeatedResultHash": "c4acd88f4a0b4ff4a9b3747069d149ef5a67100074cb0ae3c887a11defb609d8"
   },
   "checks": {
     "minimumCases": true,
@@ -113,15 +113,15 @@
         "intent": "feedback",
         "eventType": "positive_feedback",
         "confidenceScore": 88,
-        "uncertainty": "low",
+        "uncertainty": "medium",
         "delta": {
-          "valence": 0.079,
+          "valence": 0.0395,
           "activation": 0,
           "tension": 0
         },
         "attentionDelta": 0,
         "state": {
-          "valence": 0.079,
+          "valence": 0.0395,
           "activation": 0,
           "tension": 0
         },
@@ -197,15 +197,15 @@
         "intent": "feedback",
         "eventType": "positive_feedback",
         "confidenceScore": 88,
-        "uncertainty": "low",
+        "uncertainty": "medium",
         "delta": {
-          "valence": 0.079,
+          "valence": 0.0395,
           "activation": 0,
           "tension": 0
         },
         "attentionDelta": 0,
         "state": {
-          "valence": 0.079,
+          "valence": 0.0395,
           "activation": 0,
           "tension": 0
         },
@@ -407,17 +407,17 @@
         "intent": "feedback",
         "eventType": "negative_feedback",
         "confidenceScore": 88,
-        "uncertainty": "low",
+        "uncertainty": "medium",
         "delta": {
-          "valence": -0.1026,
-          "activation": 0.057,
-          "tension": 0.1026
+          "valence": -0.0513,
+          "activation": 0.0285,
+          "tension": 0.0513
         },
         "attentionDelta": 0,
         "state": {
-          "valence": -0.1026,
-          "activation": 0.057,
-          "tension": 0.1026
+          "valence": -0.0513,
+          "activation": 0.0285,
+          "tension": 0.0513
         },
         "attention": 0
       },
@@ -449,7 +449,7 @@
         "intent": "feedback",
         "eventType": null,
         "confidenceScore": 88,
-        "uncertainty": "low",
+        "uncertainty": "medium",
         "delta": {
           "valence": 0,
           "activation": 0,
@@ -575,17 +575,17 @@
         "intent": "correction",
         "eventType": "system_correction",
         "confidenceScore": 94,
-        "uncertainty": "medium",
+        "uncertainty": "low",
         "delta": {
-          "valence": -0.0352,
-          "activation": 0.0282,
-          "tension": 0.0704
+          "valence": -0.0704,
+          "activation": 0.0563,
+          "tension": 0.1408
         },
         "attentionDelta": 0,
         "state": {
-          "valence": -0.0352,
-          "activation": 0.0282,
-          "tension": 0.0704
+          "valence": -0.0704,
+          "activation": 0.0563,
+          "tension": 0.1408
         },
         "attention": 0
       },
@@ -995,7 +995,7 @@
         "intent": "venting",
         "eventType": "user_context",
         "confidenceScore": 86,
-        "uncertainty": "medium",
+        "uncertainty": "low",
         "delta": {
           "valence": 0,
           "activation": 0,
@@ -1078,7 +1078,7 @@
       "actual": {
         "intent": "information_query",
         "eventType": null,
-        "confidenceScore": 80,
+        "confidenceScore": 84,
         "uncertainty": "low",
         "delta": {
           "valence": 0,
@@ -1162,8 +1162,8 @@
       "actual": {
         "intent": "sharing",
         "eventType": null,
-        "confidenceScore": 80,
-        "uncertainty": "low",
+        "confidenceScore": 62,
+        "uncertainty": "medium",
         "delta": {
           "valence": 0,
           "activation": 0,
@@ -1204,7 +1204,7 @@
       "actual": {
         "intent": "planning",
         "eventType": null,
-        "confidenceScore": 88,
+        "confidenceScore": 92,
         "uncertainty": "low",
         "delta": {
           "valence": 0,
@@ -1246,8 +1246,8 @@
       "actual": {
         "intent": "information_query",
         "eventType": null,
-        "confidenceScore": 80,
-        "uncertainty": "low",
+        "confidenceScore": 90,
+        "uncertainty": "medium",
         "delta": {
           "valence": 0,
           "activation": 0,
@@ -1414,7 +1414,7 @@
       "actual": {
         "intent": "information_query",
         "eventType": null,
-        "confidenceScore": 80,
+        "confidenceScore": 92,
         "uncertainty": "medium",
         "delta": {
           "valence": 0,
@@ -1456,7 +1456,7 @@
       "actual": {
         "intent": "uncertain",
         "eventType": null,
-        "confidenceScore": 28,
+        "confidenceScore": 30,
         "uncertainty": "high",
         "delta": {
           "valence": 0,
@@ -1498,7 +1498,7 @@
       "actual": {
         "intent": "uncertain",
         "eventType": null,
-        "confidenceScore": 28,
+        "confidenceScore": 74,
         "uncertainty": "high",
         "delta": {
           "valence": 0,
@@ -1526,5 +1526,5 @@
       }
     }
   ],
-  "reportSha256": "76bba3a53fe73ac68b8702eceddbe38c38065e9b7fffcbdc022ba8f5c5a1287a"
+  "reportSha256": "325fc857c24feda32ed3b68e5f7f8a73786e66587141f62b6f8351c221e8afbe"
 }
