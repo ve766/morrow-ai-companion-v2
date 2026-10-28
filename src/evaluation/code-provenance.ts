@@ -68,9 +68,16 @@ export function captureProvenance(options: ProvenanceOptions = {}): CodeProvenan
   const status = git(run, cwd, 'git status --porcelain') ?? ''
   const diff = git(run, cwd, 'git diff HEAD') ?? ''
   const ignore = options.ignorePaths ?? DEFAULT_IGNORED_PATHS
-  const allFiles = status.split('\n').map((line) => line.trim()).filter(Boolean)
-  const files = allFiles
-    .filter((line) => !ignore.some((prefix) => line.slice(3).startsWith(prefix)))
+  // Porcelain v1 is "XY <path>": trimming the line would shift the offset, so
+  // the two status characters and the space are stripped explicitly.
+  const entries = status.split('\n')
+    .map((line) => line.replace(/\s+$/u, ''))
+    .filter((line) => line.length > 3)
+    .map((line) => ({ status: line.slice(0, 2).trim(), path: line.slice(3) }))
+  const allFiles = entries.map((entry) => `${entry.status} ${entry.path}`)
+  const files = entries
+    .filter((entry) => !ignore.some((prefix) => entry.path.startsWith(prefix)))
+    .map((entry) => `${entry.status} ${entry.path}`)
     .slice(0, 50)
   const dirty = files.length > 0
 
@@ -80,7 +87,10 @@ export function captureProvenance(options: ProvenanceOptions = {}): CodeProvenan
 
   const baseSha = env.MORROW_BASE_SHA ?? headSha
   // Only the non-generated files contribute to the fingerprint.
-  const sourceStatus = allFiles.filter((line) => !ignore.some((prefix) => line.slice(3).startsWith(prefix))).join('\n')
+  const sourceStatus = entries
+    .filter((entry) => !ignore.some((prefix) => entry.path.startsWith(prefix)))
+    .map((entry) => `${entry.status} ${entry.path}`)
+    .join('\n')
   const diffHash = dirty ? createHash('sha256').update(`${sourceStatus}\n${diff}`, 'utf8').digest('hex') : null
 
   const reasons: string[] = []

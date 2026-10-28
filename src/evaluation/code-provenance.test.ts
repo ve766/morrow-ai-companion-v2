@@ -49,6 +49,17 @@ describe('phase 2.2 E: code provenance', () => {
     expect(provenance.reproducibleReason).toContain('working_tree_dirty')
   })
 
+  it('parses a deleted file without shifting the path offset', () => {
+    // "D  path" has two status characters; trimming the line used to shift the
+    // slice and make a generated report look like a source change.
+    const provenance = captureProvenance({
+      env: {},
+      run: fakeGit({ 'git rev-parse HEAD': 'abc123', 'git status --porcelain': 'D  evaluation/reports/old.json', 'git diff HEAD': '' })
+    })
+    expect(provenance.workingTreeDirty).toBe(false)
+    expect(provenance.reproducible).toBe(true)
+  })
+
   it('does not count the run\'s own report files as a dirty source tree', () => {
     const provenance = captureProvenance({
       env: {},

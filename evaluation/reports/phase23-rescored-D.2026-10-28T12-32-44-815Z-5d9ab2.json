@@ -1,26 +1,43 @@
 {
   "schemaVersion": 1,
-  "runId": "2026-10-28T12-29-54-028Z-460c62",
-  "source": "phase23-spark-A-2026-10-28T12-04-46-957Z-622333.json",
+  "runId": "2026-10-28T12-32-44-815Z-5d9ab2",
+  "source": "phase23-spark-D-2026-10-28T12-18-00-927Z-fbe647.json",
   "condition": {
-    "id": "A",
-    "presentation": "json",
-    "variant": "v2",
-    "description": "production: JSON evidence block + v2 guidance"
+    "id": "D",
+    "presentation": "entries",
+    "variant": "v4",
+    "description": "entries + conflict protocol: both values, ask which is current"
   },
   "codeSha": "f05ae22bf4c0166b8f2d2fe463354bee953071f1",
   "evaluator": "answer-evidence-evaluation@schema3 (re-scored offline)",
+  "scorer": {
+    "baseSha": "f98e5558888a163b23ae92100c067fb9884c50a9",
+    "headSha": "f98e5558888a163b23ae92100c067fb9884c50a9",
+    "codeSha": "f98e5558888a163b23ae92100c067fb9884c50a9",
+    "codeShaSource": "git",
+    "workingTreeDirty": true,
+    "workingTreeDiffHash": "d67716e059db7f364266928f0c959a6eb2dc70b5562a1cae617805574af04466",
+    "workingTreeFiles": [
+      "D evaluation/reports/phase23-rescored-A.2026-10-28T12-29-54-028Z-460c62.json",
+      "D evaluation/reports/phase23-rescored-B.2026-10-28T12-29-54-043Z-519e38.json",
+      "D evaluation/reports/phase23-rescored-C.2026-10-28T12-29-54-055Z-6cca14.json",
+      "D evaluation/reports/phase23-rescored-D.2026-10-28T12-29-54-068Z-8e6da3.json"
+    ],
+    "reproducible": false,
+    "reproducibleReason": "working_tree_dirty",
+    "capturedAt": "2026-10-28T12:32:45.834Z"
+  },
   "note": "Replies are unchanged; only the assessment was recomputed with the corrected evaluator.",
   "totals": {
     "runs": 25,
-    "scored": 25,
-    "usedCorrectly": 20,
-    "reasonableUnknown": 5,
-    "unsupported": 0,
+    "scored": 24,
+    "usedCorrectly": 19,
+    "reasonableUnknown": 4,
+    "unsupported": 1,
     "conflictPass": 5,
     "contradictions": 0,
-    "notScorable": 0,
-    "changed": 6
+    "notScorable": 1,
+    "changed": 7
   },
   "byScenario": {
     "fact": {
@@ -38,7 +55,7 @@
     },
     "negation": {
       "runs": 5,
-      "referenceMatched": 5,
+      "referenceMatched": 4,
       "forbiddenHit": 0,
       "scored": 5,
       "usedCorrectly": 5,
@@ -47,20 +64,20 @@
       "conflictPass": 0,
       "contradictions": 0,
       "notScorable": 0,
-      "changed": 3
+      "changed": 2
     },
     "time_state": {
       "runs": 5,
-      "referenceMatched": 5,
+      "referenceMatched": 4,
       "forbiddenHit": 4,
-      "scored": 5,
-      "usedCorrectly": 5,
+      "scored": 4,
+      "usedCorrectly": 4,
       "reasonableUnknown": 0,
       "unsupported": 0,
       "conflictPass": 0,
       "contradictions": 0,
-      "notScorable": 0,
-      "changed": 0
+      "notScorable": 1,
+      "changed": 3
     },
     "conflict": {
       "runs": 5,
@@ -77,1053 +94,1004 @@
     },
     "no_evidence": {
       "runs": 5,
-      "referenceMatched": 5,
+      "referenceMatched": 4,
       "forbiddenHit": 0,
       "scored": 5,
       "usedCorrectly": 0,
-      "reasonableUnknown": 5,
-      "unsupported": 0,
+      "reasonableUnknown": 4,
+      "unsupported": 1,
       "conflictPass": 0,
       "contradictions": 0,
       "notScorable": 0,
-      "changed": 3
+      "changed": 2
     }
   },
   "runs": [
     {
-      "runId": "A-fact#0",
+      "runId": "D-fact#0",
       "scenarioId": "fact",
-      "callSucceeded": true,
-      "replyCharacters": 26,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-fact#1",
-      "scenarioId": "fact",
-      "callSucceeded": true,
-      "replyCharacters": 43,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-fact#2",
-      "scenarioId": "fact",
-      "callSucceeded": true,
-      "replyCharacters": 6,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "pass",
-          "reason": "time_matches"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-fact#3",
-      "scenarioId": "fact",
-      "callSucceeded": true,
-      "replyCharacters": 6,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "pass",
-          "reason": "time_matches"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-fact#4",
-      "scenarioId": "fact",
-      "callSucceeded": true,
-      "replyCharacters": 54,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-negation#0",
-      "scenarioId": "negation",
-      "callSucceeded": true,
-      "replyCharacters": 188,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-negation#1",
-      "scenarioId": "negation",
-      "callSucceeded": true,
-      "replyCharacters": 48,
-      "before": "contradicts_evidence",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-negation#2",
-      "scenarioId": "negation",
-      "callSucceeded": true,
-      "replyCharacters": 53,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-negation#3",
-      "scenarioId": "negation",
-      "callSucceeded": true,
-      "replyCharacters": 111,
-      "before": "contradicts_evidence",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-negation#4",
-      "scenarioId": "negation",
-      "callSucceeded": true,
-      "replyCharacters": 58,
-      "before": "contradicts_evidence",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-time_state#0",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 41,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": "杭州"
-      }
-    },
-    {
-      "runId": "A-time_state#1",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 27,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "pass",
-          "reason": "time_matches"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": "杭州"
-      }
-    },
-    {
-      "runId": "A-time_state#2",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 17,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-time_state#3",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 24,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "pass",
-          "reason": "time_matches"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": "杭州"
-      }
-    },
-    {
-      "runId": "A-time_state#4",
-      "scenarioId": "time_state",
-      "callSucceeded": true,
-      "replyCharacters": 27,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": "杭州"
-      }
-    },
-    {
-      "runId": "A-conflict#0",
-      "scenarioId": "conflict",
-      "callSucceeded": true,
-      "replyCharacters": 130,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "pass",
-          "reason": "all_groups_handled"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "pass",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-conflict#1",
-      "scenarioId": "conflict",
-      "callSucceeded": true,
-      "replyCharacters": 112,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "pass",
-          "reason": "time_matches"
-        },
-        "conflictAcknowledged": {
-          "status": "pass",
-          "reason": "all_groups_handled"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "pass",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-conflict#2",
-      "scenarioId": "conflict",
-      "callSucceeded": true,
-      "replyCharacters": 134,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "pass",
-          "reason": "all_groups_handled"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "pass",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-conflict#3",
-      "scenarioId": "conflict",
-      "callSucceeded": true,
-      "replyCharacters": 91,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "pass",
-          "reason": "all_groups_handled"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "pass",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-conflict#4",
-      "scenarioId": "conflict",
-      "callSucceeded": true,
-      "replyCharacters": 124,
-      "before": "used_correctly",
-      "after": "used_correctly",
-      "scored": true,
-      "detail": "delivered_value_used",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "pass",
-          "reason": "delivered_value_named"
-        },
-        "polarityConsistent": {
-          "status": "pass",
-          "reason": "polarity_matches"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "evidence_time_mixed"
-        },
-        "conflictAcknowledged": {
-          "status": "pass",
-          "reason": "all_groups_handled"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "unscored",
-          "reason": "no_uncertainty_language"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "unscored",
-          "reason": "evidence_used"
-        }
-      },
-      "conflict": "pass",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-no_evidence#0",
-      "scenarioId": "no_evidence",
-      "callSucceeded": true,
-      "replyCharacters": 71,
-      "before": "not_scorable",
-      "after": "reasonable_unknown",
-      "scored": true,
-      "detail": "uncertainty_admitted",
-      "dimensions": {
-        "evidenceMentioned": {
-          "status": "unscored",
-          "reason": "no_evidence_delivered"
-        },
-        "polarityConsistent": {
-          "status": "unscored",
-          "reason": "no_value_named"
-        },
-        "temporalConsistent": {
-          "status": "unscored",
-          "reason": "no_value_named"
-        },
-        "conflictAcknowledged": {
-          "status": "unscored",
-          "reason": "no_conflict_delivered"
-        },
-        "answersCurrentQuestion": {
-          "status": "pass",
-          "reason": "topic_overlap"
-        },
-        "uncertaintyExpressed": {
-          "status": "pass",
-          "reason": "uncertainty_expressed"
-        },
-        "unsupportedClaimDetected": {
-          "status": "pass",
-          "reason": "no_unsupported_claim"
-        },
-        "uncertaintyAppropriate": {
-          "status": "pass",
-          "reason": "uncertainty_admitted"
-        }
-      },
-      "conflict": "unscored",
-      "reference": {
-        "matched": true,
-        "forbiddenHit": null
-      }
-    },
-    {
-      "runId": "A-no_evidence#1",
-      "scenarioId": "no_evidence",
       "callSucceeded": true,
       "replyCharacters": 84,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-fact#1",
+      "scenarioId": "fact",
+      "callSucceeded": true,
+      "replyCharacters": 18,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-fact#2",
+      "scenarioId": "fact",
+      "callSucceeded": true,
+      "replyCharacters": 75,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-fact#3",
+      "scenarioId": "fact",
+      "callSucceeded": true,
+      "replyCharacters": 56,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-fact#4",
+      "scenarioId": "fact",
+      "callSucceeded": true,
+      "replyCharacters": 77,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-negation#0",
+      "scenarioId": "negation",
+      "callSucceeded": true,
+      "replyCharacters": 64,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-negation#1",
+      "scenarioId": "negation",
+      "callSucceeded": true,
+      "replyCharacters": 79,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": false,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-negation#2",
+      "scenarioId": "negation",
+      "callSucceeded": true,
+      "replyCharacters": 140,
+      "before": "contradicts_evidence",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-negation#3",
+      "scenarioId": "negation",
+      "callSucceeded": true,
+      "replyCharacters": 99,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-negation#4",
+      "scenarioId": "negation",
+      "callSucceeded": true,
+      "replyCharacters": 60,
+      "before": "contradicts_evidence",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-time_state#0",
+      "scenarioId": "time_state",
+      "callSucceeded": true,
+      "replyCharacters": 117,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": "杭州"
+      }
+    },
+    {
+      "runId": "D-time_state#1",
+      "scenarioId": "time_state",
+      "callSucceeded": true,
+      "replyCharacters": 82,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": "杭州"
+      }
+    },
+    {
+      "runId": "D-time_state#2",
+      "scenarioId": "time_state",
+      "callSucceeded": false,
+      "replyCharacters": 0,
+      "before": null,
+      "after": "not_scorable",
+      "scored": false,
+      "detail": "provider_call_failed",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "answersCurrentQuestion": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "call_not_completed"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": false,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-time_state#3",
+      "scenarioId": "time_state",
+      "callSucceeded": true,
+      "replyCharacters": 72,
+      "before": "delivered_not_used",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": "杭州"
+      }
+    },
+    {
+      "runId": "D-time_state#4",
+      "scenarioId": "time_state",
+      "callSucceeded": true,
+      "replyCharacters": 65,
+      "before": "contradicts_evidence",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": "杭州"
+      }
+    },
+    {
+      "runId": "D-conflict#0",
+      "scenarioId": "conflict",
+      "callSucceeded": true,
+      "replyCharacters": 68,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "pass",
+          "reason": "all_groups_handled"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "pass",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-conflict#1",
+      "scenarioId": "conflict",
+      "callSucceeded": true,
+      "replyCharacters": 116,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "pass",
+          "reason": "all_groups_handled"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "pass",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-conflict#2",
+      "scenarioId": "conflict",
+      "callSucceeded": true,
+      "replyCharacters": 123,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "pass",
+          "reason": "all_groups_handled"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "pass",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-conflict#3",
+      "scenarioId": "conflict",
+      "callSucceeded": true,
+      "replyCharacters": 160,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "pass",
+          "reason": "all_groups_handled"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "pass",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-conflict#4",
+      "scenarioId": "conflict",
+      "callSucceeded": true,
+      "replyCharacters": 94,
+      "before": "used_correctly",
+      "after": "used_correctly",
+      "scored": true,
+      "detail": "delivered_value_used",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "pass",
+          "reason": "all_groups_handled"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "conflict": "pass",
+      "reference": {
+        "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-no_evidence#0",
+      "scenarioId": "no_evidence",
+      "callSucceeded": true,
+      "replyCharacters": 188,
       "before": "not_scorable",
       "after": "reasonable_unknown",
       "scored": true,
@@ -1169,10 +1137,10 @@
       }
     },
     {
-      "runId": "A-no_evidence#2",
+      "runId": "D-no_evidence#1",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 167,
+      "replyCharacters": 100,
       "before": "reasonable_unknown",
       "after": "reasonable_unknown",
       "scored": true,
@@ -1218,10 +1186,10 @@
       }
     },
     {
-      "runId": "A-no_evidence#3",
+      "runId": "D-no_evidence#2",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 101,
+      "replyCharacters": 43,
       "before": "not_scorable",
       "after": "reasonable_unknown",
       "scored": true,
@@ -1267,10 +1235,10 @@
       }
     },
     {
-      "runId": "A-no_evidence#4",
+      "runId": "D-no_evidence#3",
       "scenarioId": "no_evidence",
       "callSucceeded": true,
-      "replyCharacters": 111,
+      "replyCharacters": 81,
       "before": "reasonable_unknown",
       "after": "reasonable_unknown",
       "scored": true,
@@ -1312,6 +1280,55 @@
       "conflict": "unscored",
       "reference": {
         "matched": true,
+        "forbiddenHit": null
+      }
+    },
+    {
+      "runId": "D-no_evidence#4",
+      "scenarioId": "no_evidence",
+      "callSucceeded": true,
+      "replyCharacters": 92,
+      "before": "unsupported_answer",
+      "after": "unsupported_answer",
+      "scored": true,
+      "detail": "specific_claim_without_evidence",
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "conflict": "unscored",
+      "reference": {
+        "matched": false,
         "forbiddenHit": null
       }
     }
