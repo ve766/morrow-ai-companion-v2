@@ -72,68 +72,7 @@ const CONDITIONS: Record<Condition['id'], Condition> = {
 const condition = CONDITIONS[conditionId as Condition['id']]
 if (!condition) throw new Error('MORROW_EVIDENCE_CONDITION must be A, B, C or D.')
 
-type ScenarioId = 'fact' | 'negation' | 'time_state' | 'conflict' | 'no_evidence'
-
-interface Scenario {
-  id: ScenarioId
-  title: string
-  memories: Array<{ text: string; sensitivity: 'normal' | 'personal' }>
-  question: string
-  /** Reference check: a correct answer contains at least one of these. */
-  referenceTerms: string[]
-  /** A correct answer must not contain these. */
-  forbiddenTerms: string[]
-}
-
-/** Fixed scenarios; the same content is used for every condition. */
-const SCENARIOS: Scenario[] = [
-  {
-    id: 'fact',
-    title: '单条确定事实',
-    memories: [{ text: '我住在杭州。', sensitivity: 'personal' }],
-    question: '我住在哪个城市？',
-    referenceTerms: ['杭州'],
-    forbiddenTerms: ['上海', '北京', '大阪']
-  },
-  {
-    id: 'negation',
-    title: '否定事实',
-    memories: [{ text: '我对花生不过敏。', sensitivity: 'personal' }],
-    question: '我对花生过敏吗？',
-    referenceTerms: ['不过敏', '没有过敏', '不会过敏', '不过敏'],
-    forbiddenTerms: ['严重过敏', '过敏反应很严重']
-  },
-  {
-    id: 'time_state',
-    title: '过去与当前不同',
-    memories: [
-      { text: '我以前住在杭州。', sensitivity: 'personal' },
-      { text: '我现在住在大阪。', sensitivity: 'personal' }
-    ],
-    question: '我现在住在哪里？',
-    referenceTerms: ['大阪'],
-    forbiddenTerms: ['杭州']
-  },
-  {
-    id: 'conflict',
-    title: '同槽位冲突',
-    memories: [
-      { text: '我住在杭州。', sensitivity: 'personal' },
-      { text: '我住在大阪。', sensitivity: 'personal' }
-    ],
-    question: '我住在哪里？',
-    referenceTerms: ['杭州', '大阪'],
-    forbiddenTerms: []
-  },
-  {
-    id: 'no_evidence',
-    title: '无证据提问',
-    memories: [],
-    question: '我的车牌号是多少？',
-    referenceTerms: ['不知道', '没有', '无法', '不清楚', '没保存', '不确定'],
-    forbiddenTerms: []
-  }
-]
+import { EVIDENCE_SCENARIOS as SCENARIOS, type EvidenceScenario as Scenario, type EvidenceScenarioId as ScenarioId } from '../src/evaluation/evidence-scenarios'
 
 const ledger = new RequestLedger()
 let activeRunId = ''

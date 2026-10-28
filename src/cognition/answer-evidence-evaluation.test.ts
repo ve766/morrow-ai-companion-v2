@@ -241,6 +241,43 @@ describe('phase 2 D: legacy behaviours still hold', () => {
     expect(mixed).toMatchObject({ outcome: 'not_scorable', scored: false })
   })
 
+  it('does not read a full-width comma as a negation (NFKC turns it into a comma)', () => {
+    // Cloud replies: "一条写着大阪，一条写着杭州，我无法判断". The ASCII comma
+    // after normalisation sat inside the 2-character window and made 杭州 look
+    // negated, which flipped a correct answer into contradicts_evidence.
+    const result = evaluateAnswerEvidence({
+      reply: '有两条互相矛盾的信息：一条写着大阪，一条写着杭州，我无法判断哪个是当前情况。',
+      callSucceeded: true,
+      memories: conflictPair(),
+      question: '我住在哪里？'
+    })
+    expect(result.dimensions.polarityConsistent).not.toMatchObject({ status: 'fail' })
+  })
+
+  it('ignores markdown emphasis when reading polarity', () => {
+    const result = evaluateAnswerEvidence({ reply: '根据记录，你对花生**不过敏**。', callSucceeded: true, memories: [memory('m1', '我对花生不过敏。')], question: '我对花生过敏吗？' })
+    expect(result.dimensions.polarityConsistent).not.toMatchObject({ status: 'fail' })
+    expect(result.outcome).toBe('used_correctly')
+  })
+
+  it('accepts "我没有保存" as an admission of missing memory', () => {
+    const result = evaluateAnswerEvidence({ reply: '我没有保存您的车牌号，无法告诉您。', callSucceeded: true, memories: [], question: '我的车牌号是多少？' })
+    expect(result.dimensions.uncertaintyExpressed).toMatchObject({ status: 'pass' })
+    expect(result).toMatchObject({ outcome: 'reasonable_unknown' })
+  })
+
+  it('does not read a source phrase as a time shift', () => {
+    // "根据你之前保存的信息" refers to when the fact was recorded.
+    const result = evaluateAnswerEvidence({
+      reply: '根据你之前保存的信息，你对花生是没有过敏的。',
+      callSucceeded: true,
+      memories: [memory('m1', '我对花生不过敏。')],
+      question: '我对花生过敏吗？'
+    })
+    expect(result.dimensions.temporalConsistent).not.toMatchObject({ status: 'fail' })
+    expect(result.outcome).toBe('used_correctly')
+  })
+
   it('does not credit a past state as the answer to a present-tense question', () => {
     // Found in the Phase 2.2 experiment: "我以前住在杭州" was scored
     // used_correctly for "我现在住在哪里？" because the topic matched.

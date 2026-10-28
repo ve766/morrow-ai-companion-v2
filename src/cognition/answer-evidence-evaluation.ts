@@ -127,10 +127,12 @@ export interface AnswerEvaluationInput {
   callOutcome?: 'succeeded' | 'failed' | 'cancelled'
 }
 
-const UNKNOWN_MARKERS = /(?:不知道|不确定|无法确定|不清楚|没(?:有)?(?:相关)?(?:的)?(?:关于[^，。！？]{0,12})?(?:记忆|记录|信息|资料)|没(?:有)?提到|未提及|暂时没有|无法回答|无法确认|没有找到|i (?:do not|don't) know|not sure|no (?:saved )?(?:memory|record|information)|cannot (?:tell|answer|confirm)|unable to (?:tell|answer|confirm))/iu
+const UNKNOWN_MARKERS = /(?:不知道|不确定|无法确定|不清楚|没(?:有)?(?:相关)?(?:的)?(?:关于[^，。！？]{0,12})?(?:记忆|记录|信息|资料)|没(?:有)?(?:保存|存储|留存|记下|查到|找到)|记忆(?:库|里|中)(?:里|中)?(?:没有|不含|无)|没(?:有)?提到|未提及|暂时没有|无法回答|无法确认|没有找到|i (?:do not|don't) know|not sure|no (?:saved )?(?:memory|record|information)|cannot (?:tell|answer|confirm)|unable to (?:tell|answer|confirm))/iu
 const CONFLICT_MARKERS = /(?:冲突|不一致|矛盾|两个版本|两种说法|说法不同|记录不一致|以哪个为准|哪个是|conflict|inconsistent|contradict|which one|two versions)/iu
 const CLARIFICATION_MARKERS = /(?:哪个|哪一种|哪一个|以哪个为准|是否仍然|现在住|以什么为准|请你确认|确认一下|which one|which is current|can you confirm)/iu
-const NEGATION_BEFORE = /(?:不|没|无|并非|未)[^，。！？；\s]{0,2}$/u
+// Any punctuation or symbol breaks the adjacency: NFKC turns 全角标点为 ASCII,
+// and cloud replies use dashes and markdown bold around the value.
+const NEGATION_BEFORE = /(?:不|没|无|并非|未)[^\p{P}\p{S}\s]{0,2}$/u
 const PAST_MARKERS = /(?:以前|曾经|过去|去年|前年|之前|当年|小时候)/u
 const PRESENT_MARKERS = /(?:现在|目前|如今|当前|眼下)/u
 const SPECIFIC_FACT = /(?:\d{2,}|[A-Za-z0-9]{3,}|(?:叫|名为|名字是|住在|现居)\s*\S+)/u
@@ -138,7 +140,9 @@ const SPECIFIC_FACT = /(?:\d{2,}|[A-Za-z0-9]{3,}|(?:叫|名为|名字是|住在|
 const stopWords = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'have', 'are', 'was', 'were', 'will', 'your', 'about', '我', '你', '他', '她', '它', '的', '了', '是', '在', '和', '有', '就', '都', '而', '及', '与', '着', '或', '一个', '什么', '怎么', '哪', '吗', '呢'])
 
 function normalize(value: string): string {
-  return value.normalize('NFKC').toLocaleLowerCase()
+  // Markdown emphasis is formatting, not content: "花生**不过敏**" must read
+  // like "花生不过敏", otherwise the bold marker hides the negation.
+  return value.normalize('NFKC').replace(/[*`]/gu, '').toLocaleLowerCase()
 }
 
 function slotOf(content: string): FactSlot | null {
@@ -192,7 +196,7 @@ function negatedAt(reply: string, at: number, length: number): boolean {
   const before = reply.slice(Math.max(0, at - 5), at)
   if (NEGATION_BEFORE.test(before)) return true
   const after = reply.slice(at + length, at + length + 4)
-  return /^(?:[^，。！？；\s]{0,2})(?:不|没|无)/u.test(after)
+  return /^(?:[^\p{P}\p{S}\s]{0,2})(?:不|没|无)/u.test(after)
 }
 
 /** Time words attached to the mention, not anywhere in a long reply. */
@@ -200,12 +204,17 @@ function timeAround(reply: string, at: number, length: number): { past: boolean;
   // The window has to cover the predicate phrase: in "你对花生的过敏已经过去
   // 了" the time word sits 8 characters after 花生.
   const window = reply.slice(Math.max(0, at - 12), at + length + 12)
+  // Source phrasing can sit further back than the time window ("根据你之前提供
+  // 的信息，你对花生不过敏"); look one clause back for it.
+  const sourceWindow = reply.slice(Math.max(0, at - 24), at)
   // "你之前说住在杭州" refers to when the user said it, not to a past state of
   // the fact, so it is reported speech rather than a time shift.
   return {
     past: PAST_MARKERS.test(window),
     present: PRESENT_MARKERS.test(window),
-    reported: /(?:说|提到|告诉|讲过)/u.test(window)
+    // Source phrasing ("根据你之前保存的信息") points at when the fact was
+    // recorded, not at a past state of the fact.
+    reported: /(?:说|提到|告诉|讲过|保存|记录|来源|根据)/u.test(window) || /(?:说|提到|告诉|讲过|保存|记录|来源|根据)/u.test(sourceWindow)
   }
 }
 
@@ -394,11 +403,12 @@ function assessQuestion(input: AnswerEvaluationInput, reply: string, memories: r
     // common but the wrong time; topic overlap alone must not pass it.
     const queryTime = input.question ? slotOf(input.question)?.time : null
     if (queryTime !== 'present') return result
+    // No reported-speech filter here: "根据保存的信息，你现在住在大阪" is a
+    // current statement even though it names its source.
     const mentionsInReply = memories
       .map((memory) => statedValue(memory.content))
       .filter((value) => value.length > 0)
       .flatMap((value) => mentions(reply, value).map((at) => timeAround(reply, at, value.length)))
-      .filter((around) => !around.reported)
     if (mentionsInReply.length === 0) return result
     const allPast = mentionsInReply.every((around) => around.past && !around.present)
     return allPast ? { status: 'fail', reason: 'answer_uses_wrong_time' } : result
