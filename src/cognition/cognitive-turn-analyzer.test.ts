@@ -75,6 +75,16 @@ describe('local cognitive turn analysis', () => {
     })
   })
 
+  it('treats a short follow-up without deictic words as a reference to the previous user message', () => {
+    const followUp = analyze('那后天呢？', [{ id: priorId, role: 'user', body: '我下周要去杭州出差。' }])
+    expect(followUp).toMatchObject({
+      topicSource: 'previous_user_message',
+      topicReferenceMessageId: priorId
+    })
+    // Without any prior message there is nothing to resolve, so it must ask.
+    expect(analyze('那后天呢？')).toMatchObject({ strategy: 'clarify', topicReferenceMessageId: null })
+  })
+
   it('asks for clarification for unresolved references and does not reuse a prior topic after an explicit topic switch', () => {
     expect(analyze('那怎么办？')).toMatchObject({ strategy: 'clarify', topicSource: 'none', topicReferenceMessageId: null })
 

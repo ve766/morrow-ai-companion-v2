@@ -128,7 +128,11 @@ export function analyzeCognitiveTurn(
     .slice(0, 2)
     .map(([candidate]) => candidate)
   const uncertainty = uncertaintyFor(intent, confidenceScore, alternatives, current)
-  const currentHasReference = patterns.unresolvedReference.test(current)
+  // A short follow-up ("那后天呢？", "然后呢？") is itself a reference even when
+  // it contains none of the explicit deictic words: the turn only makes sense
+  // against the previous message. Treating it as a reference is what lets the
+  // retrieval query include the sentence it actually depends on.
+  const currentHasReference = patterns.unresolvedReference.test(current) || patterns.followUp.test(current)
   const likelyFollowUp = Boolean(priorUser && !signals.topicSwitch && intent !== 'feedback' && currentHasReference && (
     wordCount(current) <= 4 || (patterns.followUp.test(current) && signals.explicitMemoryRequest)
   ))
