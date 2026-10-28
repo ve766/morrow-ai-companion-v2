@@ -243,6 +243,36 @@ const scenarios: ScenarioSpec[] = [
     }
   },
   {
+    id: 'question-not-fact', title: '疑问不被当成已确认事实', kind: 'boundary',
+    expectedEvidence: null, forbiddenEvidence: ['咪咪'], expectedInReply: null, forbiddenInReply: [],
+    run: async (stack) => {
+      stack.memories.create('我养了一只叫咪咪的猫。', 'personal')
+      const conversation = stack.companion.createConversation()
+      const result = await turn(stack.companion, conversation.id, '我喜欢猫吗？')
+      return { reply: result.reply, system: systemOf(stack.takePayload()), callSucceeded: result.ok, notes: 'a question must not confirm a preference' }
+    }
+  },
+  {
+    id: 'negated-health', title: '否定的健康陈述不被当作等价', kind: 'boundary',
+    expectedEvidence: '花生', forbiddenEvidence: [], expectedInReply: null, forbiddenInReply: [],
+    run: async (stack) => {
+      stack.memories.create('我对花生严重过敏。', 'sensitive')
+      const conversation = stack.companion.createConversation()
+      const result = await turn(stack.companion, conversation.id, '我对花生不过敏。', randomUUID(), true)
+      return { reply: result.reply, system: systemOf(stack.takePayload()), callSucceeded: result.ok, notes: 'stored fact is evidence; the negation stays in the user turn' }
+    }
+  },
+  {
+    id: 'mixed-time-health', title: '过去与当前状态不合并', kind: 'boundary',
+    expectedEvidence: null, forbiddenEvidence: [], expectedInReply: null, forbiddenInReply: [],
+    run: async (stack) => {
+      stack.memories.create('我以前对花生过敏，现在不过敏了。', 'personal')
+      const conversation = stack.companion.createConversation()
+      const result = await turn(stack.companion, conversation.id, '我对什么过敏？')
+      return { reply: result.reply, system: systemOf(stack.takePayload()), callSucceeded: result.ok, notes: 'mixed-time statement must not become a resolved current fact' }
+    }
+  },
+  {
     id: 'retry', title: '同一请求重试不重复写入', kind: 'idempotency',
     expectedEvidence: null, forbiddenEvidence: [], expectedInReply: null, forbiddenInReply: [],
     run: async (stack) => {

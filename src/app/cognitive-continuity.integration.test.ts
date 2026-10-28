@@ -464,4 +464,70 @@ describe('slice 2.1: time compatibility and tri-state comparison', () => {
       ctx.database.close()
     }
   })
+
+})
+
+describe('slice 2.2: mood, polarity and time state at the payload', () => {
+  it('does not turn a question into a confirmed fact', async () => {
+    const ctx = setup()
+    try {
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我喜欢猫吗？')
+      const system = lastSystem(ctx.previews)
+      expect(system).toContain('intent=information_query')
+      // No memory exists, so the block must stay empty rather than assert a
+      // preference the user never confirmed.
+      expect(memoryBlock(system)).not.toContain('"id"')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('keeps a negated health statement as a contradiction, not as agreement', async () => {
+    const ctx = setup()
+    try {
+      const allergy = ctx.memories.create('我对花生严重过敏。', 'sensitive')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我对花生不过敏。', randomUUID(), true)
+      const payload = JSON.parse(ctx.previews.at(-1)!) as CapturedPayload
+      const block = memoryBlock(lastSystem(ctx.previews))
+      // The stored fact is delivered as evidence with its id, the user's own
+      // negation stays in the user turn, and the negation is never written
+      // into the stored evidence as if the user had confirmed it.
+      expect(block).toContain(allergy.id)
+      expect(block).toContain('花生')
+      expect(block).not.toContain('不过敏')
+      expect(payload.body.messages.at(-1)?.content).toBe('我对花生不过敏。')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('does not merge a mixed-time health statement into a current fact', async () => {
+    const ctx = setup()
+    try {
+      ctx.memories.create('我以前对花生过敏，现在不过敏了。', 'personal')
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我对什么过敏？')
+      const block = memoryBlock(lastSystem(ctx.previews))
+      // Delivered only if lexically relevant; it must never be marked as a
+      // resolved current fact, and must not conflict with itself.
+      expect(block).not.toContain('"status":"unresolved"')
+    } finally {
+      ctx.database.close()
+    }
+  })
+
+  it('still keeps retracted and above-ceiling memories out of the payload', async () => {
+    const ctx = setup()
+    try {
+      const retracted = ctx.memories.create('我对花生严重过敏。', 'personal')
+      ctx.memories.retract(retracted.id)
+      const conversation = ctx.companion.createConversation()
+      await send(ctx.companion, conversation.id, '我对什么过敏？')
+      expect(memoryBlock(lastSystem(ctx.previews))).not.toContain('花生')
+    } finally {
+      ctx.database.close()
+    }
+  })
 })

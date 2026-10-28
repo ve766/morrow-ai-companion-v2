@@ -65,4 +65,61 @@ describe('three-state fact comparison', () => {
     expect(compareFactValues(slot('我住在哪里？'), slot('我住在杭州。'))).toBe('uncertain')
     expect(compareFactValues(null, slot('我住在杭州。'))).toBe('uncertain')
   })
+
+})
+
+describe('slice 2.2: sentence mood, negation scope and time state', () => {
+  const slot = (text: string) => readFactSlot(text)
+
+  it('recognises sentence-final questions without turning them into facts', () => {
+    for (const text of ['我喜欢猫吗？', '我住在杭州吗？', '我今年多少岁？', '我喜欢什么？']) {
+      expect(slot(text), text).toMatchObject({ kind: 'question', value: '' })
+    }
+    expect(slot('我住在杭州。')).toMatchObject({ kind: 'assertion', value: '杭州' })
+    expect(slot('我不喜欢猫。')).toMatchObject({ kind: 'negated', value: '猫' })
+    expect(slot('如果我喜欢猫呢？')).toMatchObject({ kind: 'uncertain', value: '' })
+  })
+
+  it('binds health negation to the predicate instead of the value', () => {
+    expect(slot('我对花生严重过敏。')).toMatchObject({ predicate: 'health', value: '花生', kind: 'assertion' })
+    expect(slot('我对花生不过敏。')).toMatchObject({ predicate: 'health', value: '花生', kind: 'negated' })
+    expect(slot('我没有花生过敏。')).toMatchObject({ predicate: 'health', value: '花生', kind: 'negated' })
+    // 花生不 must never be read as the object.
+    expect(slot('我对花生不过敏。')?.value).not.toContain('不')
+  })
+
+  it('keeps a past and a present health state undecided instead of merging them', () => {
+    const mixed = slot('我以前对花生过敏，现在不过敏了。')
+    expect(mixed).toMatchObject({ kind: 'uncertain', time: 'mixed', value: '' })
+    expect(compareFactValues(mixed, slot('我对花生严重过敏。'))).toBe('uncertain')
+  })
+
+  it('keeps modal and reported health statements uncertain', () => {
+    expect(slot('我可能对花生过敏。')).toMatchObject({ kind: 'uncertain', value: '' })
+    expect(slot('听说我对花生过敏。')).toMatchObject({ kind: 'uncertain', value: '' })
+  })
+
+  it('handles negation scope, double negation and contrast', () => {
+    expect(slot('我不喜欢猫。')).toMatchObject({ kind: 'negated', value: '猫' })
+    expect(slot('我喜欢猫。')).toMatchObject({ kind: 'assertion', value: '猫' })
+    expect(slot('我不再喜欢猫了。')).toMatchObject({ kind: 'negated', value: '猫' })
+    expect(slot('我不是不喜欢猫。')).toMatchObject({ kind: 'uncertain', value: '' })
+    expect(slot('我以前喜欢猫，但现在不喜欢了。')).toMatchObject({ kind: 'uncertain', time: 'mixed', value: '' })
+  })
+
+  it('treats a negated health statement as a contradiction of the positive one', () => {
+    expect(compareFactValues(slot('我对花生严重过敏。'), slot('我对花生不过敏。'))).toBe('conflict')
+    expect(compareFactValues(slot('我对花生过敏。'), slot('我没有花生过敏。'))).toBe('conflict')
+  })
+
+  it('does not compare a question or an uncertain sentence as agreement', () => {
+    expect(compareFactValues(slot('我喜欢猫吗？'), slot('我喜欢猫。'))).toBe('uncertain')
+    expect(compareFactValues(slot('我可能对花生过敏。'), slot('我对花生过敏。'))).toBe('uncertain')
+  })
+
+  it('keeps different time states from becoming a contradiction', () => {
+    const past = { ...slot('我住在杭州。')!, time: 'past' as const }
+    const present = { ...slot('我住在大阪。')!, time: 'present' as const }
+    expect(compareFactValues(past, present)).toBe('uncertain')
+  })
 })

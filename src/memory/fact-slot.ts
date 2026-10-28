@@ -27,6 +27,8 @@ export type FactPredicate =
 
 export type FactStatus = 'active' | 'superseded' | 'unresolved'
 export type FactKind = 'assertion' | 'question' | 'negated' | 'uncertain'
+/** Time reference of the statement. `mixed` means two states in one sentence. */
+export type FactTime = 'past' | 'present' | 'mixed' | 'unspecified'
 export type ValueRelation = 'equivalent' | 'conflict' | 'uncertain'
 
 export interface FactSlot {
@@ -35,6 +37,7 @@ export interface FactSlot {
   /** Object text. Empty for questions and for unreadable statements. */
   value: string
   kind: FactKind
+  time: FactTime
   /** Kept for callers that only ask "is this a question". */
   question: boolean
   observedAt: string
@@ -55,7 +58,8 @@ const NON_ASSERTION = /(?:如果|假设|假如|要是|万一|听说|据说|「|�
 const COPULA = /^\s*(?:是|为|就是|叫|在)/u
 
 function clean(value: string): string {
-  return value.normalize('NFKC').replace(COPULA, '').replace(/^有/u, '').replace(VALUE_NOISE, '').replace(/\s+/gu, '')
+  // Punctuation first, so a trailing 了 is actually trailing.
+  return value.normalize('NFKC').replace(VALUE_NOISE, '').replace(COPULA, '').replace(/^有/u, '').replace(/了$/u, '').replace(VALUE_NOISE, '').replace(/\s+/gu, '')
 }
 
 function negatedBefore(text: string, index: number): boolean {
@@ -122,8 +126,11 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
     predicate: 'health',
     read: (text) => {
       // The object of an allergy sits before the marker: 我对花生严重过敏.
-      const allergy = /对([^，。；\n]{1,20}?)(?:严重|比较|有点)?过敏/u.exec(text)
-      if (allergy) return { value: clean(allergy[1] ?? ''), negated: negatedBefore(text, allergy.index), asks: false }
+      // The negation sits between object and marker: 我对花生不过敏.
+      const allergy = /对([^，。；\n]{1,20}?)(?:严重|比较|有点)?(不)?过敏/u.exec(text)
+      if (allergy) return { value: clean(allergy[1] ?? ''), negated: Boolean(allergy[2]), asks: false }
+      const absent = /(?:没有|没|无)([^，。；\n]{1,20}?)过敏/u.exec(text)
+      if (absent) return { value: clean(absent[1] ?? ''), negated: true, asks: false }
       const marker = /(?:忌口|不能吃|患有|确诊|病史)(?:是|为)?/u.exec(text)
       if (!marker) return null
       return { value: clean(text.slice(marker.index + marker[0].length)), negated: negatedBefore(text, marker.index), asks: false }
@@ -166,6 +173,39 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
   }
 ]
 
+const HYPOTHETICAL = /(?:如果|假设|假如|要是|万一|听说|据说|「|」|“|”)/u
+const MODAL = /(?:可能|也许|或许|好像|似乎|大概|应该|不确定)/u
+const DOUBLE_NEGATION = /(?:不是不|并非不)/u
+const PAST = /(?:以前|曾经|过去|去年|前年|之前|小时候)/u
+const PRESENT = /(?:现在|如今|目前|当前)/u
+const QUESTION_MARKER = /(?:吗|么|呢)\s*[？?]?$/u
+const INTERROGATIVE = /(?:是否|难道|是不是)/u
+const QUESTION_VALUE = /^(?:是?什么|有(?:哪些|什么|几个)|哪(?:里|儿|个|种|些)?|多少|谁|几|怎么样|如何)/u
+
+/**
+ * Sentence-level analysis. Predicate detection and value extraction say
+ * *what* was said; this decides whether it was asserted, asked, denied or is
+ * not decidable. The two must stay separate: a value is not a fact until the
+ * mood and polarity are known.
+ */
+function analyzeMood(text: string, extracted: { value: string; negated: boolean }): { kind: FactKind; time: FactTime } {
+  const past = PAST.test(text)
+  const present = PRESENT.test(text)
+  const time: FactTime = past && present ? 'mixed' : past ? 'past' : present ? 'present' : 'unspecified'
+
+  // Two states in one sentence ("我以前…，现在…") cannot become one fact.
+  if (past && present && /不/u.test(text)) return { kind: 'uncertain', time }
+  if (HYPOTHETICAL.test(text) || MODAL.test(text) || DOUBLE_NEGATION.test(text)) return { kind: 'uncertain', time }
+  if (time === 'mixed') return { kind: 'uncertain', time }
+
+  const asks = QUESTION_MARKER.test(text) || INTERROGATIVE.test(text) || QUESTION_VALUE.test(extracted.value) ||
+    (extracted.value.length === 0 && /[？?]$/u.test(text.trim())) ||
+    /[？?]$/u.test(text.trim())
+  if (asks) return { kind: 'question', time }
+  if (extracted.negated) return { kind: 'negated', time }
+  return { kind: 'assertion', time }
+}
+
 export function readFactSlot(
   text: string,
   context: { observedAt?: string; status?: FactStatus; sourceId?: string } = {}
@@ -175,14 +215,13 @@ export function readFactSlot(
   for (const extractor of EXTRACTORS) {
     const extracted = extractor.read(normalized)
     if (!extracted) continue
-    const asks = extracted.asks || extracted.value.length === 0 || QUESTION_TAIL.test(extracted.value)
-    const nonAssertion = NON_ASSERTION.test(normalized)
-    const kind: FactKind = nonAssertion ? 'uncertain' : asks ? 'question' : extracted.negated ? 'negated' : 'assertion'
+    const { kind, time } = analyzeMood(normalized, extracted)
     return {
       subject: 'user',
       predicate: extractor.predicate,
-      value: asks || nonAssertion ? '' : extracted.value.slice(0, 120).toLocaleLowerCase(),
+      value: kind === 'question' || kind === 'uncertain' ? '' : extracted.value.slice(0, 120).toLocaleLowerCase(),
       kind,
+      time,
       question: kind === 'question',
       observedAt: context.observedAt ?? '',
       status: context.status ?? 'active',
@@ -214,7 +253,10 @@ export function compareFactValues(left: FactSlot | null, right: FactSlot | null)
   if (!left || !right) return 'uncertain'
   if (left.subject !== right.subject || left.predicate !== right.predicate) return 'uncertain'
   if (left.kind === 'question' || right.kind === 'question') return 'uncertain'
+  if (left.kind === 'uncertain' || right.kind === 'uncertain') return 'uncertain'
   if (left.value.length === 0 || right.value.length === 0) return 'uncertain'
+  // A past and a present state can both be true; they are not a contradiction.
+  if (left.time !== right.time && left.time !== 'unspecified' && right.time !== 'unspecified') return 'uncertain'
   if (left.kind === 'negated' !== (right.kind === 'negated')) return 'conflict'
   const a = comparable(left.value)
   const b = comparable(right.value)
@@ -231,7 +273,7 @@ export function slotsConflict(left: FactSlot | null, right: FactSlot | null): bo
 /** Backwards-compatible helper: disagreement means a proven contradiction. */
 export function valuesDisagree(left: string, right: string): boolean {
   return compareFactValues(
-    { subject: 'user', predicate: 'residence', value: left, kind: 'assertion', question: false, observedAt: '', status: 'active', sourceId: '' },
-    { subject: 'user', predicate: 'residence', value: right, kind: 'assertion', question: false, observedAt: '', status: 'active', sourceId: '' }
+    { subject: 'user', predicate: 'residence', value: left, kind: 'assertion', time: 'unspecified', question: false, observedAt: '', status: 'active', sourceId: '' },
+    { subject: 'user', predicate: 'residence', value: right, kind: 'assertion', time: 'unspecified', question: false, observedAt: '', status: 'active', sourceId: '' }
   ) === 'conflict'
 }
