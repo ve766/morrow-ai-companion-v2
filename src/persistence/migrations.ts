@@ -647,6 +647,50 @@ export const migrations: readonly Migration[] = [
         ALTER TABLE provider_profiles_v16 RENAME TO provider_profiles;
       `)
     }
+  },
+  {
+    version: 17,
+    name: 'cognitive-turn-context-and-pending-items',
+    up(database) {
+      // Two things Phase 2.4 needs to persist, both keyed so that a retried
+      // turn can never write a second row:
+      //
+      //   * the turn context answers "which memories, which personality and
+      //     which internal state produced this answer" after the process is
+      //     gone, so it is keyed by the turn id itself;
+      //   * pending items are the minimal form of internal activity: one row
+      //     per distinct concern, deduplicated by a derived key rather than by
+      //     scanning text at read time.
+      database.exec(`
+        CREATE TABLE cognitive_turn_contexts (
+          turn_id TEXT PRIMARY KEY NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          status TEXT NOT NULL CHECK (status IN ('succeeded', 'failed', 'cancelled')),
+          recorded_at TEXT NOT NULL,
+          payload_json TEXT NOT NULL CHECK (length(payload_json) <= 20000)
+        ) STRICT;
+        CREATE INDEX cognitive_turn_contexts_conversation_idx
+          ON cognitive_turn_contexts(conversation_id, recorded_at DESC);
+
+        CREATE TABLE cognitive_pending_items (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          dedupe_key TEXT NOT NULL CHECK (length(dedupe_key) BETWEEN 1 AND 300 AND instr(dedupe_key, char(0)) = 0),
+          source TEXT NOT NULL CHECK (source IN ('conflict', 'evidence_gap', 'open_question', 'reflection', 'interest')),
+          kind TEXT NOT NULL CHECK (length(trim(kind)) BETWEEN 1 AND 64),
+          summary TEXT NOT NULL CHECK (length(trim(summary)) BETWEEN 1 AND 500 AND instr(summary, char(0)) = 0),
+          priority INTEGER NOT NULL CHECK (priority BETWEEN 0 AND 100),
+          status TEXT NOT NULL CHECK (status IN ('open', 'done', 'dropped')),
+          conversation_id TEXT CHECK (conversation_id IS NULL OR length(conversation_id) = 36),
+          detail_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT
+        ) STRICT;
+        CREATE UNIQUE INDEX cognitive_pending_items_dedupe_uq ON cognitive_pending_items(dedupe_key);
+        CREATE INDEX cognitive_pending_items_status_idx
+          ON cognitive_pending_items(status, priority DESC, created_at);
+      `)
+    }
   }
 ]
 

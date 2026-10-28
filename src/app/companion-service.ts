@@ -35,7 +35,7 @@ import { OpenAICompatibleProvider } from '../providers/openai-compatible'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
 import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognition/cognitive-turn-analyzer'
-import { policyForIntent } from '../memory/retrieval-policy'
+import { policyForIntent, unrestrictedPolicy } from '../memory/retrieval-policy'
 import { guardAnswerFacts } from '../cognition/answer-fact-guard'
 import { remoteSpecFor } from '../providers/provider-registry'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
@@ -43,6 +43,10 @@ import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
 import { buildTurnEvaluation, turnEvaluationEventPayload, type TurnEvaluation } from '../cognition/turn-evaluation'
 import type { IntentDecision } from '../cognition/intent-decision'
 import { CognitiveSettingsService } from '../cognition/cognitive-settings'
+import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
+import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
+import type { PendingCognitionService } from '../cognition/pending-items'
+import type { TurnContextPort } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
@@ -643,6 +647,8 @@ export class CompanionService {
   readonly memorySuggestions: MemorySuggestionService
   private readonly guidanceVariant: EvidenceGuidanceVariant
   private readonly evidencePresentation: EvidencePresentation
+  /** Phase 2.4 stores, exposed so the shell can read pending items. */
+  readonly continuity?: ContinuityPorts | undefined
 
   constructor(options: {
     database: SqliteDatabase
@@ -664,6 +670,8 @@ export class CompanionService {
     guidanceVariant?: EvidenceGuidanceVariant
     /** `json` (production) or `entries` (Phase 2.2 experiment only). */
     evidencePresentation?: EvidencePresentation
+    /** Turn context + pending-item stores; omitted by offline callers. */
+    continuity?: ContinuityPorts
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
@@ -725,7 +733,8 @@ export class CompanionService {
         }
       : undefined
     const ledger = options.ledger ?? journal
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation)
+    this.continuity = options.continuity
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -757,6 +766,22 @@ export class CompanionService {
   proposeMemorySuggestions(request: MemoryProposalRequest): Promise<MemorySuggestion[]> { return this.memorySuggestions.propose(request) }
   reviewMemorySuggestion(request: MemorySuggestionReviewRequest): MemorySuggestion[] { return this.memorySuggestions.review(request) }
 
+  /** Open internal items, highest priority first. Empty when not wired. */
+  listPendingItems(limit?: number): ReturnType<PendingCognitionService['listOpen']> {
+    return this.continuity?.pending.listOpen(limit) ?? []
+  }
+
+  /** Marks an item done. Returns false only when the id does not exist. */
+  completePendingItem(request: { itemId: string }): boolean {
+    if (!this.continuity) throw new ApplicationError('NOT_FOUND')
+    return this.continuity.pending.complete(normalizedUuid(request.itemId))
+  }
+
+  /** The recorded context of one turn, or null when it was never written. */
+  readTurnContext(request: { turnId: string }): CognitiveTurnContext | null {
+    return this.continuity?.contexts.get(normalizedUuid(request.turnId)) ?? null
+  }
+
   shutdown(): void { this.chat.shutdown() }
 }
 
@@ -771,6 +796,36 @@ export interface SelfModelLoopHooks {
     content: string
     analysis?: CognitiveTurnAnalysis
   }): void
+}
+
+/**
+ * Phase 2.4 continuity stores.
+ *
+ * Both are optional so the service keeps working without them (older tests and
+ * the offline evaluation build one without a database-backed recorder), but
+ * when present the turn path writes through them: a turn context for audit and
+ * pending items for internal activity.
+ */
+export interface ContinuityPorts {
+  contexts: TurnContextPort
+  pending: PendingCognitionService
+}
+
+/**
+ * Everything one turn decided before the provider was called. Named so the
+ * continuity recorder can take it without re-deriving anything: the record
+ * must describe what was actually sent, not a second computation of it.
+ */
+export interface PreparedTurn {
+  input: ProviderInput
+  memory: AssembledMemoryContext
+  analysis?: CognitiveTurnAnalysis
+  decision?: IntentDecision
+  feelingEvent?: CognitiveFeelingEvent
+  profile: PersonalityProfile
+  previousFeelingState?: FeelingState
+  nextFeelingState?: FeelingState
+  retrieval: RetrievalAdjustment
 }
 
 export class ChatService {
@@ -794,7 +849,9 @@ export class ChatService {
     /** Evidence-instruction variant; see CompanionService options. */
     private readonly guidanceVariant: EvidenceGuidanceVariant = 'v2',
     /** How delivered evidence is rendered; see CompanionService options. */
-    private readonly evidencePresentation: EvidencePresentation = 'json'
+    private readonly evidencePresentation: EvidencePresentation = 'json',
+    /** Phase 2.4 turn context and pending-item stores. */
+    private readonly continuity?: ContinuityPorts
   ) {}
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
@@ -912,12 +969,49 @@ export class ChatService {
       try {
         output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => onDelta?.(delta))
       } catch (error) {
+        // A cancelled request is not a failed one: the adapter reports
+        // `PROVIDER_CANCELLED` when the caller aborted, and the abort may also
+        // arrive without the adapter turning it into an error. Both are
+        // recorded as a cancellation so the audit trail does not read as a
+        // provider fault.
+        const cancelled = controller.signal.aborted ||
+          (error instanceof ApplicationError && error.code === 'PROVIDER_CANCELLED')
         // A failed call is recorded as a failed call, never dropped from the
         // denominator and never counted as a model error.
-        this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'failed', answer: null })
+        this.recordContinuity({
+          prepared: verified,
+          config,
+          conversationId,
+          requestId,
+          userMessageId: userMessage.id,
+          assistantMessageId: null,
+          status: cancelled ? 'cancelled' : 'failed',
+          guard: null,
+          blockedClaimKinds: [],
+          attempts: null,
+          errorKind: error instanceof ApplicationError ? error.code : 'UNKNOWN',
+          feelingApplied: false,
+          at: this.now()
+        })
+        this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: cancelled ? 'cancelled' : 'failed', answer: null })
         throw error
       }
       if (controller.signal.aborted) {
+        this.recordContinuity({
+          prepared: verified,
+          config,
+          conversationId,
+          requestId,
+          userMessageId: userMessage.id,
+          assistantMessageId: null,
+          status: 'cancelled',
+          guard: null,
+          blockedClaimKinds: [],
+          attempts: null,
+          errorKind: 'PROVIDER_CANCELLED',
+          feelingApplied: false,
+          at: this.now()
+        })
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'cancelled', answer: null })
         throw new ApplicationError('PROVIDER_CANCELLED')
       }
@@ -942,6 +1036,7 @@ export class ChatService {
       }
       const current = this.conversations.read(conversationId)
       let assistantMessage = current.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
+      let feelingApplied = false
       if (!assistantMessage) {
         const afterPersist = verified.feelingEvent && cognitiveObservationPersisted
           ? (saved: ReturnType<ConversationService['read']>) => {
@@ -956,11 +1051,13 @@ export class ChatService {
         try {
           const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, afterPersist ? { afterPersist } : {})
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
+          feelingApplied = Boolean(afterPersist) && Boolean(assistantMessage)
         } catch {
           if (!afterPersist) throw new ApplicationError('STORAGE_ERROR')
           console.warn('Local feeling-state update was unavailable; preserving the completed assistant response.')
           const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId)
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
+          feelingApplied = false
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
@@ -977,6 +1074,23 @@ export class ChatService {
           console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
         }
       }
+      // Phase 2.4: record what this turn read and what it changed. The turn id
+      // is the idempotency key, so a re-delivered request cannot write twice.
+      this.recordContinuity({
+        prepared: verified,
+        config,
+        conversationId,
+        requestId,
+        userMessageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        status: 'succeeded',
+        guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length },
+        blockedClaimKinds: guard.unsupportedClaims.map((claim) => claim.kind),
+        attempts: output.attempts ?? null,
+        errorKind: null,
+        feelingApplied,
+        at: this.now()
+      })
       const answer = evaluateAnswerEvidence({
         reply: deliveredText,
         callSucceeded: true,
@@ -1056,7 +1170,7 @@ export class ChatService {
     idempotencyKey: string,
     settings: CognitiveCoreSettings,
     evaluationAt: string
-  ): { input: ProviderInput; memory: AssembledMemoryContext; analysis?: CognitiveTurnAnalysis; decision?: IntentDecision; feelingEvent?: CognitiveFeelingEvent } {
+  ): PreparedTurn {
     const content = request.content.trim()
     const max: Sensitivity = request.includeSensitive ? 'sensitive' : 'personal'
     const profile = this.personality.get()
@@ -1066,6 +1180,7 @@ export class ChatService {
     let feelingEvent: CognitiveFeelingEvent | undefined
     let feelingState: FeelingState | undefined
     let previousFeelingState: FeelingState | undefined
+    let retrieval: RetrievalAdjustment = adjustPolicyForState(unrestrictedPolicy(), null)
 
     if (settings.available && settings.enabled) {
       try {
@@ -1083,14 +1198,20 @@ export class ChatService {
           priorUserBody: priorUserMessage?.body,
           widen: firstPass.strategy === 'retrieve_memory'
         })
-        // The intent narrows the search; it never widens permission, status or
-        // sensitivity, which are applied inside the assembler.
-        memory = this.memories.assembleContext(retrievalQuery, max, policyForIntent(decision.intent), this.evidencePresentation)
+        // The state at the *start* of the turn decides the retrieval breadth,
+        // so this read has to happen before the memory search. Using the state
+        // after applying this turn's event would let one turn's own event
+        // decide its own evidence.
+        const stateView = this.feelings.snapshot(evaluationAt)
+        if (stateView.available) previousFeelingState = stateView.state
+        // The intent narrows the search; the state may widen it by a bounded
+        // amount; neither can widen permission, status or sensitivity, which
+        // are applied inside the assembler.
+        retrieval = adjustPolicyForState(policyForIntent(decision.intent), previousFeelingState)
+        memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
-        const stateView = this.feelings.snapshot(evaluationAt)
         if (stateView.available) {
-          previousFeelingState = stateView.state
           feelingEvent = createCognitiveFeelingEvent({
             analysis,
             content,
@@ -1110,7 +1231,13 @@ export class ChatService {
       }
     }
 
-    if (!memory) memory = this.memories.assembleContext(content, max)
+    if (!memory) {
+      // Cognitive core disabled or unavailable: no intent to narrow by, so the
+      // unrestricted cap is reported and applied. It is the same cap the
+      // assembler would use with no policy at all.
+      retrieval = adjustPolicyForState(unrestrictedPolicy(), null)
+      memory = this.memories.assembleContext(content, max, retrieval.policy, this.evidencePresentation)
+    }
     const system = [
       `User-controlled communication preferences, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}.`,
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
@@ -1136,9 +1263,13 @@ export class ChatService {
     const requestPayload = makeRequestPayload(config.model, messages, true, 2048, config.id === DEEPSEEK_PROVIDER_ID)
     return {
       memory,
+      profile,
+      retrieval,
       ...(analysis ? { analysis } : {}),
       ...(decision ? { decision } : {}),
       ...(feelingEvent ? { feelingEvent } : {}),
+      ...(feelingState ? { nextFeelingState: feelingState } : {}),
+      ...(previousFeelingState ? { previousFeelingState } : {}),
       input: {
         prompt: content,
         context: memory,
@@ -1148,6 +1279,118 @@ export class ChatService {
       }
     }
   }
+  /**
+   * Persists the two Phase 2.4 records for one turn.
+   *
+   * It is called on every terminal path — success, failure, cancellation — and
+   * it is idempotent: the turn id is the primary key of the context row and the
+   * pending items are deduplicated by their concern key. That is what lets the
+   * recovery path re-run it after a crash without duplicating anything.
+   *
+   * A write failure is logged and never turns a delivered answer into an error;
+   * conversely, a failed write never claims the state was saved.
+   *
+   * Ordering note: the assistant message is the commit point of a turn, so the
+   * context is written after it. If the process dies in between, the next
+   * request for the same turn id sees the stored answer and does not fabricate
+   * a context it can no longer observe (the sensitivity ceiling and the exact
+   * payload are gone). A missing record is honest; a guessed one is not.
+   */
+  private recordContinuity(input: {
+    prepared: PreparedTurn
+    config: ProviderConfigRecord
+    conversationId: string
+    requestId: string
+    userMessageId: string
+    assistantMessageId: string | null
+    status: CognitiveTurnStatus
+    guard: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+    blockedClaimKinds: readonly string[]
+    attempts: number | null
+    errorKind: string | null
+    feelingApplied: boolean
+    at: string
+  }): void {
+    if (!this.continuity) return
+    const { prepared } = input
+    let pendingItemIds: string[] = []
+    if (input.status === 'succeeded') {
+      try {
+        pendingItemIds = this.continuity.pending.observeTurn({
+          turnId: input.requestId,
+          conversationId: input.conversationId,
+          at: input.at,
+          status: 'succeeded',
+          conflicts: (prepared.memory.conflicts ?? []).map((conflict) => ({ predicate: conflict.predicate, memoryIds: conflict.memoryIds })),
+          blockedClaimKinds: input.blockedClaimKinds
+        })
+      } catch {
+        pendingItemIds = []
+        console.warn('Pending cognition items could not be recorded; the conversation itself is unaffected.')
+      }
+    }
+    try {
+      const context = buildCognitiveTurnContext({
+        turnId: input.requestId,
+        conversationId: input.conversationId,
+        userMessageId: input.userMessageId,
+        assistantMessageId: input.assistantMessageId,
+        recordedAt: input.at,
+        status: input.status,
+        intent: {
+          label: prepared.decision?.intent ?? 'unavailable',
+          confidence: prepared.decision?.confidence ?? 0,
+          confidenceLevel: prepared.decision?.confidenceLevel ?? 'low',
+          strategy: prepared.analysis?.strategy ?? 'unavailable',
+          reasons: prepared.decision?.reasons ?? []
+        },
+        retrieval: {
+          policyIntent: prepared.retrieval.policy.intent,
+          baseMax: prepared.retrieval.baseMax,
+          effectiveMax: prepared.retrieval.effectiveMax,
+          adjustment: prepared.retrieval.adjustment,
+          selected: prepared.memory.selected.map((item) => ({
+            id: item.id,
+            status: item.status ?? 'active',
+            sourceCategory: item.sourceCategory,
+            sensitivity: item.sensitivity,
+            revision: item.revision,
+            updatedAt: item.updatedAt,
+            score: Number(item.score.toFixed(4))
+          })),
+          conflicts: (prepared.memory.conflicts ?? []).map((conflict) => ({ predicate: conflict.predicate, memoryIds: [...conflict.memoryIds] })),
+          omitted: prepared.memory.omitted,
+          maximumSensitivity: prepared.input.maximumSensitivity
+        },
+        personality: {
+          version: prepared.profile.version,
+          warmth: prepared.profile.warmth,
+          directness: prepared.profile.directness,
+          humor: prepared.profile.humor,
+          disagreementStyle: prepared.profile.disagreementStyle
+        },
+        feeling: {
+          before: prepared.previousFeelingState ? snapshotState(prepared.previousFeelingState) : null,
+          after: prepared.nextFeelingState ? snapshotState(prepared.nextFeelingState) : null,
+          eventType: prepared.feelingEvent?.type ?? null,
+          applied: input.feelingApplied
+        },
+        guard: input.guard,
+        provider: {
+          id: input.config.id,
+          model: input.config.model,
+          outcome: input.status,
+          attempts: input.attempts,
+          errorKind: input.errorKind
+        },
+        updates: { pendingItemIds }
+      })
+      this.continuity.contexts.upsert(context)
+    } catch {
+      console.warn('Turn context could not be recorded; the conversation itself is unaffected.')
+    }
+  }
+
   private now(): string { return safeTimestamp(this.clock()) }
 }
 

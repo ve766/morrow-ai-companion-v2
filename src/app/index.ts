@@ -22,6 +22,8 @@ import { createLogger } from '../observability/logger'
 import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
+import { PendingCognitionService } from '../cognition/pending-items'
+import { SqlitePendingItemRepository, SqliteTurnContextRepository } from '../persistence/cognitive-context-repository'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
 import { createSecureWindowOptions, isTrustedRendererUrl, resolveTrustedRendererUrl } from '../security/security'
@@ -189,13 +191,20 @@ if (hasSingleInstanceLock) {
       { memories, interests, selfModel, events: eventLog },
       eventLog
     )
+    // Phase 2.4: the turn context and the open internal items are persisted
+    // beside the conversation, so continuity survives a restart.
+    const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database))
     const companion = new CompanionService({
       database,
       memories,
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel }
+      selfModelLoop: { events: eventLog, interests, selfModel },
+      continuity: {
+        contexts: new SqliteTurnContextRepository(database),
+        pending: pendingItems
+      }
     })
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)
@@ -312,7 +321,17 @@ if (hasSingleInstanceLock) {
         listEntries: (request) => selfModel.list(request ?? {}),
         correctEntry: (request) => selfModel.correct(request.entryId, request.statement),
         retractEntry: (request) => selfModel.retract(request.entryId),
-        runReflection: () => reflection.run('manual'),
+        // A reflection run is bounded by its own budget (runs per hour, events
+        // examined, findings per run). Its findings become open internal items,
+        // deduplicated by concern so repeated runs do not pile up duplicates.
+        // A failure propagates: the IPC layer turns it into an error result,
+        // which is more honest than a fabricated "completed" run.
+        runReflection: () => {
+          const summary = reflection.run('manual')
+          if ('skipped' in summary) return summary
+          pendingItems.absorbReflection({ runId: summary.id, findings: reflection.findings(summary.id) })
+          return summary
+        },
         listReflectionRuns: () => reflection.listRuns(),
         listReflectionFindings: (request) => reflection.findings(request.runId)
       }
