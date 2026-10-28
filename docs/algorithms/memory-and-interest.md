@@ -78,3 +78,42 @@ confidence(evidence, conversations)
 - 未确认 inference 条目 → consistency_note（逐条，≤2）；
 - memory.created 派生新话题 → 至多 1 个 interest_candidate（落库为 candidate，不晋升）。
 - 上限：8 findings/趟；**6 趟/小时**硬限；绝不自触发（仅手动/startup/显式调用）；findings 全部带 evidence 引用与 1–100 置信度。
+
+## 三、Phase 2 扩展点（意图 → 检索 → 证据 → 评估）
+
+模块边界，供后续算法替换：
+
+| 模块 | 文件 | 可替换内容 | 不可绕过 |
+|---|---|---|---|
+| 意图决策 | `src/cognition/intent-decision.ts` | `collectSignals` 的规则与权重、类别集合 | 输出必须带 `reasons`；`mayProduceMemoryCandidate` 只代表「可生成候选」 |
+| 检索策略 | `src/memory/retrieval-policy.ts` | 每个意图的上限、谓词过滤、准入要求 | 不能放宽 `status`、敏感度上限、撤回状态 |
+| 事实读法 | `src/memory/fact-slot.ts` | 谓词抽取器、时间词表、合并规则 | `uncertain` 永远不能作为等价证据 |
+| 回答评估 | `src/cognition/answer-evidence-evaluation.ts` | 六类判定规则 | `not_scorable` 不得计入通过 |
+| 回合账本 | `src/cognition/turn-evaluation.ts` | 字段与落库通道 | 只追加，不改记忆/人格/准入 |
+
+### 事实读法（派生，不落库）
+
+```
+clauses = split(text, 标点)                 // 不按 但/不过 切，避免 不过敏 被切断
+per clause: predicate → value → mood/polarity → time
+merge: 转述/假设/模态/双重否定 → uncertain
+       两个不同确定时间 或 两种不同极性 → mixed + uncertain
+       同谓词同极性同值 → 保留
+```
+
+时间语义：`past | present | future | mixed | unspecified`；`effectiveTime(unspecified)=present` 只在比较时生效，槽位本身保留 `unspecified`。
+
+### 检索策略（只收窄）
+
+```
+policy = policyForIntent(intent)
+limit  = min(默认上限, policy.maxMemories)
+准入   = policy.requireSlotMatch ? S_slot
+       : policy.requireContentOverlap ? (短语 or 内容词)
+       : (短语 or 内容词 or S_slot)
+额外   = policy.predicateFilter 命中 且 (允许 or 不冲突)
+```
+
+### 回答评估（六类）
+
+`used_correctly` / `delivered_not_used` / `used_wrong_or_stale` / `contradicts_evidence` / `reasonable_unknown` / `not_scorable`。极性检查在取值前后各取窗口，且检查每一处出现。
