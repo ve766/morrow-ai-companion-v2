@@ -241,6 +241,21 @@ describe('phase 2 D: legacy behaviours still hold', () => {
     expect(mixed).toMatchObject({ outcome: 'not_scorable', scored: false })
   })
 
+  it('does not credit a past state as the answer to a present-tense question', () => {
+    // Found in the Phase 2.2 experiment: "我以前住在杭州" was scored
+    // used_correctly for "我现在住在哪里？" because the topic matched.
+    const result = evaluateAnswerEvidence({
+      reply: '我以前住在杭州。',
+      callSucceeded: true,
+      memories: [memory('m1', '我以前住在杭州。')],
+      question: '我现在住在哪里？'
+    })
+    expect(result.dimensions.answersCurrentQuestion).toEqual({ status: 'fail', reason: 'answer_uses_wrong_time' })
+    expect(result.outcome).toBe('delivered_not_used')
+    const right = evaluateAnswerEvidence({ reply: '你现在住在大阪。', callSucceeded: true, memories: [memory('m2', '我现在住在大阪。')], question: '我现在住在哪里？' })
+    expect(right.dimensions.answersCurrentQuestion).toMatchObject({ status: 'pass' })
+  })
+
   it('does not count a question back as correct use', () => {
     const result = evaluateAnswerEvidence({ reply: '你对花生过敏吗？', callSucceeded: true, memories: [memory('m1', '我对花生严重过敏。')] })
     expect(result).toMatchObject({ outcome: 'delivered_not_used', detail: 'evidence_named_but_reply_is_question' })

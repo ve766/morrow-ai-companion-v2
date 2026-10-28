@@ -388,18 +388,33 @@ function assessConflict(reply: string, groups: ConflictGroup[], question: string
 }
 
 function assessQuestion(input: AnswerEvaluationInput, reply: string, memories: readonly EvaluatedMemory[]): DimensionResult {
+  const base = (result: DimensionResult): DimensionResult => {
+    if (result.status !== 'pass') return result
+    // A present-tense question answered with the past state has the topic in
+    // common but the wrong time; topic overlap alone must not pass it.
+    const queryTime = input.question ? slotOf(input.question)?.time : null
+    if (queryTime !== 'present') return result
+    const mentionsInReply = memories
+      .map((memory) => statedValue(memory.content))
+      .filter((value) => value.length > 0)
+      .flatMap((value) => mentions(reply, value).map((at) => timeAround(reply, at, value.length)))
+      .filter((around) => !around.reported)
+    if (mentionsInReply.length === 0) return result
+    const allPast = mentionsInReply.every((around) => around.past && !around.present)
+    return allPast ? { status: 'fail', reason: 'answer_uses_wrong_time' } : result
+  }
   if (input.expectedAnswerTerms && input.expectedAnswerTerms.length > 0) {
     const terms = input.expectedAnswerTerms.map((term) => normalize(term))
-    return terms.some((term) => reply.includes(term))
+    return base(terms.some((term) => reply.includes(term))
       ? { status: 'pass', reason: 'expected_answer_present' }
-      : { status: 'fail', reason: 'expected_answer_absent' }
+      : { status: 'fail', reason: 'expected_answer_absent' })
   }
   if (!input.question) return { status: 'unscored', reason: 'no_question_supplied' }
   const questionTerms = contentTerms(input.question).filter((term) => !memories.some((memory) => statedValue(memory.content) === term))
   if (questionTerms.length === 0) return { status: 'unscored', reason: 'question_has_no_content_terms' }
-  return questionTerms.some((term) => reply.includes(term))
+  return base(questionTerms.some((term) => reply.includes(term))
     ? { status: 'pass', reason: 'topic_overlap' }
-    : { status: 'fail', reason: 'reply_off_topic' }
+    : { status: 'fail', reason: 'reply_off_topic' })
 }
 
 /** A question about the user is the only place a specific claim is checkable. */
