@@ -372,7 +372,7 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | 无输出 |
-| `npx vitest run --maxWorkers=2` | 0 | **504 passed / 58 files** |
+| `npx vitest run --maxWorkers=2` | 0 | **504 passed / 59 files** |
 | `npm run evaluate:cognition` | 0 | `passed: true` |
 | `npm run build` | 0 | 成功 |
 | `npm run verify:phase23` | 0 | `ok: true`（篡改副本 → 1） |
@@ -413,7 +413,7 @@ node /tmp/rescore.cjs evaluation/reports/phase23-spark-*.json
 | `turn-reliability.integration.test.ts` | 3 | 一轮一答、失败后下一轮可继续、重试不写记忆 |
 | `conflict-handling.integration.test.ts` | 10 | 含 2 条按门控行为更新 |
 | `phase23-report-check.test.ts` | 6 | 含「只改 summary 必须失败」的负向用例 |
-| 全量 `npx vitest run` | **504 passed / 58 files** | 见 §13.5 |
+| 全量 `npx vitest run` | **504 passed / 59 files** | 见 §13.5 |
 
 ### 14.3 报告数字的唯一口径
 
