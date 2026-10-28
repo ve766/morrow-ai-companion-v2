@@ -49,6 +49,32 @@ describe('phase 2.2 E: code provenance', () => {
     expect(provenance.reproducibleReason).toContain('working_tree_dirty')
   })
 
+  it('does not count the run\'s own report files as a dirty source tree', () => {
+    const provenance = captureProvenance({
+      env: {},
+      run: fakeGit({
+        'git rev-parse HEAD': 'abc123',
+        'git status --porcelain': '?? evaluation/reports/phase22-A-1.json',
+        'git diff HEAD': ''
+      })
+    })
+    expect(provenance.workingTreeDirty).toBe(false)
+    expect(provenance.reproducible).toBe(true)
+  })
+
+  it('still counts a source edit next to a generated report', () => {
+    const provenance = captureProvenance({
+      env: {},
+      run: fakeGit({
+        'git rev-parse HEAD': 'abc123',
+        'git status --porcelain': '?? evaluation/reports/phase22-A-1.json\n M src/app/companion-service.ts',
+        'git diff HEAD': 'diff'
+      })
+    })
+    expect(provenance.workingTreeDirty).toBe(true)
+    expect(provenance.workingTreeFiles).toEqual(['M src/app/companion-service.ts'])
+  })
+
   it('does not trust an environment override', () => {
     const provenance = captureProvenance({
       env: { MORROW_CODE_SHA: 'deadbeef' },

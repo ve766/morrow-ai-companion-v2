@@ -37,7 +37,14 @@ export interface ProvenanceOptions {
   run?: (command: string, cwd: string) => string
   env?: Record<string, string | undefined>
   now?: () => string
+  /**
+   * Paths the run itself writes. They are still listed in the record, but they
+   * do not make the *source* snapshot unverifiable.
+   */
+  ignorePaths?: readonly string[]
 }
+
+const DEFAULT_IGNORED_PATHS = ['evaluation/reports/'] as const
 
 function defaultRun(command: string, cwd: string): string {
   return execSync(command, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
@@ -60,7 +67,11 @@ export function captureProvenance(options: ProvenanceOptions = {}): CodeProvenan
   const headSha = git(run, cwd, 'git rev-parse HEAD') ?? 'unknown'
   const status = git(run, cwd, 'git status --porcelain') ?? ''
   const diff = git(run, cwd, 'git diff HEAD') ?? ''
-  const files = status.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 50)
+  const ignore = options.ignorePaths ?? DEFAULT_IGNORED_PATHS
+  const allFiles = status.split('\n').map((line) => line.trim()).filter(Boolean)
+  const files = allFiles
+    .filter((line) => !ignore.some((prefix) => line.slice(3).startsWith(prefix)))
+    .slice(0, 50)
   const dirty = files.length > 0
 
   const override = env.MORROW_CODE_SHA
@@ -68,7 +79,9 @@ export function captureProvenance(options: ProvenanceOptions = {}): CodeProvenan
   const codeSha = override ?? headSha
 
   const baseSha = env.MORROW_BASE_SHA ?? headSha
-  const diffHash = dirty ? createHash('sha256').update(`${status}\n${diff}`, 'utf8').digest('hex') : null
+  // Only the non-generated files contribute to the fingerprint.
+  const sourceStatus = allFiles.filter((line) => !ignore.some((prefix) => line.slice(3).startsWith(prefix))).join('\n')
+  const diffHash = dirty ? createHash('sha256').update(`${sourceStatus}\n${diff}`, 'utf8').digest('hex') : null
 
   const reasons: string[] = []
   if (dirty) reasons.push('working_tree_dirty')
