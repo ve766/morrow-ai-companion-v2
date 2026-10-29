@@ -21,7 +21,7 @@
 | 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行 | `evals/stage-2/results/2026-10-29T09-34-34-55c9aef.json` | A/C/E/F/G/H/J **NOT_RUN**；B/D/I **PASS**；K/L **BLOCKED** |
 | 14 | 消融 | 未实现 | — | `evals/stage-2/ablation/README.md` | **NOT_RUN** |
 | 15 | CI | `.github/workflows/ci.yml` | — | run 40840918994（attempt 2） | **BLOCKED**：runner_id=0 / steps=[] |
-| 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | — | — | **BLOCKED**：凭据 absent，端点 401 |
+| 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | — | 见交付报告 §4.1 | **BLOCKED**：凭据存在但被 403/11200 拒绝（订单/额度），候选端点 401 |
 | 17 | Electron / Windows | `src/app/index.ts` | `scripts/smoke.mjs` | — | **BLOCKED**：渲染沙箱 0x80000003；no-sandbox 后主进程 0xC0000005 |
 
 ## 复算方式
