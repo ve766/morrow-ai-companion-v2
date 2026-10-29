@@ -1,0 +1,185 @@
+{
+  "datasetVersion": "v1",
+  "harnessVersion": "stage-2-runner-v1",
+  "headSha": "8bd12a6989a186e16c1e195a1497407147cf0833",
+  "startedAt": "2026-10-29T16:18:18.946Z",
+  "finishedAt": "2026-10-29T16:18:21.870Z",
+  "providerMode": "scripted",
+  "providerNote": "The provider returns fixed text. This runner proves wiring and payload contents, never model quality.",
+  "counts": {
+    "executed": 5,
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0,
+    "blocked": 2,
+    "notRun": 7
+  },
+  "passRate": 1,
+  "passRateDenominator": "PASS + FAIL only; SKIPPED, BLOCKED and NOT_RUN are excluded, never counted as passing.",
+  "scenarios": [
+    {
+      "id": "B",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "the memory is delivered in the first session",
+          "ok": true,
+          "detail": "delivered=1"
+        },
+        {
+          "name": "the memory is delivered in a later session",
+          "ok": true,
+          "detail": "delivered=1"
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "control: the value is deliverable before retraction",
+          "ok": true,
+          "detail": "delivered=1"
+        },
+        {
+          "name": "the retracted memory id is absent afterwards",
+          "ok": true,
+          "detail": "delivered=0"
+        },
+        {
+          "name": "the retracted value is absent from the payload",
+          "ok": true,
+          "detail": "text scan"
+        }
+      ]
+    },
+    {
+      "id": "I",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "a repeated requestId produces exactly one assistant message",
+          "ok": true,
+          "detail": "assistants=1"
+        },
+        {
+          "name": "the repeated call returns the same assistant message",
+          "ok": true,
+          "detail": "identity"
+        },
+        {
+          "name": "the provider is called once",
+          "ok": true,
+          "detail": "calls=1"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "reflection actually ran (not rate limited)",
+          "ok": true,
+          "detail": "completed"
+        },
+        {
+          "name": "the long-term layer holds an interest for the topic",
+          "ok": true,
+          "detail": "rows=3 distinctLabels=3 active=1"
+        },
+        {
+          "name": "the promoted interest keeps its evidence trail",
+          "ok": true,
+          "detail": "support=3 sessions=2"
+        },
+        {
+          "name": "an active interest reaches the next serialized request",
+          "ok": true,
+          "detail": "active=1 block=true"
+        },
+        {
+          "name": "the request block names the promoted interest",
+          "ok": true,
+          "detail": "target=学咖啡拉花 named=true"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "a successful turn is recorded as committed",
+          "ok": true,
+          "detail": "state=committed"
+        },
+        {
+          "name": "a failing turn is recorded as failed",
+          "ok": true,
+          "detail": "state=failed threw=true"
+        },
+        {
+          "name": "the failing turn stored no assistant message",
+          "ok": true,
+          "detail": "provider rejected"
+        }
+      ]
+    },
+    {
+      "id": "A",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "needs a scenario that asserts reference resolution in the turn context; not implemented yet"
+    },
+    {
+      "id": "C",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "correction path exists but no scenario asserts the revision chain yet"
+    },
+    {
+      "id": "E",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "personality stability needs a multi-turn script; not implemented yet"
+    },
+    {
+      "id": "F",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "state influence needs a controlled state revision; not implemented yet"
+    },
+    {
+      "id": "G",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "interest promotion needs cross-session evidence; not implemented yet"
+    },
+    {
+      "id": "H",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "reflection rate limiting needs a clock fixture; not implemented yet"
+    },
+    {
+      "id": "J",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "payload hash equality is covered by integration tests, not by this runner"
+    },
+    {
+      "id": "K",
+      "status": "BLOCKED",
+      "assertions": [],
+      "blockedBy": "no real provider credential in this environment"
+    },
+    {
+      "id": "L",
+      "status": "BLOCKED",
+      "assertions": [],
+      "blockedBy": "Chromium renderer sandbox cannot start on this host"
+    }
+  ]
+}

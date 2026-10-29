@@ -218,13 +218,19 @@ scenarios.push({
     // Promotion requires evidence from more than one session, so the topic is
     // revisited in a second conversation. One session can only ever produce a
     // candidate — that threshold is the point of the long-term layer.
+    //
+    // Two of these turns are deliberately *not* phrased around the same entity
+    // ("拉花最难的是奶泡", "拉花终于有点样子了"). They stay separate candidates,
+    // which is the matcher's precision requirement; promotion therefore needs a
+    // third mention that actually names the topic.
     const first = stack.companion.createConversation()
     const second = stack.companion.createConversation()
     const turns: Array<[string, string]> = [
       [first.id, '我最近在学咖啡拉花。'],
       [first.id, '拉花最难的是奶泡。'],
       [second.id, '还在练咖啡拉花。'],
-      [second.id, '拉花终于有点样子了。']
+      [second.id, '拉花终于有点样子了。'],
+      [second.id, '今天又练了咖啡拉花。']
     ]
     for (const [conversationId, content] of turns) {
       await stack.companion.sendChat({ conversationId, requestId: randomUUID(), content, includeSensitive: false }, () => undefined)
@@ -234,15 +240,25 @@ scenarios.push({
     const rateLimited = typeof run === 'object' && run !== null && 'skipped' in run
     const interestRows = stack.interests.list()
     const active = interestRows.filter((row) => row.status === 'active')
+    const target = active.find((row) => row.label.includes('咖啡拉花')) ?? active[0]
+    const ledger = target ? stack.interests.evidenceLedger(target.id) : []
+    const support = ledger.filter((row) => row.polarity === 'support')
+    const sessions = new Set(support.map((row) => row.conversationId))
 
     await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '继续。', includeSensitive: false }, () => undefined)
     const payload = stack.provider.lastPayload
     const blockPresent = payload.includes('Bounded long-term attention signal')
+    // The block must name the promoted interest, not just exist: a block with
+    // no id would pass a substring check while telling the model nothing.
+    const blockNamesTarget = target !== undefined && payload.includes(target.id)
+    const distinctLabels = new Set(interestRows.map((row) => row.label)).size
 
     return outcome('B5', [
       { name: 'reflection actually ran (not rate limited)', ok: !rateLimited, detail: rateLimited ? 'rate_limited' : 'completed' },
-      { name: 'the long-term layer holds an interest for the topic', ok: interestRows.length > 0, detail: `rows=${interestRows.length} active=${active.length}` },
-      { name: 'an active interest reaches the next serialized request', ok: active.length > 0 && blockPresent, detail: `active=${active.length} block=${blockPresent}` }
+      { name: 'the long-term layer holds an interest for the topic', ok: interestRows.length > 0, detail: `rows=${interestRows.length} distinctLabels=${distinctLabels} active=${active.length}` },
+      { name: 'the promoted interest keeps its evidence trail', ok: support.length >= 3 && sessions.size >= 2, detail: `support=${support.length} sessions=${sessions.size}` },
+      { name: 'an active interest reaches the next serialized request', ok: active.length > 0 && blockPresent, detail: `active=${active.length} block=${blockPresent}` },
+      { name: 'the request block names the promoted interest', ok: blockNamesTarget, detail: `target=${target?.label ?? 'none'} named=${blockNamesTarget}` }
     ])
   }
 })

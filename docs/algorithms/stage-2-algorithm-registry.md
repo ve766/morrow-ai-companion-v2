@@ -146,6 +146,28 @@
 | 限流 | 反思每小时硬限额 + 每轮候选上限（见源码） |
 | 失败隔离 | 异常被捕获并记录降级事件，不阻塞聊天 |
 
+## 11. 主题同一性匹配（Stage 2 B5 根因修复，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 位置 | `src/self-model/topic-identity.ts` → `scoreTopicProfiles`；由 `InterestService.observeInner` 调用 |
+| 公式 | `score = 0.30·Jbigram + 0.10·Junigram + 0.45·Containment(preferred) + 0.15·[sharedPreferred≥2] + runBonus` |
+| `runBonus` | 最长共享串：Han ≥4 字 或 latin ≥3 词 → +0.30；Han =3 字 或 latin =2 词 → +0.20；更短不加分 |
+| 阈值 | `TOPIC_SAME_THRESHOLD = 0.45`；`TOPIC_AMBIGUOUS_THRESHOLD = 0.35`（歧义带内**不合并**，保留独立候选并记录 `ambiguous`） |
+| 归一化 | NFKC → 小写 → 去标点/全角符号 → 合并空白；Han 按字、latin 按词（不按字母） |
+| 否定 | 命中 `不/没/别/未/无/非/not/never/n't/dislike/hate`，且先剔除 `特别/别的/不错/没错/无论…` 等非否定词 |
+| 硬约束 1 | 上位词：较短一侧内容单元 ≤1 且较长 ≥2 → `hypernym_or_too_short`，直接 `different` |
+| 硬约束 2 | 同槽替换：单元集对称差 ≤2 且 Jaccard∈[0.5,1) → `object_substitution_suspected`，降为 `ambiguous`（永不合并） |
+| 硬约束 3 | 极性冲突 → `polarity_conflict`，记**反证**而非支持证据 |
+| 可审计 | 返回 `signals`（五项分量 + `sharedRun`）与 `reason` 码；事件 `interest.observed` 带 `nearestScore/nearestReason/ambiguous` |
+| 开发集 | `evals/stage-2/topic-identity-devset.json`（24 对，人工标注）；报告脚本 `npm run eval:topic-identity` |
+| 开发集指标 | precision **1.000**、recall **0.875**、FP **0**、FN **1**（`p03`）；歧义 3 对 —— **开发集结果，非总体校准** |
+| 证据账本 | 迁移 24 `interest_evidence`（`(interest_id, evidence_ref)` 主键 + `evidence_ref` 唯一索引）为唯一真相，`interests.evidence_count/conversation_count` 降为缓存 |
+| 幂等 | 一条观察只能归入一个兴趣；重放同一 `message_id` 不增加证据 |
+| 撤回 | 删除消息/会话由触发器清理证据；读取时按证据折叠重算，`active` 不达标即降级，证据清零则整条删除 |
+| 测试 | `topic-identity.test.ts`（10 条）、`interest-evidence.test.ts`（11 条）、评测场景 B5（5 条断言） |
+| 已知局限 | 短句仅共享 2 字中心词时（`我在学手冲咖啡` / `最近一直在练手冲`）判为不同，属召回损失，不是误合并；迁移前写入的历史证据无消息归属，无法按消息撤回 |
+
 ---
 
 ## 未实现（不得计入已登记）
@@ -156,6 +178,7 @@
 | ~~渐进式个性化~~ | **已实现**（见 §6；参数与写入/读取位置已登记） |
 | ~~上下文块效用 `U(c)`~~ | **已实现并用于记忆排序**（见 §8）；`P/X/D` 三项未接线 |
 | ~~持久化轮次状态机~~ | **已实现并接线**（见 §7；`analyzed`/`awaiting_consent`/`recovery_required` 尚未有写入点） |
+| ~~兴趣主题同一性匹配~~ | **已实现**（见 §11；阈值与开发集指标已登记） |
 | 记忆置信度更新 `c' = clip(c + ηe·E − ηk·K − ηu·U)` | **未实现** |
 
 以上五项在 `docs/reports/stage-2-final-delivery.md` 中同时标记为未完成，不因本表存在而变化。

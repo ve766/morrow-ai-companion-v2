@@ -201,7 +201,11 @@ export class ReflectionService {
         })
         this.dependencies.interests.observe({
           conversationId: event.correlationId ?? '00000000-0000-4000-8000-000000000000',
-          messageId: '00000000-0000-4000-8000-000000000000',
+          // The memory is the evidence here, not a message: using a shared
+          // placeholder id made every memory look like the same observation and
+          // silently dropped all but the first.
+          messageId: memory!.id,
+          evidenceKind: 'memory',
           occurredAt: event.occurredAt,
           topicText: memory!.currentText
         })

@@ -886,6 +886,83 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 24,
+    name: 'interest-evidence-ledger',
+    up(database) {
+      // The interest aggregates (`evidence_count`, `conversation_count`) were
+      // write-only counters: a replayed turn could inflate them, and deleting a
+      // source message left them untouched, so a retracted observation kept
+      // feeding an active interest. This migration makes the individual
+      // observations the source of truth and demotes the aggregates to a cache
+      // that is folded back from them.
+      database.exec(`
+        ALTER TABLE interests ADD COLUMN profile_json TEXT NOT NULL DEFAULT '{}';
+
+        CREATE TABLE interest_evidence (
+          interest_id TEXT NOT NULL CHECK (length(interest_id) = 36),
+          evidence_ref TEXT NOT NULL CHECK (length(evidence_ref) BETWEEN 1 AND 96),
+          evidence_kind TEXT NOT NULL CHECK (evidence_kind IN ('message', 'memory', 'legacy')),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) BETWEEN 8 AND 96),
+          polarity TEXT NOT NULL CHECK (polarity IN ('support', 'counter')),
+          match_score REAL NOT NULL CHECK (match_score >= 0 AND match_score <= 1),
+          match_reason TEXT NOT NULL CHECK (length(match_reason) BETWEEN 1 AND 64),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (interest_id, evidence_ref)
+        ) STRICT;
+
+        CREATE INDEX interest_evidence_ref_idx ON interest_evidence(evidence_ref);
+        CREATE INDEX interest_evidence_conversation_idx ON interest_evidence(conversation_id);
+
+        -- One observation can only ever be attributed to one interest; this is
+        -- what makes a replayed turn idempotent instead of double-counted.
+        CREATE UNIQUE INDEX interest_evidence_ref_uq ON interest_evidence(evidence_ref);
+
+        CREATE TRIGGER interest_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM interest_evidence WHERE evidence_kind = 'message' AND evidence_ref = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM interest_evidence WHERE conversation_id = OLD.id;
+        END;
+      `)
+
+      // Backfill: the old rows only kept aggregate counts, so each count becomes
+      // one synthetic evidence row. They are marked 'legacy' and cannot be
+      // retracted, because the schema never recorded which message produced
+      // them. The first row keeps the real conversation id and the next
+      // `conversation_count - 1` get a synthetic id, so folding reproduces the
+      // stored counts exactly instead of demoting existing interests.
+      database.exec(`
+        WITH RECURSIVE seq(n) AS (
+          SELECT 1
+          UNION ALL
+          SELECT n + 1 FROM seq WHERE n < (SELECT COALESCE(MAX(evidence_count), 0) FROM interests)
+        )
+        INSERT INTO interest_evidence(
+          interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at
+        )
+        SELECT
+          i.id,
+          'legacy:' || i.id || ':' || seq.n,
+          'legacy',
+          CASE
+            WHEN seq.n = 1 OR seq.n > i.conversation_count THEN i.conversation_id
+            ELSE 'legacy-conv:' || i.id || ':' || seq.n
+          END,
+          'support',
+          1,
+          'backfilled_legacy_aggregate',
+          i.updated_at
+        FROM interests i
+        JOIN seq ON seq.n <= i.evidence_count;
+      `)
+    }
   }
 ]
 

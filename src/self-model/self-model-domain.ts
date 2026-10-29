@@ -28,6 +28,12 @@ export interface InterestRecord {
   updatedAt: string
   /** Deterministic term set (CJK bigrams / latin tokens) from observed texts; used for topic identity. */
   terms: string[]
+  /**
+   * Stored topic profile used by the identity matcher (see `topic-identity.ts`).
+   * Absent on rows written before profiles were persisted; those fall back to
+   * matching on `terms` alone.
+   */
+  profile?: import('./topic-identity').TopicProfile | null
 }
 
 const INTEREST_STOP_CHARACTERS = new Set(['我', '的', '了', '着', '很', '真', '在', '是', '有', '和', '就', '都', '也', '不', '这', '那', '你', '他', '她', '它', '吧', '呢', '吗', '啊', '想', '下', '对', '又', '还', '再', '上', '中'])

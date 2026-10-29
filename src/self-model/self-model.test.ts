@@ -37,10 +37,13 @@ describe('interest formation (acceptance scenario D)', () => {
     const observed = interests.observe({ conversationId: '11111111-1111-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-25T10:00:00.000Z', topicText: '我对天文学特别着迷，尤其是系外行星。' })
     expect(observed).not.toBeNull()
     expect(observed?.status).toBe('candidate')
-    // repeat inside the SAME conversation never promotes
+    // Replaying the same turn must not add evidence at all: the message id is
+    // the idempotency key, so a retry of one turn cannot inflate a count.
     for (let index = 0; index < 10; index += 1) {
       interests.observe({ conversationId: '11111111-1111-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-25T10:0' + String(index) + ':00.000Z', topicText: '我对天文学着迷。' })
     }
+    expect(interests.list()).toHaveLength(1)
+    expect(interests.list()[0]?.evidenceCount).toBe(1)
     expect(interests.list()[0]?.status).toBe('candidate')
     expect(interestPromotionEligible({ status: 'candidate', conversationCount: 1, evidenceCount: 50 })).toBe(false)
   })
@@ -52,8 +55,10 @@ describe('interest formation (acceptance scenario D)', () => {
     const secondConversation = '33333333-3333-4111-8111-111111111111'
     interests.observe({ conversationId: firstConversation, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-20T10:00:00.000Z', topicText: '我对天文学着迷' })
     expect(interests.list()[0]?.status).toBe('candidate')
-    interests.observe({ conversationId: firstConversation, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-21T10:00:00.000Z', topicText: '最近又研究了下天文学' })
-    interests.observe({ conversationId: secondConversation, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-24T10:00:00.000Z', topicText: '天文学的进展真快' })
+    // Distinct turns carry distinct message ids; the replay case is covered
+    // separately below.
+    interests.observe({ conversationId: firstConversation, messageId: '22222222-2222-4111-8111-222222222222', occurredAt: '2026-10-21T10:00:00.000Z', topicText: '最近又研究了下天文学' })
+    interests.observe({ conversationId: secondConversation, messageId: '22222222-2222-4111-8111-333333333333', occurredAt: '2026-10-24T10:00:00.000Z', topicText: '天文学的进展真快' })
     const promoted = interests.list().find((record) => record.evidenceCount === 3)
     expect(promoted).toBeDefined()
     expect(promoted?.conversationCount).toBe(2)
@@ -72,7 +77,7 @@ describe('interest formation (acceptance scenario D)', () => {
     const revived = interests.setUserStatus(interests.list()[0]!.id, 'dropped')
     expect(revived.status).toBe('dropped')
     // a dropped interest stays dropped even when the topic returns
-    interests.observe({ conversationId: '33333333-3333-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-25T11:00:00.000Z', topicText: '我又想聊天文学了' })
+    interests.observe({ conversationId: '33333333-3333-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-444444444444', occurredAt: '2026-10-25T11:00:00.000Z', topicText: '我又想聊天文学了' })
     // the dropped record stays terminal; the returning topic starts as a fresh weak candidate
     const records = interests.list()
     expect(records.find((record) => record.status === 'dropped')).toBeDefined()
@@ -91,7 +96,9 @@ describe('interest formation (acceptance scenario D)', () => {
 
   it('derives labels and term sets for latin and CJK topics deterministically', () => {
     expect(deriveInterestLabel('I really love astronomy and exoplanets')).toBe('exoplanets')
-    expect(deriveInterestLabel('我对天文学着迷')).toBe('天文')
+    // The label is the most specific contiguous content phrase, not the first
+    // bigram: "天文学" rather than "天文" or a filler word like "最近".
+    expect(deriveInterestLabel('我对天文学着迷')).toBe('天文学')
     expect(deriveInterestLabel('！')).toBeNull()
     const terms = extractInterestTerms('我对天文学着迷')
     expect(terms).toContain('天文')

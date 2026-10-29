@@ -636,7 +636,10 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices): str
   const facts = services.selfModel.activeStatementsForContext(3)
   const lines: string[] = []
   if (interests.length > 0) {
-    const described = interests.map((interest) => `${interest.label}（强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`)
+    // The id is included so a serialized request can be traced back to the
+    // exact interest row and its evidence ledger during an audit. It is an
+    // internal identifier, never user content.
+    const described = interests.map((interest) => `${interest.label}（id ${interest.id}，强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`)
     lines.push(`Bounded long-term attention signal (rule-derived, low confidence, not a preference or permission): topics the user returned to across conversations — ${described.join('; ')}. Use only to stay coherent with prior topics; never claim certainty about the user.`)
   }
   if (facts.length > 0) {

@@ -14,7 +14,7 @@
 | B2 个性化 | `personalization/personalization-service.ts`、迁移 22 | `onTurnCompleted` 写 → `buildSelfModelContextBlock` 读 → 下一轮 payload | `personalization-service.test.ts`（11）+ 消融 | **已接线** |
 | B3 `U(c)` | `cognition/context-utility.ts` | `memory-context-assembler.rankScore` | `context-utility.test.ts`（5）+ 记忆 60 | **已接线（P/X/D 恒 0）** |
 | B4 状态机 | `cognition/turn-state-machine.ts`、迁移 23 | `send()` 6 个点 | `turn-state-machine.test.ts`（6）+ 评测场景 B4 | **已接线（3 态未接）** |
-| B5 反思闭环 | `self-model/reflection-service.ts` | 轮次完成触发 | — | **未完成**：缺"反思→下一轮 payload"证据 |
+| B5 反思闭环 | `self-model/reflection-service.ts` → `interest-service.ts` → `topic-identity.ts` | 轮次完成触发；证据账本折叠 | 评测场景 B5（5 断言）+ `topic-identity.test.ts` + `interest-evidence.test.ts` | **PASS**（payload 含目标兴趣 id） |
 | A1 隐私 | `self-model/self-fact-statement.ts`、迁移 20 | `onTurnCompleted` | 4 条测试 | 已修 |
 | A2 删除边界 | 迁移 19/21/22/23 触发器 | 删除消息/会话 | 边界测试 4 + 个性化 2 | 已修 |
 | A3 旧 schema | `turn-context.ts` `normalizeTurnContext` | 仓储 get/list | turn-context 11 | 已修 |
@@ -41,7 +41,9 @@ wiring difference: true
 | R1 | B1 未接管 strategy | 低置信度不会真的触发澄清 | 需标注数据重标定阈值；已记录 |
 | R2 | B3 的 P/X/D 恒为 0 | 排序未考虑个性化/冲突/过期 | 冲突与过期在别的层已过滤，但未进排序 |
 | R3 | B4 三态未接 | `analyzed`/`awaiting_consent`/`recovery_required` 无写入点 | 生命周期仍能区分终态与中断 |
-| R4 | B5 无 payload 级证据 | 反思闭环未证明 | 未完成项，不计通过 |
+| R4 | ~~B5 无 payload 级证据~~ | **已解决**：场景 B5 通过，payload 含目标兴趣 id | 见 §2 与算法登记 §11 |
+| R7 | 主题匹配召回缺口 | 短句仅共享 2 字中心词时判为不同（开发集 `p03`） | 只造成晋升延后，不会误合并；已记入算法登记 |
+| R8 | 迁移前历史证据无消息归属 | 旧聚合计数回填为 `legacy` 证据行，无法按消息撤回 | 升级不会降级既有兴趣；新证据全部可归属、可撤回 |
 | R5 | 脚本化 provider | 不覆盖模型质量 | 真实模型 BLOCKED |
 | R6 | CI runner 未分配 | 无 CI 证据 | BLOCKED |
 
