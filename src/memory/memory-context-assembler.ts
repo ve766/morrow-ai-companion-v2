@@ -1,4 +1,5 @@
 import type { AssembledMemoryContext, ContextConflict, ContextMemory, Sensitivity } from '../shared/companion'
+import { contextUtility, freshnessOf } from '../cognition/context-utility'
 import type { MemoryRecord } from './memory-domain'
 import { compareFactValues, readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
 import type { RetrievalPolicy } from './retrieval-policy'
@@ -97,11 +98,26 @@ function timeMarkers(value: string): Set<string> {
   return new Set(normalize(value).match(TIME_MARKERS) ?? [])
 }
 
+/**
+ * Ordering is the documented context utility (B3), not an ad-hoc sum:
+ * U = wr·R + wf·F + wq·Q + wp·P − wx·X − wd·D.
+ *
+ * `preference`, `conflict` and `stale` are 0 here because this function only
+ * ranks blocks that already passed the hard filters above it (retracted,
+ * superseded and unauthorized records never reach this point). Wiring the
+ * personalization signal into `preference` is still open and is recorded as
+ * such in the algorithm registry.
+ */
 function rankScore(item: { record: MemoryRecord; score: number }, now: string): number {
   const reference = item.record.lastConfirmedAt ?? item.record.updatedAt
-  const ageDays = Math.max(0, (Date.parse(now) - Date.parse(reference)) / 86_400_000)
-  const recency = 2 * Math.pow(0.5, ageDays / 30)
-  return item.score + item.record.confidence / 50 + recency
+  return contextUtility({
+    relevance: item.score,
+    freshness: freshnessOf(reference, now),
+    quality: (item.record.confidence / 100) * (item.record.sourceCategory === 'user_explicit_input' ? 1 : 0.5),
+    preference: 0,
+    conflict: 0,
+    stale: 0
+  }).score
 }
 
 export class MemoryContextAssembler {

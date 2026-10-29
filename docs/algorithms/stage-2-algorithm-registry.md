@@ -106,7 +106,23 @@
 | 失败语义 | 状态写入失败被吞掉，不影响聊天；非法转换只在测试中暴露 |
 | 测试 | `src/cognition/turn-state-machine.test.ts`（6 条：合法链、跳阶段拒绝、重放幂等、终态判定、非法转换不覆盖、会话删除清理） |
 
-## 8. 长期层（兴趣 / 反思）
+## 8. 上下文块效用（Stage 2 B3，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 公式 | `U(c) = wr·R + wf·F + wq·Q + wp·P − wx·X − wd·D` |
+| 权重 | `relevance 0.40`、`freshness 0.25`、`quality 0.20`、`preference 0.10`、`conflict 0.15`、`stale 0.05`（`CONTEXT_UTILITY_WEIGHTS`） |
+| 位置 | `src/cognition/context-utility.ts`；被 `memory-context-assembler.ts` 的 `rankScore` 调用 |
+| 归一化 | 每个分量先夹到 [0,1]，非有限值按 0 处理；结果范围 `−(wx+wd) … wr+wf+wq+wp` |
+| 新近度 | `F = 2^(−Δt/30天)`（`FRESHNESS_HALF_LIFE_DAYS = 30`） |
+| 质量 | `Q = confidence/100 × 来源可靠性`（用户明说 1.0，其余 0.5） |
+| 硬排除 | 撤回/被取代/越权记录在**打分之前**已过滤；负权重不是隐私控制，排除才是 |
+| 审计 | 每次打分返回 `reason` 码（relevant/high_quality/fresh/conflict/stale/low_signal） |
+| 已接线 | `rankScore` 全量替换（记忆排序） |
+| **未接线** | `P`（preference）当前恒为 0 —— 个性化信号尚未进入排序；`X`/`D` 也为 0，因为冲突披露与过期判定在其它层。这三项在注册表里明确标为未接线，不计为完成 |
+| 测试 | `src/cognition/context-utility.test.ts`（5 条：单调性/上下界、惩罚项、越界与 NaN 夹紧、reason 码、半衰期） |
+
+## 9. 长期层（兴趣 / 反思）
 
 | 项 | 值 |
 |---|---|
@@ -123,7 +139,7 @@
 |---|---|
 | 多信号意图置信度 `s = αr + βc + γe + δh` | **未实现**。当前只有单一规则强度 |
 | ~~渐进式个性化~~ | **已实现**（见 §6；参数与写入/读取位置已登记） |
-| 上下文块效用 `U(c)` | **未实现**。装配器按相关度/新近度/预算截断，非该公式 |
+| ~~上下文块效用 `U(c)`~~ | **已实现并用于记忆排序**（见 §8）；`P/X/D` 三项未接线 |
 | ~~持久化轮次状态机~~ | **已实现并接线**（见 §7；`analyzed`/`awaiting_consent`/`recovery_required` 尚未有写入点） |
 | 记忆置信度更新 `c' = clip(c + ηe·E − ηk·K − ηu·U)` | **未实现** |
 

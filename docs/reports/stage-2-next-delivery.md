@@ -58,6 +58,13 @@
 - 已接线 6 个点：`received → context_ready → requesting → response_received → committed`，失败分支写 `failed`/`cancelled` + 错误码。
 - 尚缺 `analyzed` / `awaiting_consent` / `recovery_required` 的写入点（转换表已定义）。
 
+### 1.6 B3 上下文块效用（本次实现）
+
+- `U(c) = wr·R + wf·F + wq·Q + wp·P − wx·X − wd·D`，权重见算法登记 §8。
+- 替换了 `memory-context-assembler.ts` 里原来的 `rankScore`（`score + conf/50 + 2·2^(−Δt/30)`），排序现在走文档公式。
+- 每个分量归一化后再加权；非有限值按 0；返回 `reason` 码便于审计。
+- **未接线**：`P`（个性化偏好）恒为 0，`X`/`D` 也为 0（冲突与过期在别的层处理）。这三项在注册表中明确标注，不计完成。
+
 ## 2. 命令与退出码（实跑）
 
 | 命令 | 退出码 | 结果 |

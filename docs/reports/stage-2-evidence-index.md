@@ -15,7 +15,7 @@
 | 8 | B1 多信号置信度 | 无 | 无 | — | **NOT_IMPLEMENTED** |
 | 9 | B2 渐进式个性化 | `src/personalization/personalization-service.ts`、迁移 22 | `personalization-service.test.ts`（11 条，含 P1-A/B/C 与端到端） | 同上 | **PASS（离线）** |
 | 9b | B2 删除一致性 | 同左（证据折叠 + 缓存回填） | 删除源消息后重算回 0.5 | 同上 | **PASS** |
-| 10 | B3 `U(c)` | 无（现为相关度+新近度+预算） | 无 | — | **NOT_IMPLEMENTED** |
+| 10 | B3 `U(c)` | `src/cognition/context-utility.ts` → `memory-context-assembler.rankScore` | `context-utility.test.ts`（5 条）+ 记忆 60 条回归 | — | **PASS（离线；P/X/D 未接线）** |
 | 11 | B4 轮次状态机 | `turn-state-machine.ts` + `turn-state-repository.ts` + 迁移 23 | `turn-state-machine.test.ts`（6 条） | — | **PASS（离线，6 接线点）** |
 | 12 | B5 反思进入下一轮请求 | `onTurnCompleted` → `reflection.run` | 接线测试 | — | 接线 PASS；payload 级证据 **NOT_RUN** |
 | 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行 | `evals/stage-2/results/2026-10-29T09-34-34-55c9aef.json` | A/C/E/F/G/H/J **NOT_RUN**；B/D/I **PASS**；K/L **BLOCKED** |
