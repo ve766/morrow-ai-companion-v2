@@ -35,10 +35,13 @@ class ScriptedProvider implements ProviderPort {
   readonly profile: ProviderProfile = { id: DEEPSEEK_PROVIDER_ID, providerClass: 'mock', configured: true }
   calls = 0
   lastPayload = ''
+  /** When set, every call rejects with this message (fault injection). */
+  failure: string | null = null
 
   async generate(input: ProviderInput): Promise<ProviderOutput> {
     this.calls += 1
     this.lastPayload = JSON.stringify(input.requestPayload)
+    if (this.failure) throw new Error(this.failure)
     return { text: '好的。', modelId: 'scripted-offline', attempts: 1 }
   }
 }
@@ -64,6 +67,7 @@ interface Stack {
   companion: CompanionService
   memories: MemoryService
   provider: ScriptedProvider
+  states: SqliteTurnStateRepository
   close: () => void
 }
 
@@ -73,6 +77,7 @@ function buildStack(): Stack {
   const memories = new MemoryService(new SqliteMemoryRepository(database))
   const conversations = new ConversationService(new SqliteConversationRepository(database))
   const provider = new ScriptedProvider()
+  const states = new SqliteTurnStateRepository(database)
   const companion = new CompanionService({
     database,
     memories,
@@ -90,7 +95,7 @@ function buildStack(): Stack {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
       finalizations: new SqliteTurnFinalizationRepository(database),
-      states: new SqliteTurnStateRepository(database)
+      states
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })
@@ -101,6 +106,7 @@ function buildStack(): Stack {
     companion,
     memories,
     provider,
+    states,
     close: () => {
       database.close()
       rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
@@ -186,6 +192,35 @@ const scenarios: Array<{ id: string; name: string; run: (stack: Stack) => Promis
     }
   }
 ]
+
+scenarios.push({
+  id: 'B4',
+  name: 'turn lifecycle is persisted',
+  run: async (stack) => {
+    const conversation = stack.companion.createConversation()
+    const okTurn = randomUUID()
+    await stack.companion.sendChat({ conversationId: conversation.id, requestId: okTurn, content: '你好。', includeSensitive: false }, () => undefined)
+    const committed = stack.states.get(okTurn)
+
+    const failedTurn = randomUUID()
+    stack.provider.failure = 'scripted provider failure'
+    let threw = false
+    try {
+      await stack.companion.sendChat({ conversationId: conversation.id, requestId: failedTurn, content: '再来一次。', includeSensitive: false }, () => undefined)
+    } catch {
+      threw = true
+    } finally {
+      stack.provider.failure = null
+    }
+    const failed = stack.states.get(failedTurn)
+
+    return outcome('B4', [
+      { name: 'a successful turn is recorded as committed', ok: committed?.state === 'committed', detail: `state=${committed?.state ?? 'missing'}` },
+      { name: 'a failing turn is recorded as failed', ok: failed?.state === 'failed', detail: `state=${failed?.state ?? 'missing'} threw=${threw}` },
+      { name: 'the failing turn stored no assistant message', ok: threw, detail: 'provider rejected' }
+    ])
+  }
+})
 
 /** Scenarios that this runner cannot execute, with the reason recorded honestly. */
 const unexecuted: ScenarioOutcome[] = [
