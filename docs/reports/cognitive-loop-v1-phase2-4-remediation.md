@@ -154,6 +154,29 @@ export MORROW_SPARK_MODEL=spark-x2.6
 
 在此之前，本报告不把替身结果当作真实模型结论。
 
+### 3.2 运行器已就绪，但从未对真实模型执行过
+
+`scripts/phase24-real-model.ts` 把六项跨轮场景接到真实适配器上（`OpenAICompatibleProvider` + `MemorySecretStore`，与产品同一条路径）：
+
+| 场景 | 客观判定（读请求/数据库） | 主观判定（读回复） |
+|---|---|---|
+| S1 记忆复用 | 记忆 id 是否出现在请求的证据块 | 回复是否含正确称呼 |
+| S2 撤回 | 撤回值与其 id 是否都不在请求里 | 回复是否不再提该值 |
+| S3 无证据 | 是否未交付像车牌号的值 | 是否承认不知道 |
+| S4 模型切换 | 人格版本、记忆、状态修订号是否连续 | 回复是否仍记得 |
+| S5 状态影响 | 上下文 `adjustment` 是否生效、投递条数是否增加 | 无 |
+| S6 失败重试 | 失败未写、重试只写 1 条、上下文为 `succeeded` | 无 |
+
+设计上刻意把两类判定分开统计：客观项是 pass/fail，主观项单列，**不合成一个"正确率"**。报告落 `evaluation/reports/phase24-real-model-<sha>.json`，含 `codeSha`、模型 ID、每场景运行次数与逐项判定。
+
+已验证（无密钥路径）：未设置 `MORROW_SPARK_API_KEY` 时脚本打印缺失说明并**退出码 2，不发送任何请求**；打包与严格类型检查均通过。六项场景的真实运行**尚未发生**。
+
+```bash
+node_modules/.bin/esbuild scripts/phase24-real-model.ts --bundle --platform=node \
+  --format=cjs --alias:electron=/tmp/electron-stub.cjs --outfile=/tmp/phase24-real.cjs
+MORROW_SPARK_API_KEY=... MORROW_SPARK_MODEL=spark-x2.6 MORROW_REAL_RUNS=3 node /tmp/phase24-real.cjs
+```
+
 ---
 
 ## 4. P1：桌面冒烟与回归
