@@ -742,6 +742,31 @@ export const migrations: readonly Migration[] = [
           ON cognitive_turn_finalizations(created_at);
       `)
     }
+  },
+  {
+    version: 19,
+    name: 'delete-derived-cognition-with-source-data',
+    up(database) {
+      // Derived companion state must not outlive the conversation/message that
+      // supplied its evidence. Keep this in the database so every deletion path
+      // (UI, service, restore/maintenance) receives the same privacy guarantee.
+      database.exec(`
+        CREATE TRIGGER self_model_entries_delete_with_source_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM self_model_entries WHERE source_message_id = OLD.id;
+          DELETE FROM interests WHERE source_message_id = OLD.id;
+        END;
+
+        CREATE TRIGGER cognitive_turn_contexts_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM cognitive_turn_contexts WHERE conversation_id = OLD.id;
+          DELETE FROM cognitive_pending_items WHERE conversation_id = OLD.id;
+          DELETE FROM cognitive_turn_finalizations WHERE conversation_id = OLD.id;
+        END;
+      `)
+    }
   }
 ]
 
