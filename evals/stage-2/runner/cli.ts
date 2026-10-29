@@ -23,6 +23,10 @@ import { SqliteConversationRepository } from '../../../src/persistence/conversat
 import { CompanionService } from '../../../src/app/companion-service'
 import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository, SqlitePendingItemRepository } from '../../../src/persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../../../src/persistence/turn-state-repository'
+import { InterestService, SqliteInterestRepository } from '../../../src/self-model/interest-service'
+import { SelfModelService, SqliteSelfModelRepository } from '../../../src/self-model/self-model-service'
+import { ReflectionService, SqliteReflectionRepository } from '../../../src/self-model/reflection-service'
+import { EventLogService } from '../../../src/persistence/event-log'
 import { PendingCognitionService } from '../../../src/cognition/pending-items'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../../src/shared/companion'
 import { MemorySecretStore } from '../../../src/security/secrets'
@@ -68,6 +72,8 @@ interface Stack {
   memories: MemoryService
   provider: ScriptedProvider
   states: SqliteTurnStateRepository
+  interests: InterestService
+  reflection: ReflectionService
   close: () => void
 }
 
@@ -78,6 +84,15 @@ function buildStack(): Stack {
   const conversations = new ConversationService(new SqliteConversationRepository(database))
   const provider = new ScriptedProvider()
   const states = new SqliteTurnStateRepository(database)
+  // Real event log, not a stub: reflection reads evidence from it.
+  const eventLog = new EventLogService(database)
+  const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
+  const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
+  const reflection = new ReflectionService(
+    new SqliteReflectionRepository(database),
+    { memories, interests, selfModel, events: eventLog },
+    eventLog
+  )
   const companion = new CompanionService({
     database,
     memories,
@@ -91,6 +106,7 @@ function buildStack(): Stack {
       includeSensitive: preview.maximumSensitivity === 'sensitive'
     }),
     providerFactory: () => provider,
+    selfModelLoop: { events: eventLog, interests, selfModel, reflection },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
@@ -107,6 +123,8 @@ function buildStack(): Stack {
     memories,
     provider,
     states,
+    interests,
+    reflection,
     close: () => {
       database.close()
       rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
@@ -192,6 +210,42 @@ const scenarios: Array<{ id: string; name: string; run: (stack: Stack) => Promis
     }
   }
 ]
+
+scenarios.push({
+  id: 'B5',
+  name: 'reflection reaches the next request',
+  run: async (stack) => {
+    // Promotion requires evidence from more than one session, so the topic is
+    // revisited in a second conversation. One session can only ever produce a
+    // candidate — that threshold is the point of the long-term layer.
+    const first = stack.companion.createConversation()
+    const second = stack.companion.createConversation()
+    const turns: Array<[string, string]> = [
+      [first.id, '我最近在学咖啡拉花。'],
+      [first.id, '拉花最难的是奶泡。'],
+      [second.id, '还在练咖啡拉花。'],
+      [second.id, '拉花终于有点样子了。']
+    ]
+    for (const [conversationId, content] of turns) {
+      await stack.companion.sendChat({ conversationId, requestId: randomUUID(), content, includeSensitive: false }, () => undefined)
+    }
+    const conversation = second
+    const run = stack.reflection.run('manual')
+    const rateLimited = typeof run === 'object' && run !== null && 'skipped' in run
+    const interestRows = stack.interests.list()
+    const active = interestRows.filter((row) => row.status === 'active')
+
+    await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '继续。', includeSensitive: false }, () => undefined)
+    const payload = stack.provider.lastPayload
+    const blockPresent = payload.includes('Bounded long-term attention signal')
+
+    return outcome('B5', [
+      { name: 'reflection actually ran (not rate limited)', ok: !rateLimited, detail: rateLimited ? 'rate_limited' : 'completed' },
+      { name: 'the long-term layer holds an interest for the topic', ok: interestRows.length > 0, detail: `rows=${interestRows.length} active=${active.length}` },
+      { name: 'an active interest reaches the next serialized request', ok: active.length > 0 && blockPresent, detail: `active=${active.length} block=${blockPresent}` }
+    ])
+  }
+})
 
 scenarios.push({
   id: 'B4',
