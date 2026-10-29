@@ -758,7 +758,7 @@ export class CompanionService {
       : undefined
     const ledger = options.ledger ?? journal
     this.continuity = options.continuity
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -885,13 +885,19 @@ export class ChatService {
     /** How delivered evidence is rendered; see CompanionService options. */
     private readonly evidencePresentation: EvidencePresentation = 'json',
     /** Phase 2.4 turn context and pending-item stores. */
-    private readonly continuity?: ContinuityPorts
+    private readonly continuity?: ContinuityPorts,
+    private readonly onDegradation?: (component: string, correlationId?: string | null) => void
   ) {}
+
+  private recordDegradation(component: string, correlationId: string | null = null): void {
+    try { this.onDegradation?.(component, correlationId) } catch { /* Never fail the chat path for telemetry. */ }
+  }
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
     try {
       return this.cognition.get()
     } catch {
+      this.recordDegradation('cognitive_settings_read')
       return { enabled: false, available: false, updatedAt: null, analyzerVersion: COGNITIVE_ANALYZER_VERSION }
     }
   }
@@ -945,6 +951,7 @@ export class ChatService {
           })
           if (event) this.feelings.recordCompletedTurn(event, existingAssistant.id, this.now())
         } catch {
+          this.recordDegradation('feeling_state_recovery', requestId)
           console.warn('Local feeling-state recovery was unavailable; returning the saved conversation.')
         }
       }
@@ -992,6 +999,7 @@ export class ChatService {
           userMessage = appendUser(observation)
           cognitiveObservationPersisted = Boolean(userMessage.cognitiveObservations?.length)
         } catch {
+          this.recordDegradation('cognitive_observation_persist', requestId)
           console.warn('Local cognitive observation was unavailable; continuing with core chat persistence.')
           if (!userMessage) userMessage = appendUser()
         }
@@ -1135,6 +1143,7 @@ export class ChatService {
             ...(verified.analysis ? { analysis: verified.analysis } : {})
           })
         } catch {
+          this.recordDegradation('self_model_turn_hook', requestId)
           console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
         }
       }
@@ -1450,6 +1459,7 @@ export class ChatService {
         blockedClaimKinds: input.blockedClaimKinds
       })
     } catch {
+      this.recordDegradation('pending_item_draft', input.requestId)
       pendingDrafts = []
     }
     const record: TurnFinalizationRecord = {
@@ -1473,6 +1483,7 @@ export class ChatService {
     try {
       this.continuity.finalizations.put(record)
     } catch {
+      this.recordDegradation('turn_finalization_persist', input.requestId)
       console.warn('The turn finalization intent could not be stored; crash recovery is unavailable for this turn.')
       return null
     }
@@ -1580,6 +1591,7 @@ export class ChatService {
         pendingItemIds: []
       }))
     } catch {
+      this.recordDegradation('turn_context_persist', input.requestId)
       console.warn('Turn context could not be recorded; the conversation itself is unaffected.')
     }
   }
