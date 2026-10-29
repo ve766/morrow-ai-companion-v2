@@ -92,7 +92,7 @@ runBonus: Han ≥4 字 / latin ≥3 词 → +0.30；Han =3 字 / latin =2 词 �
 | 同槽替换 | 单元集对称差 ≤2 且 Jaccard∈[0.5,1)（`我喜欢猫` / `我喜欢狗`） | `ambiguous`，永不合并 |
 | 极性冲突 | 一侧否定（`我喜欢` / `我不喜欢`） | 记**反证**，不计支持 |
 
-**开发集指标**（24 对人工标注，`npm run eval:topic-identity`）：
+**开发集指标**（23 对人工标注，`npm run eval:topic-identity`）：
 
 ```
 precision 1.000   recall 0.875

@@ -160,7 +160,7 @@
 | 硬约束 2 | 同槽替换：单元集对称差 ≤2 且 Jaccard∈[0.5,1) → `object_substitution_suspected`，降为 `ambiguous`（永不合并） |
 | 硬约束 3 | 极性冲突 → `polarity_conflict`，记**反证**而非支持证据 |
 | 可审计 | 返回 `signals`（五项分量 + `sharedRun`）与 `reason` 码；事件 `interest.observed` 带 `nearestScore/nearestReason/ambiguous` |
-| 开发集 | `evals/stage-2/topic-identity-devset.json`（24 对，人工标注）；报告脚本 `npm run eval:topic-identity` |
+| 开发集 | `evals/stage-2/topic-identity-devset.json`（23 对，人工标注）；报告脚本 `npm run eval:topic-identity` |
 | 开发集指标 | precision **1.000**、recall **0.875**、FP **0**、FN **1**（`p03`）；歧义 3 对 —— **开发集结果，非总体校准** |
 | 证据账本 | 迁移 24 `interest_evidence`（`(interest_id, evidence_ref)` 主键 + `evidence_ref` 唯一索引）为唯一真相，`interests.evidence_count/conversation_count` 降为缓存 |
 | 幂等 | 一条观察只能归入一个兴趣；重放同一 `message_id` 不增加证据 |

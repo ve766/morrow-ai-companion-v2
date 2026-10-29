@@ -30,7 +30,7 @@ export type TopicDecision = 'same' | 'ambiguous' | 'different'
 /**
  * At or above this, two texts are the same topic.
  *
- * Picked on the labelled development set (24 pairs) as the highest threshold
+ * Picked on the labelled development set (23 pairs) as the highest threshold
  * that still reaches recall >= 0.8 with zero false merges; see
  * `evals/stage-2/topic-identity-devset.json` and the report script. It is a
  * development-set choice, not a calibrated cut-off.
