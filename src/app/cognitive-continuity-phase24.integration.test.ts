@@ -121,7 +121,7 @@ function openWorld(
   return { directory, database, companion, memories, conversations, secretStore, previews, script, started }
 }
 
-function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort; reflection?: { run: (trigger: 'manual' | 'startup' | 'post_conversation') => unknown } } = {}): World {
+function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort; reflection?: Pick<ReflectionService, 'run'> } = {}): World {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-phase24-'))
   directories.push(directory)
   return openWorld(directory, { behaviours: script.behaviours ?? [], proposals: script.proposals ?? [] }, [], overrides)
