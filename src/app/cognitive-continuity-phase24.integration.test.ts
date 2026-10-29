@@ -17,6 +17,7 @@ import { EventLogService } from '../persistence/event-log'
 import { MemorySecretStore } from '../security/secrets'
 import { InterestService, SqliteInterestRepository } from '../self-model/interest-service'
 import { SelfModelService, SqliteSelfModelRepository } from '../self-model/self-model-service'
+import type { ReflectionService } from '../self-model/reflection-service'
 import type { ProviderConsentPreview, ProviderInput, ProviderPort } from '../providers/provider-policy'
 import type { ProviderConfigRecord } from '../shared/companion'
 
@@ -56,7 +57,7 @@ function openWorld(
   directory: string,
   script: Script,
   previews: string[] = [],
-  overrides: { contexts?: TurnContextPort; reflection?: { run: (trigger: 'manual' | 'startup' | 'post_conversation') => unknown } } = {}
+  overrides: { contexts?: TurnContextPort; reflection?: Pick<ReflectionService, 'run'> } = {}
 ): World {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const events = new EventLogService(database)
