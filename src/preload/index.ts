@@ -23,7 +23,9 @@ import {
   type SelfModelListRequest,
   type SelfModelCorrectRequest,
   type SelfModelIdRequest,
-  type ReflectionFindingsRequest
+  type ReflectionFindingsRequest,
+  type PendingItemIdRequest,
+  type TurnContextRequest
 } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -48,6 +50,8 @@ import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '..
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
+import type { PendingItem } from '../cognition/pending-items'
+import type { CognitiveTurnContext } from '../cognition/turn-context'
 
 function invoke<T>(channel: string, request?: unknown): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, request) as Promise<IpcResult<T>>
@@ -88,6 +92,11 @@ const bridge: MorrowBridge = Object.freeze({
     saveSettings: (request: CognitiveSettingsRequest) => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsSave, request),
     getFeelingState: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveFeelingSnapshot),
     clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory)
+  }),
+  continuity: Object.freeze({
+    listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),
+    completePendingItem: (request: PendingItemIdRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsComplete, request),
+    readTurnContext: (request: TurnContextRequest) => invoke<CognitiveTurnContext | null>(IPC_CHANNELS.turnContextRead, request)
   }),
   chat: Object.freeze({
     send: (request: ChatRequest) => invoke<ChatResult>(IPC_CHANNELS.chatSend, request),

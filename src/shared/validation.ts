@@ -254,6 +254,16 @@ export function parseReflectionFindingsRequest(value: unknown): { runId: string 
   return { runId: parseIdentifier(input.runId) }
 }
 
+export function parsePendingItemIdRequest(value: unknown): { itemId: string } {
+  const input = parseObject(value, ['itemId'], 'Pending item request')
+  return { itemId: parseIdentifier(input.itemId) }
+}
+
+export function parseTurnContextRequest(value: unknown): { turnId: string } {
+  const input = parseObject(value, ['turnId'], 'Turn context request')
+  return { turnId: parseIdentifier(input.turnId) }
+}
+
 export function parseChatRequest(value: unknown): { conversationId: string; requestId: string; content: string; includeSensitive: boolean } {
   const input = parseObject(value, ['conversationId', 'requestId', 'content', 'includeSensitive'], 'Chat request')
   const content = parseText(input.content, 'Message', 1, 8000)

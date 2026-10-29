@@ -51,7 +51,9 @@ import {
   parseSelfModelListRequest,
   parseSelfModelCorrectRequest,
   parseSelfModelIdRequest,
-  parseReflectionFindingsRequest
+  parseReflectionFindingsRequest,
+  parsePendingItemIdRequest,
+  parseTurnContextRequest
 } from '../shared/validation'
 import {
   parseGoalCreateRequest,
@@ -114,9 +116,22 @@ export interface SelfModelActions {
   listEntries(request?: { kind?: 'fact' | 'inference' | 'unknown' | 'correction' }): ReturnType<SelfModelService['list']>
   correctEntry(request: { entryId: string; statement: string }): ReturnType<SelfModelService['correct']>
   retractEntry(request: { entryId: string }): void
-  runReflection(): ReturnType<ReflectionService['run']>
+  runReflection(): Promise<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' | 'budget_exhausted' }>
   listReflectionRuns(): ReturnType<ReflectionService['listRuns']>
   listReflectionFindings(request: { runId: string }): ReturnType<ReflectionService['findings']>
+}
+
+/**
+ * Phase 2.4 continuity surface.
+ *
+ * Deliberately minimal: reading the internal items and the per-turn record,
+ * and marking an item done. Nothing here can send a message outward, change
+ * memory, or alter personality.
+ */
+export interface ContinuityActions {
+  listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
+  completePendingItem(request: { itemId: string }): boolean
+  readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
 }
 
 export interface ApplicationActions {
@@ -126,6 +141,7 @@ export interface ApplicationActions {
   companion?: CompanionActions
   backup?: BackupActions
   selfModel?: SelfModelActions
+  continuity?: ContinuityActions
 }
 
 function isTrustedSender(event: IpcEventLike, trustedRendererUrl: string): boolean {
@@ -237,6 +253,11 @@ export function createIpcHandlers(
       [IPC_CHANNELS.reflectionRun]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.selfModel!.runReflection()),
       [IPC_CHANNELS.reflectionListRuns]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.selfModel!.listReflectionRuns()),
       [IPC_CHANNELS.reflectionFindings]: (event, payload) => execute(event, trustedRendererUrl, payload, parseReflectionFindingsRequest, (request) => actions.selfModel!.listReflectionFindings(request))
+    } : {}),
+    ...(actions.continuity ? {
+      [IPC_CHANNELS.pendingItemsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.continuity!.listPendingItems()),
+      [IPC_CHANNELS.pendingItemsComplete]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemIdRequest, (request) => actions.continuity!.completePendingItem(request)),
+      [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
     } : {}),
     ...(companion ? {
       [IPC_CHANNELS.providerGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getProvider()),
