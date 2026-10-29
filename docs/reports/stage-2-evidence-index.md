@@ -12,7 +12,7 @@
 | 5 | 自我模型不复制原文 | `src/self-model/self-fact-statement.ts`、迁移 20 | `src/self-model/self-fact-statement.test.ts` | — | PASS |
 | 6 | 旧 schema 读取 | `src/cognition/turn-context.ts` `normalizeTurnContext` | `src/cognition/turn-context.test.ts` | — | PASS |
 | 7 | 轮次幂等 | `src/app/companion-service.ts` `send` | `turn-reliability.integration.test.ts` | 同上（场景 I） | PASS |
-| 8 | B1 多信号置信度 | 无 | 无 | — | **NOT_IMPLEMENTED** |
+| 8 | B1 多信号置信度 | `src/cognition/intent-confidence.ts` → analyzer | `intent-confidence.test.ts`（5 条） | — | **PASS（离线；未接管 strategy）** |
 | 9 | B2 渐进式个性化 | `src/personalization/personalization-service.ts`、迁移 22 | `personalization-service.test.ts`（11 条，含 P1-A/B/C 与端到端） | 同上 | **PASS（离线）** |
 | 9b | B2 删除一致性 | 同左（证据折叠 + 缓存回填） | 删除源消息后重算回 0.5 | 同上 | **PASS** |
 | 10 | B3 `U(c)` | `src/cognition/context-utility.ts` → `memory-context-assembler.rankScore` | `context-utility.test.ts`（5 条）+ 记忆 60 条回归 | — | **PASS（离线；P/X/D 未接线）** |

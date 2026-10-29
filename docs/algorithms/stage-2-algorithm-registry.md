@@ -106,7 +106,22 @@
 | 失败语义 | 状态写入失败被吞掉，不影响聊天；非法转换只在测试中暴露 |
 | 测试 | `src/cognition/turn-state-machine.test.ts`（6 条：合法链、跳阶段拒绝、重放幂等、终态判定、非法转换不覆盖、会话删除清理） |
 
-## 8. 上下文块效用（Stage 2 B3，本次实现）
+## 8. 多信号意图置信度（Stage 2 B1，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 公式 | `s = α·r + β·c + γ·e + δ·h`（各分量先归一化到 [0,1]） |
+| 权重 | `rule 0.45`、`context 0.25`、`evidence 0.15`、`history 0.15`（`INTENT_CONFIDENCE_WEIGHTS`） |
+| 位置 | `src/cognition/intent-confidence.ts` → `assessIntentConfidence`；由 `cognitive-turn-analyzer.ts` 在决策时调用 |
+| 缺失信号 | **按可用分量重新归一化**，不用 0 或 1 填充；`missing` 列出缺哪几项 |
+| 全部缺失 | `confidence=0` 且 `needsClarification=true`（"没测到"不等于"确定错了"） |
+| 澄清阈值 | `CLARIFY_THRESHOLD = 0.45`；存在备选时额外要求 `s ≥ 0.55`（`CLARIFY_MARGIN = 0.10`） |
+| 校准声明 | `calibration: 'uncalibrated_rule_evidence'` —— 明确不是概率 |
+| 已接线 | 决策时计算并随 `CognitiveTurnReading.assessment` 返回 |
+| **未接线（诚实标注）** | **尚未覆盖 `strategy`**：把 `ambiguous` 一律改为 clarify 会移动离线认知评测基线，阈值需先用标注数据重标定，故本轮只计算不改变行为 |
+| 测试 | `src/cognition/intent-confidence.test.ts`（5 条：加权/归一化、缺失重归一、全缺失必澄清、弱信号与接近候选、越界与 NaN 夹紧） |
+
+## 9. 上下文块效用（Stage 2 B3，本次实现）
 
 | 项 | 值 |
 |---|---|
@@ -122,7 +137,7 @@
 | **未接线** | `P`（preference）当前恒为 0 —— 个性化信号尚未进入排序；`X`/`D` 也为 0，因为冲突披露与过期判定在其它层。这三项在注册表里明确标为未接线，不计为完成 |
 | 测试 | `src/cognition/context-utility.test.ts`（5 条：单调性/上下界、惩罚项、越界与 NaN 夹紧、reason 码、半衰期） |
 
-## 9. 长期层（兴趣 / 反思）
+## 10. 长期层（兴趣 / 反思）
 
 | 项 | 值 |
 |---|---|
@@ -137,7 +152,7 @@
 
 | 算法 | 状态 |
 |---|---|
-| 多信号意图置信度 `s = αr + βc + γe + δh` | **未实现**。当前只有单一规则强度 |
+| ~~多信号意图置信度~~ | **已实现**（见 §8）；仅计算并暴露，尚未覆盖 strategy |
 | ~~渐进式个性化~~ | **已实现**（见 §6；参数与写入/读取位置已登记） |
 | ~~上下文块效用 `U(c)`~~ | **已实现并用于记忆排序**（见 §8）；`P/X/D` 三项未接线 |
 | ~~持久化轮次状态机~~ | **已实现并接线**（见 §7；`analyzed`/`awaiting_consent`/`recovery_required` 尚未有写入点） |

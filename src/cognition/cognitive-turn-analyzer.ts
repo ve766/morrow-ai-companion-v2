@@ -11,6 +11,7 @@ import {
   type CognitiveUncertainty
 } from './cognition'
 import { decideIntent, type IntentDecision, type IntentLabel } from './intent-decision'
+import { assessIntentConfidence, type IntentAssessment } from './intent-confidence'
 
 export const COGNITIVE_HISTORY_LIMIT_MESSAGES = 12
 export const COGNITIVE_HISTORY_LIMIT_CHARACTERS = 6000
@@ -71,6 +72,12 @@ function uncertaintyFor(intent: CognitiveIntent, confidence: number, alternative
 export interface CognitiveTurnReading {
   analysis: CognitiveTurnAnalysis
   decision: IntentDecision
+  /**
+   * Multi-signal reading (B1). Computed at decision time from the signals that
+   * actually exist; `missing` says which ones did not. It is not persisted as a
+   * calibrated probability because it is not one.
+   */
+  assessment: IntentAssessment
 }
 
 /**
@@ -126,6 +133,22 @@ export function analyzeCognitiveTurnDetailed(
   const correctionNeedsDetail = signals.correction && !signals.explicitSelfFact && !signals.changedMind && wordCount(current) <= 4
   // Only a *reference* we could not resolve asks for clarification. A plain
   // statement that matches no intent rule is answered, not interrogated.
+  // B1: the weighted reading decides whether an ambiguous label may be answered
+  // at all. Asking is the safe failure mode; guessing is not.
+  const assessment = assessIntentConfidence(
+    {
+      rule: decision.confidence / 100,
+      context: decision.dependsOnPriorTurn ? (priorUser ? 1 : 0.5) : 0.6,
+      evidence: null,
+      history: priorUser ? 1 : null
+    },
+    decision.alternatives.length
+  )
+  // The assessment is computed here so it is available at decision time, but it
+  // does not yet override the strategy: making every `ambiguous` label ask for
+  // clarification shifts the offline cognitive evaluation baseline, and that
+  // threshold has to be recalibrated against labelled data first. Recorded as an
+  // open item in the algorithm registry rather than silently changing behaviour.
   const strategy = reasons.has('reference_without_context') || correctionNeedsDetail
     ? 'clarify' as const
     : decision.needsMemoryRetrieval
@@ -135,6 +158,7 @@ export function analyzeCognitiveTurnDetailed(
 
   return {
     decision,
+    assessment,
     analysis: {
       schemaVersion: COGNITIVE_SCHEMA_VERSION,
       analyzerVersion: COGNITIVE_ANALYZER_VERSION,
