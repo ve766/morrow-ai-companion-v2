@@ -145,3 +145,101 @@ describe('personalization reaches the next request', () => {
     }
   })
 })
+
+describe('P1 fixes: normalization, atomicity, deletion consistency', () => {
+  it('stores the normalized signal and weight so the CHECK constraints agree with the arithmetic', () => {
+    const database = openDatabase()
+    try {
+      const service = new PersonalizationService(database)
+      const turnId = randomUUID()
+      const entry = service.apply({ dimension: 'exploration', signal: 5, weight: 5, turnId, at: '2026-10-29T00:00:00.000Z' })
+      const stored = database.connection.prepare(
+        'SELECT signal, weight FROM personalization_signals WHERE dimension = ? AND turn_id = ?'
+      ).get('exploration', turnId) as { signal: number; weight: number }
+      expect(stored).toEqual({ signal: 1, weight: 1 })
+      expect(entry.value).toBeCloseTo(0.5 + PERSONALIZATION_ETA, 4)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('rejects a non-finite signal or an invalid timestamp instead of writing a row', () => {
+    const database = openDatabase()
+    try {
+      const service = new PersonalizationService(database)
+      const turnId = randomUUID()
+      expect(() => service.apply({ dimension: 'depth', signal: Number.NaN, weight: 0.5, turnId, at: '2026-10-29T00:00:00.000Z' })).toThrow(TypeError)
+      expect(() => service.apply({ dimension: 'depth', signal: 0.5, weight: Number.POSITIVE_INFINITY, turnId, at: '2026-10-29T00:00:00.000Z' })).toThrow(TypeError)
+      expect(() => service.apply({ dimension: 'depth', signal: 0.5, weight: 0.5, turnId, at: 'not-a-date' })).toThrow(TypeError)
+      expect(database.connection.prepare('SELECT COUNT(*) AS count FROM personalization_signals').get()).toEqual({ count: 0 })
+    } finally {
+      database.close()
+    }
+  })
+
+  it('recomputes from evidence when the source message is deleted, so no stale value survives', () => {
+    const database = openDatabase()
+    try {
+      const service = new PersonalizationService(database)
+      const turnId = randomUUID()
+      const conversationId = randomUUID()
+      database.connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, 'p1a', '2026-10-29T00:00:00.000Z', '2026-10-29T00:00:00.000Z')
+      database.connection.prepare(
+        'INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(randomUUID(), conversationId, 'user', '我想规划一下。', '2026-10-29T00:00:00.000Z', 1, turnId)
+
+      service.apply({ dimension: 'exploration', signal: 0.5, weight: 0.6, turnId, at: '2026-10-29T00:00:00.000Z' })
+      expect(service.get('exploration').value).toBeGreaterThan(0.5)
+
+      // The trigger removes the signals; the cached row is not touched by SQL.
+      database.connection.prepare('DELETE FROM messages WHERE turn_id = ?').run(turnId)
+      const after = service.get('exploration')
+      expect(after.evidenceCount).toBe(0)
+      expect(after.value).toBe(0.5)
+      // The cached row is repaired too, not just hidden from the reader.
+      const cached = database.connection.prepare('SELECT value, evidence_count, last_turn_id FROM personalization_state WHERE dimension = ?').get('exploration') as { value: number; evidence_count: number; last_turn_id: string | null }
+      expect(cached).toEqual({ value: 0.5, evidence_count: 0, last_turn_id: null })
+    } finally {
+      database.close()
+    }
+  })
+
+  it('converges after a crash that left a signal without a state row', () => {
+    const database = openDatabase()
+    try {
+      const service = new PersonalizationService(database)
+      const turnId = randomUUID()
+      // Simulate the interrupted write: evidence on disk, state never updated.
+      database.connection.prepare(
+        'INSERT INTO personalization_signals(dimension, turn_id, signal, weight, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('pace', turnId, -0.5, 0.8, '2026-10-29T00:00:00.000Z')
+
+      const recovered = service.apply({ dimension: 'pace', signal: -0.5, weight: 0.8, turnId, at: '2026-10-29T00:00:00.000Z' })
+
+      expect(recovered.evidenceCount).toBe(1)
+      expect(recovered.value).toBeCloseTo(0.5 - PERSONALIZATION_ETA * 0.8 * 0.5, 4)
+      const cached = database.connection.prepare('SELECT value, evidence_count FROM personalization_state WHERE dimension = ?').get('pace') as { value: number; evidence_count: number }
+      expect(cached.evidence_count).toBe(1)
+      expect(cached.value).toBeCloseTo(recovered.value, 4)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('keeps the cached row identical to a fold over evidence', () => {
+    const database = openDatabase()
+    try {
+      const service = new PersonalizationService(database)
+      for (let index = 0; index < 3; index += 1) {
+        service.apply({ dimension: 'depth', signal: 0.5, weight: 0.6, turnId: randomUUID(), at: `2026-10-29T00:00:0${index}.000Z` })
+      }
+      const before = service.get('depth')
+      const rebuilt = service.recomputeAll().find((entry) => entry.dimension === 'depth')!
+      expect(rebuilt.value).toBe(before.value)
+      expect(rebuilt.evidenceCount).toBe(before.evidenceCount)
+    } finally {
+      database.close()
+    }
+  })
+})

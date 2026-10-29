@@ -80,7 +80,10 @@
 | 默认值 | 0.5（中立中点）；**证据数为 0 时不进入提示词**，默认值不被表述为"结论" |
 | 单轮上限 | 每轮每个维度最多移动 `η·w ≤ 0.05` —— 单条消息无法改写人格 |
 | 幂等 | `personalization_signals(dimension, turn_id)` 主键；重复 turn 不叠加 |
-| 撤回 | `forgetTurn(turnId)` 删除该轮信号并按剩余信号**重算**，回到 0.5 而非"略低于 0.5" |
+| 原子性 | `apply()` 在一个 `BEGIN IMMEDIATE` 事务内完成「插入证据 + 折叠重算 + 写缓存」，异常即 ROLLBACK |
+| 唯一真相 | `personalization_signals` 是证据源，`personalization_state` 只是缓存；每次读取都按证据折叠，发现不一致即修复 |
+| 归一化 | signal 夹到 [-1,1]、weight 夹到 [0,1] **在写库前完成**，DB CHECK 与算式看到同一组数字；NaN/Infinity/非法时间戳直接拒绝 |
+| 撤回 | `forgetTurn(turnId)` 删除该轮信号并**重算**；即使只由 SQL 触发器删了信号，下一次 `get()` 也会重算并回填缓存（已删除来源的偏好不会留在提示词里） |
 | 持久化 | 迁移 22：`personalization_state`（值）+ `personalization_signals`（逐轮证据） |
 | 删除边界 | `AFTER DELETE ON messages` 触发器按 `turn_id` 清理信号（迁移 22） |
 | 写入时机 | `CompanionService` `onTurnCompleted`（真实轮次完成） |

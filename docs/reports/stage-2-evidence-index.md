@@ -13,7 +13,8 @@
 | 6 | 旧 schema 读取 | `src/cognition/turn-context.ts` `normalizeTurnContext` | `src/cognition/turn-context.test.ts` | — | PASS |
 | 7 | 轮次幂等 | `src/app/companion-service.ts` `send` | `turn-reliability.integration.test.ts` | 同上（场景 I） | PASS |
 | 8 | B1 多信号置信度 | 无 | 无 | — | **NOT_IMPLEMENTED** |
-| 9 | B2 渐进式个性化 | `src/personalization/personalization-service.ts`、迁移 22 | `personalization-service.test.ts`（6 条，含端到端） | 同上 | **PASS（离线）** |
+| 9 | B2 渐进式个性化 | `src/personalization/personalization-service.ts`、迁移 22 | `personalization-service.test.ts`（11 条，含 P1-A/B/C 与端到端） | 同上 | **PASS（离线）** |
+| 9b | B2 删除一致性 | 同左（证据折叠 + 缓存回填） | 删除源消息后重算回 0.5 | 同上 | **PASS** |
 | 10 | B3 `U(c)` | 无（现为相关度+新近度+预算） | 无 | — | **NOT_IMPLEMENTED** |
 | 11 | B4 轮次状态机 | 仅 `succeeded/failed/cancelled` | 无 | — | **NOT_IMPLEMENTED** |
 | 12 | B5 反思进入下一轮请求 | `onTurnCompleted` → `reflection.run` | 接线测试 | — | 接线 PASS；payload 级证据 **NOT_RUN** |

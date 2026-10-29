@@ -1,18 +1,27 @@
 /**
  * Bounded personalization state (Stage 2, algorithm B2).
  *
- * The rule is `p' = clip(p + eta * w * e, min, max)` with:
- *   - `p`   current value of one named dimension,
- *   - `eta` the learning rate (default 0.05, see PERSONALIZATION_ETA),
- *   - `w`   evidence reliability in [0, 1] — how much this turn is trusted,
- *   - `e`   the signed signal in [-1, 1] this turn contributes.
+ * Rule: `p' = clip(p + eta * w * e, min, max)` with
+ *   - `p`  the current value of one named dimension,
+ *   - `eta` the learning rate (PERSONALIZATION_ETA = 0.05),
+ *   - `w`  evidence reliability, normalized to [0, 1] at the service boundary,
+ *   - `e`  the signed signal, normalized to [-1, 1] at the same boundary.
  *
- * Two properties matter more than the formula:
+ * Three invariants make the value trustworthy:
  *
- *   1. A single turn can move a dimension by at most `eta` (0.05). Personality
- *      is not rewritten by one message; it drifts only under repeated evidence.
- *   2. Every update names the turn that produced it, so a value can be traced
- *      back to the turns that built it and recomputed after a deletion.
+ *   1. **Evidence is the source of truth.** `personalization_signals` holds one
+ *      row per (dimension, turn). `personalization_state` is a cache that is
+ *      always recomputed from those rows, never incremented on its own. If a
+ *      source message is deleted and its signals disappear, the next read
+ *      recomputes the value from what is left — a stale number cannot survive
+ *      in the prompt.
+ *   2. **Apply is atomic.** Signal insert and state write happen in one
+ *      transaction, so a crash cannot leave "signal exists, state did not move".
+ *      Retrying the same turn converges because the recompute is a fold over
+ *      evidence, not an increment.
+ *   3. **Normalization happens once, before both the calculation and the
+ *      write.** The database CHECK constraints and the arithmetic therefore see
+ *      the same numbers.
  *
  * This is a heuristic engineering state, not a psychological measurement, and
  * the prompt block says so.
@@ -22,6 +31,8 @@ import type { SqliteDatabase } from '../persistence/database'
 export const PERSONALIZATION_ETA = 0.05
 export const PERSONALIZATION_MIN = 0
 export const PERSONALIZATION_MAX = 1
+/** Neutral midpoint: nothing has been learned yet. */
+export const PERSONALIZATION_NEUTRAL = 0.5
 
 export const PERSONALIZATION_DIMENSIONS = ['exploration', 'depth', 'pace'] as const
 export type PersonalizationDimension = typeof PERSONALIZATION_DIMENSIONS[number]
@@ -32,15 +43,15 @@ export interface PersonalizationEntry {
   evidenceCount: number
   revision: number
   updatedAt: string
-  /** Turn that produced the current value; null when the row is at its default. */
+  /** Turn that produced the current value; null when no evidence remains. */
   lastTurnId: string | null
 }
 
 export interface PersonalizationSignal {
   dimension: PersonalizationDimension
-  /** Signed contribution in [-1, 1]. */
+  /** Signed contribution; clamped to [-1, 1] before use and before storage. */
   signal: number
-  /** Evidence reliability in [0, 1]. */
+  /** Evidence reliability; clamped to [0, 1] before use and before storage. */
   weight: number
   turnId: string
   at: string
@@ -63,22 +74,13 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}
 export class PersonalizationService {
   constructor(private readonly database: SqliteDatabase, private readonly clock: () => string = () => new Date().toISOString()) {}
 
-  /** Defaults are the neutral midpoint, not zero: nothing has been learned yet. */
+  /**
+   * Reads a dimension by folding its evidence. The cached row is repaired when
+   * it disagrees with the evidence, so a deletion that only removed signals
+   * cannot leave a value behind that no longer has support.
+   */
   get(dimension: PersonalizationDimension): PersonalizationEntry {
-    const row = this.database.connection.prepare(
-      'SELECT dimension, value, evidence_count, revision, updated_at, last_turn_id FROM personalization_state WHERE dimension = ?'
-    ).get(dimension) as { dimension: string; value: number; evidence_count: number; revision: number; updated_at: string; last_turn_id: string | null } | undefined
-    if (!row) {
-      return { dimension, value: 0.5, evidenceCount: 0, revision: 0, updatedAt: this.clock(), lastTurnId: null }
-    }
-    return {
-      dimension: row.dimension as PersonalizationDimension,
-      value: row.value,
-      evidenceCount: row.evidence_count,
-      revision: row.revision,
-      updatedAt: row.updated_at,
-      lastTurnId: row.last_turn_id
-    }
+    return this.recompute(dimension, { persist: true })
   }
 
   list(): PersonalizationEntry[] {
@@ -86,47 +88,49 @@ export class PersonalizationService {
   }
 
   /**
-   * Applies one signal. Idempotent per (dimension, turn): replaying the same
-   * turn cannot move the value twice, which is what makes recovery safe.
+   * Applies one signal atomically.
+   *
+   * Normalization happens first (P1-C), then insert + recompute happen inside a
+   * single `BEGIN IMMEDIATE` transaction (P1-B). The result is a fold over all
+   * signals for the dimension, so replaying a turn, or recovering from a crash
+   * that left a signal without a state row, converges to the same value.
    */
-  apply(signal: PersonalizationSignal): PersonalizationEntry {
-    if (!uuidPattern.test(signal.turnId)) throw new TypeError('Personalization requires a valid turn id.')
-    if (!PERSONALIZATION_DIMENSIONS.includes(signal.dimension)) throw new TypeError('Unknown personalization dimension.')
-    if (!Number.isFinite(signal.signal) || !Number.isFinite(signal.weight)) throw new TypeError('Personalization requires finite signal and weight.')
+  apply(input: PersonalizationSignal): PersonalizationEntry {
+    if (typeof input.turnId !== 'string' || !uuidPattern.test(input.turnId)) throw new TypeError('Personalization requires a valid turn id.')
+    if (!PERSONALIZATION_DIMENSIONS.includes(input.dimension)) throw new TypeError('Unknown personalization dimension.')
+    if (!Number.isFinite(input.signal) || !Number.isFinite(input.weight)) throw new TypeError('Personalization requires finite signal and weight.')
+    if (typeof input.at !== 'string' || !Number.isFinite(Date.parse(input.at))) throw new TypeError('Personalization requires a valid timestamp.')
 
-    const replay = this.database.connection.prepare(
-      'SELECT 1 AS seen FROM personalization_signals WHERE dimension = ? AND turn_id = ?'
-    ).get(signal.dimension, signal.turnId.toLowerCase())
-    if (replay) return this.get(signal.dimension)
+    const turnId = input.turnId.toLowerCase()
+    const signal = Math.min(1, Math.max(-1, input.signal))
+    const weight = Math.min(1, Math.max(0, input.weight))
 
-    const current = this.get(signal.dimension)
-    const value = round(boundedUpdate(current.value, signal.signal, signal.weight))
-    const at = signal.at
+    this.database.connection.exec('BEGIN IMMEDIATE')
+    try {
+      this.database.connection.prepare(`
+        INSERT INTO personalization_signals(dimension, turn_id, signal, weight, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(dimension, turn_id) DO NOTHING
+      `).run(input.dimension, turnId, signal, weight, input.at)
 
-    this.database.connection.prepare(`
-      INSERT INTO personalization_signals(dimension, turn_id, signal, weight, created_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(dimension, turn_id) DO NOTHING
-    `).run(signal.dimension, signal.turnId.toLowerCase(), signal.signal, signal.weight, at)
-
-    this.database.connection.prepare(`
-      INSERT INTO personalization_state(dimension, value, evidence_count, revision, updated_at, last_turn_id)
-      VALUES (?, ?, 1, 1, ?, ?)
-      ON CONFLICT(dimension) DO UPDATE SET
-        value = excluded.value,
-        evidence_count = personalization_state.evidence_count + 1,
-        revision = personalization_state.revision + 1,
-        updated_at = excluded.updated_at,
-        last_turn_id = excluded.last_turn_id
-    `).run(signal.dimension, value, at, signal.turnId.toLowerCase())
-
-    return this.get(signal.dimension)
+      const entry = this.fold(input.dimension)
+      this.writeState(entry, input.at, { bumpRevision: true })
+      this.database.connection.exec('COMMIT')
+      return entry
+    } catch (error) {
+      try {
+        this.database.connection.exec('ROLLBACK')
+      } catch {
+        // The transaction is already gone; surface the original failure.
+      }
+      throw error
+    }
   }
 
   /**
-   * Removes the signals produced by one turn and recomputes the affected
-   * dimensions from the signals that remain, so deleting a turn does not leave
-   * a value that was built from it.
+   * Withdraws every signal produced by one turn and recomputes the dimensions
+   * that were affected. Deletion paths that cannot run this can simply delete
+   * the signals: the next `get()` recomputes from evidence anyway.
    */
   forgetTurn(turnId: string): PersonalizationEntry[] {
     const id = turnId.toLowerCase()
@@ -134,26 +138,50 @@ export class PersonalizationService {
       'SELECT DISTINCT dimension FROM personalization_signals WHERE turn_id = ?'
     ).all(id) as Array<{ dimension: PersonalizationDimension }>
     this.database.connection.prepare('DELETE FROM personalization_signals WHERE turn_id = ?').run(id)
-    for (const { dimension } of affected) this.recompute(dimension)
-    return affected.map((row) => this.get(row.dimension))
+    return affected.map((row) => this.recompute(row.dimension, { persist: true }))
   }
 
-  private recompute(dimension: PersonalizationDimension): void {
+  /** Rebuilds every cached row from evidence; used by the consistency check. */
+  recomputeAll(): PersonalizationEntry[] {
+    return PERSONALIZATION_DIMENSIONS.map((dimension) => this.recompute(dimension, { persist: true }))
+  }
+
+  private recompute(dimension: PersonalizationDimension, options: { persist: boolean }): PersonalizationEntry {
+    const entry = this.fold(dimension)
+    if (options.persist) this.writeState(entry, this.clock(), { bumpRevision: false })
+    return entry
+  }
+
+  private fold(dimension: PersonalizationDimension): PersonalizationEntry {
     const rows = this.database.connection.prepare(
       'SELECT signal, weight, turn_id, created_at FROM personalization_signals WHERE dimension = ? ORDER BY created_at, turn_id'
     ).all(dimension) as Array<{ signal: number; weight: number; turn_id: string; created_at: string }>
-    let value = 0.5
+    let value = PERSONALIZATION_NEUTRAL
     for (const row of rows) value = boundedUpdate(value, row.signal, row.weight)
+    const cached = this.database.connection.prepare(
+      'SELECT revision, updated_at FROM personalization_state WHERE dimension = ?'
+    ).get(dimension) as { revision: number; updated_at: string } | undefined
     const last = rows.at(-1)
+    return {
+      dimension,
+      value: round(value),
+      evidenceCount: rows.length,
+      revision: cached?.revision ?? 0,
+      updatedAt: last?.created_at ?? cached?.updated_at ?? this.clock(),
+      lastTurnId: last?.turn_id ?? null
+    }
+  }
+
+  private writeState(entry: PersonalizationEntry, at: string, options: { bumpRevision: boolean }): void {
     this.database.connection.prepare(`
       INSERT INTO personalization_state(dimension, value, evidence_count, revision, updated_at, last_turn_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, 1, ?, ?)
       ON CONFLICT(dimension) DO UPDATE SET
         value = excluded.value,
         evidence_count = excluded.evidence_count,
-        revision = personalization_state.revision + 1,
+        revision = personalization_state.revision + ?,
         updated_at = excluded.updated_at,
         last_turn_id = excluded.last_turn_id
-    `).run(dimension, round(value), rows.length, 1, this.clock(), last?.turn_id ?? null)
+    `).run(entry.dimension, entry.value, entry.evidenceCount, at, entry.lastTurnId, options.bumpRevision ? 1 : 0)
   }
 }
