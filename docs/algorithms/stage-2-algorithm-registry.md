@@ -162,6 +162,8 @@
 | 可审计 | 返回 `signals`（五项分量 + `sharedRun`）与 `reason` 码；事件 `interest.observed` 带 `nearestScore/nearestReason/ambiguous` |
 | 开发集 | `evals/stage-2/topic-identity-devset.json`（23 对，人工标注）；报告脚本 `npm run eval:topic-identity` |
 | 开发集指标 | precision **1.000**、recall **0.875**、FP **0**、FN **1**（`p03`）；歧义 3 对 —— **开发集结果，非总体校准** |
+| 门禁语义 | `eval:topic-identity` **只以 FP 为门禁**（误合并会把错误兴趣永久写进长期层），recall 缺口只报告不判失败；脚本每次打印该行，避免把「报告」误读成「全绿」 |
+| 结果溯源 | 报告 JSON 带 `headSha`（生成时 `git rev-parse HEAD`）与 `generatedAt`，与 `results/*.json` 同一约定 |
 | 证据账本 | 迁移 24 `interest_evidence`（`(interest_id, evidence_ref)` 主键 + `evidence_ref` 唯一索引）为唯一真相，`interests.evidence_count/conversation_count` 降为缓存 |
 | 幂等 | 一条观察只能归入一个兴趣；重放同一 `message_id` 不增加证据 |
 | 撤回 | 删除消息/会话由触发器清理证据；读取时按证据折叠重算，`active` 不达标即降级，证据清零则整条删除 |

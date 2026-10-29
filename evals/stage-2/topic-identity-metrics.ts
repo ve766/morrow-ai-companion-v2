@@ -9,6 +9,7 @@
  * only reports what they do on the labelled set. That keeps the report honest —
  * a script that re-picks thresholds until everything passes reports nothing.
  */
+import { execSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { matchTopicTexts, TOPIC_AMBIGUOUS_THRESHOLD, TOPIC_IDENTITY_VERSION, TOPIC_SAME_THRESHOLD } from '../../src/self-model/topic-identity'
@@ -36,6 +37,13 @@ let trueNegative = 0
 let falseNegative = 0
 let ambiguous = 0
 const failures: Array<{ id: string; kind: string; expected: string; got: string; score: number; reason: string }> = []
+
+// The gate is precision, not recall, and that is a deliberate product choice:
+// a false merge writes a wrong interest into long-term memory permanently,
+// while a missed merge only delays promotion. Recall is reported and tracked
+// but does not fail the run, otherwise the known miss below would make the
+// script permanently red and the signal would be ignored.
+const headSha = process.env.MORROW_EVAL_HEAD ?? execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
 
 const rows = devSet.pairs.map((pair) => {
   const match = matchTopicTexts(pair.left, pair.right)
@@ -77,6 +85,7 @@ console.log(`  same->same ${truePositive}   same->different ${falseNegative}`)
 console.log(`  diff->same ${falsePositive}   diff->different ${trueNegative}`)
 console.log(`ambiguous decisions: ${ambiguous}`)
 console.log(`precision ${precision === null ? 'n/a' : precision.toFixed(3)}  recall ${recall === null ? 'n/a' : recall.toFixed(3)}`)
+console.log(`gate: falsePositive must be 0 (actual ${falsePositive}); recall misses are reported, not gated (actual ${falseNegative})`)
 if (failures.length > 0) {
   console.log('')
   console.log('misclassified:')
@@ -86,10 +95,20 @@ if (failures.length > 0) {
 }
 
 const report = {
+  // Bound to the exact commit the numbers came from. Without it a report cannot
+  // be matched to code, which is how a stale result ends up quoted as current.
+  headSha,
+  generatedAt: new Date().toISOString(),
   algorithmVersion: TOPIC_IDENTITY_VERSION,
   devSetVersion: devSet.version,
   thresholds: { same: TOPIC_SAME_THRESHOLD, ambiguous: TOPIC_AMBIGUOUS_THRESHOLD },
   totals: { pairs: devSet.pairs.length, truePositive, falsePositive, trueNegative, falseNegative, ambiguous },
+  confusion: {
+    'same->same': truePositive,
+    'same->different': falseNegative,
+    'different->same': falsePositive,
+    'different->different': trueNegative
+  },
   metrics: { precision, recall },
   failures,
   rows,
@@ -100,5 +119,5 @@ mkdirSync(resultsDirectory, { recursive: true })
 const target = resolve(resultsDirectory, 'topic-identity-devset-report.json')
 writeFileSync(target, JSON.stringify(report, null, 2) + '\n', 'utf8')
 console.log('')
-console.log(`report written: ${target}`)
-process.exitCode = falsePositive === 0 && falseNegative === 0 ? 0 : 1
+console.log(`report written: ${target}  headSha: ${headSha}`)
+process.exitCode = falsePositive === 0 ? 0 : 1

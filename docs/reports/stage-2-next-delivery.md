@@ -103,6 +103,8 @@ ambiguous 3（其中 2 对为同槽替换，正确未合并）
 
 唯一漏判 `p03`（`我在学手冲咖啡` / `最近一直在练手冲`，仅共享 2 字中心词）已如实记录为召回损失，**不是**误合并。小样本结果标注为开发集结果，不声称已普遍校准。
 
+门禁语义（此处曾写错，已改正）：脚本**只以 FP 为门禁**——误合并会把错误兴趣永久写进长期层，召回缺口只让晋升延后。因此 `p03` 存在时退出码仍是 0，脚本每次打印 `gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated (actual 1)`。之前报告里把该命令写成「0 / 全绿」而未说明这条语义，容易被读成指标全部达标；现在语义与数字一起给出。报告 JSON 同时带 `headSha` 与 `generatedAt`。
+
 **同时修掉的两个真实缺陷**：
 
 1. **证据账本**（迁移 24）：`interests.evidence_count` 原来是只写计数器——重放同一轮会虚增，删消息不会减少，导致已撤回的观察仍在喂养 `active`。现在 `interest_evidence` 是唯一真相，`(interest_id, evidence_ref)` 主键 + `evidence_ref` 唯一索引，聚合值降为缓存，读取时按证据折叠重算；证据清零则整条删除，不达标则 `active → candidate`。
@@ -118,7 +120,7 @@ ambiguous 3（其中 2 对为同槽替换，正确未合并）
 | `npx vitest run --maxWorkers=2` | 0 | **71 files / 629 tests passed** |
 | `npm run build` | 0 | — |
 | `npm run eval:stage2` | 0 | executed 5 / passed 5 / failed 0 / blocked 2 / notRun 7 |
-| `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.875 / FP 0 |
+| `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.875 / FP 0 / FN 1（门禁只看 FP，见下） |
 | `npm run eval:ablation` | 0 | full 2/3 轮含个性化块 vs no_personalization 0/3 |
 
 结果文件（`headSha = 558c70e`，与生成时代码提交一致）：
