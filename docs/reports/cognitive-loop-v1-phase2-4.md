@@ -3,7 +3,7 @@
 交付日期：2026-10-28
 开发分支：`feat/cognitive-loop-v1-phase2-4-continuity`
 起始 SHA：`872367ccfddb1cd4ea17cd5107acd473523e6b58`（= PR #13 HEAD，与远端一致，工作区干净）
-最终 SHA：`6121f5e`（代码与测试提交；本报告为其后的文档提交）
+最终 SHA：`185b0a6`（主体 `6121f5e` + 收口 `185b0a6`；本报告为随后的文档提交）
 
 本阶段没有重写任何既有认知模块，而是在真实产品入口 `ChatService.send` 上把已经存在的部件连成一条可审计、可恢复、可跨轮验证的闭环，并补上两个此前确实缺失的部件：**持久化的轮次上下文**与**最小内部待处理事项**。
 
@@ -19,13 +19,18 @@
 | `src/persistence/cognitive-context-repository.ts` | 新增 | 两张新表的幂等 SQLite 实现 |
 | `src/persistence/migrations.ts` | 修改 | 新增 v17 迁移 |
 | `src/app/companion-service.ts` | 修改 | 装配阶段接入状态调整；三条终态路径写入轮次上下文；导出读取接口 |
-| `src/app/index.ts` | 修改 | 生产装配新存储；反思发现写入待处理事项 |
+| `src/app/index.ts` | 修改 | 生产装配新存储；反思改为有界执行并写入待处理事项；注册 continuity 动作 |
+| `src/shared/contracts.ts` | 修改 | 新增 3 个 IPC 通道、请求类型与桥接接口 |
+| `src/shared/validation.ts` | 修改 | 两个请求形状的严格校验 |
+| `src/preload/index.ts` | 修改 | 暴露只读 continuity 桥接 |
+| `src/app/ipc.ts` | 修改 | `ContinuityActions` 与 3 个处理器 |
+| `src/app/ipc.test.ts` | 修改 | 新增 6 条（校验、路由、不可信来源、未装配时不注册） |
 | `src/cognition/turn-context.test.ts` | 新增 | 10 条 |
 | `src/cognition/pending-items.test.ts` | 新增 | 16 条 |
 | `src/cognition/retrieval-attention.test.ts` | 新增 | 6 条 |
 | `src/app/cognitive-continuity-phase24.integration.test.ts` | 新增 | 11 条（A–G 场景） |
 
-共 11 个文件，新增 8 个。`main` 未动，PR #13 未合并。
+共 16 个文件，新增 8 个。`main` 未动，PR #13 未合并。
 
 ---
 
@@ -142,7 +147,7 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 
 失败项：无（首次运行有 5 条失败，均为本阶段新增代码或测试自身的问题，已修复后重跑，见 §8.4）。
 
-其他相关套件：`src/cognition/turn-context.test.ts` 10 条、`pending-items.test.ts` 16 条、`retrieval-attention.test.ts` 6 条。
+其他相关套件：`src/cognition/turn-context.test.ts` 10 条、`pending-items.test.ts` 16 条、`retrieval-attention.test.ts` 6 条、`src/app/ipc.test.ts` 新增 6 条（校验/路由/不可信来源/未装配时不注册通道）。
 
 ---
 
@@ -151,7 +156,7 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | 无输出 |
-| `npx vitest run --maxWorkers=2` | 0 | **555 passed / 63 files**（本阶段前为 512 / 59） |
+| `npx vitest run --maxWorkers=2` | 0 | **561 passed / 63 files**（本阶段前为 512 / 59） |
 | `npm run evaluate` | 0 | `passed:true`，检索 precision/recall 1.0，各类泄漏 0 |
 | `npm run evaluate:cognition` | 0 | 四套件 gate 全过；`offlineExecution.providerCalls = 0` |
 | `npm run build` | 0 | 构建成功 |
@@ -172,8 +177,8 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 1. **真实模型未验证**（见 §7）。这是本阶段最大的证据缺口。
 2. **崩溃窗口**：助手消息与轮次上下文之间不是同一事务；极端情况下该轮无上下文（选择留空而不猜）。
 3. **状态影响只有一条通道**：目前只通过"检索广度"这一确定性决策体现。状态对措辞的影响是既有的，未新增其他下游行为（例如不改变记忆写入、不改变人格）。
-4. **待处理事项没有 UI / IPC 读接口**：只能通过 `CompanionService` 的服务层接口与反思桥接使用。待办面板未做，属刻意控制范围。
-5. **反思仍是人工触发**（既有 IPC `runReflection`），没有做"每轮结束后自动反思"。`runBounded` 已具备预算与取消，但生产路径只在反思桥接中使用其同步形式。
+4. **待处理事项有只读接口，但没有界面**：`continuity` 三个通道（列出待办、标记完成、读取某轮上下文）已接进 IPC 与预加载，校验、来源校验与"未装配时不注册"都有测试；但没有做待办面板。界面缺失是刻意的范围控制，不是链路缺口。
+5. **反思仍是人工触发**：没有做"每轮结束后自动反思"。本轮把反思包进了 `runBounded`（预算 2000ms，超预算返回 `budget_exhausted`，失败返回 `STORAGE_ERROR`，不再伪造"已完成"）。需要说明的是：本地反思是同步实现，**预算只在开始前生效，执行中无法打断**——这一点写在代码注释里，不靠信号假装可取消。
 6. **待办来源只启用了三种**（conflict / evidence_gap / reflection）。表结构保留了 `open_question`、`interest`，代码未产出，属预留而非已实现能力。
 7. **阈值 0.08 是设计选择不是标定值**：按规则引擎的真实权重（单次探索约 +0.04），0.3 永远不会触发，故取"约两次明确探索"。该值未经真实用户校准。
 8. **首轮失败的 5 条测试**暴露了两个真实问题并已修复：取消被记成失败（`send` 的 catch 未区分 `PROVIDER_CANCELLED`）；测试里保存的记忆默认敏感度为 sensitive 导致被上限拦下（后者是测试构造问题，非产品缺陷）。
@@ -188,7 +193,7 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 | 2. 记忆跨轮检索、纠错、撤回并影响回答 | 场景 A / B，读实际 payload 与上下文 |
 | 3. 人格与状态持久化、恢复、模型切换后连续 | 场景 C（切换）+ F（重启） |
 | 4. 状态确实影响后续认知而非仅存储 | 场景 D：同一问题在状态变化前后投递条数 5 → 6，且 `adjustment` 被记录；D' 证明不会放宽不该回忆的轮次 |
-| 5. 待办可创建、持久化、恢复、完成 | 场景 F + `pending-items.test.ts`（去重、不复活、重复完成幂等） |
+| 5. 待办可创建、持久化、恢复、完成 | 场景 F + `pending-items.test.ts`（去重、不复活、重复完成幂等）；IPC 层可列出与完成，且有校验与来源拦截测试 |
 | 6. 失败/重试/取消不重复写入或错误交付 | 场景 E / E'：1 user + 1 assistant；上下文状态正确 |
 | 7. 端到端测试有实际运行结果 | §5、§6（555 passed） |
 | 8. 类型检查、完整测试、构建、认知评估已执行 | §6，全部退出码 0；`smoke` 未执行并说明原因 |
@@ -199,7 +204,7 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 
 ## 10. 提交与后续建议
 
-- 提交 SHA：`6121f5e`（代码与测试）；本报告随后提交在其之上
+- 提交 SHA：`6121f5e`（主体实现与 A–G 测试）、`185b0a6`（IPC 与有界反思收口）；本报告随后提交在其之上
 - 分支：`feat/cognitive-loop-v1-phase2-4-continuity`（基于 PR #13 HEAD `872367c`）
 - 建议：以 **Draft PR** 形式向 `feat/cognitive-loop-v1-phase2` 提出，标题 `feat(cognition): Phase 2.4 continuity — turn context, state-driven retrieval, pending items`。
 - 不合并、不发布、不动 `main`。
@@ -210,3 +215,38 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 2. 为待办事项补只读 IPC 与一个最小面板，让"内部活动"对用户可见、可完成；
 3. 把反思从人工触发扩展为"轮次结束后的有界后台任务"，复用 `runBounded` 的预算与取消；
 4. 若要让状态有第二条下游通道，优先考虑"检索优先级排序"而非再改上限，并用对照实验证明收益。
+
+---
+
+## 11. 收口补充（本轮追加）
+
+首次交付后复审，发现两处"写了但没真正接入"的问题，与我在 §8.7 里批评的阈值死代码属于同一类，因此本轮补上：
+
+### 11.1 待办与轮次上下文接入 IPC
+
+- 新增通道：`morrow:continuity:pending:list`、`morrow:continuity:pending:complete`、`morrow:continuity:turn:read`
+- 严格校验：`{ itemId }` / `{ turnId }` 必须是 UUID，未知字段一律拒绝（`INVALID_INPUT`）
+- 来源校验：非可信主框架返回 `FORBIDDEN`，且**不会**触达动作
+- 未装配 `continuity` 时**不注册**这些通道，避免暴露空实现
+- 能力边界：唯一的写操作是把内部待办标记为完成；不能发消息、不能改记忆、不能改人格
+
+### 11.2 让 `runBounded` 真正进入生产路径
+
+此前 `runBounded` 只被单元测试使用——这正是"看起来有预算和取消、实际上没有调用方"的情形。现在 `runReflection` 通过它执行：
+
+| 情况 | 返回 |
+|---|---|
+| 正常完成 | `ReflectionRunSummary`（并把 findings 写入待办） |
+| 预算已耗尽 | `{ skipped: 'budget_exhausted' }`，**不再冒充已完成** |
+| 执行抛错 | `ApplicationError('STORAGE_ERROR')`，由 IPC 层转成错误结果 |
+| 已取消 | 取消结果不落成"已完成" |
+
+局限已在代码注释与 §8.5 写明：本地反思是同步实现，预算只在开始前生效。
+
+### 11.3 本轮验证
+
+| 命令 | 退出码 | 结果 |
+|---|---|---|
+| `npx tsc --noEmit` | 0 | 无输出 |
+| `npx vitest run --maxWorkers=2` | 0 | **561 passed / 63 files**（较 §6 增加 6 条 IPC 测试） |
+| `npm run build` | 0 | 构建成功（含 preload 与契约改动） |
