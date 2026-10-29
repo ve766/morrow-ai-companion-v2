@@ -39,7 +39,12 @@ export class SqliteTurnContextRepository implements TurnContextPort {
         status = excluded.status,
         recorded_at = excluded.recorded_at,
         payload_json = excluded.payload_json
-      WHERE cognitive_turn_contexts.status <> 'succeeded'
+      -- Forbid a downgrade, not an update. The previous condition was
+      -- status <> 'succeeded', which also blocked the same turn's own
+      -- finalization patch: the context is first written as succeeded, so the
+      -- patch that fills in feeling.applied and the committed state was
+      -- silently dropped and every successful turn kept a pre-commit value.
+      WHERE cognitive_turn_contexts.status <> 'succeeded' OR excluded.status = 'succeeded'
     `).run(
       context.turnId,
       context.conversationId,

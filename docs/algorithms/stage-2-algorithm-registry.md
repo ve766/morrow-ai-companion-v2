@@ -160,15 +160,31 @@
 | 硬约束 2 | 同槽替换：单元集对称差 ≤2 且 Jaccard∈[0.5,1) → `object_substitution_suspected`，降为 `ambiguous`（永不合并） |
 | 硬约束 3 | 极性冲突 → `polarity_conflict`，记**反证**而非支持证据 |
 | 可审计 | 返回 `signals`（五项分量 + `sharedRun`）与 `reason` 码；事件 `interest.observed` 带 `nearestScore/nearestReason/ambiguous` |
-| 开发集 | `evals/stage-2/topic-identity-devset.json`（23 对，人工标注）；报告脚本 `npm run eval:topic-identity` |
-| 开发集指标 | precision **1.000**、recall **0.875**、FP **0**、FN **1**（`p03`）；歧义 3 对 —— **开发集结果，非总体校准** |
+| 开发集 | `evals/stage-2/topic-identity-devset.json`（**26 对**，人工标注，devset v2）；报告脚本 `npm run eval:topic-identity` |
+| 共享串的"内容"口径 | 最长共享串只在**内容字符**上计算：剔除虚词/代词/程度副词/时间框架（`我/的/了/在/是/最/近/一/直/也/还…`），实词（`学/练/做`）**不剔**——它们出现在 `天文学/数学` 这类名词里，剔了会丢真匹配 |
+| 框架碰撞防护 | `我最近在学咖啡拉花` / `我最近在学吉他` 曾因共享 5 字框架 `我最近在学` 被判同一主题（场景 G 抓到）。剔除框架后共享串降为 1，分数 0.3905 → `ambiguous`，不合并 |
+| 标签 | `longestContentPhrase` 取原文中最长的**内容字符连续段**，再裁掉前导虚词（`学吉他`→`吉他`、`对天文学`→`天文学`）；只裁前导，尾部实词可能是名词的一部分（`天文学` 裁尾会变 `天文`，语义变宽） |
+| 开发集指标 | precision **1.000**、recall **0.889**、FP **0**、FN **1**（`p03`）；歧义 3 对 —— **开发集结果，非总体校准** |
 | 门禁语义 | `eval:topic-identity` **只以 FP 为门禁**（误合并会把错误兴趣永久写进长期层），recall 缺口只报告不判失败；脚本每次打印该行，避免把「报告」误读成「全绿」 |
 | 结果溯源 | 报告 JSON 带 `headSha`（生成时 `git rev-parse HEAD`）与 `generatedAt`，与 `results/*.json` 同一约定 |
 | 证据账本 | 迁移 24 `interest_evidence`（`(interest_id, evidence_ref)` 主键 + `evidence_ref` 唯一索引）为唯一真相，`interests.evidence_count/conversation_count` 降为缓存 |
 | 幂等 | 一条观察只能归入一个兴趣；重放同一 `message_id` 不增加证据 |
 | 撤回 | 删除消息/会话由触发器清理证据；读取时按证据折叠重算，`active` 不达标即降级，证据清零则整条删除 |
-| 测试 | `topic-identity.test.ts`（10 条）、`interest-evidence.test.ts`（11 条）、评测场景 B5（5 条断言） |
+| 测试 | `topic-identity.test.ts`（12 条，含框架碰撞与标签）、`interest-evidence.test.ts`（11 条）、评测场景 B5（5 条断言）、场景 G（4 条晋升门槛） |
 | 已知局限 | 短句仅共享 2 字中心词时（`我在学手冲咖啡` / `最近一直在练手冲`）判为不同，属召回损失，不是误合并；迁移前写入的历史证据无消息归属，无法按消息撤回 |
+
+## 12. 轮次上下文保真（Stage 2 A/F 场景，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 位置 | `src/cognition/turn-context.ts`（字段与校验）、`src/app/companion-service.ts`（写入与最终化） |
+| 新字段 | `intent.contextDependency: 'none' \| 'prior_turn' \| 'unresolved'`（可选，v2 内向后兼容；旧行无此字段仍可读） |
+| 为什么单独存 | 指代是否命中与"哪个标签胜出"是两件事：`它最难的部分是什么？` 的胜出标签是 `information_query`，`reasons` 里没有 `reference_to_prior_turn`，只看 `reasons` 会漏掉它依赖上文这一事实 |
+| 判定 | `reasons` 含 `reference_without_context` → `unresolved`；`dependsOnPriorTurn` → `prior_turn`；否则 `none` |
+| 修掉的缺陷 1 | `cognitive_turn_contexts` 的 upsert 条件是 `status <> 'succeeded'`，成功轮次写完之后，**它自己的**最终化补丁被这条 SQL 静默丢弃 → `feeling.applied` 恒为 false、`after` 永远停在提交前的投影值。改为"禁止降级"：`status <> 'succeeded' OR excluded.status = 'succeeded'` |
+| 修掉的缺陷 2 | `SqliteDatabase.transaction` 不支持嵌套：最终化在写事务里读状态，`snapshot()` 内部再开事务抛 `cannot start a transaction within a transaction`，被吞掉后返回默认值（`sourceEventId=null`）→ `applied` 判 false。改为嵌套时使用 `SAVEPOINT`，内层读能看到外层未提交写入，内层失败只回滚内层 |
+| 修掉的缺陷 3 | `after` 是提交前的投影，revision 与真实状态不一致；事件落库后用已提交状态回填 |
+| 测试 | `turn-context-fidelity.integration.test.ts`（3 条，真 SQLite）、`persistence.test.ts` 嵌套事务 2 条、评测场景 A（4 条）/F（5 条） |
 
 ---
 

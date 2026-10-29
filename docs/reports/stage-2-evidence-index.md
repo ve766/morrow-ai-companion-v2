@@ -18,9 +18,16 @@
 | 10 | B3 `U(c)` | `src/cognition/context-utility.ts` → `memory-context-assembler.rankScore` | `context-utility.test.ts`（5 条）+ 记忆 60 条回归 | — | **PASS（离线；P/X/D 未接线）** |
 | 11 | B4 轮次状态机 | `turn-state-machine.ts` + `turn-state-repository.ts` + 迁移 23 | `turn-state-machine.test.ts`（6 条） | — | **PASS（离线，6 接线点）** |
 | 12 | B5 反思进入下一轮请求 | `reflection.run` → `interests.observe`（主题同一性匹配）→ `activeForContext` | 评测场景 B5（5 条断言） | `evals/stage-2/results/*`（最新） | **PASS**：证据 3 条 / 2 会话，下一轮 payload 含注意力块且带目标兴趣 id |
-| 12a | 主题同一性匹配 | `src/self-model/topic-identity.ts` → `InterestService.observeInner` | `topic-identity.test.ts`（10 条，含开发集指标） | `evals/stage-2/results/topic-identity-devset-report.json` | **PASS（开发集）**：precision 1.000 / recall 0.875 / FP 0 |
+| 12a | 主题同一性匹配 | `src/self-model/topic-identity.ts` → `InterestService.observeInner` | `topic-identity.test.ts`（12 条，含开发集指标与框架碰撞） | `evals/stage-2/results/topic-identity-devset-report.json` | **PASS（开发集）**：precision 1.000 / recall 0.889 / FP 0（26 对，devset v2） |
 | 12b | 兴趣证据账本（幂等/撤回/恢复） | 迁移 24 `interest_evidence` + `InterestService.reconcile` | `interest-evidence.test.ts`（11 条） | — | **PASS**：重放不累计、删消息降级/删除、重启后账本与晋升一致 |
-| 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行 | `evals/stage-2/results/2026-10-29T09-34-34-55c9aef.json` | A/C/E/F/G/H/J **NOT_RUN**；B/D/I **PASS**；K/L **BLOCKED** |
+| 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行（12 场景 / 45 条断言） | `evals/stage-2/results/*`（最新） | A/B/C/D/E/F/G/H/I/J/B4/B5 **PASS**（12/12）；K/L **BLOCKED**；**NOT_RUN 0** |
+| 13a | A 指代依赖 | `intent-decision.ts` `dependsOnPriorTurn` → `turn-context.ts` `contextDependency` | `turn-context-fidelity.integration.test.ts`（3 条）+ 场景 A（4 条） | 同上 | **PASS**：无上文→`unresolved`、自足问句→`none`、代词追问→`prior_turn` |
+| 13b | C 纠正链 | `memory-service.ts` `correct` / `history` | 场景 C（4 条） | 同上 | **PASS**：两条修订成链，下一轮载荷只带新值 |
+| 13c | E 人格稳定 | `personality-service`（用户编辑才升版本） | 场景 E（4 条） | 同上 | **PASS**：4 轮情绪/反馈轮次后版本与数值不变，载荷文案逐轮一致 |
+| 13d | F 状态影响 | `affective-state/feeling.ts` → `applyFinalization` | `turn-context-fidelity.integration.test.ts` + 场景 F（5 条） | 同上 | **PASS**：`applied=true`、`after` 等于已提交状态、单轮变化在限内、载荷声明不可覆盖 |
+| 13e | G 兴趣晋升门槛 | `interestPromotionEligible` | 场景 G（4 条） | 同上 | **PASS**：单会话 3 次不晋升；跨会话晋升；无关主题仍为候选 |
+| 13f | H 反思限流 | `reflection-service.ts` `canRun` | 场景 H（4 条） | 同上 | **PASS**：额度用尽即拒，被拒不留运行记录，窗口 1 小时后重开 |
+| 13g | J 载荷哈希一致 | `hashProviderInput` → `authorize` | 场景 J（4 条） | 同上 | **PASS**：批准哈希等于实发载荷哈希；重放不重发；撤回后哈希改变 |
 | 14 | 消融 | 未实现 | — | `evals/stage-2/ablation/README.md` | **NOT_RUN** |
 | 15 | CI | `.github/workflows/ci.yml` | — | run 40840918994（attempt 2） | **BLOCKED**：runner_id=0 / steps=[] |
 | 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | 场景内自断言 | `evaluation/reports/phase24-real-model-78ff892.json` | **PASS WITH LIMITATIONS**：S1/S2/S3/S5/S6 全过（26/26 客观断言，2 次/场景），S4 SKIPPED（无第二模型） |

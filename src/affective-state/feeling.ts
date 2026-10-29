@@ -334,11 +334,18 @@ function reliabilityWeight(event: CognitiveFeelingEvent): number {
   return clamp(confidence * uncertaintyWeight * importanceWeight, 0, 1)
 }
 
-const perEventChangeLimit: Readonly<Record<FeelingDimension, number>> = Object.freeze({
+/**
+ * Largest change one event may make to a dimension.
+ *
+ * Exported so a test can assert the bound instead of restating the numbers: an
+ * eval that hard-codes 0.2 stops checking anything the day the engine changes.
+ */
+export const FEELING_PER_EVENT_LIMIT: Readonly<Record<FeelingDimension, number>> = Object.freeze({
   valence: 0.2,
   activation: 0.2,
   tension: 0.22
 })
+const perEventChangeLimit = FEELING_PER_EVENT_LIMIT
 
 export function decayFeelingState(
   state: FeelingState,

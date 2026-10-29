@@ -1452,7 +1452,16 @@ export class ChatService {
         confidence: prepared.decision?.confidence ?? 0,
         confidenceLevel: prepared.decision?.confidenceLevel ?? 'low',
         strategy: prepared.analysis?.strategy ?? 'unavailable',
-        reasons: prepared.decision?.reasons ?? []
+        reasons: prepared.decision?.reasons ?? [],
+        // Recorded separately from `reasons` because the winning label's
+        // reasons do not include the reference code when another label wins:
+        // "它最难的部分是什么？" is an information_query that still depends on the
+        // previous turn, and an audit of reference resolution needs to see that.
+        contextDependency: (prepared.decision?.reasons ?? []).includes('reference_without_context')
+          ? 'unresolved'
+          : prepared.decision?.dependsOnPriorTurn === true
+            ? 'prior_turn'
+            : 'none'
       },
       retrieval: {
         policyIntent: prepared.retrieval.policy.intent,
@@ -1568,12 +1577,21 @@ export class ChatService {
   private applyFinalization(record: TurnFinalizationRecord): void {
     if (!this.continuity) return
     const pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    const committedState = this.feelings.snapshot().state
     const applied = record.feelingEventId !== null &&
-      this.feelings.snapshot().state.sourceEventId === record.feelingEventId
+      committedState.sourceEventId === record.feelingEventId
     this.continuity.contexts.upsert({
       ...record.contextTemplate,
       turnId: record.turnId,
-      feeling: { ...record.contextTemplate.feeling, applied },
+      feeling: {
+        ...record.contextTemplate.feeling,
+        // `after` was written from a projection taken before the event
+        // committed, so it carried the pre-commit revision and showed a state
+        // that never existed as a persisted revision. Once the event landed,
+        // record the state that is actually stored.
+        after: applied ? snapshotState(committedState) : record.contextTemplate.feeling.after,
+        applied
+      },
       updates: { ...record.contextTemplate.updates, pendingItemIds }
     })
   }

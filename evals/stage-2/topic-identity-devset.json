@@ -1,30 +1,214 @@
 {
-  "version": "topic-identity-devset-v1",
+  "version": "topic-identity-devset-v2",
   "description": "Hand-labelled topic-identity pairs for Stage 2 B5. label=same means the two texts describe the same interest topic and may share evidence. This is a development set: metrics computed on it are development-set results, not calibrated population estimates.",
   "pairs": [
-    { "id": "p01", "kind": "cjk_expression_change", "left": "我最近在学咖啡拉花", "right": "还在练咖啡拉花", "label": "same", "note": "B5 target case: same entity, different verb and filler" },
-    { "id": "p02", "kind": "cjk_expression_change", "left": "每天练习咖啡拉花", "right": "咖啡拉花练了三个月", "label": "same", "note": "word order change" },
-    { "id": "p03", "kind": "cjk_expression_change", "left": "我在学手冲咖啡", "right": "最近一直在练手冲", "label": "same", "note": "entity carries over with a shorter follow-up" },
-    { "id": "p04", "kind": "punctuation_whitespace", "left": "咖啡，拉花！", "right": "咖啡 拉花", "label": "same", "note": "punctuation and spacing must not change the profile" },
-    { "id": "p05", "kind": "duplicate", "left": "我喜欢咖啡拉花", "right": "我喜欢咖啡拉花", "label": "same", "note": "identical text" },
-    { "id": "p06", "kind": "english", "left": "I love latte art", "right": "latte art is really hard", "label": "same", "note": "latin tokenization" },
-    { "id": "p07", "kind": "english", "left": "I am learning latte art", "right": "practising latte art every day", "label": "same", "note": "latin verb change" },
-    { "id": "p08", "kind": "cross_session", "left": "周末去爬山了，路线很难", "right": "下周末还想再去爬山", "label": "same", "note": "cross-session continuity on the same activity" },
-
-    { "id": "n01", "kind": "hypernym", "left": "都喜欢咖啡", "right": "在学咖啡拉花", "label": "different", "note": "B5 negative: broad shared word only" },
-    { "id": "n02", "kind": "hypernym", "left": "咖啡", "right": "咖啡拉花", "label": "different", "note": "a hypernym is not evidence for a specific interest" },
-    { "id": "n03", "kind": "hypernym", "left": "我喜欢喝咖啡", "right": "咖啡烘焙课程", "label": "different", "note": "same domain, different topic" },
-    { "id": "n04", "kind": "same_word_different_meaning", "left": "苹果手机电池不耐用", "right": "苹果很甜很好吃", "label": "different", "note": "same surface word, unrelated referents" },
-    { "id": "n05", "kind": "negation", "left": "我喜欢咖啡拉花", "right": "我不喜欢咖啡拉花了", "label": "different", "note": "reversal must not count as corroboration" },
-    { "id": "n06", "kind": "negation", "left": "我每天练习拉花", "right": "我不想再练习拉花了", "label": "different", "note": "negated verb" },
-    { "id": "n07", "kind": "different_object", "left": "我喜欢猫", "right": "我喜欢狗", "label": "different", "note": "same template, different object" },
-    { "id": "n08", "kind": "different_object", "left": "我在学吉他", "right": "我在学钢琴", "label": "different", "note": "same template, different instrument" },
-    { "id": "n09", "kind": "similar_but_distinct", "left": "咖啡拉花", "right": "咖啡烘焙", "label": "different", "note": "adjacent topics that share the domain word" },
-    { "id": "n10", "kind": "similar_but_distinct", "left": "手冲咖啡", "right": "冷萃咖啡", "label": "different", "note": "two brewing methods, not one interest" },
-    { "id": "n11", "kind": "english", "left": "I love latte art", "right": "I love coffee", "label": "different", "note": "latin hypernym" },
-    { "id": "n12", "kind": "english", "left": "I am learning guitar", "right": "I am learning piano", "label": "different", "note": "latin different object" },
-    { "id": "n13", "kind": "short_cjk", "left": "跑步", "right": "跑步机维修", "label": "different", "note": "short phrase absorbed by an unrelated compound" },
-    { "id": "n14", "kind": "unrelated", "left": "今天加班到很晚", "right": "周末想去爬山", "label": "different", "note": "no shared content" },
-    { "id": "n15", "kind": "negation", "left": "我最近在学咖啡拉花", "right": "我最近没在学咖啡拉花了", "label": "different", "note": "B5 target with a negation on the same entity" }
+    {
+      "id": "p01",
+      "kind": "cjk_expression_change",
+      "left": "我最近在学咖啡拉花",
+      "right": "还在练咖啡拉花",
+      "label": "same",
+      "note": "B5 target case: same entity, different verb and filler"
+    },
+    {
+      "id": "p02",
+      "kind": "cjk_expression_change",
+      "left": "每天练习咖啡拉花",
+      "right": "咖啡拉花练了三个月",
+      "label": "same",
+      "note": "word order change"
+    },
+    {
+      "id": "p03",
+      "kind": "cjk_expression_change",
+      "left": "我在学手冲咖啡",
+      "right": "最近一直在练手冲",
+      "label": "same",
+      "note": "entity carries over with a shorter follow-up"
+    },
+    {
+      "id": "p04",
+      "kind": "punctuation_whitespace",
+      "left": "咖啡，拉花！",
+      "right": "咖啡 拉花",
+      "label": "same",
+      "note": "punctuation and spacing must not change the profile"
+    },
+    {
+      "id": "p05",
+      "kind": "duplicate",
+      "left": "我喜欢咖啡拉花",
+      "right": "我喜欢咖啡拉花",
+      "label": "same",
+      "note": "identical text"
+    },
+    {
+      "id": "p06",
+      "kind": "english",
+      "left": "I love latte art",
+      "right": "latte art is really hard",
+      "label": "same",
+      "note": "latin tokenization"
+    },
+    {
+      "id": "p07",
+      "kind": "english",
+      "left": "I am learning latte art",
+      "right": "practising latte art every day",
+      "label": "same",
+      "note": "latin verb change"
+    },
+    {
+      "id": "p08",
+      "kind": "cross_session",
+      "left": "周末去爬山了，路线很难",
+      "right": "下周末还想再去爬山",
+      "label": "same",
+      "note": "cross-session continuity on the same activity"
+    },
+    {
+      "id": "n01",
+      "kind": "hypernym",
+      "left": "都喜欢咖啡",
+      "right": "在学咖啡拉花",
+      "label": "different",
+      "note": "B5 negative: broad shared word only"
+    },
+    {
+      "id": "n02",
+      "kind": "hypernym",
+      "left": "咖啡",
+      "right": "咖啡拉花",
+      "label": "different",
+      "note": "a hypernym is not evidence for a specific interest"
+    },
+    {
+      "id": "n03",
+      "kind": "hypernym",
+      "left": "我喜欢喝咖啡",
+      "right": "咖啡烘焙课程",
+      "label": "different",
+      "note": "same domain, different topic"
+    },
+    {
+      "id": "n04",
+      "kind": "same_word_different_meaning",
+      "left": "苹果手机电池不耐用",
+      "right": "苹果很甜很好吃",
+      "label": "different",
+      "note": "same surface word, unrelated referents"
+    },
+    {
+      "id": "n05",
+      "kind": "negation",
+      "left": "我喜欢咖啡拉花",
+      "right": "我不喜欢咖啡拉花了",
+      "label": "different",
+      "note": "reversal must not count as corroboration"
+    },
+    {
+      "id": "n06",
+      "kind": "negation",
+      "left": "我每天练习拉花",
+      "right": "我不想再练习拉花了",
+      "label": "different",
+      "note": "negated verb"
+    },
+    {
+      "id": "n07",
+      "kind": "different_object",
+      "left": "我喜欢猫",
+      "right": "我喜欢狗",
+      "label": "different",
+      "note": "same template, different object"
+    },
+    {
+      "id": "n08",
+      "kind": "different_object",
+      "left": "我在学吉他",
+      "right": "我在学钢琴",
+      "label": "different",
+      "note": "same template, different instrument"
+    },
+    {
+      "id": "n09",
+      "kind": "similar_but_distinct",
+      "left": "咖啡拉花",
+      "right": "咖啡烘焙",
+      "label": "different",
+      "note": "adjacent topics that share the domain word"
+    },
+    {
+      "id": "n10",
+      "kind": "similar_but_distinct",
+      "left": "手冲咖啡",
+      "right": "冷萃咖啡",
+      "label": "different",
+      "note": "two brewing methods, not one interest"
+    },
+    {
+      "id": "n11",
+      "kind": "english",
+      "left": "I love latte art",
+      "right": "I love coffee",
+      "label": "different",
+      "note": "latin hypernym"
+    },
+    {
+      "id": "n12",
+      "kind": "english",
+      "left": "I am learning guitar",
+      "right": "I am learning piano",
+      "label": "different",
+      "note": "latin different object"
+    },
+    {
+      "id": "n13",
+      "kind": "short_cjk",
+      "left": "跑步",
+      "right": "跑步机维修",
+      "label": "different",
+      "note": "short phrase absorbed by an unrelated compound"
+    },
+    {
+      "id": "n14",
+      "kind": "unrelated",
+      "left": "今天加班到很晚",
+      "right": "周末想去爬山",
+      "label": "different",
+      "note": "no shared content"
+    },
+    {
+      "id": "n15",
+      "kind": "negation",
+      "left": "我最近在学咖啡拉花",
+      "right": "我最近没在学咖啡拉花了",
+      "label": "different",
+      "note": "B5 target with a negation on the same entity"
+    },
+    {
+      "id": "n16",
+      "kind": "shared_frame",
+      "left": "我最近在学咖啡拉花",
+      "right": "我最近在学吉他",
+      "label": "different",
+      "note": "same sentence frame, different object; found by eval scenario G (a five-character frame run was scored as one topic)"
+    },
+    {
+      "id": "n17",
+      "kind": "shared_frame",
+      "left": "我最近在学吉他",
+      "right": "我最近在学尤克里里",
+      "label": "different",
+      "note": "same frame, different instrument"
+    },
+    {
+      "id": "p16",
+      "kind": "cjk_expression_change",
+      "left": "我在学做饭",
+      "right": "我最近一直在学做饭",
+      "label": "same",
+      "note": "same topic, frame varies; guards against stripping too much"
+    }
   ]
 }

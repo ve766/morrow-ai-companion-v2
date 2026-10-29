@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import {
   buildTopicProfile,
   detectNegation,
+  longestContentPhrase,
   matchTopicTexts,
   mergeTopicProfiles,
   parseTopicProfile,
@@ -116,5 +117,25 @@ describe('topic identity development set', () => {
   it('does not merge the B5 negative pair', () => {
     const match = matchTopicTexts('都喜欢咖啡', '在学咖啡拉花')
     expect(match.decision).not.toBe('same')
+  })
+
+  it('does not treat a shared sentence frame as a shared topic', () => {
+    // Found by eval scenario G: "我最近在学" is a five-character run, and an
+    // unguarded longest-run bonus scored two different hobbies as one topic.
+    const match = matchTopicTexts('我最近在学咖啡拉花', '我最近在学吉他')
+    expect(match.decision).not.toBe('same')
+    expect(match.signals.sharedRun).toBeLessThan(3)
+
+    // The same frame with a real subject overlap must still merge, otherwise
+    // the frame filter has simply broken matching.
+    expect(matchTopicTexts('我最近在学咖啡拉花', '还在练咖啡拉花').decision).toBe('same')
+  })
+
+  it('labels an interest with the content phrase, not a frame word', () => {
+    // "最近" was the label for "我最近在学吉他": the frame bigram won because the
+    // stop-character filter had dropped "吉他".
+    expect(longestContentPhrase(buildTopicProfile('我最近在学吉他'))).toBe('吉他')
+    expect(longestContentPhrase(buildTopicProfile('我最近在学咖啡拉花'))).toBe('咖啡拉花')
+    expect(longestContentPhrase(buildTopicProfile('还在练咖啡拉花'))).toBe('咖啡拉花')
   })
 })

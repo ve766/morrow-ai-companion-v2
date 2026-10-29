@@ -69,6 +69,13 @@ export interface CognitiveTurnContext {
     confidenceLevel: string
     strategy: string
     reasons: string[]
+    /**
+     * How this turn depends on the previous one. Recorded because it cannot be
+     * reconstructed from `reasons`: a reference can be true for the turn while
+     * another label wins and drops the reference code from the winning set.
+     * Optional so v2 rows written before this field stay readable.
+     */
+    contextDependency?: 'none' | 'prior_turn' | 'unresolved'
   }
   retrieval: {
     policyIntent: string
@@ -156,6 +163,8 @@ export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnCo
   if (typeof intent.label !== 'string') return false
   if (intent.label !== 'unavailable' && !labelPattern.test(intent.label)) return false
   if (!isFiniteNumber(intent.confidence)) return false
+  if (intent.contextDependency !== undefined &&
+    intent.contextDependency !== 'none' && intent.contextDependency !== 'prior_turn' && intent.contextDependency !== 'unresolved') return false
 
   const retrieval = record.retrieval as Record<string, unknown> | undefined
   if (!retrieval || typeof retrieval !== 'object') return false

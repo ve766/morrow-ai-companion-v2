@@ -1,29 +1,29 @@
 {
-  "headSha": "b497879d22453b5566df2c27b755bae06ac14dbf",
-  "generatedAt": "2026-10-29T16:47:21.446Z",
+  "headSha": "089922300b90052d7dc91c10daee71592bc59593",
+  "generatedAt": "2026-10-29T17:07:00.987Z",
   "algorithmVersion": "topic-identity-v1",
-  "devSetVersion": "topic-identity-devset-v1",
+  "devSetVersion": "topic-identity-devset-v2",
   "thresholds": {
     "same": 0.45,
     "ambiguous": 0.35
   },
   "totals": {
-    "pairs": 23,
-    "truePositive": 7,
+    "pairs": 26,
+    "truePositive": 8,
     "falsePositive": 0,
-    "trueNegative": 15,
+    "trueNegative": 17,
     "falseNegative": 1,
-    "ambiguous": 3
+    "ambiguous": 4
   },
   "confusion": {
-    "same->same": 7,
+    "same->same": 8,
     "same->different": 1,
     "different->same": 0,
-    "different->different": 15
+    "different->different": 17
   },
   "metrics": {
     "precision": 1,
-    "recall": 0.875
+    "recall": 0.8888888888888888
   },
   "failures": [
     {
@@ -116,7 +116,7 @@
         "unigramJaccard": 1,
         "preferredContainment": 1,
         "sharedPreferred": 5,
-        "sharedRun": 7,
+        "sharedRun": 6,
         "polarityConflict": false,
         "objectSubstitution": false
       }
@@ -279,14 +279,14 @@
       "kind": "different_object",
       "label": "different",
       "decision": "ambiguous",
-      "score": 0.635,
+      "score": 0.435,
       "reason": "object_substitution_suspected",
       "signals": {
         "bigramJaccard": 0.5,
         "unigramJaccard": 0.6,
         "preferredContainment": 0.5,
         "sharedPreferred": 1,
-        "sharedRun": 3,
+        "sharedRun": 2,
         "polarityConflict": false,
         "objectSubstitution": true
       }
@@ -296,14 +296,14 @@
       "kind": "different_object",
       "label": "different",
       "decision": "different",
-      "score": 0.3429,
+      "score": 0.1429,
       "reason": "hypernym_or_too_short",
       "signals": {
         "bigramJaccard": 0.3333,
         "unigramJaccard": 0.4286,
         "preferredContainment": 0,
         "sharedPreferred": 0,
-        "sharedRun": 3,
+        "sharedRun": 1,
         "polarityConflict": false,
         "objectSubstitution": false
       }
@@ -346,15 +346,15 @@
       "id": "n11",
       "kind": "english",
       "label": "different",
-      "decision": "ambiguous",
-      "score": 0.375,
-      "reason": "ambiguous_overlap",
+      "decision": "different",
+      "score": 0.175,
+      "reason": "below_threshold",
       "signals": {
         "bigramJaccard": 0,
         "unigramJaccard": 0.25,
         "preferredContainment": 0.3333,
         "sharedPreferred": 1,
-        "sharedRun": 2,
+        "sharedRun": 1,
         "polarityConflict": false,
         "objectSubstitution": false
       }
@@ -364,14 +364,14 @@
       "kind": "english",
       "label": "different",
       "decision": "ambiguous",
-      "score": 0.825,
+      "score": 0.525,
       "reason": "object_substitution_suspected",
       "signals": {
         "bigramJaccard": 0.3333,
         "unigramJaccard": 0.5,
         "preferredContainment": 0.5,
         "sharedPreferred": 2,
-        "sharedRun": 3,
+        "sharedRun": 0,
         "polarityConflict": false,
         "objectSubstitution": true
       }
@@ -422,9 +422,60 @@
         "unigramJaccard": 0.8182,
         "preferredContainment": 1,
         "sharedPreferred": 5,
-        "sharedRun": 6,
+        "sharedRun": 5,
         "polarityConflict": true,
         "objectSubstitution": true
+      }
+    },
+    {
+      "id": "n16",
+      "kind": "shared_frame",
+      "label": "different",
+      "decision": "ambiguous",
+      "score": 0.3905,
+      "reason": "ambiguous_overlap",
+      "signals": {
+        "bigramJaccard": 0.4,
+        "unigramJaccard": 0.4545,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 1,
+        "sharedRun": 1,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n17",
+      "kind": "shared_frame",
+      "label": "different",
+      "decision": "ambiguous",
+      "score": 0.395,
+      "reason": "ambiguous_overlap",
+      "signals": {
+        "bigramJaccard": 0.4,
+        "unigramJaccard": 0.5,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 1,
+        "sharedRun": 1,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p16",
+      "kind": "cjk_expression_change",
+      "label": "same",
+      "decision": "same",
+      "score": 0.9556,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.3333,
+        "unigramJaccard": 0.5556,
+        "preferredContainment": 1,
+        "sharedPreferred": 2,
+        "sharedRun": 3,
+        "polarityConflict": false,
+        "objectSubstitution": false
       }
     }
   ],

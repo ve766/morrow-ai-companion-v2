@@ -110,17 +110,39 @@ ambiguous 3（其中 2 对为同槽替换，正确未合并）
 1. **证据账本**（迁移 24）：`interests.evidence_count` 原来是只写计数器——重放同一轮会虚增，删消息不会减少，导致已撤回的观察仍在喂养 `active`。现在 `interest_evidence` 是唯一真相，`(interest_id, evidence_ref)` 主键 + `evidence_ref` 唯一索引，聚合值降为缓存，读取时按证据折叠重算；证据清零则整条删除，不达标则 `active → candidate`。
 2. **反思的证据引用**：原来所有记忆共用占位 id `0000…`，幂等键一上，第二条记忆会被当成重放丢弃。改为 `evidenceKind='memory'` + 记忆 id。
 
-**标签质量**：`deriveInterestLabel` 从「第一个内容 bigram」改为「最长连续内容短语」，`我最近在学咖啡拉花` 由 `最近` 变为 `学咖啡拉花`；顺带消除了两个不同主题撞 `interests_label_uq` 唯一索引导致的整轮认知更新中断。
+**标签质量**：`deriveInterestLabel` 从「第一个内容 bigram」改为「原文中最长的内容字符连续段，再裁掉前导虚词」，`我最近在学咖啡拉花` 由 `最近` 变为 `咖啡拉花`、`我最近在学吉他` 变为 `吉他`、`我对天文学着迷` 仍为 `天文学`；顺带消除了两个不同主题撞 `interests_label_uq` 唯一索引导致的整轮认知更新中断。
+
+### 1.9 本轮补完的 7 个评测场景（A/C/E/F/G/H/J）
+
+原来标 NOT_RUN 的 7 个场景现在都在真实栈上执行（真 `CompanionService`、真 `ReflectionService`/`InterestService`、真 SQLite、真事件日志），**12/12 PASS，NOT_RUN 归零**。
+
+| 场景 | 断言数 | 关键断言 |
+|---|---|---|
+| A 指代依赖 | 4 | 无上文→`unresolved`；自足问句→`none`；代词追问→`prior_turn`；两种情况在库里可区分 |
+| C 纠正链 | 4 | 正对照（纠正前确实投递）；两条修订成链（rev2 / prev1 / `corrected`）；下一轮只带新值 |
+| E 人格稳定 | 4 | 4 轮情绪/反馈轮次后版本与数值不变；未写修订；载荷文案逐轮一致 |
+| F 状态影响 | 5 | `applied=true`；`after` 等于已提交状态；单轮变化 ≤ 上限；值在声明范围内；载荷含"不得覆盖用户设定"声明 |
+| G 晋升门槛 | 4 | 单会话 3 次**不**晋升；第二会话晋升；无关主题仍为候选；晋升不串到别的主题 |
+| H 反思限流 | 4 | 额度用尽即拒；被拒**不留**运行记录；1 小时后窗口重开 |
+| J 载荷哈希 | 4 | 批准哈希 == 实发载荷哈希（重算）；重放不重发；撤回后哈希改变；撤回值不在新载荷 |
+
+**这 7 个场景抓到 3 个真实缺陷，都已修**：
+
+1. **主题框架碰撞误合并**（G 抓到）：`我最近在学咖啡拉花` / `我最近在学吉他` 共享 5 字框架 `我最近在学`，被判同一主题，吉他的证据被算进拉花。修法：最长共享串只在**内容字符**上计算，剔除虚词/代词/程度副词/时间框架；实词（`学/练/做`）不剔——它们出现在 `天文学/数学` 里，剔了会丢真匹配。修复后该对 0.3905 → `ambiguous`，不合并。开发集同步补 3 对框架样本（26 对，v2）。
+2. **成功轮次的上下文补丁被 SQL 丢弃**（F 抓到）：`cognitive_turn_contexts` 的 upsert 条件是 `status <> 'succeeded'`，而上下文先写成 succeeded，于是**它自己的**最终化补丁永远不生效——`feeling.applied` 恒为 false、`after` 停在提交前的投影值。改为"禁止降级"：`status <> 'succeeded' OR excluded.status = 'succeeded'`。
+3. **事务不支持嵌套，读状态静默失败**（F 根因）：最终化在写事务里读已提交状态，`snapshot()` 内部再开事务抛 `cannot start a transaction within a transaction`，被 `catch` 吞掉后返回默认值（`sourceEventId=null`），`applied` 因此判 false。改为嵌套时用 `SAVEPOINT`：内层读能看到外层未提交写入，内层失败只回滚内层。这条是 2 的根因，不修 2 也只是把症状换个地方。
+
+另外补了 `intent.contextDependency`（`none/prior_turn/unresolved`）字段：指代是否命中与"哪个标签胜出"是两件事——`它最难的部分是什么？` 胜出标签是 `information_query`，`reasons` 里没有指代码，只看 `reasons` 会漏掉它依赖上文。
 
 ## 2. 命令与退出码（实跑）
 
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | — |
-| `npx vitest run --maxWorkers=2` | 0 | **71 files / 629 tests passed** |
+| `npx vitest run --maxWorkers=2` | 0 | **72 files / 636 tests passed** |
 | `npm run build` | 0 | — |
-| `npm run eval:stage2` | 0 | executed 5 / passed 5 / failed 0 / blocked 2 / notRun 7 |
-| `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.875 / FP 0 / FN 1（门禁只看 FP，见下） |
+| `npm run eval:stage2` | 0 | executed **12** / passed **12** / failed 0 / blocked 2 / **notRun 0**（45 条断言） |
+| `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.889 / FP 0 / FN 1（26 对；门禁只看 FP，见下） |
 | `npm run eval:ablation` | 0 | full 2/3 轮含个性化块 vs no_personalization 0/3 |
 
 结果文件（`headSha = b497879`，与生成时代码提交一致）：
@@ -142,7 +164,7 @@ ambiguous 3（其中 2 对为同槽替换，正确未合并）
 | B4 轮次状态机 | **已实现并接线（6 个点）**，3 个中间态待接 |
 | ~~B5 反思→下一轮 payload~~ | **PASS**（场景 B5 5/5：反射执行、证据 3 条跨 2 会话、payload 含注意力块且带目标 id） |
 | 消融脚本 | 1 条臂可执行（B2），`no_context_utility` / `no_reflection` NOT_RUN |
-| 场景 A/C/E/F/G/H/J | NOT_RUN |
+| ~~场景 A/C/E/F/G/H/J~~ | **PASS（7/7，共 29 条断言）**：见 §1.9 |
 | 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**（26/26 客观断言；S4 缺第二模型） |
 | Electron / Windows | BLOCKED（最小复现证明是环境渲染沙箱，非产品缺陷） |
 | CI | BLOCKED（`runner_id=0`，重跑 attempt 2 仍无 runner） |

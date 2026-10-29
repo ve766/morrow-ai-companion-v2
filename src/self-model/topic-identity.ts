@@ -254,10 +254,36 @@ function isSlotSubstitution(left: TopicProfile, right: TopicProfile, unigramJacc
   return differing <= 2 && unigramJaccard >= 0.5 && unigramJaccard < 1
 }
 
-/** Longest run of identical characters (Han only) shared by two strings. */
+/**
+ * Characters that belong to a sentence frame rather than to a topic.
+ *
+ * "我最近在学咖啡拉花" and "我最近在学吉他" share a five-character run — the frame —
+ * and an unguarded run bonus read that as one topic. The run is measured on
+ * content characters only, so a shared frame contributes nothing. The set is a
+ * closed list of function words and light verbs on purpose: it is auditable, and
+ * a wrong entry can only shorten a run, never invent a match.
+ */
+// Third-person pronouns are deliberately absent: 他/她/它 appear inside ordinary
+// nouns (吉他, 其他), and treating them as frame characters truncated the very
+// label this set exists to protect.
+// Pronouns, particles, prepositions, degree adverbs, and the characters of the
+// two most common time frames (最近 / 一直). Light verbs (学, 练, 做) are NOT
+// here: they appear inside ordinary nouns (天文学, 数学), and stripping them cost
+// real matches. A shared frame still collapses to a single character without
+// them, which is what keeps "我最近在学咖啡拉花" and "我最近在学吉他" apart.
+const FRAME_CHARACTERS = new Set(Array.from('我你您的地得了着过是在有和与就都也还很太最又再已经正但而且并这那些什么怎样个吧呢啊吗近直一'))
+
+/** Latin words that frame a sentence instead of naming a topic. */
+const FRAME_WORDS = new Set(['i', 'im', 'me', 'my', 'we', 'you', 'it', 'the', 'a', 'an', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'to', 'of', 'and', 'or', 'in', 'on', 'at', 'for', 'with', 'about', 'that', 'this', 'these', 'those', 'really', 'very', 'so', 'just', 'also', 'again', 'still', 'now', 'recently', 'lately', 'learning', 'learn', 'learned', 'study', 'studying', 'practicing', 'practice', 'trying', 'try', 'want', 'wanna'])
+
+function contentOnly(text: string): string {
+  return Array.from(text.replace(/[^\p{Script=Han}]/gu, '')).filter((character) => !FRAME_CHARACTERS.has(character)).join('')
+}
+
+/** Longest run of identical content characters shared by two strings. */
 function longestHanRun(left: string, right: string): number {
-  const a = Array.from(left.replace(/[^\p{Script=Han}]/gu, ''))
-  const b = Array.from(right.replace(/[^\p{Script=Han}]/gu, ''))
+  const a = Array.from(contentOnly(left))
+  const b = Array.from(contentOnly(right))
   if (a.length === 0 || b.length === 0) return 0
   let best = 0
   let previous = new Array<number>(b.length + 1).fill(0)
@@ -276,8 +302,9 @@ function longestHanRun(left: string, right: string): number {
 
 /** Longest run of identical words shared by two latin token lists. */
 function longestWordRun(left: string, right: string): number {
-  const a = normalizeTopicText(left).match(/[a-z][a-z0-9'-]*/gu) ?? []
-  const b = normalizeTopicText(right).match(/[a-z][a-z0-9'-]*/gu) ?? []
+  const content = (text: string): string[] => (normalizeTopicText(text).match(/[a-z][a-z0-9'-]*/gu) ?? []).filter((word) => !FRAME_WORDS.has(word))
+  const a = content(left)
+  const b = content(right)
   if (a.length === 0 || b.length === 0) return 0
   let best = 0
   let previous = new Array<number>(b.length + 1).fill(0)
@@ -371,22 +398,60 @@ export function scoreTopicProfiles(left: TopicProfile, right: TopicProfile): Top
  * made two different topics collide on the unique label index. Overlapping
  * adjacent bigrams are merged back into the phrase they came from.
  */
+/**
+ * Characters that can lead or trail a phrase without belonging to the topic.
+ *
+ * They are stripped only at the edges and only while at least two characters
+ * remain, so "学吉他" becomes "吉他" and "对天文学" becomes "天文学", while a topic
+ * that merely contains one of them keeps its full wording.
+ */
+const EDGE_CHARACTERS = new Set(Array.from('学练做说看听读写弹唱画玩吃喝买用找问对跟和与把被给让帮想要会能可去来到'))
+
+function trimEdges(phrase: string): string {
+  // Leading only. A trailing light verb is usually part of the noun itself:
+  // stripping it turned 天文学 into 天文, which is a different, broader topic.
+  let start = 0
+  while (phrase.length - start > 2 && EDGE_CHARACTERS.has(phrase[start]!)) start += 1
+  return phrase.slice(start)
+}
+
 export function longestContentPhrase(profile: TopicProfile): string | null {
-  const han = profile.preferred.filter((unit) => /^[\p{Script=Han}]{2}$/u.test(unit))
-  let best = ''
+  // Read the raw text instead of stitching preferred bigrams back together.
+  // The bigram route labelled "我最近在学吉他" as "最近" — a frame word — because
+  // the only adjacent content bigram was "学吉" and the stop-character filter
+  // had dropped "吉他". Consecutive content characters in the original wording
+  // are the phrase the user actually used.
+  const text = profile.text ?? ''
+  const runs: string[] = []
   let current = ''
-  for (const unit of han) {
-    if (!current) {
-      current = unit
-      continue
-    }
-    if (current.endsWith(unit[0]!)) current += unit.slice(1)
-    else {
-      if (current.length > best.length) best = current
-      current = unit
+  for (const character of Array.from(text)) {
+    if (/\p{Script=Han}/u.test(character) && !FRAME_CHARACTERS.has(character)) {
+      current += character
+    } else {
+      if (current.length >= 2) runs.push(current)
+      current = ''
     }
   }
-  if (current.length > best.length) best = current
+  if (current.length >= 2) runs.push(current)
+  if (runs.length > 0) return trimEdges(runs.reduce((longest, run) => (run.length > longest.length ? run : longest)))
+
+  // Fall back to the bigram route for texts whose only content sits inside
+  // frame-adjacent characters ("学吉"), so a short topic still gets a label.
+  const han = profile.preferred.filter((unit) => /^[\p{Script=Han}]{2}$/u.test(unit) && !Array.from(unit).every((character) => FRAME_CHARACTERS.has(character)))
+  let best = ''
+  let merged = ''
+  for (const unit of han) {
+    if (!merged) {
+      merged = unit
+      continue
+    }
+    if (merged.endsWith(unit[0]!)) merged += unit.slice(1)
+    else {
+      if (merged.length > best.length) best = merged
+      merged = unit
+    }
+  }
+  if (merged.length > best.length) best = merged
   return best.length >= 2 ? best : (han[0] ?? null)
 }
 
