@@ -18,7 +18,8 @@
 import type { Sensitivity } from '../shared/companion'
 import type { IntentLabel } from './intent-decision'
 
-export const COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 1 as const
+export const COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 2 as const
+export const LEGACY_COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 1 as const
 
 export type CognitiveTurnStatus = 'succeeded' | 'failed' | 'cancelled'
 
@@ -54,7 +55,7 @@ export interface TurnContextState {
 }
 
 export interface CognitiveTurnContext {
-  schemaVersion: typeof COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION
+  schemaVersion: typeof COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION | typeof LEGACY_COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION
   /** The turn id (request id) doubles as the idempotency key. */
   turnId: string
   conversationId: string
@@ -140,7 +141,9 @@ function isState(value: unknown): value is TurnContextState {
 export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnContext {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const record = value as Record<string, unknown>
-  if (record.schemaVersion !== COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return false
+  // Version 1 rows are immutable historical evidence. Accept them on reads,
+  // while every new write uses v2. Never reinterpret an unknown future version.
+  if (record.schemaVersion !== LEGACY_COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION && record.schemaVersion !== COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return false
   if (typeof record.turnId !== 'string' || !uuidPattern.test(record.turnId)) return false
   if (typeof record.conversationId !== 'string' || !uuidPattern.test(record.conversationId)) return false
   if (typeof record.userMessageId !== 'string' || !uuidPattern.test(record.userMessageId)) return false
