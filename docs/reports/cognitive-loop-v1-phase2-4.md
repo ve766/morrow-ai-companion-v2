@@ -251,3 +251,18 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 | `npx vitest run --maxWorkers=2` | 0 | **561 passed / 63 files**（较 §6 增加 6 条 IPC 测试） |
 | `npm run build` | 0 | 构建成功（含 preload 与契约改动） |
 | `npm run smoke` | 1 | 本机渲染进程起不来；基线 `872367c` 同样失败，非本阶段回归（见 §6） |
+
+### 11.4 Phase 2.3 保护复核（第九节要求）
+
+单独跑既有保护套件，确认本阶段没有破坏它们：
+
+| 套件 | 条数 | 结果 |
+|---|---|---|
+| `answer-fact-guard.test.ts` | 29 | 通过 |
+| `conflict-handling.integration.test.ts` | 12 | 通过 |
+| `provider-retry.test.ts` | 12 | 通过 |
+| `turn-reliability.integration.test.ts` | 3 | 通过 |
+| `phase23-report-check.test.ts` | 10 | 通过 |
+| 合计 | **66** | 5 文件全部通过 |
+
+本阶段对既有实现的唯一修改是 `send()` 里对取消的分类（`failed` → `cancelled`），以及检索策略多了一层"只放宽上限"的状态调整；门控、冲突关联、重试与总预算、轮次幂等、报告校验均未改动，上述套件为证。
