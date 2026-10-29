@@ -17,7 +17,7 @@
 | 9b | B2 删除一致性 | 同左（证据折叠 + 缓存回填） | 删除源消息后重算回 0.5 | 同上 | **PASS** |
 | 10 | B3 `U(c)` | `src/cognition/context-utility.ts` → `memory-context-assembler.rankScore` | `context-utility.test.ts`（5 条）+ 记忆 60 条回归 | — | **PASS（离线；P/X/D 未接线）** |
 | 11 | B4 轮次状态机 | `turn-state-machine.ts` + `turn-state-repository.ts` + 迁移 23 | `turn-state-machine.test.ts`（6 条） | — | **PASS（离线，6 接线点）** |
-| 12 | B5 反思进入下一轮请求 | `onTurnCompleted` → `reflection.run` | 接线测试 | — | 接线 PASS；payload 级证据 **NOT_RUN** |
+| 12 | B5 反思进入下一轮请求 | `reflection.run` → `interests.observe` → `activeForContext` | 评测场景 B5 | results 最新文件 | **FAIL**：reflection 执行、兴趣 2 行但 active=0，payload 无注意力块 |
 | 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行 | `evals/stage-2/results/2026-10-29T09-34-34-55c9aef.json` | A/C/E/F/G/H/J **NOT_RUN**；B/D/I **PASS**；K/L **BLOCKED** |
 | 14 | 消融 | 未实现 | — | `evals/stage-2/ablation/README.md` | **NOT_RUN** |
 | 15 | CI | `.github/workflows/ci.yml` | — | run 40840918994（attempt 2） | **BLOCKED**：runner_id=0 / steps=[] |
