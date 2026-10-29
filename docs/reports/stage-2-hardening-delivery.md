@@ -47,6 +47,20 @@ This change set is an isolated hardening layer on top of `feat/cognitive-loop-v1
 - [ ] Run real-provider S1–S6 and Electron desktop smoke with actual credentials.
 - [ ] Review PR diff and merge only after all required gates pass.
 
+## Explicitly not yet delivered by this hardening PR
+
+This PR is **not** the complete Stage 2 algorithm delivery. The audit also identified work that remains unimplemented or lacks runtime evidence:
+
+- Calibrated/weighted intent confidence beyond the current uncalibrated rule-strength score.
+- Explicit speech-act representation and its use in turn routing.
+- A versioned gradual-personalization state with bounded update rule and persistence.
+- Explicit per-context-block utility/priority (U(c)), budget-based selection, and per-block inclusion/omission trace.
+- A complete turn state machine beyond succeeded/failed/cancelled, including recoverable intermediate states where justified.
+- Fixed-scenario A–L evaluation and ablation proving each cognitive module changes behavior for the intended reason.
+- Real-provider S1–S6 and desktop acceptance evidence.
+
+These items must not be described as implemented merely because related modules exist. They require their own integrated implementation, regression tests, and evidence before Stage 2 can be marked delivered.
+
 ## Remaining known boundaries
 
 - Reflection is rule/event-based and rate-limited; it is not model-based introspection and does not autonomously rewrite personality.
