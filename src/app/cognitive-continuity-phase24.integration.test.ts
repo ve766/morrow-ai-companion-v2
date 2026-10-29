@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, SPARK_PROVIDER_ID } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 import { CompanionService } from './companion-service'
@@ -56,7 +56,7 @@ function openWorld(
   directory: string,
   script: Script,
   previews: string[] = [],
-  overrides: { contexts?: TurnContextPort } = {}
+  overrides: { contexts?: TurnContextPort; reflection?: { run: (trigger: 'manual' | 'startup' | 'post_conversation') => unknown } } = {}
 ): World {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const events = new EventLogService(database)
@@ -107,7 +107,7 @@ function openWorld(
     conversations,
     secrets: secretStore,
     authorize,
-    selfModelLoop: { events, interests, selfModel },
+    selfModelLoop: { events, interests, selfModel, ...(overrides.reflection ? { reflection: overrides.reflection } : {}) },
     providerFactory,
     continuity: {
       contexts: overrides.contexts ?? new SqliteTurnContextRepository(database),
@@ -120,7 +120,7 @@ function openWorld(
   return { directory, database, companion, memories, conversations, secretStore, previews, script, started }
 }
 
-function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort } = {}): World {
+function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort; reflection?: { run: (trigger: 'manual' | 'startup' | 'post_conversation') => unknown } } = {}): World {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-phase24-'))
   directories.push(directory)
   return openWorld(directory, { behaviours: script.behaviours ?? [], proposals: script.proposals ?? [] }, [], overrides)
@@ -176,6 +176,21 @@ async function saveThroughProduct(world: World, conversationId: string, statemen
 
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
+})
+
+describe('bounded reflection lifecycle', () => {
+  it('runs reflection only after a successfully persisted assistant turn', async () => {
+    const reflection = { run: vi.fn(() => ({ skipped: 'rate_limited' as const })) }
+    const world = newWorld({}, { reflection })
+    try {
+      const conversation = world.companion.createConversation()
+      await send(world, conversation.id, '你好')
+      expect(reflection.run).toHaveBeenCalledTimes(1)
+      expect(reflection.run).toHaveBeenCalledWith('post_conversation')
+    } finally {
+      world.database.close()
+    }
+  })
 })
 
 describe('A. memory continuity through the real save path', () => {
