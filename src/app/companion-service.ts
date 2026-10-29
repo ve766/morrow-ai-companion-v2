@@ -52,6 +52,7 @@ import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-se
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
+import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
 
 const fixedPrinciples = [
@@ -618,6 +619,8 @@ export interface SelfModelLoopServices {
   events: EventLogService
   interests: InterestService
   selfModel: SelfModelService
+  /** Rate-limited post-turn reflection; never allowed to fail the chat path. */
+  reflection?: Pick<ReflectionService, 'run'>
 }
 
 // Context block for the long-term layer: rule-derived interests and
@@ -683,12 +686,29 @@ export class CompanionService {
     this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
     const selfModelLoop = options.selfModelLoop
+    const recordCognitiveDegradation = (component: string, correlationId: string | null = null): void => {
+      try {
+        selfModelLoop?.events.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'cognition.degraded',
+          actor: 'system',
+          subjectType: 'cognitive_component',
+          subjectId: component,
+          correlationId,
+          // Deliberately no exception message, prompt, memory text or user text.
+          payload: { component, reasonCode: 'DERIVED_STATE_UNAVAILABLE' }
+        })
+      } catch {
+        // Observability is best-effort and cannot change the user-visible turn.
+      }
+    }
     const hooks: SelfModelLoopHooks | undefined = selfModelLoop
       ? {
           contextBlock: () => {
             try {
               return buildSelfModelContextBlock(selfModelLoop)
             } catch {
+              recordCognitiveDegradation('self_model_context')
               return ''
             }
           },
@@ -711,8 +731,12 @@ export class CompanionService {
                   correlationId: input.userMessageId
                 })
               }
+              // Reflection runs only after a persisted assistant turn. Its own
+              // hourly budget prevents it from running on every rapid message.
+              // Findings are evidence-linked and do not directly edit personality.
+              selfModelLoop.reflection?.run('post_conversation')
             } catch {
-              // The long-term layer must never break the chat path.
+              recordCognitiveDegradation('self_model_turn_hook', input.userMessageId)
             }
           }
         }
