@@ -1212,11 +1212,13 @@ export class ChatService {
         try {
           this.ledger(evaluation)
         } catch {
+          this.recordDegradation('turn_evaluation_ledger', input.requestId)
           console.warn('Turn evaluation ledger was unavailable; the chat result is unaffected.')
         }
       }
       return evaluation
     } catch {
+      this.recordDegradation('turn_evaluation_build', input.requestId)
       return undefined
     }
   }
