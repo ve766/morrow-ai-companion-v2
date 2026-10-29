@@ -3,10 +3,13 @@
 分支：`feat/cognitive-loop-v1-phase2-4-continuity`
 基线：`46defb6454a452416679623cd6ae60ad57cf3cea`
 代码提交：`8cb3761`
+第二轮代码提交：`scripts/smoke.mjs`（桌面启动开关与失败阶段标注，见 §6）
 报告提交：见 §9（在其后）
 `main`：`8b207b7`（未改动、未合并、未发布）
 
-**结论：BLOCKED。** 代码侧整改完成并已实测；但任务要求的「真实模型六场景运行」与「桌面运行」两项无法在本环境完成，因此不宣称完整验收。
+**结论：BLOCKED。** 代码侧整改完成并已实测；任务要求的「真实模型六场景运行」与「桌面运行」两项无法在本环境完成，因此不宣称完整验收。
+
+第二轮补充的关键进展：**桌面 smoke 的失败原因已从"错误文字与基线一致"升级为可复现的最小证据**——一个只创建 `BrowserWindow` 并加载 `data:` URL 的六行 Electron 应用在本机同样崩溃，因此这不是 Morrow 的代码缺陷。详见 §6。
 
 ---
 
@@ -84,6 +87,24 @@
 | esbuild 打包脚本 | 0 | 316.8 kb |
 | 无密钥运行脚本 | **2** | 打印缺失说明后退出，**零请求** |
 
+### 第二轮（本轮，HEAD `4e9710c`）实测
+
+| 命令 | 退出码 | 结果 |
+|---|---|---|
+| `npx tsc --noEmit` | 0 | 无输出 |
+| `npx tsc --noEmit --strict --exactOptionalPropertyTypes --module nodenext --moduleResolution nodenext scripts/phase24-real-model.ts` | 0 | 脚本严格检查通过 |
+| 聚焦测试（phase24 集成 + 轮次可靠性 + 迁移 + 待办） | 0 | **48 passed / 4 files** |
+| `npx vitest run --maxWorkers=2` | 0 | **569 passed / 63 files**（73.9s） |
+| `npm run build` | 0 | main 478.06 kB / preload 8.92 kB / renderer 79.73 kB |
+| `npm run evaluate` | 0 | `passed:true`，候选 precision/recall = 1，四类泄漏 0 |
+| `npm run evaluate:cognition` | 0 | 四套件 gate 全过，`providerCalls=0, networkCalls=0` |
+| `npm run verify:phase23` | 0 | `ok:true`，100 次运行，integrity/reproducible 均为 true |
+| Phase 2.3 五套件 | 0 | **66 passed / 5 files** |
+| `npx esbuild … --external:electron`（打包实验脚本） | 0 | 322,415 bytes |
+| 无密钥运行实验脚本 | **2** | 打印缺失凭据说明后退出，**零请求** |
+| `npm run smoke` | **1** | 渲染进程崩溃（见 §6） |
+| `MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke` | **1** | 主进程崩溃（见 §6） |
+
 ## 4. 场景级结果
 
 | 场景 | 状态 | 说明 |
@@ -108,6 +129,17 @@
 | `%APPDATA%\morrow\data`、两个 userData 目录 | 无 `*secret*` / `*credential*` / `*.bin` |
 | 仓库 | 无 `.env`、无密钥文件 |
 
+第二轮补充核查（把"没有网络"和"没有凭据"分开）：
+
+| 检查 | 结果 | 含义 |
+|---|---|---|
+| `curl https://maas-api.cn-huabei-1.xf-yun.com/v1/models` | **401** | Spark 端点可达，只缺凭据 |
+| `curl https://api.deepseek.com/v1/models` | **401** | DeepSeek 端点可达，只缺凭据 |
+| `curl https://api.openai.com/v1/models` | **000** | 不可达（代理拦截） |
+| 环境变量 `OPENAI_API_KEY` | present | 但对应端点不可达，无法用于本实验 |
+
+也就是说：**阻塞项是凭据，不是网络**。脚本本身已用 `--external:electron` 打包成功（322,415 bytes），并在无凭据时以退出码 2 干净退出、零请求。只要把 `MORROW_SPARK_API_KEY` 注入当前进程即可运行六场景，无需改动代码。
+
 2026-10-28 曾用一把 Spark 密钥完成 Phase 2.2 的 100 次调用，之后按"密钥不落盘"删除临时文件并提示轮换，无法复用（历史对话索引检索亦为 0 条）。
 
 ## 6. 桌面运行证据（与 CI 分开记录）
@@ -120,16 +152,64 @@
 | `npm run build` | 0 |
 | `npm run smoke` | **1** |
 
-失败信息（与基线一致，非本轮引入）：
+失败信息（修复阶段标注前的原始输出）：
 
 ```
-Morrow smoke failed during smoke fixture compilation:
-  The built renderer did not expose its typed preload bridge.
+Morrow smoke failed during smoke fixture compilation: The built renderer did not expose its typed preload bridge.
 {"level":"error","source":"app","msg":"window load failed","fields":{"code":"renderer-load-failed"}}
 GPU process exited unexpectedly: exit_code=-1073741819
 ```
 
-对照：在基线 `872367c` 上重新构建后跑同一命令，报错逐条相同。
+注意第一行的阶段名是错的：失败发生在 `start()` 里，此时 `stage` 还停在初始值 `smoke fixture compilation`，所以报的是"fixture 编译失败"。本轮已把该标注改为 `application launch`。
+
+### 6.1 根因：不是 Morrow 的代码
+
+把问题缩到最小：一个只做「创建 `BrowserWindow` + 加载 `data:text/html,<h1>hi</h1>`」的 Electron 应用，在本机同样失败。
+
+```js
+const { app, BrowserWindow } = require('electron')
+app.whenReady().then(async () => {
+  const win = new BrowserWindow({ width: 400, height: 300, show: false })
+  win.webContents.on('render-process-gone', (_e, d) => console.log('GONE', d.reason, d.exitCode))
+  await win.loadURL('data:text/html,<h1>hi</h1>').then(() => console.log('LOAD_OK')).catch((e) => console.log('LOAD_ERR', e.message))
+})
+```
+
+| 启动开关 | 渲染进程 | 加载结果 |
+|---|---|---|
+| （无） | `crashed / -2147483645`（0x80000003） | `ERR_FAILED (-2)` |
+| `--disable-gpu-sandbox` | `crashed / -2147483645` | `ERR_FAILED (-2)` |
+| `--in-process-gpu` | `crashed / -2147483645` | `ERR_FAILED (-2)` |
+| `--use-angle=swiftshader --disable-gpu` | `crashed / -2147483645` | `ERR_FAILED (-2)` |
+| `--no-sandbox` | 存活 | **`LOAD_OK`，正文 `hi`** |
+
+同时，GPU 进程在几乎所有组合下都以 `exit_code=-1073741819`（0xC0000005）退出，`--disable-gpu` 也挡不住；伴随 `Failed to open persistent cache files … DawnGraphiteCache … 另一个程序正在使用此文件 (0x20)`。
+
+结论：**本机的 Chromium 渲染沙箱无法初始化**，渲染进程在提交任何页面之前就死掉；只有 `--no-sandbox` 能让最小页面渲染出来。这不是产品代码能修的东西。
+
+### 6.2 为什么没有把 `--no-sandbox` 当成"修好了"
+
+给 smoke 加上 `MORROW_SMOKE_DISABLE_SANDBOX=1` 开关（本轮新增，见 §6.3）后重跑，结果变了但依然失败：
+
+```
+Morrow smoke notice: Chromium sandbox is disabled for this run (MORROW_SMOKE_DISABLE_SANDBOX=1). …
+Morrow smoke failed during application launch: Built application exited during launch (3221225477)
+```
+
+`3221225477` = `0xC0000005`，这次是**主进程**崩溃；手工启动同一组合时进程收到 SIGSEGV。所以：
+
+- 沙箱开着 → 渲染进程崩；
+- 沙箱关掉 → 主进程崩。
+
+这台机器上两条路都走不通。因此**没有**把 smoke 改成通过，也没有吞掉错误——桌面证据仍记为 BLOCKED。
+
+### 6.3 本轮对 `scripts/smoke.mjs` 的改动（明确标记，非软化）
+
+1. 新增 `MORROW_SMOKE_DISABLE_SANDBOX=1` 显式开关：任何平台都可 `--no-sandbox`，启动时打印醒目提示，成功信息里追加 `[sandbox disabled for this host]`。产品默认不变，`webPreferences.sandbox` 仍为 `true`。
+2. 修正失败阶段标注：`start()` 之前先置 `stage = 'application launch'`，避免把启动失败误报成"fixture 编译失败"。
+3. Linux 行为不变（本来就走 `--no-sandbox`）。
+
+该开关在本机**没有**换来通过，因此它只是"给沙箱可单独修复的宿主留一条明确标记的路"，不能作为桌面证据。
 
 **CI 状态：未运行。** 本会话没有任何 CI 触发，因此不存在 Linux/xvfb 下的桌面证据；桌面运行一律记为 BLOCKED，不以构建成功替代。
 
@@ -148,19 +228,22 @@ GPU process exited unexpectedly: exit_code=-1073741819
 
 **BLOCKED** —— 不是"代码没改完"，而是两项必需验证无法在本环境完成：
 
-1. 真实模型六场景 **0 次运行**（无凭据）；
-2. 桌面冒烟 **不可用**（本机 Electron 渲染进程崩溃，基线与当前一致）。
+1. 真实模型六场景 **0 次运行**（无凭据；端点为 401，证明是凭据缺失而非网络不通）；
+2. 桌面冒烟 **不可用**（本机 Chromium 渲染沙箱无法初始化，最小六行 Electron 应用同样崩溃；关掉沙箱则主进程崩）。
 
-要转为 PASS WITH LIMITATIONS，只需提供一次可用凭据并跑通六场景；要转为 PASS，还需在能正常启动桌面的环境（或 Linux + xvfb 的 CI）跑通 `npm run smoke`。
+要转为 PASS WITH LIMITATIONS，只需把 `MORROW_SPARK_API_KEY` 注入当前进程并跑通六场景（代码无需改动）。
+要转为 PASS，还需在能正常启动桌面的环境（正常 Windows 主机，或 Linux + xvfb 的 CI）跑通 `npm run smoke`。
 
 其他残留风险：
 
 - 运行器的场景执行体从未真正跑过，首次真实运行仍可能出现断言口径问题；
 - S3 的车牌识别是词法代理，非标准格式的编造值可能漏检（已在 limitations 标注为主观项）；
-- 同意自动化使得该脚本不能用于评估产品同意流程。
+- 同意自动化使得该脚本不能用于评估产品同意流程；
+- 本机 `ELECTRON_RUN_AS_NODE=1` 是全局环境变量（smoke 会在子进程里删除它），任何直接调用 `electron.exe` 的脚本都要注意这一点。
 
 ## 9. 提交
 
 - 代码：`8cb3761`
+- 桌面启动开关与阶段标注：`scripts/smoke.mjs`（本轮）
 - 本报告：随后提交（见 `git log`）
 - 建议：以 Draft PR 合入 `feat/cognitive-loop-v1-phase2`；**不合并、不发布、不改 `main`**。
