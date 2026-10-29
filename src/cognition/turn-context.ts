@@ -18,9 +18,42 @@
 import type { Sensitivity } from '../shared/companion'
 import type { IntentLabel } from './intent-decision'
 
-export const COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 1 as const
+/**
+ * Schema 2 adds the Stage 2 cognitive fields. Records written by schema 1 stay
+ * readable — `normalizeTurnContext` upgrades them with explicit empty defaults
+ * on read — because a field addition must never make past turns look absent.
+ */
+export const COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 2 as const
+export const LEGACY_TURN_CONTEXT_SCHEMA_VERSIONS = [1] as const
+export type TurnContextSchemaVersion = typeof COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION | typeof LEGACY_TURN_CONTEXT_SCHEMA_VERSIONS[number]
 
 export type CognitiveTurnStatus = 'succeeded' | 'failed' | 'cancelled'
+
+/** How the analyzer read the turn's ambiguity; never a calibrated probability. */
+export interface TurnContextUncertainty {
+  level: string
+  needsClarification: boolean
+}
+
+/** What the turn decided to do, recorded so a later reader can explain it. */
+export interface TurnContextResponsePlan {
+  strategy: string
+  memoryWriteAllowed: boolean
+}
+
+/** Speech acts the rules actually fired for this turn. */
+export const TURN_CONTEXT_SPEECH_ACTS = [
+  'correction',
+  'negation',
+  'changed_mind',
+  'explicit_goal',
+  'explicit_constraint',
+  'memory_recall_request',
+  'memory_save_request',
+  'explicit_self_fact',
+  'topic_switch'
+] as const
+export type TurnContextSpeechAct = typeof TURN_CONTEXT_SPEECH_ACTS[number]
 
 /** A memory as it was delivered to the model; content is deliberately absent. */
 export interface TurnContextMemory {
@@ -54,7 +87,7 @@ export interface TurnContextState {
 }
 
 export interface CognitiveTurnContext {
-  schemaVersion: typeof COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION
+  schemaVersion: TurnContextSchemaVersion
   /** The turn id (request id) doubles as the idempotency key. */
   turnId: string
   conversationId: string
@@ -112,6 +145,17 @@ export interface CognitiveTurnContext {
     /** Number of memory candidates this turn produced; never their content. */
     memoryCandidates: number
   }
+  /**
+   * Stage 2 fields. Optional because schema-1 records never wrote them; a
+   * reader must treat `undefined` as "this turn predates the field", not as
+   * "the turn had none".
+   */
+  uncertainty?: TurnContextUncertainty
+  speechActs?: TurnContextSpeechAct[]
+  responsePlan?: TurnContextResponsePlan
+  activeInterestIds?: string[]
+  selfModelEntryIds?: string[]
+  algorithmVersions?: { analyzer: string; intent: string }
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
@@ -140,7 +184,7 @@ function isState(value: unknown): value is TurnContextState {
 export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnContext {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const record = value as Record<string, unknown>
-  if (record.schemaVersion !== COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return false
+  if (record.schemaVersion !== 1 && record.schemaVersion !== COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return false
   if (typeof record.turnId !== 'string' || !uuidPattern.test(record.turnId)) return false
   if (typeof record.conversationId !== 'string' || !uuidPattern.test(record.conversationId)) return false
   if (typeof record.userMessageId !== 'string' || !uuidPattern.test(record.userMessageId)) return false
@@ -182,7 +226,51 @@ export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnCo
 
   const updates = record.updates as Record<string, unknown> | undefined
   if (!updates || typeof updates !== 'object' || !Array.isArray(updates.pendingItemIds)) return false
+
+  // Stage 2 fields are optional for schema 1 and for schema 2 writers that do
+  // not compute them yet; when present they must be well formed.
+  if (record.speechActs !== undefined) {
+    if (!Array.isArray(record.speechActs) || record.speechActs.length > TURN_CONTEXT_SPEECH_ACTS.length) return false
+    if (!(record.speechActs as unknown[]).every((act) => typeof act === 'string' && (TURN_CONTEXT_SPEECH_ACTS as readonly string[]).includes(act))) return false
+  }
+  if (record.uncertainty !== undefined) {
+    const uncertainty = record.uncertainty as Record<string, unknown>
+    if (!uncertainty || typeof uncertainty !== 'object') return false
+    if (typeof uncertainty.level !== 'string' || uncertainty.level.length > 40) return false
+    if (typeof uncertainty.needsClarification !== 'boolean') return false
+  }
+  if (record.responsePlan !== undefined) {
+    const plan = record.responsePlan as Record<string, unknown>
+    if (!plan || typeof plan !== 'object') return false
+    if (typeof plan.strategy !== 'string' || plan.strategy.length > 40) return false
+    if (typeof plan.memoryWriteAllowed !== 'boolean') return false
+  }
+  for (const key of ['activeInterestIds', 'selfModelEntryIds'] as const) {
+    const value = record[key]
+    if (value === undefined) continue
+    if (!Array.isArray(value) || value.length > 25) return false
+    if (!(value as unknown[]).every((id) => typeof id === 'string' && uuidPattern.test(id))) return false
+  }
+  if (record.algorithmVersions !== undefined) {
+    const versions = record.algorithmVersions as Record<string, unknown>
+    if (!versions || typeof versions !== 'object') return false
+    if (typeof versions.analyzer !== 'string' || typeof versions.intent !== 'string') return false
+  }
   return true
+}
+
+/**
+ * Reads any supported stored shape as the current schema.
+ *
+ * A schema-1 record cannot be silently re-labelled as schema 2 with invented
+ * values: the Stage 2 fields stay absent (`undefined`) so a reader can tell
+ * "this turn predates the field" from "the turn genuinely had none".
+ */
+export function normalizeTurnContext(value: unknown): CognitiveTurnContext | null {
+  if (!isCognitiveTurnContext(value)) return null
+  const record = value as CognitiveTurnContext
+  if (record.schemaVersion === COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return record
+  return { ...record, schemaVersion: COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION }
 }
 
 export interface BuildTurnContextInput {
@@ -199,6 +287,12 @@ export interface BuildTurnContextInput {
   guard?: CognitiveTurnContext['guard']
   provider: CognitiveTurnContext['provider']
   updates?: Partial<CognitiveTurnContext['updates']>
+  uncertainty?: TurnContextUncertainty | undefined
+  speechActs?: readonly TurnContextSpeechAct[] | undefined
+  responsePlan?: TurnContextResponsePlan | undefined
+  activeInterestIds?: readonly string[] | undefined
+  selfModelEntryIds?: readonly string[] | undefined
+  algorithmVersions?: { analyzer: string; intent: string } | undefined
 }
 
 /** Bounds the record so a single turn can never write an unbounded row. */
@@ -231,7 +325,13 @@ export function buildCognitiveTurnContext(input: BuildTurnContextInput): Cogniti
     updates: {
       pendingItemIds: [...new Set(input.updates?.pendingItemIds ?? [])].slice(0, 50),
       memoryCandidates: Math.max(0, input.updates?.memoryCandidates ?? 0)
-    }
+    },
+    ...(input.uncertainty ? { uncertainty: { ...input.uncertainty } } : {}),
+    ...(input.speechActs ? { speechActs: [...new Set(input.speechActs)].slice(0, TURN_CONTEXT_SPEECH_ACTS.length) } : {}),
+    ...(input.responsePlan ? { responsePlan: { ...input.responsePlan } } : {}),
+    ...(input.activeInterestIds ? { activeInterestIds: [...new Set(input.activeInterestIds)].filter((id) => uuidPattern.test(id)).slice(0, 25) } : {}),
+    ...(input.selfModelEntryIds ? { selfModelEntryIds: [...new Set(input.selfModelEntryIds)].filter((id) => uuidPattern.test(id)).slice(0, 25) } : {}),
+    ...(input.algorithmVersions ? { algorithmVersions: { ...input.algorithmVersions } } : {})
   }
 }
 

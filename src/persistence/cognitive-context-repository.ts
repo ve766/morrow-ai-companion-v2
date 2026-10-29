@@ -8,7 +8,7 @@
 import type { SqliteDatabase } from './database'
 import type { CognitiveTurnContext } from '../cognition/turn-context'
 import type { PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
-import { isCognitiveTurnContext } from '../cognition/turn-context'
+import { isCognitiveTurnContext, normalizeTurnContext } from '../cognition/turn-context'
 export interface TurnContextPort {
   /** Insert, or replace a record that did not reach a successful outcome. */
   upsert(context: CognitiveTurnContext): void
@@ -56,7 +56,8 @@ export class SqliteTurnContextRepository implements TurnContextPort {
     if (!row) return null
     try {
       const parsed: unknown = JSON.parse(row.payload_json)
-      return isCognitiveTurnContext(parsed) ? parsed : null
+      // Schema-1 rows are upgraded on read; the stored JSON is never rewritten.
+      return normalizeTurnContext(parsed)
     } catch {
       return null
     }
@@ -71,7 +72,8 @@ export class SqliteTurnContextRepository implements TurnContextPort {
     for (const row of rows) {
       try {
         const parsed: unknown = JSON.parse(row.payload_json)
-        if (isCognitiveTurnContext(parsed)) contexts.push(parsed)
+        const context = normalizeTurnContext(parsed)
+        if (context) contexts.push(context)
       } catch {
         continue
       }

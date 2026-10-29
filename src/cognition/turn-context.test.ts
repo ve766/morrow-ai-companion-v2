@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildCognitiveTurnContext,
+  COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION,
   isCognitiveTurnContext,
+  normalizeTurnContext,
   snapshotState,
   type BuildTurnContextInput,
   type CognitiveTurnContext
@@ -81,7 +83,9 @@ describe('turn context shape', () => {
 
   it('rejects a tampered record on the read path', () => {
     const context = buildCognitiveTurnContext(input())
-    expect(isCognitiveTurnContext({ ...context, schemaVersion: 2 })).toBe(false)
+    // A schema this build does not know is unreadable; a known legacy schema is
+    // readable through `normalizeTurnContext` (see the compatibility block).
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 3 })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, status: 'unknown' })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, retrieval: { ...context.retrieval, selected: [{ id: 'x' }] } })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, provider: { ...context.provider, outcome: 'ok' } })).toBe(false)
@@ -170,5 +174,70 @@ describe('turn context store', () => {
     } finally {
       database.close()
     }
+  })
+})
+
+describe('schema compatibility and stage 2 fields', () => {
+  it('writes the current schema version and keeps stage 2 fields when supplied', () => {
+    const context = buildCognitiveTurnContext(input({
+      uncertainty: { level: 'medium', needsClarification: false },
+      speechActs: ['correction', 'explicit_self_fact'],
+      responsePlan: { strategy: 'answer', memoryWriteAllowed: false },
+      activeInterestIds: [memoryId],
+      selfModelEntryIds: [memoryId],
+      algorithmVersions: { analyzer: 'cognitive-analyzer-v1', intent: 'intent-rules-v1' }
+    }))
+    expect(context.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+    expect(context.speechActs).toEqual(['correction', 'explicit_self_fact'])
+    expect(context.uncertainty).toEqual({ level: 'medium', needsClarification: false })
+    expect(context.responsePlan).toEqual({ strategy: 'answer', memoryWriteAllowed: false })
+    expect(context.algorithmVersions).toEqual({ analyzer: 'cognitive-analyzer-v1', intent: 'intent-rules-v1' })
+    expect(isCognitiveTurnContext(JSON.parse(JSON.stringify(context)))).toBe(true)
+  })
+
+  it('omits stage 2 fields when the caller has no analysis instead of inventing values', () => {
+    const context = buildCognitiveTurnContext(input())
+    expect(context.uncertainty).toBeUndefined()
+    expect(context.speechActs).toBeUndefined()
+    expect(context.responsePlan).toBeUndefined()
+  })
+
+  it('reads a schema 1 record instead of treating it as absent', () => {
+    const current = buildCognitiveTurnContext(input({
+      uncertainty: { level: 'low', needsClarification: false },
+      speechActs: ['negation']
+    }))
+    const legacy = JSON.parse(JSON.stringify(current)) as Record<string, unknown>
+    legacy.schemaVersion = 1
+    delete legacy.uncertainty
+    delete legacy.speechActs
+    delete legacy.responsePlan
+    delete legacy.algorithmVersions
+    delete legacy.activeInterestIds
+    delete legacy.selfModelEntryIds
+
+    expect(isCognitiveTurnContext(legacy)).toBe(true)
+    const normalized = normalizeTurnContext(legacy)
+    expect(normalized).not.toBeNull()
+    expect(normalized!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+    // Upgraded, not invented: a field the legacy turn never wrote stays absent.
+    expect(normalized!.speechActs).toBeUndefined()
+    expect(normalized!.turnId).toBe(current.turnId)
+  })
+
+  it('rejects malformed stage 2 fields rather than trusting them', () => {
+    const context = buildCognitiveTurnContext(input())
+    expect(isCognitiveTurnContext({ ...context, speechActs: ['not_an_act'] })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, uncertainty: { level: 1, needsClarification: false } })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, responsePlan: { strategy: 'answer' } })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, activeInterestIds: ['not-a-uuid'] })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, algorithmVersions: { analyzer: 'x' } })).toBe(false)
+  })
+
+  it('drops unknown schema versions and unparsable payloads on read', () => {
+    expect(normalizeTurnContext(null)).toBeNull()
+    expect(normalizeTurnContext('nope')).toBeNull()
+    const context = buildCognitiveTurnContext(input())
+    expect(normalizeTurnContext({ ...context, schemaVersion: 99 })).toBeNull()
   })
 })

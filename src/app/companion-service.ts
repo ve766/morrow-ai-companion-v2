@@ -23,6 +23,7 @@ import type {
 } from '../shared/companion'
 import { DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, SPARK_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput, type SparkProviderConfigInput } from '../shared/companion'
 import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
+import { INTENT_DECISION_VERSION } from '../cognition/intent-decision'
 import { COGNITIVE_ANALYZER_VERSION, withCognitiveContextEvidence, type CognitiveCoreSettings, type CognitiveHistoryMessage, type CognitiveTurnAnalysis, type CognitiveTurnRecord } from '../cognition/cognition'
 import { validateMemoryText } from '../memory/memory-domain'
 import type { SqliteDatabase } from '../persistence/database'
@@ -44,7 +45,7 @@ import { buildTurnEvaluation, turnEvaluationEventPayload, type TurnEvaluation } 
 import type { IntentDecision } from '../cognition/intent-decision'
 import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
-import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
+import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type TurnContextSpeechAct, type CognitiveTurnStatus } from '../cognition/turn-context'
 import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
 import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
@@ -1339,6 +1340,19 @@ export class ChatService {
     at: string
   }): CognitiveTurnContext {
     const { prepared } = input
+    const analysis = prepared.analysis
+    const speechActs: TurnContextSpeechAct[] = []
+    if (analysis) {
+      if (analysis.signals.correction) speechActs.push('correction')
+      if (analysis.signals.negation) speechActs.push('negation')
+      if (analysis.signals.changedMind) speechActs.push('changed_mind')
+      if (analysis.signals.explicitGoal) speechActs.push('explicit_goal')
+      if (analysis.signals.explicitConstraint) speechActs.push('explicit_constraint')
+      if (analysis.signals.explicitMemoryRequest) speechActs.push('memory_recall_request')
+      if (analysis.signals.explicitMemorySaveRequest) speechActs.push('memory_save_request')
+      if (analysis.signals.explicitSelfFact) speechActs.push('explicit_self_fact')
+      if (analysis.signals.topicSwitch) speechActs.push('topic_switch')
+    }
     return buildCognitiveTurnContext({
       turnId: input.requestId,
       conversationId: input.conversationId,
@@ -1346,6 +1360,16 @@ export class ChatService {
       assistantMessageId: input.assistantMessageId,
       recordedAt: input.at,
       status: input.status,
+      uncertainty: analysis
+        ? { level: analysis.uncertainty, needsClarification: analysis.strategy === 'clarify' }
+        : undefined,
+      speechActs,
+      // Long-term memory is never written without an explicit user decision, so
+      // the plan records the policy as it actually is rather than as it is hoped.
+      responsePlan: analysis
+        ? { strategy: analysis.strategy, memoryWriteAllowed: false }
+        : undefined,
+      algorithmVersions: { analyzer: COGNITIVE_ANALYZER_VERSION, intent: INTENT_DECISION_VERSION },
       intent: {
         label: prepared.decision?.intent ?? 'unavailable',
         confidence: prepared.decision?.confidence ?? 0,
