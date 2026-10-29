@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildCognitiveTurnContext,
+  COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION,
   isCognitiveTurnContext,
   snapshotState,
   type BuildTurnContextInput,
@@ -123,6 +124,32 @@ describe('turn context store', () => {
       repository.upsert(context)
       expect(repository.get(turnId)).toEqual(context)
       expect(repository.listByConversation(conversationId, 10)).toHaveLength(1)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('reads a stored schema 1 payload back through the repository', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      const legacy = JSON.parse(JSON.stringify(buildCognitiveTurnContext(input()))) as Record<string, unknown>
+      legacy.schemaVersion = 1
+      // Written straight into the table: this is what an older app version left
+      // behind, not a hand-modified object passed to the validator.
+      database.connection.prepare(`
+        INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(turnId, conversationId, 'succeeded', '2026-01-01T00:00:00.000Z', JSON.stringify(legacy))
+
+      const read = repository.get(turnId)
+      expect(read).not.toBeNull()
+      expect(read!.turnId).toBe(turnId)
+      expect(read!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+      expect(read!.retrieval.selected[0]!.id).toBe(memoryId)
+      // The stored payload is not rewritten by a read.
+      const stored = JSON.parse(String((database.connection.prepare('SELECT payload_json FROM cognitive_turn_contexts WHERE turn_id = ?').get(turnId) as { payload_json: string }).payload_json))
+      expect(stored.schemaVersion).toBe(1)
     } finally {
       database.close()
     }

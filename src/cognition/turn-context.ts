@@ -188,6 +188,21 @@ export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnCo
   return true
 }
 
+/**
+ * Read adapter for legacy rows.
+ *
+ * A schema-1 payload is returned in the current shape so every reader sees the
+ * same record type, but the fields that version never wrote stay `undefined`:
+ * "this turn predates the field" must not be confused with "the turn had none".
+ * The stored JSON is never rewritten; only the in-memory result changes.
+ */
+export function normalizeTurnContext(value: unknown): CognitiveTurnContext | null {
+  if (!isCognitiveTurnContext(value)) return null
+  const record = value as CognitiveTurnContext
+  if (record.schemaVersion === COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return record
+  return { ...record, schemaVersion: COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION }
+}
+
 export interface BuildTurnContextInput {
   turnId: string
   conversationId: string

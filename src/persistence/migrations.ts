@@ -795,6 +795,24 @@ export const migrations: readonly Migration[] = [
           );
       `)
     }
+  },
+  {
+    version: 21,
+    name: 'finalization-intent-follows-its-messages',
+    up(database) {
+      // `cognitive_turn_finalizations` carries message ids without foreign keys,
+      // so deleting one message used to leave a finalization row naming a row
+      // that no longer exists. Migration 19 only covered conversation deletion.
+      // A recovery pass could then try to settle a turn from a dangling intent.
+      database.exec(`
+        CREATE TRIGGER cognitive_turn_finalizations_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM cognitive_turn_finalizations
+          WHERE user_message_id = OLD.id OR assistant_message_id = OLD.id;
+        END;
+      `)
+    }
   }
 ]
 
