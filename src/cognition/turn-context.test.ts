@@ -81,7 +81,9 @@ describe('turn context shape', () => {
 
   it('rejects a tampered record on the read path', () => {
     const context = buildCognitiveTurnContext(input())
-    expect(isCognitiveTurnContext({ ...context, schemaVersion: 2 })).toBe(false)
+    expect(context.schemaVersion).toBe(2)
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 1 })).toBe(true)
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 3 })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, status: 'unknown' })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, retrieval: { ...context.retrieval, selected: [{ id: 'x' }] } })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, provider: { ...context.provider, outcome: 'ok' } })).toBe(false)
