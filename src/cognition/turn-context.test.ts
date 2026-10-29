@@ -133,10 +133,48 @@ describe('turn context store', () => {
     const database = openDatabase()
     try {
       const repository = new SqliteTurnContextRepository(database)
-      const legacy = JSON.parse(JSON.stringify(buildCognitiveTurnContext(input()))) as Record<string, unknown>
-      legacy.schemaVersion = 1
-      // Written straight into the table: this is what an older app version left
-      // behind, not a hand-modified object passed to the validator.
+      // A literal schema-1 payload: this is the field set the older writer
+      // actually produced (no stage 2 fields), not the current builder with a
+      // version number changed afterwards.
+      const legacy = {
+        schemaVersion: 1,
+        turnId,
+        conversationId,
+        userMessageId,
+        assistantMessageId,
+        recordedAt: '2026-01-01T00:00:00.000Z',
+        status: 'succeeded',
+        intent: {
+          label: 'information_query',
+          confidence: 80,
+          confidenceLevel: 'high',
+          strategy: 'retrieve_memory',
+          reasons: ['question_marker']
+        },
+        retrieval: {
+          policyIntent: 'information_query',
+          baseMax: 25,
+          effectiveMax: 25,
+          adjustment: null,
+          selected: [{
+            id: memoryId,
+            status: 'active',
+            sourceCategory: 'user_explicit_input',
+            sensitivity: 'personal',
+            revision: 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            score: 0.5
+          }],
+          conflicts: [],
+          omitted: 0,
+          maximumSensitivity: 'personal'
+        },
+        personality: { version: 1, warmth: 50, directness: 50, humor: 30, disagreementStyle: 'gentle' },
+        feeling: { before: null, after: null, eventType: null, applied: false },
+        guard: null,
+        provider: { id: 'deepseek', model: 'deepseek-chat', outcome: 'succeeded', attempts: 1, errorKind: null },
+        updates: { pendingItemIds: [], memoryCandidates: 0 }
+      }
       database.connection.prepare(`
         INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json)
         VALUES (?, ?, ?, ?, ?)
@@ -147,7 +185,16 @@ describe('turn context store', () => {
       expect(read!.turnId).toBe(turnId)
       expect(read!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
       expect(read!.retrieval.selected[0]!.id).toBe(memoryId)
-      // The stored payload is not rewritten by a read.
+      // The legacy payload's own values survive the read unchanged; this schema
+      // version adds no fields, so the check is on equivalence, not on absence.
+      expect(read!.intent.confidence).toBe(80)
+      expect(read!.provider.model).toBe('deepseek-chat')
+
+      const listed = repository.listByConversation(conversationId, 10)
+      expect(listed).toHaveLength(1)
+      expect(listed[0]!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+
+      // Reading must not rewrite the stored payload.
       const stored = JSON.parse(String((database.connection.prepare('SELECT payload_json FROM cognitive_turn_contexts WHERE turn_id = ?').get(turnId) as { payload_json: string }).payload_json))
       expect(stored.schemaVersion).toBe(1)
     } finally {
