@@ -121,12 +121,13 @@ ambiguous 3（其中 2 对为同槽替换，正确未合并）
 | `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.875 / FP 0 |
 | `npm run eval:ablation` | 0 | full 2/3 轮含个性化块 vs no_personalization 0/3 |
 
-结果文件（`headSha` 与生成时 HEAD 一致）：
-- `evals/stage-2/results/2026-10-29T16-18-21-8bd12a6.json`（+ `-summary.json`）
+结果文件（`headSha = 558c70e`，与生成时代码提交一致）：
+- `evals/stage-2/results/2026-10-29T16-29-22-558c70e.json`（+ `-summary.json`）
 - `evals/stage-2/results/topic-identity-devset-report.json`
-- `evals/stage-2/ablation/results/2026-10-29T16-24-09-8bd12a6.json`
+- `evals/stage-2/ablation/results/2026-10-29T16-29-34-558c70e.json`
 
-旧 SHA 的结果文件全部保留，不覆盖、不冒充当前提交。
+同一轮的修复过程结果也保留，不覆盖：`16-02-23`（B5 FAIL 2/3，碎片化证据）、
+`16-12-19`（B5 FAIL 4/5，证据链已通但 payload 未带 id）。旧 SHA 结果不冒充当前提交。
 
 ## 3. 未完成（阻止交付）
 
