@@ -21,6 +21,7 @@ import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
 import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
+import { PersonalizationService } from '../personalization/personalization-service'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
 import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
@@ -187,6 +188,7 @@ if (hasSingleInstanceLock) {
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
+    const personalization = new PersonalizationService(database)
     const reflection = new ReflectionService(
       new SqliteReflectionRepository(database),
       { memories, interests, selfModel, events: eventLog },
@@ -203,7 +205,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization },
       continuity: { contexts: turnContexts, pending: pendingItems, finalizations }
     })
     // Settle any turn that was interrupted between its finalization intent and

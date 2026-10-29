@@ -813,6 +813,43 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 22,
+    name: 'bounded-personalization-state',
+    up(database) {
+      // Two tables on purpose. `personalization_state` is the bounded value the
+      // prompt reads; `personalization_signals` is the per-turn evidence behind
+      // it, so a value can always be recomputed or withdrawn instead of being an
+      // opaque number nobody can audit.
+      database.exec(`
+        CREATE TABLE personalization_state (
+          dimension TEXT PRIMARY KEY NOT NULL CHECK (dimension IN ('exploration', 'depth', 'pace')),
+          value REAL NOT NULL CHECK (value >= 0 AND value <= 1),
+          evidence_count INTEGER NOT NULL CHECK (evidence_count >= 0),
+          revision INTEGER NOT NULL CHECK (revision > 0),
+          updated_at TEXT NOT NULL,
+          last_turn_id TEXT CHECK (last_turn_id IS NULL OR length(last_turn_id) = 36)
+        ) STRICT;
+
+        CREATE TABLE personalization_signals (
+          dimension TEXT NOT NULL CHECK (dimension IN ('exploration', 'depth', 'pace')),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          signal REAL NOT NULL CHECK (signal >= -1 AND signal <= 1),
+          weight REAL NOT NULL CHECK (weight >= 0 AND weight <= 1),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (dimension, turn_id)
+        ) STRICT;
+
+        CREATE INDEX personalization_signals_turn_idx ON personalization_signals(turn_id);
+
+        CREATE TRIGGER personalization_signals_delete_with_turn_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM personalization_signals WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
   }
 ]
 

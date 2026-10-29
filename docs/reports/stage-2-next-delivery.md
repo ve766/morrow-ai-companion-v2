@@ -35,6 +35,14 @@
 
 这意味着：D 的"撤回后不存在"断言在修好之前是**假通过**（因为提取恒为 0）——正对照存在的意义正在于此。
 
+### 1.3 B2 渐进式个性化（本次实现，已进入真实链路）
+
+- 迁移 22：`personalization_state`（有界值）+ `personalization_signals`（逐轮证据，主键 `(dimension, turn_id)`）。
+- `src/personalization/personalization-service.ts`：`p' = clip(p + η·w·e, 0, 1)`，`η = 0.05`，单轮每维最多移动 0.05。
+- 写入：`onTurnCompleted`（真实轮次完成）；读取：`buildSelfModelContextBlock` → 下一轮 system 提示词。
+- 撤回：`forgetTurn` 删该轮信号并重算（回到 0.5，不是"略低于 0.5"）；消息删除由迁移 22 触发器清理。
+- 端到端测试证明：第 1 轮写入后**第 1 轮 payload 不含该块**，第 2 轮 payload 含 `Bounded interaction preference state` 与 `exploration=`。
+
 ## 2. 命令与退出码（实跑）
 
 | 命令 | 退出码 | 结果 |
@@ -51,7 +59,7 @@
 | 项 | 状态 |
 |---|---|
 | B1 多信号意图置信度 | 未实现 |
-| B2 渐进式个性化 | 未实现 |
+| ~~B2 渐进式个性化~~ | **已实现并接线**（见 §1.3） |
 | B3 上下文块效用 `U(c)` | 未实现 |
 | B4 持久化轮次状态机 | 未实现 |
 | B5 反思→下一轮请求端到端 | 仅接线，无 payload 级证据 |

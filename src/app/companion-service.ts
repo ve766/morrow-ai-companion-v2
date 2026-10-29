@@ -52,6 +52,7 @@ import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-se
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
+import type { PersonalizationService, PersonalizationSignal } from '../personalization/personalization-service'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
@@ -622,6 +623,8 @@ export interface SelfModelLoopServices {
   selfModel: SelfModelService
   /** Rate-limited post-turn reflection; never allowed to fail the chat path. */
   reflection?: Pick<ReflectionService, 'run'>
+  /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
+  personalization?: PersonalizationService
 }
 
 // Context block for the long-term layer: rule-derived interests and
@@ -638,6 +641,14 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices): str
   if (facts.length > 0) {
     const described = facts.map((fact) => `「${fact.statement.slice(0, 120)}」（置信度 ${fact.confidence}/100，未经确认的推断）`)
     lines.push(`Unverified self-knowledge awaiting user confirmation — ${described.join('; ')}. Do not present these as facts about the user.`)
+  }
+  // Stage 2 B2: bounded interaction preferences. Only dimensions that actually
+  // collected evidence are described; a default 0.5 with zero evidence is not a
+  // finding and must not be presented as one.
+  const learned = services.personalization?.list().filter((entry) => entry.evidenceCount > 0) ?? []
+  if (learned.length > 0) {
+    const described = learned.map((entry) => `${entry.dimension}=${entry.value.toFixed(2)}（${entry.evidenceCount} 轮证据）`)
+    lines.push(`Bounded interaction preference state (rule-derived heuristic, uncalibrated, not a feeling): ${described.join('; ')}. It may only tune pacing and how much to explore; it never changes facts, permissions or the user's explicit instructions.`)
   }
   return lines.join('\n')
 }
@@ -722,6 +733,22 @@ export class CompanionService {
                 topicText: input.content
               })
               selfModelLoop.interests.archiveStale(input.occurredAt)
+              // Stage 2 B2. Rule-derived hints carry a low reliability weight so
+              // one turn moves a dimension by at most eta * w (<= 0.05 here).
+              if (selfModelLoop.personalization) {
+                const signals: PersonalizationSignal[] = []
+                const intent = input.analysis?.intent
+                if (intent === 'planning' || intent === 'exploration') {
+                  signals.push({ dimension: 'exploration', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
+                }
+                if (input.analysis?.signals.explicitConstraint) {
+                  signals.push({ dimension: 'pace', signal: -0.5, weight: 0.8, turnId: input.turnId, at: input.occurredAt })
+                }
+                if (input.analysis?.signals.explicitMemoryRequest) {
+                  signals.push({ dimension: 'depth', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
+                }
+                for (const signal of signals) selfModelLoop.personalization.apply(signal)
+              }
               if (input.analysis?.signals.explicitSelfFact) {
                 // Only a structured predicate/value pair is stored; the message
                 // itself stays in `messages` and is referenced, never copied.
@@ -833,6 +860,8 @@ export interface SelfModelLoopHooks {
   /** Called once per completed turn; must never throw into the chat path. */
   onTurnCompleted(input: {
     conversationId: string
+    /** Request id: the idempotency key shared with the turn context. */
+    turnId: string
     userMessageId: string
     occurredAt: string
     content: string
@@ -1147,6 +1176,7 @@ export class ChatService {
         try {
           this.selfModel.onTurnCompleted({
             conversationId,
+            turnId: requestId,
             userMessageId: userMessage.id,
             occurredAt: this.now(),
             content: request.content.trim(),

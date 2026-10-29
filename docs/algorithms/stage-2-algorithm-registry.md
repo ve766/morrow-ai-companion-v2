@@ -69,7 +69,27 @@
 | 参数 | 见源码常量；本表不重复抄写，避免与实现漂移 |
 | 调用方 | `send` 成功/重放路径；状态修订号写入轮次上下文 |
 
-## 6. 长期层（兴趣 / 反思）
+## 6. 渐进式个性化（Stage 2 B2，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 公式 | `p' = clip(p + η·w·e, 0, 1)` |
+| 参数 | `η = PERSONALIZATION_ETA = 0.05`；`w ∈ [0,1]` 证据可靠性；`e ∈ [-1,1]` 有符号信号；上下界 0/1 |
+| 位置 | `src/personalization/personalization-service.ts` → `boundedUpdate` / `apply` |
+| 维度 | `exploration` / `depth` / `pace`（`PERSONALIZATION_DIMENSIONS`） |
+| 默认值 | 0.5（中立中点）；**证据数为 0 时不进入提示词**，默认值不被表述为"结论" |
+| 单轮上限 | 每轮每个维度最多移动 `η·w ≤ 0.05` —— 单条消息无法改写人格 |
+| 幂等 | `personalization_signals(dimension, turn_id)` 主键；重复 turn 不叠加 |
+| 撤回 | `forgetTurn(turnId)` 删除该轮信号并按剩余信号**重算**，回到 0.5 而非"略低于 0.5" |
+| 持久化 | 迁移 22：`personalization_state`（值）+ `personalization_signals`（逐轮证据） |
+| 删除边界 | `AFTER DELETE ON messages` 触发器按 `turn_id` 清理信号（迁移 22） |
+| 写入时机 | `CompanionService` `onTurnCompleted`（真实轮次完成） |
+| 读取时机 | `buildSelfModelContextBlock` → 下一轮 system 提示词 |
+| 信号来源 | `intent ∈ {planning, exploration}` → exploration +0.5/w0.6；`explicitConstraint` → pace −0.5/w0.8；`explicitMemoryRequest` → depth +0.5/w0.6 |
+| 边界声明 | 这是**未校准的启发式**，不是情绪或心理测量；提示词中明确写"rule-derived heuristic, uncalibrated" |
+| 测试 | `src/personalization/personalization-service.test.ts`（6 条，含"第 1 轮写入 → 第 2 轮 payload 出现"端到端） |
+
+## 7. 长期层（兴趣 / 反思）
 
 | 项 | 值 |
 |---|---|
@@ -85,7 +105,7 @@
 | 算法 | 状态 |
 |---|---|
 | 多信号意图置信度 `s = αr + βc + γe + δh` | **未实现**。当前只有单一规则强度 |
-| 渐进式个性化 `p' = clip(p + η·w·e, pmin, pmax)` | **未实现**。无 `personalization_state` 表 |
+| ~~渐进式个性化~~ | **已实现**（见 §6；参数与写入/读取位置已登记） |
 | 上下文块效用 `U(c)` | **未实现**。装配器按相关度/新近度/预算截断，非该公式 |
 | 持久化轮次状态机（created→…→committed） | **未实现**。只有 `succeeded/failed/cancelled` 终态 |
 | 记忆置信度更新 `c' = clip(c + ηe·E − ηk·K − ηu·U)` | **未实现** |
