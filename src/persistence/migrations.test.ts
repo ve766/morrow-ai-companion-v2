@@ -344,6 +344,52 @@ describe('v18 reflection-summary privacy rewrite', () => {
   })
 })
 
+describe('derived-data deletion boundaries', () => {
+  it('deletes source-linked self-model and interest rows plus conversation-scoped continuity records', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-derived-delete-'))
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    const db = database.connection
+    const conversationId = '11111111-1111-4111-8111-111111111111'
+    const messageId = '22222222-2222-4222-8222-222222222222'
+    const turnId = '33333333-3333-4333-8333-333333333333'
+    const assistantId = '44444444-4444-4444-8444-444444444444'
+    const selfModelId = '55555555-5555-4555-8555-555555555555'
+    const interestId = '66666666-6666-4666-8666-666666666666'
+    const pendingId = '77777777-7777-4777-8777-777777777777'
+
+    try {
+      db.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, 'delete me', timestamp, timestamp)
+      db.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', 'I like coffee.', timestamp, 1, turnId)
+      db.prepare(`
+        INSERT INTO self_model_entries(id, kind, statement, status, confidence, source_message_id, conversation_id, superseded_by, created_at, updated_at)
+        VALUES (?, 'fact', 'I like coffee.', 'active', 55, ?, ?, NULL, ?, ?)
+      `).run(selfModelId, messageId, conversationId, timestamp, timestamp)
+      db.prepare(`
+        INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json)
+        VALUES (?, 'coffee', 'candidate', 1, 1, 0.2, 40, ?, ?, ?, ?, ?, '[]')
+      `).run(interestId, messageId, conversationId, timestamp, timestamp, timestamp)
+      db.prepare('INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json) VALUES (?, ?, ?, ?, ?)')
+        .run(turnId, conversationId, 'succeeded', timestamp, '{}')
+      db.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, 'interest:coffee', 'interest', 'interest_candidate', 'Candidate interest', 20, 'open', ?, '{}', ?, ?, NULL)
+      `).run(pendingId, conversationId, timestamp, timestamp)
+      db.prepare('INSERT INTO cognitive_turn_finalizations(turn_id, conversation_id, user_message_id, assistant_message_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(turnId, conversationId, messageId, assistantId, '{}', timestamp)
+
+      db.prepare('DELETE FROM conversations WHERE id = ?').run(conversationId)
+
+      for (const table of ['messages', 'self_model_entries', 'interests', 'cognitive_turn_contexts', 'cognitive_pending_items', 'cognitive_turn_finalizations']) {
+        expect(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0 })
+      }
+    } finally {
+      database.close()
+    }
+  })
+})
+
 describe('foreign implementation-line databases', () => {  it('fails closed without writing when migration names do not match this application', () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-foreign-schema-'))
     try {
