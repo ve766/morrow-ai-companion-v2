@@ -42,7 +42,8 @@
 | `npm run eval:stage2` | 0 | executed 3 / passed 3 / failed 0 / blocked 2 / notRun 7 |
 | `npx tsc --noEmit` | 0 | — |
 
-结果文件：`evals/stage-2/results/2026-10-29T09-34-34-55c9aef.json`（+ `-summary.json`）
+结果文件：`evals/stage-2/results/2026-10-29T09-37-54-2174fa2.json`（+ `-summary.json`，与本报告同属提交 `2174fa2`）
+另保留首次运行的 `2026-10-29T09-34-34-55c9aef.json`（其结果 `headSha` 记的是 `55c9aef`，不冒充当前提交的证据）
 旧结果文件 `2026-10-29T08-35Z-local-not-run*.json` 保留未覆盖。
 
 ## 3. 未完成（阻止交付）
