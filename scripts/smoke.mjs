@@ -19,6 +19,12 @@ const electronBinary = process.platform === 'win32'
 const appEntry = join(root, 'out', 'main', 'index.js')
 const installedExecutable = process.env.MORROW_SMOKE_EXECUTABLE ? resolve(process.env.MORROW_SMOKE_EXECUTABLE) : undefined
 const externalProfile = process.env.MORROW_SMOKE_PROFILE ? resolve(process.env.MORROW_SMOKE_PROFILE) : undefined
+// Environment workaround, never a product default: on some Windows hosts the
+// Chromium renderer sandbox cannot initialise (the renderer dies with
+// 0x80000003 before committing any page, even for a data: URL). Operators can
+// opt out explicitly; every run that does so is reported as sandbox-disabled
+// so the evidence is never mistaken for a sandboxed run.
+const sandboxDisabled = process.env.MORROW_SMOKE_DISABLE_SANDBOX === '1' || process.platform === 'linux'
 const profile = externalProfile ?? await mkdtemp(join(tmpdir(), 'morrow-alpha-smoke-'))
 const seederBundlePath = join(profile, `morrow-alpha-smoke-seeder-${process.pid}.mjs`)
 
@@ -62,8 +68,10 @@ function launch(port, { remindersEnabled = false, profileDirectory = profile } =
   ]
   args.push(`--user-data-dir=${profileDirectory}`)
   // Linux CI containers cannot use the Chromium setuid sandbox; headless
-  // smoke runs there explicitly opt out (Windows/macOS unaffected).
-  if (process.platform === 'linux') args.push('--no-sandbox')
+  // smoke runs there explicitly opt out (Windows/macOS unaffected unless the
+  // operator opts out through MORROW_SMOKE_DISABLE_SANDBOX for a host whose
+  // renderer sandbox cannot start).
+  if (sandboxDisabled) args.push('--no-sandbox')
   if (!installedExecutable) args.push(root)
   const child = spawn(installedExecutable ?? electronBinary, args, {
     cwd: root,
@@ -485,8 +493,13 @@ let activeRun
 let activeClient
 let stage = 'smoke fixture compilation'
 
+if (sandboxDisabled && process.platform !== 'linux') {
+  console.warn('Morrow smoke notice: Chromium sandbox is disabled for this run (MORROW_SMOKE_DISABLE_SANDBOX=1). The product still ships with sandboxed renderers; this run only proves application behaviour on a host where the renderer sandbox cannot start.')
+}
+
 try {
   await buildSmokeSeeder()
+  stage = 'application launch'
   const first = await start()
   activeRun = first.run
   activeClient = first.client
@@ -1249,7 +1262,7 @@ try {
   const providerStorage = await verifyProviderCredentialStorage(activeRun, activeClient)
   activeRun = undefined
   activeClient = undefined
-  console.log(`Morrow smoke passed: ${installedExecutable ? 'installed Windows app' : 'built Electron app'}, default-off DeepSeek configuration, secure credential save/restart/delete (${providerStorage.storage}, no Provider requests), cognitive default-off/explicit opt-in and restart persistence, no fabricated reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls, local persistence, deletion, and restart verification.`)
+  console.log(`Morrow smoke passed: ${installedExecutable ? 'installed Windows app' : 'built Electron app'}${sandboxDisabled ? ' [sandbox disabled for this host]' : ''}, default-off DeepSeek configuration, secure credential save/restart/delete (${providerStorage.storage}, no Provider requests), cognitive default-off/explicit opt-in and restart persistence, no fabricated reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls, local persistence, deletion, and restart verification.`)
 } catch (error) {
   console.error(`Morrow smoke failed during ${stage}: ${error instanceof Error ? error.message : 'Unknown error'}.`)
   process.exitCode = 1
