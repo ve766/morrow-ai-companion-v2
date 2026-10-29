@@ -160,7 +160,7 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 | `npm run evaluate` | 0 | `passed:true`，检索 precision/recall 1.0，各类泄漏 0 |
 | `npm run evaluate:cognition` | 0 | 四套件 gate 全过；`offlineExecution.providerCalls = 0` |
 | `npm run build` | 0 | 构建成功 |
-| `npm run smoke` | 未执行 | 需要 Electron 显示环境，本环境为无头命令行；未伪报通过 |
+| `npm run smoke` | **1（失败）** | 本机 Electron 渲染进程起不来：`renderer-load-failed` + GPU 进程反复 `exit_code=-1073741819`。**已做基线对照**：在同一台机器上切到 `872367c` 重新构建后，冒烟以**完全相同**的信息失败（`The built renderer did not expose its typed preload bridge`），因此这是本机渲染/GPU 环境问题，不是本阶段引入的回归。`out/preload/index.js` 构建产物本身正常且包含新增桥接方法 |
 
 ---
 
@@ -196,7 +196,7 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 | 5. 待办可创建、持久化、恢复、完成 | 场景 F + `pending-items.test.ts`（去重、不复活、重复完成幂等）；IPC 层可列出与完成，且有校验与来源拦截测试 |
 | 6. 失败/重试/取消不重复写入或错误交付 | 场景 E / E'：1 user + 1 assistant；上下文状态正确 |
 | 7. 端到端测试有实际运行结果 | §5、§6（555 passed） |
-| 8. 类型检查、完整测试、构建、认知评估已执行 | §6，全部退出码 0；`smoke` 未执行并说明原因 |
+| 8. 类型检查、完整测试、构建、认知评估已执行 | §6，tsc / vitest / evaluate / evaluate:cognition / build 全部退出码 0；`smoke` 已尝试并失败，附基线对照证明与本阶段改动无关 |
 | 9. 有条件则真实模型验证，无条件则明确标记 | §7 明确标记未执行及原因 |
 | 10. 独立分支、可追踪提交、完整报告 | 分支已建；提交见 §10；本报告 |
 
@@ -250,3 +250,4 @@ cognitive_pending_items(id PK, dedupe_key UNIQUE, source, kind, summary, priorit
 | `npx tsc --noEmit` | 0 | 无输出 |
 | `npx vitest run --maxWorkers=2` | 0 | **561 passed / 63 files**（较 §6 增加 6 条 IPC 测试） |
 | `npm run build` | 0 | 构建成功（含 preload 与契约改动） |
+| `npm run smoke` | 1 | 本机渲染进程起不来；基线 `872367c` 同样失败，非本阶段回归（见 §6） |
