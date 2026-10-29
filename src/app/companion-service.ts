@@ -52,6 +52,7 @@ import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-se
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
+import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
 
@@ -722,14 +723,23 @@ export class CompanionService {
               })
               selfModelLoop.interests.archiveStale(input.occurredAt)
               if (input.analysis?.signals.explicitSelfFact) {
-                selfModelLoop.selfModel.record({
-                  kind: 'fact',
-                  statement: input.content.slice(0, 2000),
-                  confidence: 55,
-                  sourceMessageId: input.userMessageId,
-                  conversationId: input.conversationId,
-                  correlationId: input.userMessageId
-                })
+                // Only a structured predicate/value pair is stored; the message
+                // itself stays in `messages` and is referenced, never copied.
+                const statement = deriveSelfFactStatement(input.content)
+                if (statement) {
+                  selfModelLoop.selfModel.record({
+                    kind: 'fact',
+                    statement,
+                    confidence: 55,
+                    sourceMessageId: input.userMessageId,
+                    conversationId: input.conversationId,
+                    correlationId: input.userMessageId
+                  })
+                } else {
+                  // Nothing readable to keep: record the skip instead of
+                  // storing prose or inventing a placeholder fact.
+                  recordCognitiveDegradation('self_model_fact_unstructured', input.userMessageId)
+                }
               }
               // Reflection runs only after a persisted assistant turn. Its own
               // hourly budget prevents it from running on every rapid message.

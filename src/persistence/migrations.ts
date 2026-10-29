@@ -767,6 +767,34 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 20,
+    name: 'self-model-statements-stop-copying-messages',
+    up(database) {
+      // Rows written before this migration stored `message.body` verbatim. The
+      // statement is replaced by a non-semantic marker and the row is retracted,
+      // so it stops reaching the prompt while the row, its evidence reference and
+      // its audit trail survive. Only literal copies of the referenced message
+      // are touched: a statement that is not a copy is left exactly as it is.
+      // The message itself is untouched, so the fact remains recoverable from its
+      // source of truth.
+      database.exec(`
+        UPDATE self_model_entries
+        SET statement = '历史推断已撤回：原文不再保留，来源消息见 source_message_id。',
+            status = 'retracted',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE kind = 'fact'
+          AND status = 'active'
+          AND source_message_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM messages m
+            WHERE m.id = self_model_entries.source_message_id
+              AND (m.body = self_model_entries.statement
+                   OR substr(m.body, 1, 2000) = self_model_entries.statement)
+          );
+      `)
+    }
   }
 ]
 
