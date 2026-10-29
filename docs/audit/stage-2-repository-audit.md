@@ -1,7 +1,7 @@
 # Stage 2 · 全仓审计与阶段一阻塞复核
 
 审计时间：2026-10-29 14:20 (+08:00)
-审计分支：`feat/stage-2-continuous-companion-cognition`（HEAD `d858cd9`）
+审计分支：`feat/stage-2-continuous-companion-cognition`（HEAD `Source-code audit baseline: `d858cd9` (snapshot used for analysis; not the branch HEAD after this report was committed).`）
 审计方式：读取真实源码、迁移、测试与运行结果；不采信 README、旧报告或分支名。
 
 ---
