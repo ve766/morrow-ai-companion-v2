@@ -203,7 +203,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection },
       continuity: { contexts: turnContexts, pending: pendingItems, finalizations }
     })
     // Settle any turn that was interrupted between its finalization intent and
