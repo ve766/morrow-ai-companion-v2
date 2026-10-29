@@ -112,6 +112,7 @@ export function deriveInterestLabel(topicText: string): string | null {
 }
 
 
+
 export class InterestService {
   constructor(
     private readonly repository: InterestRepositoryPort,
