@@ -22,6 +22,7 @@ import { ConversationService } from '../../../src/conversation/conversation-serv
 import { SqliteConversationRepository } from '../../../src/persistence/conversation-repository'
 import { CompanionService } from '../../../src/app/companion-service'
 import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository, SqlitePendingItemRepository } from '../../../src/persistence/cognitive-context-repository'
+import { SqliteTurnStateRepository } from '../../../src/persistence/turn-state-repository'
 import { PendingCognitionService } from '../../../src/cognition/pending-items'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../../src/shared/companion'
 import { MemorySecretStore } from '../../../src/security/secrets'
@@ -88,7 +89,8 @@ function buildStack(): Stack {
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
-      finalizations: new SqliteTurnFinalizationRepository(database)
+      finalizations: new SqliteTurnFinalizationRepository(database),
+      states: new SqliteTurnStateRepository(database)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })

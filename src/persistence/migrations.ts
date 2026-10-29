@@ -850,6 +850,42 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 23,
+    name: 'persistent-turn-state',
+    up(database) {
+      // One row per turn holding where it stopped. The turn context keeps the
+      // terminal verdict; this table is the lifecycle that leads to it, so an
+      // interrupted turn can be told apart from one that never started.
+      database.exec(`
+        CREATE TABLE turn_states (
+          turn_id TEXT PRIMARY KEY NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          state TEXT NOT NULL CHECK (state IN (
+            'received', 'analyzed', 'context_ready', 'awaiting_consent',
+            'requesting', 'response_received', 'committed',
+            'failed', 'cancelled', 'recovery_required'
+          )),
+          updated_at TEXT NOT NULL,
+          reason TEXT CHECK (reason IS NULL OR length(reason) <= 64)
+        ) STRICT;
+
+        CREATE INDEX turn_states_conversation_idx ON turn_states(conversation_id, updated_at DESC);
+
+        CREATE TRIGGER turn_states_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM turn_states WHERE conversation_id = OLD.id;
+        END;
+
+        CREATE TRIGGER turn_states_delete_with_turn_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM turn_states WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
   }
 ]
 

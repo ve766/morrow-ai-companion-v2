@@ -92,7 +92,21 @@
 | 边界声明 | 这是**未校准的启发式**，不是情绪或心理测量；提示词中明确写"rule-derived heuristic, uncalibrated" |
 | 测试 | `src/personalization/personalization-service.test.ts`（6 条，含"第 1 轮写入 → 第 2 轮 payload 出现"端到端） |
 
-## 7. 长期层（兴趣 / 反思）
+## 7. 轮次状态机（Stage 2 B4，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 状态集 | `received / analyzed / context_ready / awaiting_consent / requesting / response_received / committed / failed / cancelled / recovery_required` |
+| 位置 | `src/cognition/turn-state-machine.ts`（转换表）、`src/persistence/turn-state-repository.ts`（持久化） |
+| 持久化 | 迁移 23 `turn_states(turn_id PK, conversation_id, state, updated_at, reason)`，含会话/消息删除触发器 |
+| 约束 | 目标状态必须把当前状态列为前驱，否则抛 `IllegalTurnTransition` 且**不覆盖**已存状态 |
+| 幂等 | 重复进入同一状态是 no-op，不刷新时间戳（恢复与重试可安全重放） |
+| 已接线点 | `received`（加锁后）、`context_ready`（载荷哈希校验通过）、`requesting`（派发前）、`response_received`（派发返回）、`committed`（assistant 消息落库后）、`failed`/`cancelled`（catch 分支，reason 为错误码） |
+| 未接线 | `analyzed`、`awaiting_consent`、`recovery_required`（转换表已定义，暂无写入点） |
+| 失败语义 | 状态写入失败被吞掉，不影响聊天；非法转换只在测试中暴露 |
+| 测试 | `src/cognition/turn-state-machine.test.ts`（6 条：合法链、跳阶段拒绝、重放幂等、终态判定、非法转换不覆盖、会话删除清理） |
+
+## 8. 长期层（兴趣 / 反思）
 
 | 项 | 值 |
 |---|---|
@@ -110,7 +124,7 @@
 | 多信号意图置信度 `s = αr + βc + γe + δh` | **未实现**。当前只有单一规则强度 |
 | ~~渐进式个性化~~ | **已实现**（见 §6；参数与写入/读取位置已登记） |
 | 上下文块效用 `U(c)` | **未实现**。装配器按相关度/新近度/预算截断，非该公式 |
-| 持久化轮次状态机（created→…→committed） | **未实现**。只有 `succeeded/failed/cancelled` 终态 |
+| ~~持久化轮次状态机~~ | **已实现并接线**（见 §7；`analyzed`/`awaiting_consent`/`recovery_required` 尚未有写入点） |
 | 记忆置信度更新 `c' = clip(c + ηe·E − ηk·K − ηu·U)` | **未实现** |
 
 以上五项在 `docs/reports/stage-2-final-delivery.md` 中同时标记为未完成，不因本表存在而变化。

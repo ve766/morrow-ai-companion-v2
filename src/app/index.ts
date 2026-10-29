@@ -25,6 +25,7 @@ import { PersonalizationService } from '../personalization/personalization-servi
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
 import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
+import { SqliteTurnStateRepository } from '../persistence/turn-state-repository'
 import { ApplicationError } from '../shared/errors'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
@@ -206,7 +207,7 @@ if (hasSingleInstanceLock) {
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
       selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization },
-      continuity: { contexts: turnContexts, pending: pendingItems, finalizations }
+      continuity: { contexts: turnContexts, pending: pendingItems, finalizations, states: new SqliteTurnStateRepository(database) }
     })
     // Settle any turn that was interrupted between its finalization intent and
     // the assistant-message commit. Safe to run on every start.

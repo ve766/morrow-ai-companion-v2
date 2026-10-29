@@ -46,6 +46,7 @@ import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
 import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
 import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
+import type { TurnState, TurnStatePort } from '../cognition/turn-state-machine'
 import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
@@ -882,6 +883,8 @@ export interface ContinuityPorts {
   pending: PendingCognitionService
   /** Persisted finalization intents, used to settle interrupted turns. */
   finalizations: TurnFinalizationPort
+  /** Persistent turn lifecycle (B4). Optional so offline callers stay simple. */
+  states?: TurnStatePort
 }
 
 /**
@@ -930,6 +933,19 @@ export class ChatService {
 
   private recordDegradation(component: string, correlationId: string | null = null): void {
     try { this.onDegradation?.(component, correlationId) } catch { /* Never fail the chat path for telemetry. */ }
+  }
+
+  /**
+   * Records one lifecycle step. A lifecycle write is observability, never a
+   * reason to fail a chat, so an illegal move or storage error is swallowed
+   * here and surfaces in tests through the repository instead.
+   */
+  private recordTurnState(conversationId: string, turnId: string, state: TurnState, reason: string | null = null): void {
+    try {
+      this.continuity?.states?.enter({ turnId, conversationId, state, updatedAt: this.now(), reason })
+    } catch {
+      // Intentionally silent: the chat path must not depend on the trace.
+    }
   }
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
@@ -997,6 +1013,7 @@ export class ChatService {
       return { conversation: existing.conversation, userMessage: existingUser, assistantMessage: existingAssistant, includedMemoryCount: 0 }
     }
     this.locks.add(conversationId)
+    this.recordTurnState(conversationId, requestId, 'received')
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
     try {
@@ -1017,6 +1034,7 @@ export class ChatService {
       const messageId = latestUser?.id ?? candidateMessageId
       const verified = this.prepare(request, this.providers.requireConfigured(), latest.messages.filter((message) => message.turnId !== requestId), messageId, requestId, latestSettings, evaluationAt)
       if (hashProviderInput(verified.input) !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
+      this.recordTurnState(conversationId, requestId, 'context_ready')
       let userMessage = latestUser
       let cognitiveObservationPersisted = Boolean(userMessage?.cognitiveObservations?.length)
       const appendUser = (cognitiveObservation?: CognitiveTurnRecord): ConversationMessage => {
@@ -1048,7 +1066,9 @@ export class ChatService {
       if (!userMessage) throw new ApplicationError('STORAGE_ERROR')
       let output: Awaited<ReturnType<typeof dispatchToProvider>>
       try {
+        this.recordTurnState(conversationId, requestId, 'requesting')
         output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => onDelta?.(delta))
+        this.recordTurnState(conversationId, requestId, 'response_received')
       } catch (error) {
         // A cancelled request is not a failed one: the adapter reports
         // `PROVIDER_CANCELLED` when the caller aborted, and the abort may also
@@ -1057,6 +1077,7 @@ export class ChatService {
         // provider fault.
         const cancelled = controller.signal.aborted ||
           (error instanceof ApplicationError && error.code === 'PROVIDER_CANCELLED')
+        this.recordTurnState(conversationId, requestId, cancelled ? 'cancelled' : 'failed', error instanceof ApplicationError ? error.code : 'UNKNOWN')
         // A failed call is recorded as a failed call, never dropped from the
         // denominator and never counted as a model error.
         this.recordTerminalContext({
@@ -1172,6 +1193,8 @@ export class ChatService {
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
+      // The assistant message is durable: the turn is committed.
+      this.recordTurnState(conversationId, requestId, 'committed')
       if (this.selfModel) {
         try {
           this.selfModel.onTurnCompleted({

@@ -51,6 +51,13 @@
 | P1-B | `apply()` 两次写入无事务，崩溃可留「有信号无状态」 | 插入 + 折叠 + 写缓存放进 `BEGIN IMMEDIATE`，异常 ROLLBACK；重放收敛（折叠而非自增） | 人工制造「有信号无状态」后再调 `apply`，结果与折叠一致 |
 | P1-C | 算式夹紧但落库仍是原值，与 CHECK 冲突 | 归一化提前到服务边界，写库与计算使用同一组数字；NaN/Infinity/非法时间戳拒绝 | `weight=5` 落库为 `1`；非法输入零写入 |
 
+### 1.5 B4 持久化轮次状态机（本次实现）
+
+- 迁移 23 `turn_states`：每轮一行，记录"停在哪一步"，而不是只有终态。
+- 转换表在 `turn-state-machine.ts`，非法转换抛错且**不覆盖**已存状态；重复进入同一状态是 no-op。
+- 已接线 6 个点：`received → context_ready → requesting → response_received → committed`，失败分支写 `failed`/`cancelled` + 错误码。
+- 尚缺 `analyzed` / `awaiting_consent` / `recovery_required` 的写入点（转换表已定义）。
+
 ## 2. 命令与退出码（实跑）
 
 | 命令 | 退出码 | 结果 |
@@ -69,7 +76,7 @@
 | B1 多信号意图置信度 | 未实现 |
 | ~~B2 渐进式个性化~~ | **已实现并接线**（见 §1.3） |
 | B3 上下文块效用 `U(c)` | 未实现 |
-| B4 持久化轮次状态机 | 未实现 |
+| ~~B4 轮次状态机~~ | **已实现并接线（6 个点）**，3 个中间态待接 |
 | B5 反思→下一轮请求端到端 | 仅接线，无 payload 级证据 |
 | 消融脚本 | **未实现**（`ablation/README.md` 只有约定） |
 | 场景 A/C/E/F/G/H/J | NOT_RUN |
