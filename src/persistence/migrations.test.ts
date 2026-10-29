@@ -276,8 +276,75 @@ describe('versioned local SQLite storage', () => {
   })
 })
 
-describe('foreign implementation-line databases', () => {
-  it('fails closed without writing when migration names do not match this application', () => {
+describe('v18 reflection-summary privacy rewrite', () => {
+  it('rewrites a legacy reflection summary without deleting the row or its state', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v18-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 17)
+      const id = '11111111-1111-4111-8111-111111111111'
+      const legacySummary = '以下关于自己的判断仍是未经确认的推断，等待用户澄清：「我对青霉素严重过敏」'
+      connection.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, ?, 'reflection', 'consistency_note', ?, 45, 'open', NULL, ?, ?, ?, NULL)
+      `).run(
+        id,
+        'reflection:consistency_note:0123456789abcdef',
+        legacySummary,
+        JSON.stringify({ runId: '22222222-2222-4222-8222-222222222222', statementDigest: '0123456789abcdef', extra: '我对青霉素严重过敏' }),
+        timestamp,
+        timestamp
+      )
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const row = connection.prepare('SELECT * FROM cognitive_pending_items WHERE id = ?').get(id) as Record<string, unknown>
+      // The row survives with its identity and workflow state intact.
+      expect(row.id).toBe(id)
+      expect(row.status).toBe('open')
+      expect(row.priority).toBe(45)
+      expect(row.created_at).toBe(timestamp)
+      expect(row.dedupe_key).toBe('reflection:consistency_note:0123456789abcdef')
+      // The quoted text is gone from both columns that could carry it.
+      const serialized = JSON.stringify(row)
+      expect(serialized).not.toContain('青霉素')
+      expect(row.summary).toBe('反思发现存在尚未确认的自我判断，等待用户澄清。')
+      expect(JSON.parse(String(row.detail_json))).toEqual({
+        runId: '22222222-2222-4222-8222-222222222222',
+        statementDigest: '0123456789abcdef',
+        summaryPolicy: 'category_template_v1'
+      })
+      // Exactly one row: the rewrite is an update, not a delete-and-insert.
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM cognitive_pending_items').get()).toEqual({ count: 1 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('leaves non-reflection items untouched', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v18-conflict-'))
+    const connection = new DatabaseSync(join(directory, 'morrow.sqlite3'))
+    try {
+      applyMigrations(connection, 17)
+      const id = '33333333-3333-4333-8333-333333333333'
+      const summary = '已保存的记录在「residence」上互相矛盾，尚未确认哪一条是当前状态。'
+      connection.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, 'conflict:residence:a,b', 'conflict', 'conflict_residence', ?, 70, 'open', NULL, '{}', ?, ?, NULL)
+      `).run(id, summary, timestamp, timestamp)
+
+      applyMigrations(connection)
+
+      const row = connection.prepare('SELECT summary FROM cognitive_pending_items WHERE id = ?').get(id) as { summary: string }
+      expect(row.summary).toBe(summary)
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('foreign implementation-line databases', () => {  it('fails closed without writing when migration names do not match this application', () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-foreign-schema-'))
     try {
       const path = join(directory, 'morrow.sqlite3')

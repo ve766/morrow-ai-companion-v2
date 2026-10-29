@@ -11,7 +11,7 @@ import { MemoryService } from '../memory/memory-service'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteConversationRepository } from '../persistence/conversation-repository'
 import { SqliteMemoryRepository } from '../persistence/memory-repository'
-import { SqlitePendingItemRepository, SqliteTurnContextRepository } from '../persistence/cognitive-context-repository'
+import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository, type TurnContextPort } from '../persistence/cognitive-context-repository'
 import { PendingCognitionService } from '../cognition/pending-items'
 import { EventLogService } from '../persistence/event-log'
 import { MemorySecretStore } from '../security/secrets'
@@ -52,7 +52,12 @@ interface World {
   started: { count: number }
 }
 
-function openWorld(directory: string, script: Script, previews: string[] = []): World {
+function openWorld(
+  directory: string,
+  script: Script,
+  previews: string[] = [],
+  overrides: { contexts?: TurnContextPort } = {}
+): World {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const events = new EventLogService(database)
   const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, events)
@@ -105,8 +110,9 @@ function openWorld(directory: string, script: Script, previews: string[] = []): 
     selfModelLoop: { events, interests, selfModel },
     providerFactory,
     continuity: {
-      contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database))
+      contexts: overrides.contexts ?? new SqliteTurnContextRepository(database),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      finalizations: new SqliteTurnFinalizationRepository(database)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-only-secret' })
@@ -114,10 +120,10 @@ function openWorld(directory: string, script: Script, previews: string[] = []): 
   return { directory, database, companion, memories, conversations, secretStore, previews, script, started }
 }
 
-function newWorld(script: Partial<Script> = {}): World {
+function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort } = {}): World {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-phase24-'))
   directories.push(directory)
-  return openWorld(directory, { behaviours: script.behaviours ?? [], proposals: script.proposals ?? [] })
+  return openWorld(directory, { behaviours: script.behaviours ?? [], proposals: script.proposals ?? [] }, [], overrides)
 }
 
 /** Restart: a new process on the same file, with no in-memory carry-over. */
@@ -460,6 +466,141 @@ describe('G. unknown facts and conflict isolation', () => {
       expect(context.retrieval.conflicts.map((conflict) => conflict.predicate)).toEqual(['residence'])
       // The unrelated conflict never enters this turn.
       expect(JSON.stringify(context.retrieval.conflicts)).not.toContain('花生')
+    } finally {
+      world.database.close()
+    }
+  })
+})
+
+describe('H. crash recovery between the message commit and the turn record', () => {
+  /** A context store that can be told to fail exactly once. */
+  class FlakyContexts implements TurnContextPort {
+    private inner: TurnContextPort | undefined
+    failNextUpsert = false
+
+    bind(inner: TurnContextPort): void {
+      this.inner = inner
+    }
+
+    upsert(context: Parameters<TurnContextPort['upsert']>[0]): void {
+      if (this.failNextUpsert) {
+        this.failNextUpsert = false
+        throw new Error('injected context write failure')
+      }
+      this.inner!.upsert(context)
+    }
+
+    get(turnId: string) {
+      return this.inner!.get(turnId)
+    }
+
+    listByConversation(conversationId: string, limit: number) {
+      return this.inner!.listByConversation(conversationId, limit)
+    }
+  }
+
+  it('delivers the answer, then completes the turn from its persisted intent', async () => {
+    const flaky = new FlakyContexts()
+    const world = newWorld({}, { contexts: flaky })
+    flaky.bind(new SqliteTurnContextRepository(world.database))
+    try {
+      const conversation = world.companion.createConversation()
+      world.memories.create('我住在杭州。', 'personal')
+      world.memories.create('我住在大阪。', 'personal')
+
+      flaky.failNextUpsert = true
+      const result = await send(world, conversation.id, '我住在哪里？')
+
+      // The answer still reaches the user: derived data failing must not cost
+      // the delivery.
+      expect(result.assistantMessage.body.length).toBeGreaterThan(0)
+      expect(world.companion.readConversation({ conversationId: conversation.id }).messages.filter((message) => message.role === 'assistant')).toHaveLength(1)
+      // The record is missing, and the intent that can rebuild it is on disk.
+      expect(world.companion.readTurnContext({ turnId: result.evaluation!.requestId })).toBeNull()
+      const finalizations = new SqliteTurnFinalizationRepository(world.database)
+      expect(finalizations.get(result.evaluation!.requestId)).not.toBeNull()
+      const itemsBefore = world.companion.listPendingItems()
+
+      const recovered = world.companion.recoverInterruptedTurns()
+      expect(recovered).toEqual({ completed: 1, interrupted: 0, dropped: 0 })
+
+      const context = world.companion.readTurnContext({ turnId: result.evaluation!.requestId })
+      expect(context).not.toBeNull()
+      expect(context!.status).toBe('succeeded')
+      expect(context!.assistantMessageId).toBe(result.assistantMessage.id)
+      expect(context!.updates.pendingItemIds).toHaveLength(1)
+      expect(finalizations.get(result.evaluation!.requestId)).toBeNull()
+      // Recovery must not duplicate what the turn already recorded.
+      expect(world.companion.listPendingItems().map((item) => item.id)).toEqual(itemsBefore.map((item) => item.id))
+
+      // And it is idempotent.
+      expect(world.companion.recoverInterruptedTurns()).toEqual({ completed: 0, interrupted: 0, dropped: 0 })
+      expect(world.companion.listPendingItems()).toHaveLength(itemsBefore.length)
+    } finally {
+      world.database.close()
+    }
+  })
+
+  it('records an interrupted turn as failed when no answer was committed', async () => {
+    const world = newWorld()
+    try {
+      const conversation = world.companion.createConversation()
+      const first = await send(world, conversation.id, '你好。')
+      const template = world.companion.readTurnContext({ turnId: first.evaluation!.requestId })!
+      const finalizations = new SqliteTurnFinalizationRepository(world.database)
+      const abandonedTurnId = randomUUID()
+      finalizations.put({
+        turnId: abandonedTurnId,
+        conversationId: conversation.id,
+        userMessageId: first.userMessage.id,
+        // This message was never committed.
+        assistantMessageId: randomUUID(),
+        feelingEventId: null,
+        contextTemplate: { ...template, turnId: abandonedTurnId },
+        pendingDrafts: [],
+        createdAt: new Date().toISOString()
+      })
+
+      const recovered = world.companion.recoverInterruptedTurns()
+      expect(recovered).toEqual({ completed: 0, interrupted: 1, dropped: 0 })
+
+      const context = world.companion.readTurnContext({ turnId: abandonedTurnId })
+      expect(context).not.toBeNull()
+      expect(context!.status).toBe('failed')
+      expect(context!.provider.errorKind).toBe('INTERRUPTED')
+      expect(context!.assistantMessageId).toBeNull()
+      expect(context!.updates.pendingItemIds).toEqual([])
+      expect(finalizations.get(abandonedTurnId)).toBeNull()
+    } finally {
+      world.database.close()
+    }
+  })
+
+  it('keeps the original turn record intact when an interrupted turn is settled', async () => {
+    const world = newWorld()
+    try {
+      const conversation = world.companion.createConversation()
+      const first = await send(world, conversation.id, '你好。')
+      const original = world.companion.readTurnContext({ turnId: first.evaluation!.requestId })!
+      const finalizations = new SqliteTurnFinalizationRepository(world.database)
+      const abandonedTurnId = randomUUID()
+      finalizations.put({
+        turnId: abandonedTurnId,
+        conversationId: conversation.id,
+        userMessageId: first.userMessage.id,
+        assistantMessageId: randomUUID(),
+        feelingEventId: null,
+        // A template that still carries the *original* turn id: recovery must
+        // key by the intent, or it would overwrite the earlier record.
+        contextTemplate: original,
+        pendingDrafts: [],
+        createdAt: new Date().toISOString()
+      })
+
+      world.companion.recoverInterruptedTurns()
+
+      expect(world.companion.readTurnContext({ turnId: first.evaluation!.requestId })).toEqual(original)
+      expect(world.companion.readTurnContext({ turnId: abandonedTurnId })?.status).toBe('failed')
     } finally {
       world.database.close()
     }

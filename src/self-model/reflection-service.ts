@@ -168,12 +168,14 @@ export class ReflectionService {
     }
 
     // 3. Consistency notes from the self model: inference entries that were
-    //    never confirmed stay explicitly marked as unverified.
+    //    never confirmed stay explicitly marked as unverified. The finding
+    //    references the entry instead of quoting it: the quoted text is user
+    //    content and a finding is read by the shell and may reach a log.
     const unverified = this.dependencies.selfModel.list({ status: 'active' }).filter((entry) => entry.kind === 'inference')
     for (const entry of unverified.slice(0, 2)) {
       findings.push({
         kind: 'consistency_note',
-        statement: `以下关于自己的判断仍是未经确认的推断，等待用户澄清：「${entry.statement.slice(0, 120)}」`,
+        statement: `有一条关于自己的判断仍是未经确认的推断，等待用户澄清（条目 ${entry.id}）。`,
         confidence: entry.confidence,
         evidence: [{ kind: 'self_model_entry', id: entry.id }]
       })
@@ -191,7 +193,9 @@ export class ReflectionService {
       if (label && !alreadyKnown) {
         findings.push({
           kind: 'interest_candidate',
-          statement: `记忆内容指向一个此前未出现的话题「${label}」，已作为候选兴趣记录，等待更多独立证据。`,
+          // The label is derived from a saved memory, so it is user content.
+          // The finding names the memory instead of repeating the topic.
+          statement: `记忆内容指向一个此前未出现的话题（记忆 ${memory!.id}），已作为候选兴趣记录，等待更多独立证据。`,
           confidence: 40,
           evidence: [{ kind: 'memory', id: memory!.id }]
         })

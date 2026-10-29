@@ -45,8 +45,8 @@ import type { IntentDecision } from '../cognition/intent-decision'
 import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
 import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
-import type { PendingCognitionService } from '../cognition/pending-items'
-import type { TurnContextPort } from '../persistence/cognitive-context-repository'
+import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
+import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
@@ -782,6 +782,14 @@ export class CompanionService {
     return this.continuity?.contexts.get(normalizedUuid(request.turnId)) ?? null
   }
 
+  /**
+   * Settles turns interrupted between the finalization intent and the message
+   * commit. Safe to call at startup and repeatedly.
+   */
+  recoverInterruptedTurns(): ReturnType<ChatService['recoverInterruptedTurns']> {
+    return this.chat.recoverInterruptedTurns()
+  }
+
   shutdown(): void { this.chat.shutdown() }
 }
 
@@ -809,6 +817,8 @@ export interface SelfModelLoopHooks {
 export interface ContinuityPorts {
   contexts: TurnContextPort
   pending: PendingCognitionService
+  /** Persisted finalization intents, used to settle interrupted turns. */
+  finalizations: TurnFinalizationPort
 }
 
 /**
@@ -978,38 +988,28 @@ export class ChatService {
           (error instanceof ApplicationError && error.code === 'PROVIDER_CANCELLED')
         // A failed call is recorded as a failed call, never dropped from the
         // denominator and never counted as a model error.
-        this.recordContinuity({
+        this.recordTerminalContext({
           prepared: verified,
           config,
           conversationId,
           requestId,
           userMessageId: userMessage.id,
-          assistantMessageId: null,
           status: cancelled ? 'cancelled' : 'failed',
-          guard: null,
-          blockedClaimKinds: [],
-          attempts: null,
           errorKind: error instanceof ApplicationError ? error.code : 'UNKNOWN',
-          feelingApplied: false,
           at: this.now()
         })
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: cancelled ? 'cancelled' : 'failed', answer: null })
         throw error
       }
       if (controller.signal.aborted) {
-        this.recordContinuity({
+        this.recordTerminalContext({
           prepared: verified,
           config,
           conversationId,
           requestId,
           userMessageId: userMessage.id,
-          assistantMessageId: null,
           status: 'cancelled',
-          guard: null,
-          blockedClaimKinds: [],
-          attempts: null,
           errorKind: 'PROVIDER_CANCELLED',
-          feelingApplied: false,
           at: this.now()
         })
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'cancelled', answer: null })
@@ -1036,28 +1036,68 @@ export class ChatService {
       }
       const current = this.conversations.read(conversationId)
       let assistantMessage = current.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
-      let feelingApplied = false
       if (!assistantMessage) {
-        const afterPersist = verified.feelingEvent && cognitiveObservationPersisted
-          ? (saved: ReturnType<ConversationService['read']>) => {
-              const savedAssistant = saved.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
-              if (!savedAssistant) throw new ApplicationError('STORAGE_ERROR')
+        // Phase 2.4 remediation: the turn records what it intends to finalize
+        // *before* the assistant message is committed. The message transaction
+        // then applies it; if the process dies in between, the intent is the
+        // persisted evidence recovery works from.
+        const assistantMessageId = this.makeId()
+        const finalization = this.prepareFinalization({
+          prepared: verified,
+          config,
+          conversationId,
+          requestId,
+          userMessageId: userMessage.id,
+          assistantMessageId,
+          guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length },
+          blockedClaimKinds: guard.unsupportedClaims.map((claim) => claim.kind),
+          attempts: output.attempts ?? null,
+          at: this.now()
+        })
+        const afterPersist = (saved: ReturnType<ConversationService['read']>): void => {
+          const savedAssistant = saved.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
+          // A missing row inside the transaction is a storage failure, not a
+          // reason to keep going: let it roll the whole message back.
+          if (!savedAssistant) throw new ApplicationError('STORAGE_ERROR')
+          let complete = true
+          if (verified.feelingEvent && cognitiveObservationPersisted) {
+            try {
               const currentSettings = this.cognitiveSettingsOrDisabled()
               if (currentSettings.enabled && currentSettings.available && currentSettings.updatedAt === latestSettings.updatedAt) {
-                this.feelings.recordCompletedTurnInTransaction(verified.feelingEvent!, savedAssistant.id, this.now())
+                this.feelings.recordCompletedTurnInTransaction(verified.feelingEvent, savedAssistant.id, this.now())
               }
+            } catch {
+              // The state update is best effort; the turn record says whether
+              // it was applied, so a failure here is visible, not silent.
+              complete = false
             }
-          : undefined
+          }
+          if (finalization) {
+            // Derived data failing must not cost the user their answer: keep
+            // the intent and let recovery finish it deterministically.
+            try {
+              this.applyFinalization(finalization)
+            } catch {
+              complete = false
+            }
+          }
+          if (complete && finalization) {
+            try {
+              this.continuity!.finalizations.remove(finalization.turnId)
+            } catch {
+              // Leaving the intent is harmless: applying it twice is idempotent.
+              complete = false
+            }
+          }
+        }
         try {
-          const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, afterPersist ? { afterPersist } : {})
+          const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, { messageId: assistantMessageId, afterPersist })
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
-          feelingApplied = Boolean(afterPersist) && Boolean(assistantMessage)
         } catch {
-          if (!afterPersist) throw new ApplicationError('STORAGE_ERROR')
-          console.warn('Local feeling-state update was unavailable; preserving the completed assistant response.')
-          const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId)
-          assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
-          feelingApplied = false
+          // The transaction rolled back, so nothing of this turn is stored and
+          // the intent stays behind for recovery to settle honestly.
+          console.warn('The completed assistant response could not be stored; the turn will be recovered as interrupted.')
+          throw new ApplicationError('STORAGE_ERROR')
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
@@ -1074,23 +1114,9 @@ export class ChatService {
           console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
         }
       }
-      // Phase 2.4: record what this turn read and what it changed. The turn id
-      // is the idempotency key, so a re-delivered request cannot write twice.
-      this.recordContinuity({
-        prepared: verified,
-        config,
-        conversationId,
-        requestId,
-        userMessageId: userMessage.id,
-        assistantMessageId: assistantMessage.id,
-        status: 'succeeded',
-        guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length },
-        blockedClaimKinds: guard.unsupportedClaims.map((claim) => claim.kind),
-        attempts: output.attempts ?? null,
-        errorKind: null,
-        feelingApplied,
-        at: this.now()
-      })
+      // The turn record and its pending items were applied inside the message
+      // transaction (see `afterPersist` above), so there is nothing to write
+      // here: a second write would only risk duplicating what already landed.
       const answer = evaluateAnswerEvidence({
         reply: deliveredText,
         callSucceeded: true,
@@ -1296,7 +1322,8 @@ export class ChatService {
    * a context it can no longer observe (the sensitivity ceiling and the exact
    * payload are gone). A missing record is honest; a guessed one is not.
    */
-  private recordContinuity(input: {
+  /** Assembles the audit record from what the turn actually decided. */
+  private buildContext(input: {
     prepared: PreparedTurn
     config: ProviderConfigRecord
     conversationId: string
@@ -1305,87 +1332,229 @@ export class ChatService {
     assistantMessageId: string | null
     status: CognitiveTurnStatus
     guard: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
-    blockedClaimKinds: readonly string[]
     attempts: number | null
     errorKind: string | null
     feelingApplied: boolean
+    pendingItemIds: readonly string[]
+    at: string
+  }): CognitiveTurnContext {
+    const { prepared } = input
+    return buildCognitiveTurnContext({
+      turnId: input.requestId,
+      conversationId: input.conversationId,
+      userMessageId: input.userMessageId,
+      assistantMessageId: input.assistantMessageId,
+      recordedAt: input.at,
+      status: input.status,
+      intent: {
+        label: prepared.decision?.intent ?? 'unavailable',
+        confidence: prepared.decision?.confidence ?? 0,
+        confidenceLevel: prepared.decision?.confidenceLevel ?? 'low',
+        strategy: prepared.analysis?.strategy ?? 'unavailable',
+        reasons: prepared.decision?.reasons ?? []
+      },
+      retrieval: {
+        policyIntent: prepared.retrieval.policy.intent,
+        baseMax: prepared.retrieval.baseMax,
+        effectiveMax: prepared.retrieval.effectiveMax,
+        adjustment: prepared.retrieval.adjustment,
+        selected: prepared.memory.selected.map((item) => ({
+          id: item.id,
+          status: item.status ?? 'active',
+          sourceCategory: item.sourceCategory,
+          sensitivity: item.sensitivity,
+          revision: item.revision,
+          updatedAt: item.updatedAt,
+          score: Number(item.score.toFixed(4))
+        })),
+        conflicts: (prepared.memory.conflicts ?? []).map((conflict) => ({ predicate: conflict.predicate, memoryIds: [...conflict.memoryIds] })),
+        omitted: prepared.memory.omitted,
+        maximumSensitivity: prepared.input.maximumSensitivity
+      },
+      personality: {
+        version: prepared.profile.version,
+        warmth: prepared.profile.warmth,
+        directness: prepared.profile.directness,
+        humor: prepared.profile.humor,
+        disagreementStyle: prepared.profile.disagreementStyle
+      },
+      feeling: {
+        before: prepared.previousFeelingState ? snapshotState(prepared.previousFeelingState) : null,
+        after: prepared.nextFeelingState ? snapshotState(prepared.nextFeelingState) : null,
+        eventType: prepared.feelingEvent?.type ?? null,
+        applied: input.feelingApplied
+      },
+      guard: input.guard,
+      provider: {
+        id: input.config.id,
+        model: input.config.model,
+        outcome: input.status,
+        attempts: input.attempts,
+        errorKind: input.errorKind
+      },
+      updates: { pendingItemIds: [...input.pendingItemIds] }
+    })
+  }
+
+  /**
+   * Records what a completed turn intends to finalize, before its message is
+   * committed. Returns null when no continuity store is wired, or when the
+   * intent itself could not be stored — in that case the turn still proceeds,
+   * it simply loses crash recovery for this one turn.
+   */
+  private prepareFinalization(input: {
+    prepared: PreparedTurn
+    config: ProviderConfigRecord
+    conversationId: string
+    requestId: string
+    userMessageId: string
+    assistantMessageId: string
+    guard: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+    blockedClaimKinds: readonly string[]
+    attempts: number | null
+    at: string
+  }): TurnFinalizationRecord | null {
+    if (!this.continuity) return null
+    let pendingDrafts: PendingItemDraft[] = []
+    try {
+      pendingDrafts = this.continuity.pending.deriveTurn({
+        turnId: input.requestId,
+        conversationId: input.conversationId,
+        at: input.at,
+        status: 'succeeded',
+        conflicts: (input.prepared.memory.conflicts ?? []).map((conflict) => ({ predicate: conflict.predicate, memoryIds: conflict.memoryIds })),
+        blockedClaimKinds: input.blockedClaimKinds
+      })
+    } catch {
+      pendingDrafts = []
+    }
+    const record: TurnFinalizationRecord = {
+      turnId: input.requestId,
+      conversationId: input.conversationId,
+      userMessageId: input.userMessageId,
+      assistantMessageId: input.assistantMessageId,
+      feelingEventId: input.prepared.feelingEvent?.id ?? null,
+      contextTemplate: this.buildContext({
+        ...input,
+        status: 'succeeded',
+        errorKind: null,
+        // Filled in when the record is applied: at that point the persisted
+        // state tells us whether the event landed.
+        feelingApplied: false,
+        pendingItemIds: []
+      }),
+      pendingDrafts,
+      createdAt: input.at
+    }
+    try {
+      this.continuity.finalizations.put(record)
+    } catch {
+      console.warn('The turn finalization intent could not be stored; crash recovery is unavailable for this turn.')
+      return null
+    }
+    return record
+  }
+
+  /**
+   * Applies a finalization from persisted evidence only.
+   *
+   * Whether the state event landed is read back from the state itself
+   * (`sourceEventId`), so a recovered record never claims a state change that
+   * did not happen.
+   */
+  private applyFinalization(record: TurnFinalizationRecord): void {
+    if (!this.continuity) return
+    const pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    const applied = record.feelingEventId !== null &&
+      this.feelings.snapshot().state.sourceEventId === record.feelingEventId
+    this.continuity.contexts.upsert({
+      ...record.contextTemplate,
+      turnId: record.turnId,
+      feeling: { ...record.contextTemplate.feeling, applied },
+      updates: { ...record.contextTemplate.updates, pendingItemIds }
+    })
+  }
+
+  /**
+   * Settles turns that were interrupted between the finalization intent and
+   * the assistant message commit.
+   *
+   * Two outcomes, both decided by stored evidence:
+   *   - the assistant message exists → the transaction committed, so the turn
+   *     is completed from its intent;
+   *   - the message does not exist → nothing was delivered, and the record is
+   *     written as `failed` / `INTERRUPTED` rather than left as a success.
+   *
+   * Applying an intent twice is safe: pending items dedupe by concern and the
+   * context is keyed by the turn id.
+   */
+  recoverInterruptedTurns(limit = 50): { completed: number; interrupted: number; dropped: number } {
+    const result = { completed: 0, interrupted: 0, dropped: 0 }
+    if (!this.continuity) return result
+    let records: TurnFinalizationRecord[]
+    try {
+      records = this.continuity.finalizations.list(limit)
+    } catch {
+      return result
+    }
+    for (const record of records) {
+      try {
+        const conversation = this.conversations.read(record.conversationId)
+        const delivered = conversation.messages.some((message) => message.id === record.assistantMessageId && message.role === 'assistant')
+        if (delivered) {
+          this.applyFinalization(record)
+          result.completed += 1
+        } else {
+          // No answer reached the user. Recording it as interrupted is what the
+          // evidence supports; inventing a successful turn would not be.
+          this.continuity.contexts.upsert({
+            ...record.contextTemplate,
+            // Key the record by the intent's turn id, never by whatever the
+            // stored template happens to say: a mismatch would overwrite
+            // another turn's record.
+            turnId: record.turnId,
+            status: 'failed',
+            assistantMessageId: null,
+            feeling: { ...record.contextTemplate.feeling, applied: false },
+            provider: { ...record.contextTemplate.provider, outcome: 'failed', errorKind: 'INTERRUPTED' },
+            updates: { ...record.contextTemplate.updates, pendingItemIds: [] }
+          })
+          result.interrupted += 1
+        }
+        this.continuity.finalizations.remove(record.turnId)
+      } catch {
+        // The conversation is gone or the store is unavailable: keep the intent
+        // for a later attempt instead of dropping evidence silently.
+        result.dropped += 1
+      }
+    }
+    return result
+  }
+
+  /**
+   * Writes the record of a turn that ended without an answer. There is no
+   * assistant message to be atomic with, so this writes directly.
+   */
+  private recordTerminalContext(input: {
+    prepared: PreparedTurn
+    config: ProviderConfigRecord
+    conversationId: string
+    requestId: string
+    userMessageId: string
+    status: CognitiveTurnStatus
+    errorKind: string | null
     at: string
   }): void {
     if (!this.continuity) return
-    const { prepared } = input
-    let pendingItemIds: string[] = []
-    if (input.status === 'succeeded') {
-      try {
-        pendingItemIds = this.continuity.pending.observeTurn({
-          turnId: input.requestId,
-          conversationId: input.conversationId,
-          at: input.at,
-          status: 'succeeded',
-          conflicts: (prepared.memory.conflicts ?? []).map((conflict) => ({ predicate: conflict.predicate, memoryIds: conflict.memoryIds })),
-          blockedClaimKinds: input.blockedClaimKinds
-        })
-      } catch {
-        pendingItemIds = []
-        console.warn('Pending cognition items could not be recorded; the conversation itself is unaffected.')
-      }
-    }
     try {
-      const context = buildCognitiveTurnContext({
-        turnId: input.requestId,
-        conversationId: input.conversationId,
-        userMessageId: input.userMessageId,
-        assistantMessageId: input.assistantMessageId,
-        recordedAt: input.at,
-        status: input.status,
-        intent: {
-          label: prepared.decision?.intent ?? 'unavailable',
-          confidence: prepared.decision?.confidence ?? 0,
-          confidenceLevel: prepared.decision?.confidenceLevel ?? 'low',
-          strategy: prepared.analysis?.strategy ?? 'unavailable',
-          reasons: prepared.decision?.reasons ?? []
-        },
-        retrieval: {
-          policyIntent: prepared.retrieval.policy.intent,
-          baseMax: prepared.retrieval.baseMax,
-          effectiveMax: prepared.retrieval.effectiveMax,
-          adjustment: prepared.retrieval.adjustment,
-          selected: prepared.memory.selected.map((item) => ({
-            id: item.id,
-            status: item.status ?? 'active',
-            sourceCategory: item.sourceCategory,
-            sensitivity: item.sensitivity,
-            revision: item.revision,
-            updatedAt: item.updatedAt,
-            score: Number(item.score.toFixed(4))
-          })),
-          conflicts: (prepared.memory.conflicts ?? []).map((conflict) => ({ predicate: conflict.predicate, memoryIds: [...conflict.memoryIds] })),
-          omitted: prepared.memory.omitted,
-          maximumSensitivity: prepared.input.maximumSensitivity
-        },
-        personality: {
-          version: prepared.profile.version,
-          warmth: prepared.profile.warmth,
-          directness: prepared.profile.directness,
-          humor: prepared.profile.humor,
-          disagreementStyle: prepared.profile.disagreementStyle
-        },
-        feeling: {
-          before: prepared.previousFeelingState ? snapshotState(prepared.previousFeelingState) : null,
-          after: prepared.nextFeelingState ? snapshotState(prepared.nextFeelingState) : null,
-          eventType: prepared.feelingEvent?.type ?? null,
-          applied: input.feelingApplied
-        },
-        guard: input.guard,
-        provider: {
-          id: input.config.id,
-          model: input.config.model,
-          outcome: input.status,
-          attempts: input.attempts,
-          errorKind: input.errorKind
-        },
-        updates: { pendingItemIds }
-      })
-      this.continuity.contexts.upsert(context)
+      this.continuity.contexts.upsert(this.buildContext({
+        ...input,
+        assistantMessageId: null,
+        guard: null,
+        attempts: null,
+        feelingApplied: false,
+        pendingItemIds: []
+      }))
     } catch {
       console.warn('Turn context could not be recorded; the conversation itself is unaffected.')
     }

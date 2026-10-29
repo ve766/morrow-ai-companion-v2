@@ -9,7 +9,6 @@ import type { SqliteDatabase } from './database'
 import type { CognitiveTurnContext } from '../cognition/turn-context'
 import type { PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
 import { isCognitiveTurnContext } from '../cognition/turn-context'
-
 export interface TurnContextPort {
   /** Insert, or replace a record that did not reach a successful outcome. */
   upsert(context: CognitiveTurnContext): void
@@ -186,5 +185,136 @@ export class SqlitePendingItemRepository implements PendingItemPort {
     // Idempotent: completing an already-done item is not an error.
     if (updated.changes === 1) return true
     return this.get(id)?.status === 'done'
+  }
+}
+
+/**
+ * Finalization intent, Phase 2.4 remediation.
+ *
+ * The assistant message is the commit point of a turn, but the turn context
+ * and the pending items are derived data that can fail to write. Rather than
+ * writing them after the fact and hoping, the turn records *what it intends to
+ * finalize* before the message is committed. If the process dies, the intent
+ * is the persisted evidence recovery works from — it is never a guess.
+ */
+export interface TurnFinalizationRecord {
+  turnId: string
+  conversationId: string
+  userMessageId: string
+  assistantMessageId: string
+  /** The state event this turn proposed, if any; used to verify it landed. */
+  feelingEventId: string | null
+  /** The context template; `updates.pendingItemIds` is filled at finalize time. */
+  contextTemplate: CognitiveTurnContext
+  pendingDrafts: PendingItemDraft[]
+  createdAt: string
+}
+
+export interface TurnFinalizationPort {
+  put(record: TurnFinalizationRecord): void
+  get(turnId: string): TurnFinalizationRecord | null
+  list(limit: number): TurnFinalizationRecord[]
+  remove(turnId: string): void
+}
+
+const MAX_FINALIZATION_DRAFTS = 10
+
+export class SqliteTurnFinalizationRepository implements TurnFinalizationPort {
+  constructor(private readonly database: SqliteDatabase) {}
+
+  put(record: TurnFinalizationRecord): void {
+    this.database.connection.prepare(`
+      INSERT INTO cognitive_turn_finalizations(turn_id, conversation_id, user_message_id, assistant_message_id, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(turn_id) DO UPDATE SET
+        payload_json = excluded.payload_json,
+        created_at = excluded.created_at
+    `).run(
+      record.turnId,
+      record.conversationId,
+      record.userMessageId,
+      record.assistantMessageId,
+      JSON.stringify({ contextTemplate: record.contextTemplate, pendingDrafts: record.pendingDrafts, feelingEventId: record.feelingEventId }),
+      record.createdAt
+    )
+  }
+
+  get(turnId: string): TurnFinalizationRecord | null {
+    const row = this.database.connection.prepare(
+      'SELECT turn_id, conversation_id, user_message_id, assistant_message_id, payload_json, created_at FROM cognitive_turn_finalizations WHERE turn_id = ?'
+    ).get(turnId.toLowerCase()) as FinalizationRow | undefined
+    return row ? mapFinalization(row) : null
+  }
+
+  list(limit: number): TurnFinalizationRecord[] {
+    const rows = this.database.connection.prepare(
+      'SELECT turn_id, conversation_id, user_message_id, assistant_message_id, payload_json, created_at FROM cognitive_turn_finalizations ORDER BY created_at LIMIT ?'
+    ).all(Math.min(Math.max(limit, 1), 100)) as unknown as FinalizationRow[]
+    const records: TurnFinalizationRecord[] = []
+    for (const row of rows) {
+      const mapped = mapFinalization(row)
+      if (mapped) records.push(mapped)
+    }
+    return records
+  }
+
+  remove(turnId: string): void {
+    this.database.connection.prepare('DELETE FROM cognitive_turn_finalizations WHERE turn_id = ?').run(turnId.toLowerCase())
+  }
+}
+
+interface FinalizationRow {
+  turn_id: string
+  conversation_id: string
+  user_message_id: string
+  assistant_message_id: string
+  payload_json: string
+  created_at: string
+}
+
+/**
+ * A row whose payload cannot be trusted is dropped from recovery rather than
+ * partially applied: a half-written context is worse than a missing one.
+ */
+function mapFinalization(row: FinalizationRow): TurnFinalizationRecord | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(row.payload_json)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const payload = parsed as Record<string, unknown>
+  if (!isCognitiveTurnContext(payload.contextTemplate)) return null
+  if (!Array.isArray(payload.pendingDrafts) || payload.pendingDrafts.length > MAX_FINALIZATION_DRAFTS) return null
+  const drafts: PendingItemDraft[] = []
+  for (const candidate of payload.pendingDrafts as unknown[]) {
+    if (!candidate || typeof candidate !== 'object') return null
+    const draft = candidate as Record<string, unknown>
+    if (typeof draft.id !== 'string' || typeof draft.dedupeKey !== 'string' || typeof draft.summary !== 'string') return null
+    if (typeof draft.source !== 'string' || typeof draft.kind !== 'string') return null
+    if (typeof draft.priority !== 'number' || typeof draft.createdAt !== 'string') return null
+    if (!draft.detail || typeof draft.detail !== 'object' || Array.isArray(draft.detail)) return null
+    drafts.push({
+      id: draft.id,
+      dedupeKey: draft.dedupeKey,
+      source: draft.source as PendingItemDraft['source'],
+      kind: draft.kind,
+      summary: draft.summary,
+      priority: draft.priority,
+      conversationId: typeof draft.conversationId === 'string' ? draft.conversationId : null,
+      detail: draft.detail as Record<string, unknown>,
+      createdAt: draft.createdAt
+    })
+  }
+  return {
+    turnId: row.turn_id,
+    conversationId: row.conversation_id,
+    userMessageId: row.user_message_id,
+    assistantMessageId: row.assistant_message_id,
+    feelingEventId: typeof payload.feelingEventId === 'string' ? payload.feelingEventId : null,
+    contextTemplate: payload.contextTemplate,
+    pendingDrafts: drafts,
+    createdAt: row.created_at
   }
 }

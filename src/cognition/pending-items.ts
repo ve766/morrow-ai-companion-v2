@@ -118,26 +118,64 @@ export function derivePendingItems(input: PendingDerivationInput, makeId: () => 
   return drafts.slice(0, MAX_PENDING_ITEMS_PER_TURN)
 }
 
-/** Turn a reflection finding into an item. Only a digest of the text is stored. */
+/**
+ * Fixed, content-free summaries for reflection-sourced items.
+ *
+ * A reflection finding can quote what the user said (a self-model entry, a
+ * memory-derived topic). An internal item is read by the shell and may reach a
+ * log, so it must not carry that text. The item therefore records *what kind of
+ * concern* was found, never the wording that produced it; the digest links back
+ * to the finding for anyone who has the right to read it.
+ */
+const REFLECTION_SUMMARIES: Readonly<Record<string, string>> = Object.freeze({
+  memory_gap: '反思发现记忆记录存在缺口，需要与用户核对后再引用相关内容。',
+  bias_hint: '反思发现近期交互被多次纠正，回答应更谨慎地承认不确定性。',
+  consistency_note: '反思发现存在尚未确认的自我判断，等待用户澄清。',
+  interest_candidate: '反思发现一个候选兴趣话题，等待更多独立证据后再确认。',
+  open_question: '反思留下一个未解决的问题，等待后续对话澄清。'
+})
+
+const REFLECTION_DEFAULT_SUMMARY = '反思产生了一条待核实的内部事项。'
+
+export function reflectionSummaryFor(kind: string): string {
+  return REFLECTION_SUMMARIES[kind] ?? REFLECTION_DEFAULT_SUMMARY
+}
+
+/**
+ * Builds a pending item from a reflection finding.
+ *
+ * Note the signature: there is no `statement` parameter. The caller hashes the
+ * finding text and passes only the digest, so leaking the text here is not a
+ * matter of remembering to strip it — the function cannot receive it.
+ *
+ * The digest is a dedupe key and a traceability handle. It is **not**
+ * anonymisation and not encryption: a short, guessable statement can be
+ * confirmed by hashing candidates.
+ */
 export function pendingItemFromReflection(input: {
   runId: string
   kind: string
-  statement: string
+  statementDigest: string
   confidence: number
   at: string
   makeId: () => string
 }): PendingItemDraft {
-  const digest = createHash('sha256').update(input.statement).digest('hex').slice(0, 16)
+  if (!/^[0-9a-f]{16}$/u.test(input.statementDigest)) throw new TypeError('Reflection items require a statement digest.')
   const priority = Math.min(95, Math.max(20, 100 - Math.round(input.confidence)))
   return {
     id: normalizeId(input.makeId()),
-    dedupeKey: `reflection:${input.kind}:${digest}`.slice(0, 300),
+    dedupeKey: `reflection:${input.kind}:${input.statementDigest}`.slice(0, 300),
     source: 'reflection',
     kind: input.kind.slice(0, 64),
-    summary: input.statement.slice(0, 500),
+    summary: reflectionSummaryFor(input.kind),
     priority,
     conversationId: null,
-    detail: { runId: input.runId, statementDigest: digest },
+    // No statement, no quoted text, no label: identifiers and a digest only.
+    detail: {
+      runId: input.runId,
+      statementDigest: input.statementDigest,
+      summaryPolicy: 'category_template_v1'
+    },
     createdAt: input.at
   }
 }
@@ -191,15 +229,31 @@ export class PendingCognitionService {
    * idempotent per dedupe key, so calling it twice for one turn is harmless.
    */
   observeTurn(input: PendingDerivationInput): string[] {
-    const drafts = derivePendingItems(input, this.makeId)
+    return this.persistDrafts(derivePendingItems(input, this.makeId))
+  }
+
+  /**
+   * Derives without writing, so the drafts can be stored in the turn's
+   * finalization intent and applied later from persisted evidence.
+   */
+  deriveTurn(input: PendingDerivationInput): PendingItemDraft[] {
+    return derivePendingItems(input, this.makeId)
+  }
+
+  /** Applies pre-derived drafts; idempotent by dedupe key. */
+  persistDrafts(drafts: readonly PendingItemDraft[]): string[] {
     const ids: string[] = []
-    for (const draft of drafts) {
-      const stored = this.repository.upsert(draft)
-      ids.push(stored.id)
-    }
+    for (const draft of drafts) ids.push(this.repository.upsert(draft).id)
     return ids
   }
 
+  /**
+   * Converts reflection findings into open items.
+   *
+   * The finding text is hashed here and then dropped: what reaches the store is
+   * a category template, the run id and a digest. The text itself stays in the
+   * reflection record, which only the owner reads.
+   */
   absorbReflection(input: { runId: string; findings: ReadonlyArray<{ kind: string; statement: string; confidence: number }> }): string[] {
     const at = this.clock()
     const ids: string[] = []
@@ -207,7 +261,7 @@ export class PendingCognitionService {
       const stored = this.repository.upsert(pendingItemFromReflection({
         runId: input.runId,
         kind: finding.kind,
-        statement: finding.statement,
+        statementDigest: createHash('sha256').update(finding.statement).digest('hex').slice(0, 16),
         confidence: finding.confidence,
         at,
         makeId: this.makeId

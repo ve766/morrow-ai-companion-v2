@@ -8,6 +8,7 @@ import {
   PendingCognitionService,
   derivePendingItems,
   pendingItemFromReflection,
+  reflectionSummaryFor,
   runBounded
 } from './pending-items'
 import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
@@ -94,18 +95,30 @@ describe('pending item derivation', () => {
     expect(drafts.length).toBeLessThanOrEqual(MAX_PENDING_ITEMS_PER_TURN)
   })
 
-  it('derives a reflection item that stores a digest instead of the statement twice', () => {
+  it('builds a reflection item from a digest, with a category summary', () => {
     const draft = pendingItemFromReflection({
       runId: turnA,
       kind: 'memory_gap',
-      statement: '存在 1 条被撤销的记忆；不要把它们当作当前事实引用。',
+      statementDigest: 'a'.repeat(16),
       confidence: 65,
       at: '2026-01-01T00:00:00.000Z',
       makeId: randomUUID
     })
     expect(draft.source).toBe('reflection')
-    expect(draft.dedupeKey.startsWith('reflection:memory_gap:')).toBe(true)
-    expect(String(draft.detail.statementDigest)).toMatch(/^[0-9a-f]{16}$/u)
+    expect(draft.dedupeKey).toBe(`reflection:memory_gap:${'a'.repeat(16)}`)
+    expect(draft.summary).toBe(reflectionSummaryFor('memory_gap'))
+    expect(draft.detail).toEqual({ runId: turnA, statementDigest: 'a'.repeat(16), summaryPolicy: 'category_template_v1' })
+  })
+
+  it('refuses to build a reflection item without a well-formed digest', () => {
+    expect(() => pendingItemFromReflection({
+      runId: turnA, kind: 'memory_gap', statementDigest: 'not-a-digest',
+      confidence: 65, at: '2026-01-01T00:00:00.000Z', makeId: randomUUID
+    })).toThrow(TypeError)
+  })
+
+  it('falls back to a generic summary for an unknown finding kind', () => {
+    expect(reflectionSummaryFor('something_new')).toBe('反思产生了一条待核实的内部事项。')
   })
 })
 
@@ -181,6 +194,37 @@ describe('pending item store', () => {
       expect(second).toEqual(first)
       expect(service.listOpen()).toHaveLength(1)
       expect(service.listOpen()[0]!.source).toBe('reflection')
+    } finally {
+      database.close()
+    }
+  })
+
+  it('never persists the text of a reflection finding, even when it quotes the user', () => {
+    const database = openDatabase()
+    try {
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database))
+      // A fabricated finding that quotes sensitive personal content, the shape
+      // `consistency_note` used to take before it was changed to reference ids.
+      const statement = '以下关于自己的判断仍是未经确认的推断，等待用户澄清：「我对青霉素严重过敏，车牌是京A12345」'
+      service.absorbReflection({ runId: turnA, findings: [{ kind: 'consistency_note', statement, confidence: 55 }] })
+
+      const stored = service.listOpen()
+      expect(stored).toHaveLength(1)
+      const serialized = JSON.stringify(stored)
+      // The template's own generic wording is expected; the quoted personal
+      // content is not.
+      for (const secret of ['青霉素', '过敏', '京A12345', '车牌是']) {
+        expect(serialized).not.toContain(secret)
+      }
+      // The row still carries what an auditor needs: category, digest, policy.
+      expect(stored[0]!.kind).toBe('consistency_note')
+      expect(String(stored[0]!.detail.statementDigest)).toMatch(/^[0-9a-f]{16}$/u)
+
+      // And the raw database row does not hold it either, in any column.
+      const row = database.connection.prepare('SELECT * FROM cognitive_pending_items').get() as Record<string, unknown>
+      const rowText = Object.values(row).map((value) => String(value)).join('|')
+      expect(rowText).not.toContain('青霉素')
+      expect(rowText).not.toContain('京A12345')
     } finally {
       database.close()
     }

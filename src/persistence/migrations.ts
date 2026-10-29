@@ -691,6 +691,57 @@ export const migrations: readonly Migration[] = [
           ON cognitive_pending_items(status, priority DESC, created_at);
       `)
     }
+  },
+  {
+    version: 18,
+    name: 'reflection-summary-privacy-and-turn-finalization',
+    up(database) {
+      // (1) Privacy rewrite for rows written before the fix.
+      //
+      // `pendingItemFromReflection` used to copy the reflection statement into
+      // `summary`, and a statement can quote a saved memory or a self-model
+      // entry. New rows are content-free by construction; existing rows are
+      // rewritten here to the same category templates.
+      //
+      // This is a rewrite, not a delete: the row, its id, its dedupe key, its
+      // priority, its status and its timestamps are preserved, so nothing the
+      // user has to act on disappears. The database upgrade path already takes
+      // a validated `VACUUM INTO` backup before any migration runs, so the
+      // previous text remains recoverable from that file.
+      database.exec(`
+        UPDATE cognitive_pending_items
+        SET summary = CASE kind
+              WHEN 'memory_gap' THEN '反思发现记忆记录存在缺口，需要与用户核对后再引用相关内容。'
+              WHEN 'bias_hint' THEN '反思发现近期交互被多次纠正，回答应更谨慎地承认不确定性。'
+              WHEN 'consistency_note' THEN '反思发现存在尚未确认的自我判断，等待用户澄清。'
+              WHEN 'interest_candidate' THEN '反思发现一个候选兴趣话题，等待更多独立证据后再确认。'
+              WHEN 'open_question' THEN '反思留下一个未解决的问题，等待后续对话澄清。'
+              ELSE '反思产生了一条待核实的内部事项。'
+            END,
+            detail_json = CASE
+              WHEN json_valid(detail_json) THEN json_object(
+                'runId', json_extract(detail_json, '$.runId'),
+                'statementDigest', json_extract(detail_json, '$.statementDigest'),
+                'summaryPolicy', 'category_template_v1'
+              )
+              ELSE json_object('summaryPolicy', 'category_template_v1')
+            END
+        WHERE source = 'reflection';
+
+        -- (2) Finalization intent, so an interrupted turn can be completed
+        -- from persisted evidence instead of guessed.
+        CREATE TABLE cognitive_turn_finalizations (
+          turn_id TEXT PRIMARY KEY NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          user_message_id TEXT NOT NULL CHECK (length(user_message_id) = 36),
+          assistant_message_id TEXT NOT NULL CHECK (length(assistant_message_id) = 36),
+          payload_json TEXT NOT NULL CHECK (length(payload_json) <= 40000),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX cognitive_turn_finalizations_created_idx
+          ON cognitive_turn_finalizations(created_at);
+      `)
+    }
   }
 ]
 

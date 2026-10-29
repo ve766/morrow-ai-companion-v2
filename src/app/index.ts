@@ -23,7 +23,7 @@ import { SqliteInterestRepository, InterestService } from '../self-model/interes
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
-import { SqlitePendingItemRepository, SqliteTurnContextRepository } from '../persistence/cognitive-context-repository'
+import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
 import { ApplicationError } from '../shared/errors'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
@@ -196,6 +196,7 @@ if (hasSingleInstanceLock) {
     // beside the conversation, so continuity survives a restart.
     const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database))
     const turnContexts = new SqliteTurnContextRepository(database)
+    const finalizations = new SqliteTurnFinalizationRepository(database)
     const companion = new CompanionService({
       database,
       memories,
@@ -203,8 +204,26 @@ if (hasSingleInstanceLock) {
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
       selfModelLoop: { events: eventLog, interests, selfModel },
-      continuity: { contexts: turnContexts, pending: pendingItems }
+      continuity: { contexts: turnContexts, pending: pendingItems, finalizations }
     })
+    // Settle any turn that was interrupted between its finalization intent and
+    // the assistant-message commit. Safe to run on every start.
+    try {
+      const recovered = companion.recoverInterruptedTurns()
+      if (recovered.completed > 0 || recovered.interrupted > 0) {
+        eventLog.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'turn.recovered',
+          actor: 'system',
+          subjectType: 'application',
+          subjectId: null,
+          correlationId: null,
+          payload: recovered
+        })
+      }
+    } catch {
+      console.warn('Interrupted turns could not be recovered at startup; the conversation data is unaffected.')
+    }
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)
     const reminders = new ReminderService(

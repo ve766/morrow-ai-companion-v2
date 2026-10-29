@@ -152,6 +152,12 @@ describe('bounded reflection', () => {
       expect(finding.confidence).toBeGreaterThanOrEqual(1)
       expect(finding.confidence).toBeLessThanOrEqual(100)
     }
+    // A finding references the entry or memory it is about instead of quoting
+    // it: the quoted text is user content and findings are read by the shell.
+    const serializedFindings = JSON.stringify(findings)
+    expect(serializedFindings).not.toContain('用户可能偏好简洁回答')
+    expect(serializedFindings).not.toContain('jasmin tea')
+    expect(serializedFindings).not.toContain('花生')
     // interest candidates stay bounded and candidate-level
     expect(MAX_CANDIDATE_INTERESTS_PER_RUN).toBe(1)
 
