@@ -158,7 +158,7 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 `no_reflection` 的 payload 差异为 0（`attentionBlockTurns` 两臂都是 0）：这 4 轮规划对话没有产生可晋升的兴趣，所以"关掉反思"在这份输入上看不出载荷差别。这是**没有观测到差异**，不是"证明无效"——如实记录。
 
-## 7. 命令与退出码（在 `5635a9c` 实跑，工作区干净）
+## 7. 命令与退出码（在 `02c2e4a` 实跑，工作区干净）
 
 | 命令 | 退出码 | 结果 |
 |---|---|---|
@@ -168,6 +168,7 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 | `npm run eval:stage2` | 0 | executed 12 / passed 12 / failed 0 / blocked 2 / notRun 0（45 条断言） |
 | `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.889 / FP 0 / FN 1（26 对） |
 | `npm run eval:ablation` | 0 | 4 组臂全部执行；`wiring difference detected: true` |
+| `npm run smoke` | 0 | Electron 默认沙箱通过（连跑两次），见 §7.5 |
 
 结果文件（`headSha = 02c2e4a`）：
 
