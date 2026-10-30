@@ -9,35 +9,51 @@ function analyze(content: string, history: CognitiveHistoryMessage[] = [], messa
   return analyzeCognitiveTurn(content, history, messageId)
 }
 
-describe('B1 confidence is measured, and deliberately not wired to clarify', () => {
-  it('reports a low-confidence reading without turning it into a question', () => {
-    // "嗯。" is the clearest "I cannot tell" turn this rule layer sees: the
-    // decision says `uncertain` and the multi-signal assessment sits at 0.512.
+describe('B1 confidence drives the strategy', () => {
+  it('scores the same reading identically under no, unrelated and related history', () => {
+    // The old model scored this turn 0.780 without history and 0.947 with any
+    // history. Presence of history must not be worth anything by itself.
+    const without = analyzeCognitiveTurnDetailed('我住在哪里？', [], sourceId)
+    const unrelated = analyzeCognitiveTurnDetailed('我住在哪里？', [{ id: priorId, role: 'user', body: '帮我看看这道数学题。' }], sourceId)
+    const related = analyzeCognitiveTurnDetailed('我住在哪里？', [{ id: priorId, role: 'user', body: '我最近在找杭州的房子。' }], sourceId)
+    expect(without.assessment.topScore).toBe(unrelated.assessment.topScore)
+    expect(without.assessment.topScore).toBe(related.assessment.topScore)
+    // …and the user-visible route is the same in all three.
+    expect(new Set([without.analysis.strategy, unrelated.analysis.strategy, related.analysis.strategy])).toEqual(new Set(['retrieve_memory']))
+  })
+
+  it('asks when a reference cannot be resolved at all', () => {
+    const reading = analyzeCognitiveTurnDetailed('那个怎么办？', [], sourceId)
+    // The unresolved reference is a precondition gate, not a score penalty.
+    expect(reading.assessment.reasons).toContain('unresolved_reference')
+    expect(reading.assessment.needsClarification).toBe(true)
+    expect(reading.analysis.strategy).toBe('clarify')
+  })
+
+  it('answers the same turn once the reference resolves against a related prior turn', () => {
+    const reading = analyzeCognitiveTurnDetailed('那个怎么办？', [{ id: priorId, role: 'user', body: '我的租房合同下周到期。' }], sourceId)
+    expect(reading.assessment.needsClarification).toBe(false)
+    expect(reading.analysis.strategy).not.toBe('clarify')
+  })
+
+  it('does not ask about a vague turn that has no competing reading', () => {
     const reading = analyzeCognitiveTurnDetailed('嗯。', [], sourceId)
-    expect(reading.analysis.intent).toBe('uncertain')
-    expect(reading.assessment.confidence).toBeLessThan(0.6)
+    expect(reading.assessment.candidates).toHaveLength(0)
+    expect(reading.assessment.needsClarification).toBe(false)
     expect(reading.analysis.strategy).toBe('answer')
   })
 
-  it('scores a turn mostly by whether there is prior history, not by how vague it is', () => {
-    // Same clear question, only the history differs. The 0.167 gap comes from
-    // the missing `history` component, not from the request being harder to read.
-    // This is why the score is not used to resize retrieval: a rule keyed on it
-    // would fire on every first turn of a conversation, including clear ones.
-    const first = analyzeCognitiveTurnDetailed('我住在哪里？', [], sourceId)
-    const withHistory = analyzeCognitiveTurnDetailed('我住在哪里？', [{ id: priorId, role: 'user', body: '我养了一只叫咪咪的猫。' }], sourceId)
-    expect(first.assessment.confidence).toBeCloseTo(0.78, 2)
-    expect(withHistory.assessment.confidence).toBeCloseTo(0.947, 2)
-    expect(first.assessment.used).not.toContain('history')
-    expect(withHistory.assessment.used).toContain('history')
-    // The strategy is identical: the score moves, the decision does not.
-    expect(first.analysis.strategy).toBe(withHistory.analysis.strategy)
+  it('lets an explicit correction override a context-derived reading', () => {
+    const reading = analyzeCognitiveTurnDetailed('我说的是上海。', [{ id: priorId, role: 'user', body: '你住在北京对吧？' }], sourceId)
+    expect(reading.analysis.strategy).not.toBe('clarify')
+    expect(reading.analysis.signals.correction).toBe(true)
   })
 
-  it('does not let a coin-flip reading force clarify when nothing would be retrieved', () => {
-    const reading = analyzeCognitiveTurnDetailed('随便。', [], sourceId)
-    expect(reading.decision.needsMemoryRetrieval).toBe(false)
-    expect(reading.analysis.strategy).toBe('answer')
+  it('keeps the strategy stable for a clear request regardless of history', () => {
+    const without = analyzeCognitiveTurnDetailed('帮我制定下周的学习计划，预算三千。', [], sourceId)
+    const withHistory = analyzeCognitiveTurnDetailed('帮我制定下周的学习计划，预算三千。', [{ id: priorId, role: 'user', body: '今天股市怎么样？' }], sourceId)
+    expect(without.analysis.strategy).toBe('retrieve_memory')
+    expect(withHistory.analysis.strategy).toBe(without.analysis.strategy)
   })
 })
 

@@ -144,6 +144,17 @@ export class ReflectionService {
         evidence: corrections.slice(-3).map((event) => ({ kind: 'event', id: event.id }))
       })
     }
+    // 1b. Intent correction: the user said the assistant read them wrong. This is
+    //     about *understanding*, not about a stored claim, so it is its own kind —
+    //     the next turn should re-state its reading before asserting anything.
+    if (corrections.length >= 1) {
+      findings.push({
+        kind: 'intent_correction',
+        statement: '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答，而不是沿用旧判断。',
+        confidence: 60,
+        evidence: corrections.slice(-2).map((event) => ({ kind: 'event', id: event.id }))
+      })
+    }
     const retractions = memoryEvents.filter((event) => event.eventType === 'memory.retracted')
     if (retractions.length >= 1) {
       findings.push({
@@ -172,6 +183,18 @@ export class ReflectionService {
     //    references the entry instead of quoting it: the quoted text is user
     //    content and a finding is read by the shell and may reach a log.
     const unverified = this.dependencies.selfModel.list({ status: 'active' }).filter((entry) => entry.kind === 'inference')
+    // 3b. Next-turn suggestion: a bounded action, derived from the same unverified
+    //     entries but phrased as something to *do* rather than something to note.
+    //     Suggestions never become instructions on their own: they are read by the
+    //     shell and by the self-model block, and they carry the entry they came from.
+    if (unverified.length > 0) {
+      findings.push({
+        kind: 'next_turn_suggestion',
+        statement: '存在未经确认的自我推断；下一轮在用到相关内容前，先用一句话向用户确认。',
+        confidence: 45,
+        evidence: unverified.slice(0, 2).map((entry) => ({ kind: 'self_model_entry', id: entry.id }))
+      })
+    }
     for (const entry of unverified.slice(0, 2)) {
       findings.push({
         kind: 'consistency_note',

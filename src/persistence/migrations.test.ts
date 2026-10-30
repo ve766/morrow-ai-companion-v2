@@ -462,3 +462,34 @@ describe('v25 memory-backed interest evidence', () => {
     }
   })
 })
+
+describe('v26 reflection finding kinds', () => {
+  it('keeps existing findings when the kind constraint is widened', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v26-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 25)).toBe(25)
+      connection.prepare('INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run('66666666-6666-4666-8666-666666666666', 'manual', '2026-10-30T00:00:00.000Z', '2026-10-30T00:00:01.000Z', 1, 2, 1, 'completed')
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('77777777-7777-4777-8777-777777777777', '66666666-6666-4666-8666-666666666666', 'memory_gap', 'existing finding', 50, '[]', '2026-10-30T00:00:01.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const kept = connection.prepare('SELECT kind, statement FROM reflection_findings').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ kind: 'memory_gap', statement: 'existing finding' })
+      // The widened constraint accepts the two new kinds…
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('88888888-8888-4888-8888-888888888888', '66666666-6666-4666-8666-666666666666', 'intent_correction', 'new kind', 60, '[]', '2026-10-30T00:00:02.000Z')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM reflection_findings').get()).toEqual({ count: 2 })
+      // …and still rejects anything outside the enumeration.
+      expect(() => connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('99999999-9999-4999-8999-999999999999', '66666666-6666-4666-8666-666666666666', 'made_up_kind', 'x', 60, '[]', '2026-10-30T00:00:03.000Z')).toThrow()
+    } finally {
+      connection.close()
+    }
+  })
+})

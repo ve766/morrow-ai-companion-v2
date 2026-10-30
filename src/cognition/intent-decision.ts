@@ -82,7 +82,7 @@ const LEGACY_MAP: Readonly<Record<IntentLabel, CognitiveIntent>> = {
 }
 
 /** Retrieval need per label. Ambiguity deliberately retrieves nothing. */
-const RETRIEVAL: Readonly<Record<IntentLabel, boolean>> = {
+export const RETRIEVAL: Readonly<Record<IntentLabel, boolean>> = {
   information_query: true,
   continuation: true,
   correction: true,
@@ -121,7 +121,7 @@ interface RuleSignal {
   reason: string
 }
 
-const CORRECTION = /(?:更正|纠正|我(?:刚才)?(?:说错了?|讲错了?)|你理解错了|我的意思是|其实(?:我|是)|不对|不是我说的|记错了|改正|不应该是)|\b(?:correction|i meant|i mean|i was wrong|that's not right|that is not right|not what i meant|not what i asked|you misunderstood|your answer(?: is| was)? (?:wrong|incorrect)|(?:this|that|the) answer (?:is|was) (?:wrong|incorrect)|you(?:'re| are) wrong|you got (?:it|that) wrong|i gave you the wrong|actually i (?:meant|said))\b/iu
+const CORRECTION = /(?:更正|纠正|我(?:刚才)?(?:说错了?|讲错了?)|你理解错了|我的意思是|我说的是|我不是说|其实(?:我|是)|不对|不是我说的|记错了|改正|不应该是)|\b(?:correction|i meant|i mean|i was wrong|that's not right|that is not right|not what i meant|not what i asked|you misunderstood|your answer(?: is| was)? (?:wrong|incorrect)|(?:this|that|the) answer (?:is|was) (?:wrong|incorrect)|you(?:'re| are) wrong|you got (?:it|that) wrong|i gave you the wrong|actually i (?:meant|said))\b/iu
 const CHANGED_MIND = /(?:我改主意|改变主意|改了主意|不再(?:喜欢|想要|想)|我不喜欢了|换一个|改成|不想要了|还是.{0,12}(?:吧|好了))|\b(?:let's do.{0,40}instead|i changed my mind|i'd rather|i would rather|instead of|i no longer (?:like|prefer)|i (?:don't|do not) like.{0,40}anymore)\b/iu
 const FEEDBACK = /(?:谢谢|感谢|很好用|有帮助|没帮助|很差|不满意|做得好|回答不错|反馈|你回答得)|\b(?:thank you|thanks|not useful|helpful|not helpful|great answer|poor answer|i appreciate|feedback)\b/iu
 const EMOTION = /(?:想倾诉|想吐槽|只是想说|心情(?:很|有点)?(?:差|糟|不好)|(?:很|有点|非常|特别)?(?:难过|焦虑|烦|累|孤独|害怕|沮丧|生气|愤怒|恼火|难受)|压力很大|受不了了|感觉(?:很|有点)?(?:难过|焦虑|烦|累|孤独|害怕|沮丧|生气|愤怒|恼火|难受))|\b(?:i need to vent|i (?:feel|am feeling) (?:really )?(?:sad|anxious|angry|overwhelmed|lonely|afraid|tired|upset|frustrated|scared|nervous|down)|i['’]m (?:feeling (?:really )?)?(?:sad|anxious|angry|overwhelmed|lonely|afraid|tired|upset|frustrated|scared|nervous|down))\b/iu
@@ -142,7 +142,7 @@ const DEICTIC = /(?:这个|那个|它|他们|她们|这件事|那件事|上面(?
 const SELF_FACT = /(?:我(?:不喜欢|喜欢|偏好|住在|工作在|从事|通常|习惯|的目标|的生日|会))|\bi (?:(?:do not|don't) )?(?:like|prefer|dislike|live|work|usually|tend to|use|avoid)\b/iu
 /** A self-disclosure that is not a preference: residence, routine, identity. */
 const SELF_DISCLOSURE = /(?:我(?:住在|在.{1,12}(?:工作|上班|学习)|通常|平时|一般|每天|叫|的生日是|今年\d{1,3}岁))|\bi\s+(?:live|work|study|usually|normally|drink|eat|use|am from|am a|am an)\b|\bmy\s+(?:name|job|birthday|routine)\b/iu
-const RECALL_REQUEST = /(?:你还记得|你记得我.{0,24}(?:吗|么)|我(?:之前|上次)告诉过你|我之前说过|我上次提到过|我们之前聊过|能回忆起|我的(?:偏好|目标|习惯)(?:是什么|是什么来着|吗|呢))|\b(?:do you remember|can you recall|what do i|what did i tell you|what have i told you|recall my|what is my|what's my)\b/iu
+const RECALL_REQUEST = /(?:你还记得|你记得我.{0,24}(?:吗|么)|我(?:之前|上次)告诉过你|我(?:之前|上次)(?:说过|说的|提过|提到的|聊过)|我们之前聊过|能回忆起|我的(?:偏好|目标|习惯)(?:是什么|是什么来着|吗|呢))|\b(?:do you remember|can you recall|what do i|what did i tell you|what have i told you|recall my|what is my|what's my)\b/iu
 const SAVE_REQUEST = /(?:请(?:你)?记住|记住(?:我|这个|这件事|一下)|以后(?:都)?记得|把这(?:条|件事|个)记下来|保存为记忆)|\b(?:please remember|remember that|remember this|save this as a memory|save that as a memory)\b/iu
 
 function isShortReference(value: string): boolean {
@@ -194,7 +194,7 @@ function collectSignals(content: string, hasPriorTurn: boolean, fact: FactSlot |
   if (PREFERENCE.test(content) && !hypothetical) add('preference_expression', 80, 'preference_marker')
   if (hypothetical) add('information_query', 82, 'hypothetical_or_reported')
   if (SELF_DISCLOSURE.test(content)) add('self_fact', 78, 'self_disclosure_marker')
-  if (RECALL_REQUEST.test(content)) add('information_query', 84, 'explicit_recall_request')
+  if (RECALL_REQUEST.test(content)) add('information_query', 90, 'explicit_recall_request')
   // A save request that states a preference is a preference turn: the user is
   // telling us something, not asking us to recall something.
   if (SAVE_REQUEST.test(content)) add(PREFERENCE.test(content) || SELF_FACT.test(content) ? 'preference_expression' : 'information_query', 86, 'save_request_with_self_fact')
@@ -211,7 +211,12 @@ function collectSignals(content: string, hasPriorTurn: boolean, fact: FactSlot |
 
   // Reference-dependent turns. Without a prior turn they cannot be resolved,
   // and guessing the topic is worse than asking.
-  const reference = FOLLOW_UP.test(content) || DEICTIC.test(content) || (isShortReference(content) && /[?？]/u.test(content))
+  // The short-question fallback is for bare follow-ups ("多少钱？"). A complete
+  // wh-question ("我住在哪里？") already stands on its own; treating it as a
+  // reference let the mere presence of history create a `continuation` candidate
+  // that outranked the real reading.
+  const reference = FOLLOW_UP.test(content) || DEICTIC.test(content) ||
+    (isShortReference(content) && /[?？]/u.test(content) && !INFORMATION.test(content))
   if (reference) {
     // A short reference ("那怎么办？") is almost entirely carried by the prior
     // turn, so it outranks a question word inside it. A longer reference only
@@ -230,7 +235,69 @@ function levelOf(confidence: number): IntentConfidenceLevel {
   return 'low'
 }
 
-export function decideIntent(input: IntentInput): IntentDecision {
+/**
+ * Whether a reading only makes sense against the previous turn.
+ *
+ * Used by the confidence layer to decide whether context credit is *earned*:
+ * labels that stand alone must not gain anything from history being present.
+ */
+export function referenceDependenceOf(label: IntentLabel, reasons: readonly string[]): boolean {
+  if (label === 'continuation') return true
+  return reasons.includes('reference_to_prior_turn') || reasons.includes('reference_without_context')
+}
+
+/**
+ * Retrieval route for one reading.
+ *
+ * Extracted so the analyser can ask "what would *this* reading need?" about the
+ * reading the confidence model selected, instead of always asking about the
+ * decision layer's first guess. Two code paths here would let the strategy
+ * disagree with the score that supposedly justified it.
+ *
+ * A question only becomes a *memory* lookup when it is about the user or when
+ * the fact layer read a personal predicate in it: "这个多少钱？" is a question
+ * with an object, but nothing about it asks for saved personal facts.
+ */
+export function retrievalNeedOf(
+  label: IntentLabel,
+  input: { content: string; fact: FactSlot | null; reasons: readonly string[]; hasPriorTurn: boolean }
+): boolean {
+  if (label === 'emotion_expression') return input.reasons.includes('reference_to_prior_turn')
+  if (label === 'information_query') {
+    // An explicit recall request retrieves by definition: the user is asking for
+    // something stored ("我之前说的茶呢？"). Missing this sent the turn to
+    // `answer` even though the only way to answer is to look it up.
+    if (input.reasons.includes('explicit_recall_request')) return true
+    // Only phrasings that ask about *stored facts about the user*. A bare
+    // "how do I cook rice" is a general question; matching `do i` made every such
+    // turn look like a memory lookup.
+    const personalReference = /(?:我的|我(?:住在|叫|今年|的)|我自己)|\b(?:my|mine|about me|do i (?:like|prefer|have|own|remember)|did i (?:say|tell|mention)|have i (?:told|said|mentioned)|am i (?:allergic|living|working))\b/iu.test(input.content)
+    // A reference turn answers from the conversation, not from saved facts.
+    const referenceOnly = input.reasons.includes('reference_to_prior_turn') && !personalReference
+    if (referenceOnly) return false
+    return personalReference || (input.fact?.kind === 'question')
+  }
+  if (label === 'continuation') return input.hasPriorTurn
+  return RETRIEVAL[label]
+}
+
+export interface IntentCandidateScore {
+  label: IntentLabel
+  /** 0-100 rule strength for this label (strongest rule + corroboration). */
+  score: number
+  /** Strongest single rule weight behind the label (0-100). */
+  maxWeight: number
+  reasons: string[]
+}
+
+/**
+ * Candidate scores for one turn, before any confidence model is applied.
+ *
+ * Exported so the B1 confidence layer reads the *same* rule evidence the
+ * decision uses. A second scoring path would let the two disagree, which is
+ * exactly the failure this refactor exists to remove.
+ */
+export function scoreIntentCandidates(input: IntentInput): IntentCandidateScore[] {
   const content = normalize(input.content)
   const fact = readFactSlot(input.content)
   const signals = collectSignals(content, input.hasPriorTurn, fact)
@@ -247,6 +314,19 @@ export function decideIntent(input: IntentInput): IntentDecision {
   for (const entry of scores.values()) {
     entry.score = Math.min(100, entry.maxWeight + Math.min(8, 4 * Math.max(0, entry.reasons.length - 1)))
   }
+  return [...scores.entries()]
+    .map(([label, entry]) => ({ label, score: entry.score, maxWeight: entry.maxWeight, reasons: entry.reasons }))
+    .sort((left, right) => right.score - left.score || right.maxWeight - left.maxWeight || left.label.localeCompare(right.label))
+}
+
+export function decideIntent(input: IntentInput): IntentDecision {
+  const content = normalize(input.content)
+  const fact = readFactSlot(input.content)
+  const signals = collectSignals(content, input.hasPriorTurn, fact)
+  const candidates = scoreIntentCandidates(input)
+  const scores = new Map<IntentLabel, { score: number; maxWeight: number; reasons: string[] }>(
+    candidates.map((candidate) => [candidate.label, { score: candidate.score, maxWeight: candidate.maxWeight, reasons: candidate.reasons }])
+  )
 
   const ranked = [...scores.entries()].sort((left, right) =>
     right[1].score - left[1].score ||
@@ -286,11 +366,7 @@ export function decideIntent(input: IntentInput): IntentDecision {
   // evidence. Note that the route is a prompt hint — the assembler still runs,
   // and its relevance rules decide what is actually delivered.
   const personalReference = /(?:我的|我(?:住在|叫|今年|的)|我自己)|\b(?:my|mine|about me|do i|did i|have i|am i)\b/iu.test(content)
-  const needsMemoryRetrieval = label === 'emotion_expression'
-    ? reasons.includes('reference_to_prior_turn')
-    : label === 'information_query'
-      ? personalReference || fact?.kind === 'question'
-      : RETRIEVAL[label]
+  const needsMemoryRetrieval = retrievalNeedOf(label, { content, fact, reasons, hasPriorTurn: input.hasPriorTurn })
 
   return {
     version: INTENT_DECISION_VERSION,

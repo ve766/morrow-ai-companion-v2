@@ -1023,6 +1023,38 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 26,
+    name: 'reflection-finding-kinds',
+    up(database) {
+      // The reflection schema could describe gaps, questions, bias hints, interest
+      // candidates and consistency notes, but not two categories the algorithm
+      // actually produces: a correction of how the assistant understood the user
+      // (`intent_correction`) and a bounded suggestion for the next turn
+      // (`next_turn_suggestion`). SQLite cannot alter a CHECK, so the table is
+      // rebuilt; the primary key, the cascade and the index are preserved and the
+      // rows are copied verbatim.
+      database.exec(`
+        ALTER TABLE reflection_findings RENAME TO reflection_findings_v25;
+        CREATE TABLE reflection_findings (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          run_id TEXT NOT NULL REFERENCES reflection_runs(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN (
+            'memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note',
+            'intent_correction', 'next_turn_suggestion'
+          )),
+          statement TEXT NOT NULL CHECK (length(trim(statement)) BETWEEN 1 AND 1000 AND instr(statement, char(0)) = 0),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO reflection_findings (id, run_id, kind, statement, confidence, evidence_json, created_at)
+          SELECT id, run_id, kind, statement, confidence, evidence_json, created_at FROM reflection_findings_v25;
+        DROP TABLE reflection_findings_v25;
+        CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
+      `)
+    }
   }
 ]
 

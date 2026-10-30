@@ -7,7 +7,18 @@ export type SelfModelKind = (typeof SELF_MODEL_KINDS)[number]
 export const SELF_MODEL_STATUS_VALUES = ['active', 'superseded', 'retracted'] as const
 export type SelfModelStatus = (typeof SELF_MODEL_STATUS_VALUES)[number]
 
-export const REFLECTION_FINDING_KINDS = ['memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note'] as const
+export const REFLECTION_FINDING_KINDS = [
+  'memory_gap',
+  'open_question',
+  'bias_hint',
+  'interest_candidate',
+  'consistency_note',
+  // "You read that wrong": the user corrected the assistant's understanding, not
+  // a stored fact.
+  'intent_correction',
+  // A bounded suggestion for the next turn, derived from repeated feedback.
+  'next_turn_suggestion'
+] as const
 export type ReflectionFindingKind = (typeof REFLECTION_FINDING_KINDS)[number]
 
 export const REFLECTION_TRIGGERS = ['manual', 'startup', 'post_conversation'] as const

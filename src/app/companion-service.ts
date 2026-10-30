@@ -1646,17 +1646,26 @@ export class ChatService {
       try {
         const conversation = this.conversations.read(record.conversationId)
         const delivered = conversation.messages.some((message) => message.id === record.assistantMessageId && message.role === 'assistant')
+        // The intent is the evidence that a turn stopped mid-flight. Mark it
+        // before repairing it, so the lifecycle shows "known broken" and then
+        // "something is repairing it" instead of jumping straight to a verdict.
+        this.recordTurnState(record.conversationId, record.turnId, 'recovery_required', 'intent_without_settlement')
+        this.recordTurnState(record.conversationId, record.turnId, 'recovering', 'recovery_attempt')
         if (delivered) {
+          // The commit landed; only the bookkeeping is missing. Applying the
+          // intent again is safe: the turn context is an upsert keyed by turn id
+          // and the feeling event is compared against the committed state.
           this.applyFinalization(record)
+          this.recordTurnState(record.conversationId, record.turnId, 'committed', 'recovered_after_commit')
           result.completed += 1
         } else {
           // The turn stopped between "request sent" and "answer stored". That is
           // a distinct state from a plain failure: the provider may still have
           // charged for the call, and a later attempt has to know the turn was
           // recovered rather than never started.
-          this.recordTurnState(record.conversationId, record.turnId, 'recovery_required', 'interrupted_before_delivery')
           // No answer reached the user. Recording it as interrupted is what the
           // evidence supports; inventing a successful turn would not be.
+          this.recordTurnState(record.conversationId, record.turnId, 'failed', 'INTERRUPTED')
           this.continuity.contexts.upsert({
             ...record.contextTemplate,
             // Key the record by the intent's turn id, never by whatever the

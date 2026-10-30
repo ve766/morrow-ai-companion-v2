@@ -24,7 +24,10 @@ export const TURN_STATES = [
   'committed',
   'failed',
   'cancelled',
-  'recovery_required'
+  'recovery_required',
+  // A recovery attempt in progress. Separate from `recovery_required` so the
+  // trace can tell "this turn is known-broken" from "something is repairing it".
+  'recovering'
 ] as const
 
 export type TurnState = typeof TURN_STATES[number]
@@ -38,9 +41,10 @@ const PREDECESSORS: Readonly<Record<TurnState, readonly (TurnState | null)[]>> =
   requesting: ['awaiting_consent', 'context_ready'],
   response_received: ['requesting'],
   committed: ['response_received'],
-  failed: ['received', 'analyzed', 'context_ready', 'awaiting_consent', 'requesting', 'response_received'],
-  cancelled: ['awaiting_consent', 'requesting', 'context_ready'],
-  recovery_required: ['requesting', 'response_received']
+  failed: ['received', 'analyzed', 'context_ready', 'awaiting_consent', 'requesting', 'response_received', 'recovering'],
+  cancelled: ['awaiting_consent', 'requesting', 'context_ready', 'recovering'],
+  recovery_required: ['requesting', 'response_received'],
+  recovering: ['recovery_required'],
 }
 
 export const TERMINAL_TURN_STATES: readonly TurnState[] = ['committed', 'failed', 'cancelled']

@@ -154,6 +154,15 @@ describe('bounded reflection', () => {
     expect(run.findingsCount).toBeGreaterThan(0)
     const findings = reflection.findings(run.id)
     expect(findings.some((finding) => finding.kind === 'memory_gap')).toBe(true)
+    // The structured schema distinguishes *why* the assistant was wrong: a
+    // corrected fact (`memory_gap`) is not the same as a corrected reading
+    // (`intent_correction`), and an unverified inference yields an action for the
+    // next turn (`next_turn_suggestion`) rather than only a note.
+    expect(findings.some((finding) => finding.kind === 'intent_correction')).toBe(true)
+    expect(findings.some((finding) => finding.kind === 'next_turn_suggestion')).toBe(true)
+    // Every kind the algorithm can emit must be one the schema accepts.
+    const allowed = new Set<string>(['memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note', 'intent_correction', 'next_turn_suggestion'])
+    for (const finding of findings) expect(allowed.has(finding.kind)).toBe(true)
     for (const finding of findings) {
       expect(finding.evidence.length).toBeGreaterThan(0)
       expect(finding.confidence).toBeGreaterThanOrEqual(1)
