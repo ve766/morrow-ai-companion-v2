@@ -422,3 +422,43 @@ describe('foreign implementation-line databases', () => {  it('fails closed with
     }
   })
 })
+
+describe('v25 memory-backed interest evidence', () => {
+  it('upgrades a v24 ledger without losing rows and invalidates on retract afterwards', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v25-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      // Build a v24 database, then write one memory-backed evidence row that the
+      // upgrade must keep (it predates the revision column).
+      expect(applyMigrations(connection, 24)).toBe(24)
+      connection.prepare(
+        'INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)'
+      ).run('11111111-1111-4111-8111-111111111111', 'topic', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z')
+      connection.prepare(
+        'INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('44444444-4444-4444-8444-444444444444', '我在学咖啡拉花。', '我在学咖啡拉花。', 'user_explicit_input', 'active', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', 1)
+      connection.prepare(
+        'INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('55555555-5555-4555-8555-555555555555', '咖啡拉花', 'candidate', 1, 1, 0.5, 40, '44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', '[]')
+      connection.prepare(
+        'INSERT INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('55555555-5555-4555-8555-555555555555', '44444444-4444-4444-8444-444444444444', 'memory', '11111111-1111-4111-8111-111111111111', 'support', 0.9, 'same_topic', '2026-10-29T09:00:00.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      // The upgrade keeps the row and marks the revision as unknown (NULL).
+      const kept = connection.prepare('SELECT evidence_ref, evidence_revision FROM interest_evidence').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ evidence_ref: '44444444-4444-4444-8444-444444444444', evidence_revision: null })
+
+      // Retracting the memory now clears it, which the v24 schema did not do.
+      connection.prepare('UPDATE memories SET status = ?, updated_at = ? WHERE id = ?')
+        .run('retracted', '2026-10-29T10:00:00.000Z', '44444444-4444-4444-8444-444444444444')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM interest_evidence').get()).toEqual({ count: 0 })
+    } finally {
+      connection.close()
+    }
+  })
+})

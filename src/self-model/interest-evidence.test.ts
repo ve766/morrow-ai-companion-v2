@@ -74,8 +74,14 @@ describe('topic aggregation across sessions (B5 root fix)', () => {
       interests.observe({ conversationId: FIRST, messageId: '22222222-2222-4111-8111-000000000021', occurredAt: '2026-10-20T10:00:00.000Z', topicText: '我每天练习咖啡拉花' })
       const before = interests.list()[0]!
       const after = interests.observe({ conversationId: FIRST, messageId: '22222222-2222-4111-8111-000000000022', occurredAt: '2026-10-21T10:00:00.000Z', topicText: '我不想再练习咖啡拉花了' })
-      expect(after!.evidenceCount).toBe(before.evidenceCount)
+      // The observation happened, so the raw support count stays; what changes
+      // is the state: the reversal is newer, so it suspends promotion and the
+      // strength drops to what zero effective support allows.
+      expect(before.evidenceCount).toBe(1)
+      expect(before.status).toBe('candidate')
+      expect(after!.evidenceCount).toBe(1)
       expect(after!.status).toBe('candidate')
+      expect(after!.strength).toBeLessThan(before.strength)
       const ledger = interests.evidenceLedger(after!.id)
       expect(ledger.filter((row) => row.polarity === 'counter')).toHaveLength(1)
       expect(ledger.filter((row) => row.polarity === 'support')).toHaveLength(1)

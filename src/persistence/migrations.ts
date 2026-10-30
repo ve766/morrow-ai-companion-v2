@@ -963,6 +963,66 @@ export const migrations: readonly Migration[] = [
         JOIN seq ON seq.n <= i.evidence_count;
       `)
     }
+  },
+  {
+    version: 25,
+    name: 'memory-backed-interest-evidence-invalidation',
+    up(database) {
+      // Reflection records a saved memory as interest evidence, but migration 24
+      // only cleaned evidence when a *message* or *conversation* was deleted. A
+      // retracted or corrected memory therefore kept feeding an interest, and the
+      // interest could stay active and reach the next prompt on evidence the user
+      // had already taken back.
+      //
+      // The evidence row also had no revision, so a correction could not be told
+      // apart from the revision that was actually observed. `evidence_revision`
+      // records which revision of the memory was seen; NULL means the row predates
+      // this migration (or is a legacy aggregate), and is treated as stale as soon
+      // as the memory is corrected.
+      database.exec(`
+        ALTER TABLE interest_evidence ADD COLUMN evidence_revision INTEGER
+          CHECK (evidence_revision IS NULL OR evidence_revision > 0);
+
+        CREATE INDEX interest_evidence_memory_idx
+          ON interest_evidence(evidence_kind, evidence_ref);
+
+        -- A deleted memory takes its evidence with it, in the same statement.
+        CREATE TRIGGER interest_evidence_delete_with_memory
+        AFTER DELETE ON memories
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+        END;
+
+        -- Retracting a memory is a statement that the stored fact is no longer
+        -- wanted; evidence drawn from it is no longer valid, while the row itself
+        -- is kept so a restore can be observed again.
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_retract
+        AFTER UPDATE OF status ON memories
+        WHEN NEW.status <> 'active'
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+        END;
+
+        -- A correction replaces the wording that was observed. Only evidence from
+        -- an older revision is dropped: a row recorded against the new revision
+        -- stays, so a re-observation after the correction is not thrown away.
+        --
+        -- The text comparison matters: confirming a memory also bumps its
+        -- revision, but the wording the user saw is unchanged, so the evidence is
+        -- still true. Without this guard a plain "confirm" deleted valid evidence.
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_revision
+        AFTER UPDATE OF revision ON memories
+        WHEN NEW.revision > OLD.revision AND NEW.current_text <> OLD.current_text
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory'
+              AND evidence_ref = OLD.id
+              AND (evidence_revision IS NULL OR evidence_revision < NEW.revision);
+        END;
+      `)
+    }
   }
 ]
 

@@ -31,12 +31,27 @@ export interface InterestEvidenceRow {
   score: number
   reason: string
   createdAt: string
+  /**
+   * Which revision of the memory was observed, for `kind: 'memory'` rows.
+   * A correction invalidates evidence from older revisions; without this the
+   * row could not be told apart from one recorded against the new wording.
+   */
+  evidenceRevision?: number | null
 }
 
 export interface InterestEvidenceCounts {
   support: number
   conversations: number
   counter: number
+  /** Polarity of the newest observation, or null when the ledger is empty. */
+  latestPolarity: 'support' | 'counter' | null
+  /**
+   * Counters recorded after the newest support. These are the ones still
+   * standing: a counter that a later support has already answered is history,
+   * not a veto, otherwise "喜欢 → 不喜欢 → 又喜欢" could never recover.
+   */
+  recentCounters: number
+  lastSupportAt: string | null
 }
 
 export interface InterestRepositoryPort {
@@ -60,6 +75,8 @@ export interface InterestObservation {
   topicText: string
   /** Defaults to 'message'; reflection passes 'memory'. */
   evidenceKind?: 'message' | 'memory'
+  /** Revision of the memory that was observed; required to age out corrections. */
+  evidenceRevision?: number
 }
 
 interface InterestRow {
@@ -88,6 +105,7 @@ interface EvidenceSqlRow {
   match_score: number
   match_reason: string
   created_at: string
+  evidence_revision: number | null
 }
 
 export class SqliteInterestRepository implements InterestRepositoryPort {
@@ -120,9 +138,9 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
 
   insertEvidence(row: InterestEvidenceRow): boolean {
     const result = this.database.connection.prepare(`
-      INSERT OR IGNORE INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(row.interestId, row.ref, row.kind, row.conversationId, row.polarity, row.score, row.reason, row.createdAt)
+      INSERT OR IGNORE INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(row.interestId, row.ref, row.kind, row.conversationId, row.polarity, row.score, row.reason, row.createdAt, row.evidenceRevision ?? null)
     return Number(result.changes) > 0
   }
 
@@ -139,15 +157,36 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
   }
 
   fold(interestId: string): InterestEvidenceCounts {
-    const row = this.database.connection.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN polarity = 'support' THEN 1 ELSE 0 END), 0) AS support,
-        COUNT(DISTINCT CASE WHEN polarity = 'support' THEN conversation_id END) AS conversations,
-        COALESCE(SUM(CASE WHEN polarity = 'counter' THEN 1 ELSE 0 END), 0) AS counter
-      FROM interest_evidence WHERE interest_id = ?
-    `).get(interestId) as { support: number; conversations: number; counter: number }
-    return { support: Number(row.support), conversations: Number(row.conversations), counter: Number(row.counter) }
+    // Folded in code rather than SQL: the state depends on *order*, and a single
+    // aggregate query cannot say which polarity came last. `evidenceFor` already
+    // returns rows ordered by (created_at, evidence_ref), so a tie is decided by
+    // the ref and the result is deterministic.
+    const rows = this.evidenceFor(interestId)
+    const conversations = new Set<string>()
+    let support = 0
+    let counter = 0
+    let lastSupportIndex = -1
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index]!
+      if (row.polarity === 'support') {
+        support += 1
+        conversations.add(row.conversationId)
+        lastSupportIndex = index
+      } else {
+        counter += 1
+      }
+    }
+    const recentCounters = rows.slice(lastSupportIndex + 1).filter((row) => row.polarity === 'counter').length
+    return {
+      support,
+      conversations: conversations.size,
+      counter,
+      latestPolarity: rows.at(-1)?.polarity ?? null,
+      recentCounters,
+      lastSupportAt: lastSupportIndex >= 0 ? rows[lastSupportIndex]!.createdAt : null
+    }
   }
+
 
   transaction<T>(operation: () => T): T {
     return this.database.transaction(operation)
@@ -182,7 +221,8 @@ function mapEvidence(row: EvidenceSqlRow): InterestEvidenceRow {
     polarity: row.polarity as InterestEvidenceRow['polarity'],
     score: row.match_score,
     reason: row.match_reason,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    evidenceRevision: row.evidence_revision ?? null
   }
 }
 
@@ -272,6 +312,7 @@ export class InterestService {
     }
 
     const kind = observation.evidenceKind ?? 'message'
+    const evidenceRevision = observation.evidenceRevision ?? null
     const profile = buildTopicProfile(observation.topicText)
     const terms = extractInterestTerms(observation.topicText)
     const candidates = this.repository.all()
@@ -312,7 +353,8 @@ export class InterestService {
         polarity: 'counter',
         score: best.match.score,
         reason: 'polarity_conflict',
-        createdAt: now
+        createdAt: now,
+        evidenceRevision
       })
       if (!inserted) return this.reconcile(best.record)
       const next = this.reconcile(best.record)
@@ -358,7 +400,8 @@ export class InterestService {
       polarity: 'support',
       score: best?.match.score ?? 0,
       reason: best ? best.match.reason : 'new_topic',
-      createdAt: now
+      createdAt: now,
+      evidenceRevision
     })
     this.recordEvent('interest.observed', created, {
       newTopic: true,
@@ -389,34 +432,39 @@ export class InterestService {
       polarity: 'support',
       score: match.score,
       reason: match.reason,
-      createdAt: now
+      createdAt: now,
+      evidenceRevision: observation.evidenceRevision ?? null
     })
     // A replay of the same observation must not move anything.
     if (!inserted) return this.reconcile(existing) ?? existing
     const folded = this.repository.fold(existing.id)
-    const merged: InterestRecord = {
+    const evaluation = this.evaluate(existing.status, folded)
+    // A returning topic that was archived becomes a candidate again, and a
+    // candidate only becomes active through the documented threshold.
+    let status = evaluation.status
+    if (existing.status === 'archived' && existing.conversationId !== observation.conversationId) status = 'candidate'
+    const updated: InterestRecord = {
       ...existing,
-      evidenceCount: Math.max(1, folded.support),
-      conversationCount: Math.max(1, folded.conversations),
-      strength: computeInterestStrength(folded.support, folded.conversations, 0),
-      confidence: confidenceForEvidence(folded.support, folded.conversations),
+      evidenceCount: evaluation.evidenceCount,
+      conversationCount: evaluation.conversationCount,
+      strength: evaluation.strength,
+      confidence: evaluation.confidence,
+      status,
       lastSeenAt: now,
       updatedAt: now,
       terms: [...new Set([...existing.terms, ...terms])].slice(0, 16),
       profile: mergeTopicProfiles(this.profileOf(existing), profile)
     }
-    // A returning topic that was archived becomes a candidate again, and a
-    // candidate only becomes active through the documented threshold.
-    let status = merged.status
-    if (status === 'archived' && existing.conversationId !== observation.conversationId) status = 'candidate'
-    if (interestPromotionEligible({ status, conversationCount: merged.conversationCount, evidenceCount: merged.evidenceCount })) status = 'active'
-    const updated: InterestRecord = { ...merged, status }
     this.repository.update(updated)
     const promoted = existing.status !== 'active' && updated.status === 'active'
     this.recordEvent(promoted ? 'interest.promoted' : 'interest.observed', updated, {
       newTopic: false,
       evidenceCount: updated.evidenceCount,
       conversationCount: updated.conversationCount,
+      support: folded.support,
+      effectiveSupport: evaluation.effectiveSupport,
+      counter: folded.counter,
+      recentCounters: folded.recentCounters,
       matchScore: match.score,
       matchReason: match.reason
     })
@@ -432,41 +480,100 @@ export class InterestService {
   private reconcile(record: InterestRecord): InterestRecord | null {
     const folded = this.repository.fold(record.id)
     if (folded.support === 0) {
+      // No supporting observation is left at all: the interest has no standing,
+      // whatever counters it may have. Removed so it cannot reach the next prompt.
       this.repository.delete(record.id)
       this.recordEvent('interest.retracted', record, { reason: 'no_supporting_evidence', counter: folded.counter })
       return null
     }
-    const evidenceCount = folded.support
-    const conversationCount = Math.max(1, folded.conversations)
-    const strength = computeInterestStrength(evidenceCount, conversationCount, 0)
-    const confidence = confidenceForEvidence(evidenceCount, conversationCount)
-    const status = this.derivedStatus(record.status, conversationCount, evidenceCount)
+    const evaluation = this.evaluate(record.status, folded)
 
-    if (record.evidenceCount === evidenceCount && record.conversationCount === conversationCount &&
-      record.status === status && Math.abs(record.strength - strength) < 0.0005 && record.confidence === confidence) {
+    if (record.evidenceCount === evaluation.evidenceCount && record.conversationCount === evaluation.conversationCount &&
+      record.status === evaluation.status && Math.abs(record.strength - evaluation.strength) < 0.0005 &&
+      record.confidence === evaluation.confidence) {
       return record
     }
-    const repaired: InterestRecord = { ...record, evidenceCount, conversationCount, strength, confidence, status, updatedAt: this.safeTimestamp(this.clock()) }
+    const repaired: InterestRecord = {
+      ...record,
+      evidenceCount: evaluation.evidenceCount,
+      conversationCount: evaluation.conversationCount,
+      strength: evaluation.strength,
+      confidence: evaluation.confidence,
+      status: evaluation.status,
+      updatedAt: this.safeTimestamp(this.clock())
+    }
     this.repository.update(repaired)
-    if (record.status !== status) {
+    if (record.status !== evaluation.status) {
       this.recordEvent('interest.recomputed', repaired, {
         from: record.status,
-        to: status,
-        evidenceCount,
-        conversationCount,
+        to: evaluation.status,
+        evidenceCount: evaluation.evidenceCount,
+        conversationCount: evaluation.conversationCount,
+        support: folded.support,
+        effectiveSupport: evaluation.effectiveSupport,
+        counter: folded.counter,
+        recentCounters: folded.recentCounters,
+        latestPolarity: folded.latestPolarity,
         reason: 'evidence_recount'
       })
     }
     return repaired
   }
 
-  private derivedStatus(current: InterestStatus, conversationCount: number, evidenceCount: number): InterestStatus {
+  /**
+   * Turns a folded ledger into the record's cached state.
+   *
+   * Two numbers, on purpose:
+   *   - `evidenceCount` is the raw count of supporting observations. It is what
+   *     the row stores and what a reader sees as "依据 N 次"; it never goes
+   *     negative and it survives a reversal, because the observations happened.
+   *   - `effectiveSupport` subtracts the counters recorded *after* the newest
+   *     support. Only that number drives promotion, strength and confidence: the
+   *     user has since said the opposite and nothing has contradicted it yet.
+   *
+   * Both are emitted in the events, so the arithmetic is always recoverable.
+   */
+  private evaluate(current: InterestStatus, folded: InterestEvidenceCounts): {
+    status: InterestStatus
+    evidenceCount: number
+    effectiveSupport: number
+    conversationCount: number
+    strength: number
+    confidence: number
+  } {
+    const effectiveSupport = Math.max(0, folded.support - folded.recentCounters)
+    const conversationCount = Math.max(1, folded.conversations)
+    return {
+      status: this.derivedStatus(current, conversationCount, effectiveSupport, folded.latestPolarity),
+      evidenceCount: folded.support,
+      effectiveSupport,
+      conversationCount,
+      strength: computeInterestStrength(effectiveSupport, conversationCount, 0),
+      confidence: confidenceForEvidence(effectiveSupport, conversationCount)
+    }
+  }
+
+  /**
+   * Status rules, in order:
+   *   1. user-set terminal states are never overridden by evidence;
+   *   2. a reversal is a statement about the present, so it suspends promotion
+   *      immediately — the row stays as a candidate with its history intact;
+   *   3. otherwise the documented threshold decides.
+   *
+   * Demotion is intentional: when supporting evidence is retracted the interest
+   * must fall back to a candidate instead of keeping 'active' on evidence that no
+   * longer exists.
+   */
+  private derivedStatus(
+    current: InterestStatus,
+    conversationCount: number,
+    evidenceCount: number,
+    latestPolarity: 'support' | 'counter' | null
+  ): InterestStatus {
     if (current === 'dropped') return 'dropped'
     if (current === 'archived') return 'archived'
+    if (latestPolarity === 'counter') return 'candidate'
     if (interestPromotionEligible({ status: 'candidate', conversationCount, evidenceCount })) return 'active'
-    // Demotion is intentional: when supporting evidence is retracted the
-    // interest must fall back to a candidate instead of keeping 'active' on
-    // evidence that no longer exists.
     return 'candidate'
   }
 

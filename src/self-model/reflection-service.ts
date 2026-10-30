@@ -206,6 +206,10 @@ export class ReflectionService {
           // silently dropped all but the first.
           messageId: memory!.id,
           evidenceKind: 'memory',
+          // The revision is what makes a later correction able to age out this
+          // observation; without it the row cannot be told apart from evidence
+          // recorded against the new wording.
+          evidenceRevision: memory!.revision,
           occurredAt: event.occurredAt,
           topicText: memory!.currentText
         })
