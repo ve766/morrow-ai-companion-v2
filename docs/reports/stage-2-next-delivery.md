@@ -7,7 +7,7 @@
 
 | 名称 | SHA | 含义 |
 |---|---|---|
-| 结果生成代码 SHA | `e25308ca1fd39c3bca930fd9cbf02809442f16c7` | 下面所有评测 JSON 里的 `headSha`。结果是在**工作区干净**时、于这个提交上生成的 |
+| 结果生成代码 SHA | `02c2e4aed143356349a0f51d658a6e31c4eb548c` | 下面所有评测 JSON 里的 `headSha`。结果是在**工作区干净**时、于这个提交上生成的 |
 | 当前 PR HEAD | 见 PR #15 最新提交 | 通常比结果 SHA 新一个"结果提交"，因为结果文件本身要提交 |
 
 两者不同是正常的：结果必须绑定生成它的代码，而不是绑定"记录结果的提交"。旧 SHA 的结果文件一律保留，不覆盖、不冒充当前提交。
@@ -167,13 +167,13 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 | `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.889 / FP 0 / FN 1（26 对） |
 | `npm run eval:ablation` | 0 | 4 组臂全部执行；`wiring difference detected: true` |
 
-结果文件（`headSha = e25308c`）：
+结果文件（`headSha = 02c2e4a`）：
 
-- `evals/stage-2/results/2026-10-30T03-08-17-e25308c.json`（+ `-summary.json`）
+- `evals/stage-2/results/2026-10-30T03-15-37-02c2e4a.json`（+ `-summary.json`）
 - `evals/stage-2/results/topic-identity-devset-report.json`
-- `evals/stage-2/ablation/results/2026-10-30T03-08-25-e25308c.json`
+- `evals/stage-2/ablation/results/2026-10-30T03-15-45-02c2e4a.json`
 
-上一轮 `5635a9c` 的结果（`02-48-36` / `02-48-43`）保留为历史，不覆盖。
+上一轮结果保留为历史，不覆盖：`e25308c`（`03-08-17` / `03-08-25`）、`5635a9c`（`02-48-36` / `02-48-43`）。
 
 ## 7.5 桌面（Electron）实测
 
