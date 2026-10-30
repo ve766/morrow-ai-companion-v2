@@ -15,6 +15,7 @@ function memory(id: string, text: string, sensitivity: MemoryRecord['sensitivity
     revision: 1,
     confidence: 85,
     lastConfirmedAt: '2026-10-22T01:00:00.000Z',
+    archivedAt: null,
     ...overrides
   }
 }
@@ -94,11 +95,13 @@ describe('context utility: conflict and staleness reach the ranking', () => {
   it('penalises a record that was never confirmed and is old', () => {
     const stale = memory('11111111-1111-4111-8111-000000000903', '我住在杭州。', 'personal', 'active', {
       lastConfirmedAt: null,
+      archivedAt: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     })
     const confirmed = memory('11111111-1111-4111-8111-000000000904', '我住在杭州。', 'personal', 'active', {
       lastConfirmedAt: '2026-10-25T00:00:00.000Z',
+      archivedAt: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     })

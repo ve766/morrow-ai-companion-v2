@@ -172,7 +172,9 @@ export class MemoryContextAssembler {
 
     const eligible = records
       // Retracted, superseded or unauthorized records never compete on score.
-      .filter((record) => record.status === 'active' && order.indexOf(record.sensitivity) <= order.indexOf(maximumSensitivity))
+      // Archived memories lost the importance competition; they stay in the
+      // database but do not compete for a place in the prompt.
+      .filter((record) => record.status === 'active' && record.archivedAt === null && order.indexOf(record.sensitivity) <= order.indexOf(maximumSensitivity))
       .map((record) => {
         const normalizedContent = normalize(record.currentText)
         const phraseMatch = phrase.length >= 2 && normalizedContent.includes(phrase)

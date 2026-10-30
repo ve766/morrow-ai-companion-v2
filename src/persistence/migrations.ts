@@ -1354,6 +1354,46 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 31,
+    name: 'memory-importance-and-consolidation',
+    up(database) {
+      // Stage 3 §2A. Three additions, none of which changes what a memory *is*:
+      //
+      // 1. `archived_at`. Decay must not delete. A memory that lost the ranking
+      //    competition is marked, excluded from retrieval, and can be restored;
+      //    its text, revisions and provenance stay untouched. The status CHECK is
+      //    deliberately not widened: `retracted` means the user withdrew it,
+      //    `archived` means time pushed it down. Conflating them would lose that.
+      // 2. `memory_importance`. The score is a cache over evidence (provenance,
+      //    explicit markers, revisions, recency); it is recomputed, never
+      //    incremented, so a deletion or a correction converges on the next read.
+      // 3. `memory_consolidations`. Repeated statements of the same slot/value
+      //    are grouped by reference. The member ids are stored; the text is not
+      //    copied, so there is exactly one source of truth per memory.
+      database.exec(`
+        ALTER TABLE memories ADD COLUMN archived_at TEXT;
+
+        CREATE TABLE memory_importance (
+          memory_id TEXT PRIMARY KEY NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+          score REAL NOT NULL CHECK (score >= 0 AND score <= 1),
+          components_json TEXT NOT NULL,
+          version TEXT NOT NULL CHECK (length(version) BETWEEN 1 AND 64),
+          computed_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX memory_importance_score_idx ON memory_importance(score);
+
+        CREATE TABLE memory_consolidations (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          slot_key TEXT NOT NULL CHECK (length(slot_key) BETWEEN 1 AND 200),
+          member_ids_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX memory_consolidations_slot_uq ON memory_consolidations(slot_key);
+      `)
+    }
   }
 ]
 

@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { SqliteDatabase } from '../../../src/persistence/database'
 import { MemoryService } from '../../../src/memory/memory-service'
+import { MemoryImportanceService } from '../../../src/memory/memory-importance'
 import { SqliteMemoryRepository } from '../../../src/persistence/memory-repository'
 import { ConversationService } from '../../../src/conversation/conversation-service'
 import { SqliteConversationRepository } from '../../../src/persistence/conversation-repository'
@@ -67,6 +68,7 @@ export interface Stack {
   reflection: ReflectionService
   growth: PersonalityGrowthService
   exploration: ExplorationService
+  importance: MemoryImportanceService
   close: () => void
 }
 
@@ -98,7 +100,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   // The event log is created first because MemoryService writes memory.* events
   // into it, and reflection reads exactly those events.
   const eventLog = new EventLogService(database)
-  const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog)
+  const memoryImportance = new MemoryImportanceService(database, clock)
+  const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance })
   const conversations = new ConversationService(new SqliteConversationRepository(database))
   const provider = new ScriptedProvider()
   const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
@@ -157,6 +160,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     reflection,
     growth,
     exploration,
+    importance: memoryImportance,
     close: () => {
       database.close()
       if (!options.keepDatabase) rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
@@ -528,6 +532,37 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
       return outcome('L14', [
         { name: '失败轮抛出错误而不是伪造回复', ok: failed, detail: 'threw' },
         { name: '失败后同一会话可恢复', ok: Boolean(recovered.assistantMessage.body), detail: recovered.assistantMessage.body.slice(0, 20) }
+      ])
+    }
+  },
+  {
+    id: 'L16',
+    name: '记忆重要度、衰减归档与合并',
+    run: async (stack) => {
+      const important = stack.memories.create('请记住，这很重要：我的护照放在书房抽屉里。', 'personal')
+      const chatter = stack.memories.create('今天路过一家咖啡店，随便聊聊。', 'normal')
+      const factA = stack.memories.create('我住在杭州。', 'personal')
+      const factB = stack.memories.create('现在我住在杭州。', 'personal')
+      // Backdate the chatter so decay has something old to act on.
+      stack.database.connection.prepare("UPDATE memories SET source_category = 'turn_derived_confirmed', updated_at = '2025-01-01T00:00:00.000Z' WHERE id = ?").run(chatter.id)
+      stack.importance.recomputeAll()
+      const importantScore = stack.importance.get(important.id)
+      const chatterScore = stack.importance.get(chatter.id)
+      const archived = stack.importance.archiveBelow(undefined, 180)
+      const groups = stack.importance.consolidate()
+      const group = groups.find((item) => item.memberIds.includes(factA.id))
+
+      const conversation = stack.companion.createConversation()
+      await send(stack, conversation.id, '我的护照放在哪里？')
+      const payload = systemText(stack.provider.lastPayload)
+
+      return outcome('L16', [
+        { name: '每条记忆都有重要度分数', ok: importantScore !== null && chatterScore !== null, detail: `${importantScore?.score ?? 'none'}/${chatterScore?.score ?? 'none'}` },
+        { name: '显式重要记忆分数高于闲聊', ok: (importantScore?.score ?? 0) > (chatterScore?.score ?? 1), detail: 'score compare' },
+        { name: '只归档低重要度且足够旧的记忆', ok: archived.includes(chatter.id) && !archived.includes(important.id) && !archived.includes(factA.id), detail: archived.length + ' archived' },
+        { name: '被归档的记忆不再进入 payload', ok: !payload.includes('咖啡店'), detail: 'text scan' },
+        { name: '受保护记忆仍可被检索', ok: payload.includes('护照'), detail: 'text scan' },
+        { name: '同一事实的两种说法被合并引用', ok: Boolean(group) && group!.memberIds.includes(factB.id), detail: group ? group.memberIds.length + ' members' : 'none' }
       ])
     }
   },

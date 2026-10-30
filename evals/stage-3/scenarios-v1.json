@@ -1,6 +1,6 @@
 {
-  "datasetVersion": "stage-3-v1.1",
-  "harnessVersion": "stage-3-runner-v2",
+  "datasetVersion": "stage-3-v1.2",
+  "harnessVersion": "stage-3-runner-v3",
   "provider": "scripted-offline",
   "note": "Each scenario is executed by evals/stage-3/runner/cli.ts against a temporary SQLite database and the real CompanionService. A scripted provider is used, so every assertion is about wiring, persistence and the serialized payload — never about model quality. L11 rebuilds the whole runtime on the same database file.",
   "scenarios": [
@@ -72,6 +72,12 @@
       "executable": true
     },
     {
+      "id": "L16",
+      "name": "记忆重要度、衰减归档与合并",
+      "requirement": "重要度可解释、衰减只归档不删除、同槽合并只引用不复制",
+      "executable": true
+    },
+    {
       "id": "L12",
       "name": "删除消息后派生数据不泄漏",
       "requirement": "删除级联无残留",
@@ -97,7 +103,7 @@
       "reason": "由 evals/stage-3/longitudinal/run.ts 独立执行"
     }
   ],
-  "denominator": 15,
+  "denominator": 16,
   "additionalHarnesses": {
     "restart": "npm run eval:stage3:restart",
     "longConversation": "npm run eval:stage3:long-conversation",

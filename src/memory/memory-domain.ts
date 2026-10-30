@@ -22,6 +22,12 @@ export interface MemoryRecord {
   revision: number
   confidence: number
   lastConfirmedAt: string | null
+  /**
+   * Set when importance decay pushed the memory out of retrieval competition.
+   * Not a user action: `retracted` means the user withdrew it, `archived` means
+   * time did. Archived memories stay readable and restorable.
+   */
+  archivedAt: string | null
 }
 
 export interface MemoryRevisionRecord {

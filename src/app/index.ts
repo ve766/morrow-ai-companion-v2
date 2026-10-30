@@ -7,6 +7,7 @@ import type { ProviderConsent, ProviderConsentPreview } from '../providers/provi
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
+import { MemoryImportanceService, ARCHIVE_THRESHOLD } from '../memory/memory-importance'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
@@ -187,7 +188,24 @@ if (hasSingleInstanceLock) {
     database = SqliteDatabase.open(databasePath)
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
-    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog)
+    // Stage 3 §2A: importance is recomputed on every memory change; decay only
+    // archives memories that are both low-importance and 180 days untouched, so
+    // a recently used memory is never pushed out by age alone.
+    const memoryImportance = new MemoryImportanceService(database)
+    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance })
+    // Consolidation and decay run at startup, not in the background: this build
+    // has no scheduler, and a silent timer touching memories would be worse than
+    // an explicit pass whose result is logged.
+    try {
+      memoryImportance.recomputeAll()
+      const groups = memoryImportance.consolidate()
+      const archived = memoryImportance.archiveBelow(ARCHIVE_THRESHOLD, 180)
+      if (groups.length > 0 || archived.length > 0) {
+        logger.debug('memory', 'importance pass', { groups: groups.length, archived: archived.length })
+      }
+    } catch {
+      console.warn('Memory importance could not be recomputed; stored memories are unaffected.')
+    }
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)

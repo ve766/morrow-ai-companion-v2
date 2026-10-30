@@ -167,3 +167,56 @@ unsuitable_turn = correction ∨ uncertainty='high' ∨ intent='correction'
 ## F1 兴趣归属
 
 `interests.origin ∈ {user, morrow, shared}`，默认 `user`。Morrow 的来源证据 `evidence_kind='reflection'`，引用反思 finding id，不引用用户消息。用户证据落在 `morrow` 话题上 → `shared`；反向不成立。
+
+
+---
+
+## M1 记忆重要度、衰减与合并（Issue §2A）
+
+**源码**：`src/memory/memory-importance.ts`
+**迁移**：31 `memory-importance-and-consolidation`
+**测试**：`src/memory/memory-importance.test.ts`（11 条）
+
+### 公式
+
+```
+I(m) = clip( .30·S + .25·U + .15·R + .10·G + .10·C + .10·T , 0, 1 )
+R    = 1 − e^(−n/3)            n = 独立提及次数（revision − 1）
+T    = 0.5^(age_days / 90)
+```
+
+| 符号 | 含义 | 取值 | 来源 |
+|---|---|---|---|
+| `S` | 来源可靠度 | 1.0 用户明确 / 0.7 已接受建议 / 0.5 回合推导 | `source_category` |
+| `U` | 显式重要性标记 | 0/1（记住/重要/务必/关键） | 记忆正文 |
+| `R` | 重复提及 | `[0,1)` | `revision` |
+| `G` | 与目标关联 | 0/1（目标/计划/打算） | 记忆正文 |
+| `C` | 曾被纠正 | 0/1 | `memory_revisions.change_type='corrected'` |
+| `T` | 时效 | `[0,1]`，半衰期 90 天 | `updated_at` |
+
+参数版本：`memory.importance.v1`，写入 `memory_importance.version`。
+
+### 更新规则
+
+1. 每次记忆创建/纠正/撤回/恢复后**重算**，不做增量累加，因此删除或纠正会自然收敛。
+2. 归档条件：`I < 0.35` **且** `updated_at` 早于 180 天 **且** 未受保护。
+3. **受保护**：`U=1` 或 `C=1` 或 `G=1` —— 时间不会让它们消失。
+4. 归档只写 `archived_at`，不改 `status`：`retracted` 是用户撤回，`archived` 是时间下沉，两者不可混。
+5. 检索侧过滤 `archived_at IS NULL`，因此归档记忆不再竞争 prompt 位置，但内容、修订与来源都保留，`restore()` 可恢复。
+
+### 合并（consolidation）
+
+同一 `(predicate, value)` 的多条记忆归为一组，写入 `memory_consolidations(slot_key, member_ids_json)`。
+**只存成员 id，不复制正文**；成员被撤回后下一次合并会自动把它从列表剔除。
+
+### 复杂度
+
+- 打分：`O(1)` + 一次修订计数查询。
+- `recomputeAll`：`O(M)`；`consolidate`：`O(M log M)`（分组排序）。
+- 均在启动期一次执行，不在聊天主链上。
+
+### 已知局限
+
+- 权重是手工设定的透明基线，**未做标注校准**，不宣称统计学习结果。
+- 归档策略只在启动期执行，没有后台调度器。
+- 合并只按 `fact-slot` 的谓词/值匹配，未覆盖自由文本主题。

@@ -79,3 +79,14 @@
 | 长对话 | `evals/stage-3/long-conversation/run.ts` | — | 30 轮 / 3 会话 | `long-conversation/results/*` |
 
 工程门槛：`tsc` 0 / `vitest` 82 文件 726 测试 / `build` 0 / 五个 eval 运行器退出码 0。
+
+
+## 7. 记忆生命周期（§2A）证据
+
+| 需求 | 源码 | 测试 | 评测 | 结果 |
+|---|---|---|---|---|
+| 重要度可解释 | `src/memory/memory-importance.ts`（M1 公式） | `memory-importance.test.ts`（11） | L16 | `results/*` |
+| 衰减只归档不删除 | `archiveBelow` + `memories.archived_at` | 归档/恢复/检索排除 3 条 | L16 | 同上 |
+| 同槽合并只引用 | `consolidate()` + `memory_consolidations` | 合并/撤回剔除 2 条 | L16 | 同上 |
+
+迁移：31。参数版本：`memory.importance.v1`。

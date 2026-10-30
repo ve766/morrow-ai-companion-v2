@@ -120,3 +120,22 @@ send()    → assistant 消息落库后 → hooks.settleExploration({turnId, out
 ### 6.3 人格证据来源可追溯
 
 `personality_growth_signals.source` 记录命中的规则名（如 `explicit_direct_request`），`personality_growth_events.reason` 里带同一来源，因此"为什么漂移"不需要重跑分析器。
+
+
+---
+
+## 7. 记忆生命周期（Issue §2A）
+
+```
+MemoryService.create/correct/retract/restore/confirm
+   └─ importance.onMemoryChanged(id)          ← 每次变更重算，不做增量
+        └─ scoreMemory(record, corrected, now) → memory_importance(score, components, version)
+
+启动期一次（无后台调度）：
+   recomputeAll() → consolidate() → archiveBelow(0.35, 180d)
+```
+
+- **归档不改状态**：只写 `memories.archived_at`，`status` 仍是 `active`；`retracted` 专指用户撤回。
+- **检索过滤**：`memory-context-assembler` 的候选集合加 `archived_at IS NULL`，归档记忆不进入 prompt 竞争。
+- **合并只引用**：`memory_consolidations` 存成员 id 列表，正文仍只有 `memories` 一份。
+- **恢复**：`importance.restore(id)` 清空 `archived_at`，内容与修订不变。

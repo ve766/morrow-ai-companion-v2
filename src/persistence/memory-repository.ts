@@ -15,6 +15,7 @@ interface MemoryRow {
   revision: number
   confidence: number
   last_confirmed_at: string | null
+  archived_at: string | null
 }
 
 interface RevisionRow {
@@ -54,7 +55,8 @@ function mapMemory(row: MemoryRow): MemoryRecord {
     updatedAt: row.updated_at,
     revision: row.revision,
     confidence: row.confidence,
-    lastConfirmedAt: row.last_confirmed_at
+    lastConfirmedAt: row.last_confirmed_at,
+    archivedAt: row.archived_at ?? null
   }
 }
 

@@ -72,12 +72,15 @@ export class MemoryService {
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID(),
     private readonly events?: MemoryEventSink,
-    options: { useContextUtility?: boolean } = {}
+    options: { useContextUtility?: boolean; importance?: import('./memory-importance').MemoryImportancePort } = {}
   ) {
+    this.importance = options.importance
     this.contextAssembler = new MemoryContextAssembler(
       options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }
     )
   }
+
+  private readonly importance: import('./memory-importance').MemoryImportancePort | undefined
 
   create(content: string, sensitivity: MemoryRecord['sensitivity'] = 'personal', options: MemoryCreateOptions = {}): MemoryRecord {
     validateMemoryText(content)
@@ -108,6 +111,7 @@ export class MemoryService {
       sourceCategory,
       status: 'active',
       sensitivity,
+      archivedAt: null,
       createdAt: timestamp,
       updatedAt: timestamp,
       revision: 1,
@@ -115,6 +119,7 @@ export class MemoryService {
       lastConfirmedAt: timestamp
     }
     this.repository.create(record, this.revision(record, 'created', null))
+    this.importance?.onMemoryChanged(record.id)
     this.recordEvent(sourceCategory === MEMORY_SOURCE_CATEGORY ? 'memory.created' : 'memory.created_inferred', record, options.correlationId, { confidence, sensitivity })
     return record
   }
@@ -238,6 +243,9 @@ export class MemoryService {
     const revision = this.revision(updated, changeType, current.revision)
     this.repository.transition(current.revision, updated, revision)
     this.recordEvent(`memory.${changeType}`, updated, correlationId, { revision: updated.revision })
+    // Importance is recomputed from the new revision set, never incremented, so
+    // a correction raises it and a retraction cannot leave a stale high score.
+    this.importance?.onMemoryChanged(updated.id)
     return updated
   }
 

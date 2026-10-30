@@ -14,6 +14,7 @@ const initial: MemoryRecord = {
   currentText: 'The user explicitly entered the original note.',
   sourceCategory: 'user_explicit_input',
   status: 'active',
+  archivedAt: null,
   sensitivity: 'personal',
   createdAt: '2026-10-22T01:00:00.000Z',
   updatedAt: '2026-10-22T01:00:00.000Z',
