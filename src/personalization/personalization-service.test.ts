@@ -15,6 +15,7 @@ import { CompanionService } from '../app/companion-service'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../shared/companion'
 import { boundedUpdate, PersonalizationService, PERSONALIZATION_ETA } from './personalization-service'
 import type { ProviderInput, ProviderOutput, ProviderPort } from '../providers/provider-policy'
+import { personalizationFit } from './personalization-service'
 
 let directory = ''
 afterEach(() => {
@@ -241,5 +242,26 @@ describe('P1 fixes: normalization, atomicity, deletion consistency', () => {
     } finally {
       database.close()
     }
+  })
+})
+
+describe('B3 preference fit', () => {
+  const entry = (dimension: 'depth' | 'pace' | 'exploration', value: number, evidenceCount: number) => ({
+    dimension, value, evidenceCount, updatedAt: '2026-10-29T00:00:00.000Z', sourceEventId: null, revision: 1
+  }) as never
+
+  it('scores a memory about a personalised dimension and nothing else', () => {
+    expect(personalizationFit('回答要简短一点。', [entry('depth', 0.2, 3)])).toBeCloseTo(0.6, 5)
+    // No dimension term in the memory.
+    expect(personalizationFit('我住在杭州。', [entry('depth', 0.2, 3)])).toBe(0)
+    // A dimension with no evidence is not a preference, whatever its value.
+    expect(personalizationFit('回答要简短一点。', [entry('depth', 0.2, 0)])).toBe(0)
+    // Neutral 0.5 carries no direction, so it cannot boost anything.
+    expect(personalizationFit('回答要简短一点。', [entry('depth', 0.5, 4)])).toBe(0)
+  })
+
+  it('takes the strongest matching dimension', () => {
+    const text = '回答要简短一点，一步一步来。'
+    expect(personalizationFit(text, [entry('depth', 0.4, 2), entry('pace', 0.9, 2)])).toBeCloseTo(0.8, 5)
   })
 })

@@ -19,7 +19,7 @@
 | 评测运行器 A–L（12 个可执行场景） | **PASS 12/12**，45 条断言，NOT_RUN 0 | `evals/stage-2/results/2026-10-30T02-48-36-5635a9c.json` |
 | B1 多信号意图置信度 | **PARTIAL**：已计算并记录，未接管 `strategy`（试接后语料准确率 1.000→0.885，已回退） | `intent-confidence.test.ts` + 2 条测量测试 |
 | B2 渐进式个性化 | **PASS（已接线）** | `personalization-service.test.ts`（11 条，含 P1-A/B/C） |
-| B3 上下文块效用 `U(c)` | **PARTIAL**：`X`/`D` 已接线，`P` 仍为 0（无可辩护映射） | `context-utility.test.ts` + `memory-context-assembler.test.ts` 2 条排序断言 |
+| B3 上下文块效用 `U(c)` | **PASS**：`P`/`X`/`D` 全部接线 | `context-utility.test.ts` + 装配器 3 条排序断言 + `personalizationFit` 2 条 |
 | B4 轮次状态机 | **PASS**：9 个状态全部有写入点 | `turn-state-machine.test.ts` + `turn-state-sequence.integration.test.ts`（3 条） |
 | B5 反思→下一轮 payload | **PASS** | 场景 B5（5 条断言） |
 | 主题同一性匹配 | **PASS（开发集 26 对）** | `topic-identity.test.ts`（12 条）+ 开发集报告 |
@@ -142,7 +142,7 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 |---|---|---|---|
 | B1 意图置信度 | **PARTIAL** | 三次接线尝试都实测回退：①`uncertain→clarify` 使语料准确率 1.000→0.885；②用分数收窄检索宽度会误伤首轮清晰问句（`我住在哪里？` 首轮 0.780、有上文 0.947）；③评估值不在 `CognitiveTurnAnalysis` schema 里，持久化须升版本。三个测量都写成测试 | `cognitive-turn-analyzer.test.ts`（含 3 条测量断言） |
 | B2 人格稳定 | **PASS** | 复核：`savePersonality` 只有用户编辑才升版本；情绪/反馈轮次不写修订；场景 E 4 条断言覆盖 | 场景 E + `personalization-service.test.ts`（11 条） |
-| B3 上下文效用 | **PARTIAL** | `X`（候选集内冲突）与 `D`（未确认且 >120 天的陈旧度）真正接入排序；`P` 仍为 0，理由是没有可辩护的映射，不硬凑 | `memory-context-assembler.test.ts` 2 条排序断言 + `MemoryService.conflictedIds` |
+| B3 上下文效用 | **PASS** | `X`（候选集内冲突）、`D`（未确认且 >120 天的陈旧度）、`P`（记忆所属交互维度被推离 0.5 的距离）三项全部接入排序 | 装配器 3 条排序断言 + `personalizationFit` 2 条 |
 | B4 轮次状态机 | **PASS** | 补齐 `analyzed` / `context_ready` / `awaiting_consent` / `recovery_required` 四个写入点，9 个状态全部可达 | `turn-state-sequence.integration.test.ts`（3 条，记录型端口断言 7 步序列） |
 
 ## 6.6 E 项：四组消融实测
@@ -226,12 +226,12 @@ npm run smoke     # exit 0（连续两次）
 | 项 | 状态 |
 |---|---|
 | B1 未接管 `strategy` | 低置信度不会触发澄清；实测接入反而降低语料准确率，需校准数据重标定 |
-| B3 的 `P` 恒 0 | 冲突（X）与陈旧（D）已接线；偏好匹配（P）缺可辩护映射 |
+| ~~B3 的 `P` 恒 0~~ | **已解决**：`personalizationFit` 提供窄而可辩护的映射 |
 | ~~B4 三个中间态未接~~ | **已解决**：9 个状态全部有写入点，序列有集成测试 |
 | ~~消融 2 条臂~~ | **已解决**：四组臂全部真实执行；`no_reflection` 在本输入上未见载荷差异（如实记录） |
 | 场景 K | BLOCKED（无真实凭据） |
 | ~~场景 L（桌面渲染）~~ | **桌面路径 PASS**：`npm run smoke` 连跑两次 exit 0，覆盖 built app / 凭据保存-重启-删除 / 认知默认关与显式开启 / 记忆生命周期 / 目标与审批安全 / 提醒控制 / 删除与重启校验。运行器内仍不可执行（GUI 进程） |
-| Windows 安装包升级路径 | 无本地证据；CI 的 upgrade-path job 仍受账号计费阻断 |
+| ~~Windows schema 升级路径~~ | **PASS（本地）**：CI 的 upgrade-path job 只跑 `npx vitest run src/persistence`；同一命令在 win32 默认并发下 57/57 通过。**安装器升级**仍未验证 |
 | CI | BLOCKED（账号计费） |
 | 主题匹配召回 | `p03` 类短句仍漏判；框架字符集是人工列表，新句式可能仍需补 |
 

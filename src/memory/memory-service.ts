@@ -180,12 +180,22 @@ export class MemoryService {
     return this.repository.search(query.trim())
   }
 
-  assembleContext(query: string, maximumSensitivity: Sensitivity, policy?: RetrievalPolicy, presentation: EvidencePresentation = 'json'): AssembledMemoryContext {
+  assembleContext(
+    query: string,
+    maximumSensitivity: Sensitivity,
+    policy?: RetrievalPolicy,
+    presentation: EvidencePresentation = 'json',
+    preferenceFor?: (record: MemoryRecord) => number
+  ): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
     const records = this.repository.listActiveForContext(1000)
     // Conflict risk is a property of the candidate set, so it is computed once
     // here and handed to the ranking instead of being re-derived per record.
-    return this.contextAssembler.assemble(query, records, maximumSensitivity, undefined, undefined, undefined, policy, presentation, this.conflictedIds(records))
+    return this.contextAssembler.assemble(
+      query, records, maximumSensitivity, undefined, undefined, undefined, policy, presentation,
+      this.conflictedIds(records),
+      preferenceFor
+    )
   }
 
   history(id: string): MemoryRevisionRecord[] {

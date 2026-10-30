@@ -106,3 +106,22 @@ describe('context utility: conflict and staleness reach the ranking', () => {
     expect(assembled.selected.map((item) => item.id)).toEqual([confirmed.id, stale.id])
   })
 })
+
+describe('context utility: preference fit reaches the ranking', () => {
+  const now = '2026-10-29T00:00:00.000Z'
+
+  it('promotes a memory that is about a dimension the user personalised', () => {
+    const aboutDepth = memory('11111111-1111-4111-8111-000000000911', '回答要简短一点。', 'personal')
+    const unrelated = memory('11111111-1111-4111-8111-000000000912', '回答要简短一点。', 'personal')
+
+    const tied = assembler.assemble('回答', [aboutDepth, unrelated], 'personal', 25, 3000, now)
+    expect(new Set(tied.selected.map((item) => item.id))).toEqual(new Set([aboutDepth.id, unrelated.id]))
+
+    // P is supplied by PersonalizationService.personalizationFit; only one of the
+    // two records is treated as being about the personalised dimension.
+    const ranked = assembler.assemble('回答', [aboutDepth, unrelated], 'personal', 25, 3000, now, undefined, 'json',
+      undefined,
+      (record) => (record.id === aboutDepth.id ? 0.6 : 0))
+    expect(ranked.selected.map((item) => item.id)).toEqual([aboutDepth.id, unrelated.id])
+  })
+})

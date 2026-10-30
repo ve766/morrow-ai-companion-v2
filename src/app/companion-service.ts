@@ -53,7 +53,8 @@ import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-se
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
-import type { PersonalizationService, PersonalizationSignal } from '../personalization/personalization-service'
+import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
+import type { MemoryRecord } from '../memory/memory-domain'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
@@ -720,6 +721,18 @@ export class CompanionService {
     }
     const hooks: SelfModelLoopHooks | undefined = selfModelLoop
       ? {
+          ...(selfModelLoop.personalization
+            ? {
+                preferenceFor: (record: MemoryRecord) => {
+                  try {
+                    const entries = selfModelLoop.personalization!.list()
+                    return entries.some((entry) => entry.evidenceCount > 0) ? personalizationFit(record.currentText, entries) : 0
+                  } catch {
+                    return 0
+                  }
+                }
+              }
+            : {}),
           contextBlock: () => {
             try {
               return buildSelfModelContextBlock(selfModelLoop)
@@ -859,6 +872,11 @@ export class CompanionService {
 }
 
 export interface SelfModelLoopHooks {
+  /**
+   * B3's P term: how much a saved memory is about a dimension the user has
+   * personalised. Absent when personalization is not wired.
+   */
+  preferenceFor?(record: MemoryRecord): number
   /** Bounded context block describing long-term interests and unverified self-knowledge. */
   contextBlock(): string
   /** Called once per completed turn; must never throw into the chat path. */
@@ -1341,7 +1359,7 @@ export class ChatService {
         // amount; neither can widen permission, status or sensitivity, which
         // are applied inside the assembler.
         retrieval = adjustPolicyForState(policyForIntent(decision.intent), previousFeelingState)
-        memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation)
+        memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation, this.selfModel?.preferenceFor)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         if (stateView.available) {

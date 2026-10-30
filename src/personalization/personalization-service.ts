@@ -71,6 +71,40 @@ function round(value: number): number {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
+/**
+ * Terms that mark a saved memory as being *about* one interaction dimension.
+ *
+ * B3's `P` term is "preference/personality fit". Without a mapping from a fact to
+ * a preference, that term can only be faked, so the mapping is deliberately
+ * narrow: a memory that explicitly talks about length/depth, pacing or breadth is
+ * the kind of fact a personalised dimension should promote. Anything else gets 0.
+ */
+const DIMENSION_TERMS: Readonly<Record<PersonalizationDimension, readonly string[]>> = Object.freeze({
+  depth: Object.freeze(['详细', '简洁', '简短', '深入', '细节', '说短', '说长', 'detail', 'concise', 'brief', 'elaborate']),
+  pace: Object.freeze(['一步一步', '节奏', '慢一点', '快一点', '别急', 'pace', 'step by step', 'slower', 'faster']),
+  exploration: Object.freeze(['多给几个', '几个方案', '选项', '发散', '探索', 'brainstorm', 'options', 'alternatives', 'explore'])
+})
+
+/**
+ * How much a memory is about a dimension the user has actually personalised.
+ *
+ * Returns 0 when the memory names no dimension term, and 0 when the dimension
+ * has no evidence (an untouched 0.5 is not a preference). Otherwise the value is
+ * the distance from the neutral baseline, scaled to [0, 1] — a dimension the user
+ * pushed hard to one side boosts its related memories most.
+ */
+export function personalizationFit(text: string, entries: readonly PersonalizationEntry[]): number {
+  const normalized = text.toLowerCase()
+  let best = 0
+  for (const entry of entries) {
+    if (entry.evidenceCount <= 0) continue
+    const terms = DIMENSION_TERMS[entry.dimension]
+    if (!terms.some((term) => normalized.includes(term))) continue
+    best = Math.max(best, Math.min(1, Math.abs(entry.value - 0.5) * 2))
+  }
+  return best
+}
+
 export class PersonalizationService {
   constructor(private readonly database: SqliteDatabase, private readonly clock: () => string = () => new Date().toISOString()) {}
 

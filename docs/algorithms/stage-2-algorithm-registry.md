@@ -209,7 +209,7 @@
 
 接入检索宽度这条试过并回退了：规则是"弱读少召回"，但探索型请求天然低分（0.79 左右），会把用户明确要求广度的轮次收窄——第一次实现让 `cognitive-continuity-phase24` 的探索加宽测试从 5 条掉到 3 条。改为排除探索意图后仍不成立：首轮清晰问句照样被收窄。**结论：在分数具备区分度之前，B1 不接线。** |
 | B2 人格稳定 | **PASS（已接线）** | `personalization-service.ts`、迁移 22；`savePersonality` 只有用户编辑才升版本 | 场景 E 4 条断言：4 轮情绪/反馈后版本与数值不变、无静默修订、载荷文案逐轮一致；`personalization-service.test.ts` 11 条含撤回重算 |
-| B3 上下文效用 | **PARTIAL（X/D 已接线，P 仍为 0）** | `memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds` | **X**：候选集内措辞重叠 → 冲突记录排到同分记录之后（`memory-context-assembler.test.ts` 2 条）。**D**：未确认且超过 `STALE_UNCONFIRMED_DAYS=120` 的陈旧度按线性计入。**P 仍为 0**：个性化向量是有界交互风格（warmth/directness…），与"事实偏好"之间没有可辩护的映射，硬凑等于编造 |
+| B3 上下文效用 | **PASS（P/X/D 全部接线）** | `memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds` | **X**：候选集内措辞重叠 → 冲突记录排到同分记录之后（`memory-context-assembler.test.ts` 2 条）。**D**：未确认且超过 `STALE_UNCONFIRMED_DAYS=120` 的陈旧度按线性计入。**P 已接线**：`PersonalizationService.personalizationFit` 把"记忆是否在讲某个交互维度"（depth/pace/exploration 的关键词）与"该维度被用户推离 0.5 的距离"结合，得到 [0,1] 的偏好吻合度；没提到任何维度的记忆恒为 0，没有证据的维度也恒为 0（未动的 0.5 不是偏好） |
 | B4 轮次状态机 | **PASS（9 个状态全部有写入点）** | `companion-service.ts` `recordTurnState` 调用点；`turn-state-machine.ts` 转换表 | 新增 `analyzed`（分析完成）、`context_ready`（载荷已组装）、`awaiting_consent`（等待授权）、`recovery_required`（中断恢复）。`turn-state-sequence.integration.test.ts` 用记录型端口断言成功轮次的完整序列（7 步）与失败轮次止于 `failed`；`recovery_required` 的两条入边另有断言 |
 
 ---

@@ -116,12 +116,17 @@ export const STALE_UNCONFIRMED_DAYS = 120
  *   - D grows linearly from 0 at `STALE_UNCONFIRMED_DAYS` to 1 at twice that,
  *     and only for records that were never confirmed by the user.
  *
- * `preference` stays 0: there is no per-memory preference signal to read. The
- * personalization vector is a bounded interaction style (warmth/directness/…),
- * and scoring a fact against it would be inventing a mapping that does not
- * exist. Recorded as PARTIAL in the algorithm registry rather than faked.
+ * `preference` comes from `PersonalizationService.personalizationFit`: a memory
+ * that explicitly talks about depth/pacing/breadth is promoted in proportion to
+ * how far the user has pushed that dimension from the neutral 0.5. A memory that
+ * names no dimension keeps 0 — the term never invents a preference.
  */
-function rankScore(item: { record: MemoryRecord; score: number }, now: string, conflictedIds?: ReadonlySet<string>): number {
+function rankScore(
+  item: { record: MemoryRecord; score: number },
+  now: string,
+  conflictedIds?: ReadonlySet<string>,
+  preferenceFor?: (record: MemoryRecord) => number
+): number {
   const reference = item.record.lastConfirmedAt ?? item.record.updatedAt
   const ageDays = (Date.parse(now) - Date.parse(reference)) / 86_400_000
   const stale = item.record.lastConfirmedAt === null && Number.isFinite(ageDays) && ageDays > STALE_UNCONFIRMED_DAYS
@@ -131,7 +136,7 @@ function rankScore(item: { record: MemoryRecord; score: number }, now: string, c
     relevance: item.score,
     freshness: freshnessOf(reference, now),
     quality: (item.record.confidence / 100) * (item.record.sourceCategory === 'user_explicit_input' ? 1 : 0.5),
-    preference: 0,
+    preference: preferenceFor ? preferenceFor(item.record) : 0,
     conflict: conflictedIds?.has(item.record.id) ? 1 : 0,
     stale
   }).score
@@ -155,7 +160,9 @@ export class MemoryContextAssembler {
     policy?: RetrievalPolicy,
     presentation: EvidencePresentation = 'json',
     /** Ids whose wording competes with another candidate; drives the X term. */
-    conflictedIds?: ReadonlySet<string>
+    conflictedIds?: ReadonlySet<string>,
+    /** Preference fit for the P term; 0 when absent. */
+    preferenceFor?: (record: MemoryRecord) => number
   ): AssembledMemoryContext {
     const queryTerms = queryTermsOf(query)
     const phrase = normalize(query).trim()
@@ -210,7 +217,7 @@ export class MemoryContextAssembler {
         ? right.score - left.score ||
           right.record.updatedAt.localeCompare(left.record.updatedAt) ||
           left.record.id.localeCompare(right.record.id)
-        : rankScore(right, now, conflictedIds) - rankScore(left, now, conflictedIds) ||
+        : rankScore(right, now, conflictedIds, preferenceFor) - rankScore(left, now, conflictedIds, preferenceFor) ||
           right.record.updatedAt.localeCompare(left.record.updatedAt) ||
           left.record.id.localeCompare(right.record.id))
 
