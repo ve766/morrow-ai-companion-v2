@@ -25,7 +25,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import type { SqliteDatabase } from '../persistence/database'
-import type { CognitiveTurnAnalysis } from '../cognition/cognition'
+import { stripQuotedAndReportedText, type CognitiveTurnAnalysis } from '../cognition/cognition'
 import type { PersonalizationEntry } from './personalization-service'
 
 export const GROWTH_DIMENSIONS = ['warmth', 'directness', 'humor'] as const
@@ -50,6 +50,8 @@ export interface GrowthSignalInput {
   weight: number
   turnId: string
   at: string
+  /** The rule that produced this evidence; stored so a movement is explainable. */
+  source?: string
 }
 
 export interface GrowthEntry {
@@ -128,46 +130,70 @@ export function foldGrowth(
 }
 
 /**
- * Derives at most one signal per dimension from one analysed turn.
+ * One explicit style directive, as a rule.
  *
- * The mapping is intentionally narrow: it only fires on signals the analyzer
- * actually records, and it never treats a single turn as a strong statement. The
- * weight is the analyzer's own (uncalibrated) confidence, halved, so no rule can
- * claim more reliability than the analysis it came from.
+ * Only *explicit* statements about how the user wants Morrow to sound count.
+ * Corrections, memory requests and exploration permissions are deliberately not
+ * used: they describe the content or the workflow of a turn, not a stable style,
+ * and treating them as personality evidence was the bias this table replaces.
+ */
+interface StyleRule {
+  dimension: GrowthDimension
+  /** Signed contribution before the reliability weight is applied. */
+  signal: number
+  /** Reliability of an explicit statement. */
+  weight: number
+  pattern: RegExp
+  source: string
+}
+
+const STYLE_RULES: readonly StyleRule[] = Object.freeze([
+  { dimension: 'directness', signal: 0.8, weight: 0.8, source: 'explicit_direct_request', pattern: /(?:直接(?:一点|说|点)|别绕|直白|说重点|别铺垫|开门见山|\bget to the point\b|\bjust tell me\b)/iu },
+  { dimension: 'directness', signal: -0.8, weight: 0.8, source: 'explicit_soft_request', pattern: /(?:委婉|别这么直接|别太冲|温和一点|说软一点|别那么生硬|\bsofter\b|\bmore tactful\b)/iu },
+  { dimension: 'warmth', signal: 0.7, weight: 0.7, source: 'explicit_warmth_request', pattern: /(?:温柔|多关心我|暖一点|多陪陪我|抱抱|体贴一点|\bbe warmer\b)/iu },
+  { dimension: 'warmth', signal: -0.7, weight: 0.7, source: 'explicit_warmth_reduction', pattern: /(?:别煽情|别肉麻|别腻|冷一点|别关心我|保持距离|\bdon't be so affectionate\b)/iu },
+  { dimension: 'humor', signal: 0.7, weight: 0.7, source: 'explicit_humor_request', pattern: /(?:幽默|开个玩笑|轻松点|逗我|别太严肃|\bmake me laugh\b|\bbe playful\b)/iu },
+  { dimension: 'humor', signal: -0.7, weight: 0.7, source: 'explicit_humor_reduction', pattern: /(?:严肃点|别开玩笑|别说笑|正经点|别贫|\bbe serious\b)/iu }
+])
+
+/**
+ * Derives at most one signal per dimension from one user turn.
+ *
+ * Rules:
+ *   - only an explicit style directive counts (see `STYLE_RULES`);
+ *   - a turn whose intent reading is `high` uncertainty contributes nothing —
+ *     an ambiguous message is not a style statement;
+ *   - at most one signal per dimension per turn, so a message that mentions the
+ *     same preference twice cannot double count;
+ *   - a directive that contradicts an earlier one arrives as the opposite sign,
+ *     which is the counter-evidence the fold needs.
+ *
+ * Returns the matched rule as `source` so a movement can be explained later
+ * without re-running the analyser.
  */
 export function deriveGrowthSignals(input: {
   analysis: CognitiveTurnAnalysis | undefined
+  /** The user's own words for this turn. Required: style is stated, not inferred. */
+  content?: string
   personalization?: readonly PersonalizationEntry[]
-}): Array<{ dimension: GrowthDimension; signal: number; weight: number }> {
+}): Array<{ dimension: GrowthDimension; signal: number; weight: number; source: string }> {
   const analysis = input.analysis
-  if (!analysis) return []
-  const confidence = clamp(analysis.confidenceScore / 100, 0, 1)
-  const weight = round(clamp(confidence * 0.5, 0, 1))
-  const signals: Array<{ dimension: GrowthDimension; signal: number; weight: number }> = []
-  const flags = analysis.signals
+  const content = input.content
+  if (!analysis || typeof content !== 'string' || content.trim().length === 0) return []
+  // Quoted or reported speech is not the user's own directive: `他说"直接说重点"`
+  // describes someone else's preference. The same stripping the analyzer uses is
+  // applied here before matching.
+  const own = stripQuotedAndReportedText(content)
+  if (own.trim().length === 0) return []
 
-  // Directness: the user correcting the assistant, or restating a constraint, is
-  // evidence that a plain answer is wanted. Negation alone is not — it describes
-  // the topic, not the preferred style.
-  if (flags.correction || flags.changedMind) {
-    signals.push({ dimension: 'directness', signal: 0.6, weight })
-  } else if (flags.explicitConstraint) {
-    signals.push({ dimension: 'directness', signal: 0.3, weight })
+  const signals: Array<{ dimension: GrowthDimension; signal: number; weight: number; source: string }> = []
+  const seen = new Set<GrowthDimension>()
+  for (const rule of STYLE_RULES) {
+    if (seen.has(rule.dimension)) continue
+    if (!rule.pattern.test(own)) continue
+    seen.add(rule.dimension)
+    signals.push({ dimension: rule.dimension, signal: rule.signal, weight: rule.weight, source: rule.source })
   }
-
-  // Warmth: continuity work (remembering, being asked to remember) is the only
-  // reliable warmth signal the rules produce. An explicit self-fact is not.
-  if (flags.explicitMemoryRequest || flags.explicitMemorySaveRequest) {
-    signals.push({ dimension: 'warmth', signal: 0.4, weight })
-  }
-
-  // Humor: only a learned preference for breadth counts, and only when the
-  // personalization layer has actual evidence for it.
-  const exploration = input.personalization?.find((entry) => entry.dimension === 'exploration')
-  if (exploration && exploration.evidenceCount > 0 && exploration.value > 0.55) {
-    signals.push({ dimension: 'humor', signal: 0.3, weight })
-  }
-
   return signals
 }
 
@@ -239,10 +265,10 @@ export class PersonalityGrowthService {
     this.database.connection.exec('BEGIN IMMEDIATE')
     try {
       this.database.connection.prepare(`
-        INSERT INTO personality_growth_signals(dimension, turn_id, signal, weight, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO personality_growth_signals(dimension, turn_id, signal, weight, created_at, source)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(dimension, turn_id) DO NOTHING
-      `).run(input.dimension, turnId, signal, weight, input.at)
+      `).run(input.dimension, turnId, signal, weight, input.at, (input.source ?? 'unspecified').slice(0, 64))
       const after = this.fold(input.dimension)
       this.writeState(after, input.at, { bumpRevision: true })
       this.recordEvent({
@@ -252,7 +278,7 @@ export class PersonalityGrowthService {
         after: after.offset,
         evidenceCount: after.evidenceCount,
         reason: after.applied
-          ? `signal ${signal} at weight ${weight}`
+          ? `${input.source ?? 'unspecified'}: signal ${signal} at weight ${weight}`
           : `evidence below gate (${after.evidenceCount}/${GROWTH_MIN_EVIDENCE})`,
         at: input.at
       })

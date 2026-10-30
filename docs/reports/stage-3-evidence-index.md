@@ -61,3 +61,21 @@
 | Electron smoke | BLOCKED | 本机渲染进程沙箱初始化崩溃（0x80000003），阶段二已两次证伪为环境问题 |
 | Windows 安装器升级 | BLOCKED | 无干净授权机器 |
 | CI | BLOCKED | 账号侧 `runner_id=0 / steps=0` |
+
+
+---
+
+## 6. 后续修复（Issue #20）的证据索引
+
+| 需求 | 源码 | 测试 | 评测 | 结果文件 |
+|---|---|---|---|---|
+| F1 兴趣归属分离 | `self-model/self-model-domain.ts`、`interest-service.ts`、`app/companion-service.ts` | `interest-evidence.test.ts`、`exploration-policy.test.ts` | L5 | `evals/stage-3/results/*` |
+| F2 探索生命周期 | `self-model/exploration-policy.ts`、`app/companion-service.ts` | `exploration-policy.test.ts`（15） | L5、纵向 | `results/*`、`longitudinal/results/*` |
+| F3 L5 重写 | `evals/stage-3/runner/harness.ts` | — | L5 | `results/*` |
+| F4 人格双向证据 | `personalization/personality-growth.ts` | `personality-growth.test.ts`（18） | L4 + 消融 | `results/*`、`ablation/results/*` |
+| F5 真实重启 | `evals/stage-3/restart/run.ts` | — | restart | `restart/results/*` |
+| F6 注入时钟 | `evals/stage-3/longitudinal/run.ts` | — | 纵向 | `longitudinal/results/*` |
+| F7 L6 降级 | `evals/stage-3/runner/harness.ts` | — | L6 | `results/*` |
+| 长对话 | `evals/stage-3/long-conversation/run.ts` | — | 30 轮 / 3 会话 | `long-conversation/results/*` |
+
+工程门槛：`tsc` 0 / `vitest` 82 文件 726 测试 / `build` 0 / 五个 eval 运行器退出码 0。

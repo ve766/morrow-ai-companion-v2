@@ -25,7 +25,7 @@ export interface InterestEvidenceRow {
   interestId: string
   /** Message id, memory id, or a synthetic id for rows migrated from the old aggregate. */
   ref: string
-  kind: 'message' | 'memory' | 'legacy'
+  kind: 'message' | 'memory' | 'legacy' | 'reflection'
   conversationId: string
   polarity: 'support' | 'counter'
   score: number
@@ -73,16 +73,25 @@ export interface InterestObservation {
   messageId: string
   occurredAt: string
   topicText: string
-  /** Defaults to 'message'; reflection passes 'memory'. */
-  evidenceKind?: 'message' | 'memory'
+  /** Defaults to 'message'; reflection passes 'memory' or 'reflection'. */
+  evidenceKind?: 'message' | 'memory' | 'reflection'
   /** Revision of the memory that was observed; required to age out corrections. */
   evidenceRevision?: number
+  /**
+   * Whose observation this is. Defaults to `user`.
+   *
+   * `morrow` is only ever passed by Morrow's own reflection path. It is what
+   * keeps "the user talks about X a lot" from silently becoming "Morrow is
+   * interested in X".
+   */
+  origin?: 'user' | 'morrow'
 }
 
 interface InterestRow {
   id: string
   label: string
   status: string
+  origin: string
   evidence_count: number
   conversation_count: number
   strength: number
@@ -118,17 +127,17 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
 
   create(record: InterestRecord): void {
     this.database.connection.prepare(`
-      INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, profile_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(record.id, record.label, record.status, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.sourceMessageId, record.conversationId, record.firstSeenAt, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null))
+      INSERT INTO interests(id, label, status, origin, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, profile_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(record.id, record.label, record.status, record.origin, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.sourceMessageId, record.conversationId, record.firstSeenAt, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null))
   }
 
   update(record: InterestRecord): void {
     this.database.connection.prepare(`
       UPDATE interests
-      SET status = ?, evidence_count = ?, conversation_count = ?, strength = ?, confidence = ?, last_seen_at = ?, updated_at = ?, terms_json = ?, profile_json = ?
+      SET status = ?, origin = ?, evidence_count = ?, conversation_count = ?, strength = ?, confidence = ?, last_seen_at = ?, updated_at = ?, terms_json = ?, profile_json = ?
       WHERE id = ?
-    `).run(record.status, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null), record.id)
+    `).run(record.status, record.origin, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null), record.id)
   }
 
   delete(interestId: string): void {
@@ -198,6 +207,7 @@ function mapInterest(row: InterestRow): InterestRecord {
     id: row.id,
     label: row.label,
     status: row.status as InterestStatus,
+    origin: row.origin as InterestRecord['origin'],
     evidenceCount: row.evidence_count,
     conversationCount: row.conversation_count,
     strength: row.strength,
@@ -291,6 +301,22 @@ export class InterestService {
       .slice(0, limit)
   }
 
+  /**
+   * Records a topic Morrow chose to pursue, from her own reflection or an
+   * unresolved question. The evidence is cited by finding id with kind
+   * `reflection`, so it can never be mistaken for something the user said.
+   */
+  observeMorrow(input: { conversationId: string; findingId: string; occurredAt: string; topicText: string }): InterestRecord | null {
+    return this.observe({
+      conversationId: input.conversationId,
+      messageId: input.findingId,
+      occurredAt: input.occurredAt,
+      topicText: input.topicText,
+      evidenceKind: 'reflection',
+      origin: 'morrow'
+    })
+  }
+
   observe(observation: InterestObservation): InterestRecord | null {
     const run = this.repository.transaction
       ? this.repository.transaction.bind(this.repository)
@@ -379,6 +405,7 @@ export class InterestService {
       id: this.makeId().toLowerCase(),
       label: uniqueLabel,
       status: 'candidate',
+      origin: observation.origin === 'morrow' ? 'morrow' : 'user',
       evidenceCount: 1,
       conversationCount: 1,
       strength: computeInterestStrength(1, 1, 0),
@@ -418,7 +445,7 @@ export class InterestService {
   private applySupport(
     existing: InterestRecord,
     observation: InterestObservation,
-    kind: 'message' | 'memory',
+    kind: 'message' | 'memory' | 'reflection',
     profile: TopicProfile,
     terms: string[],
     match: TopicMatch,
@@ -443,8 +470,15 @@ export class InterestService {
     // candidate only becomes active through the documented threshold.
     let status = evaluation.status
     if (existing.status === 'archived' && existing.conversationId !== observation.conversationId) status = 'candidate'
+    // User evidence on a topic Morrow owns makes it shared; Morrow's own evidence
+    // on a user topic does not. The two claims stay distinguishable instead of
+    // one silently becoming the other.
+    const origin: InterestRecord['origin'] = observation.origin === 'morrow'
+      ? existing.origin
+      : existing.origin === 'morrow' ? 'shared' : existing.origin
     const updated: InterestRecord = {
       ...existing,
+      origin,
       evidenceCount: evaluation.evidenceCount,
       conversationCount: evaluation.conversationCount,
       strength: evaluation.strength,

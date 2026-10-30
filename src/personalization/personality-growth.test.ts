@@ -149,25 +149,40 @@ describe('effective personality', () => {
 })
 
 describe('growth evidence derivation', () => {
-  it('derives nothing without an analysis', () => {
+  it('derives nothing without an analysis or without the user text', () => {
     expect(deriveGrowthSignals({ analysis: undefined })).toEqual([])
+    expect(deriveGrowthSignals({ analysis: analysis(), content: '' })).toEqual([])
   })
 
-  it('treats a correction as directness evidence and halves the analyzer confidence', () => {
-    const signals = deriveGrowthSignals({ analysis: analysis({ correction: true }, 80) })
+  it('reads an explicit style directive as evidence for that dimension only', () => {
+    const signals = deriveGrowthSignals({ analysis: analysis(), content: '以后直接说重点，别铺垫。' })
     expect(signals).toHaveLength(1)
     expect(signals[0]!.dimension).toBe('directness')
-    expect(signals[0]!.weight).toBeCloseTo(0.4, 4)
+    expect(signals[0]!.signal).toBeGreaterThan(0)
+    expect(signals[0]!.source).toBe('explicit_direct_request')
   })
 
-  it('treats a memory request as warmth evidence', () => {
-    const signals = deriveGrowthSignals({ analysis: analysis({ explicitMemoryRequest: true }) })
-    expect(signals.map((signal) => signal.dimension)).toContain('warmth')
+  it('records the opposite directive as counter-evidence, not as support', () => {
+    const signals = deriveGrowthSignals({ analysis: analysis(), content: '你能不能委婉一点，别这么直接。' })
+    expect(signals[0]!.dimension).toBe('directness')
+    expect(signals[0]!.signal).toBeLessThan(0)
+    expect(signals[0]!.source).toBe('explicit_soft_request')
   })
 
-  it('does not read a bare negation as a style preference', () => {
-    const signals = deriveGrowthSignals({ analysis: analysis({ negation: true }) })
-    expect(signals).toEqual([])
+  it('does not treat a correction or a memory request as a personality signal', () => {
+    const corrected = deriveGrowthSignals({ analysis: analysis({ correction: true }), content: '不是这个意思，你理解错了。' })
+    const remembered = deriveGrowthSignals({ analysis: analysis({ explicitMemoryRequest: true }), content: '你还记得我住在哪吗？' })
+    expect(corrected).toEqual([])
+    expect(remembered).toEqual([])
+  })
+
+  it('ignores a directive that is quoted rather than stated', () => {
+    expect(deriveGrowthSignals({ analysis: analysis(), content: '他说「直接说重点」，你觉得呢？' })).toEqual([])
+  })
+
+  it('never emits two signals for the same dimension in one turn', () => {
+    const signals = deriveGrowthSignals({ analysis: analysis(), content: '直接说重点，也别绕，开门见山。' })
+    expect(signals.filter((signal) => signal.dimension === 'directness')).toHaveLength(1)
   })
 })
 

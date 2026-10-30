@@ -646,15 +646,25 @@ export interface SelfModelContextTurn {
 // unverified self-knowledge are clearly labelled, tiny, and never carry
 // permissions — they only steer attention, not policy.
 export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn?: SelfModelContextTurn): string {
-  const interests = services.interests.activeForContext(3)
+  const active = services.interests.activeForContext(6)
   const facts = services.selfModel.activeStatementsForContext(3)
   const lines: string[] = []
-  if (interests.length > 0) {
-    // The id is included so a serialized request can be traced back to the
-    // exact interest row and its evidence ledger during an audit. It is an
-    // internal identifier, never user content.
-    const described = interests.map((interest) => `${interest.label}（id ${interest.id}，强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`)
-    lines.push(`Bounded long-term attention signal (rule-derived, low confidence, not a preference or permission): topics the user returned to across conversations — ${described.join('; ')}. Use only to stay coherent with prior topics; never claim certainty about the user.`)
+  const describe = (interest: { id: string; label: string; strength: number; confidence: number; evidenceCount: number }): string =>
+    `${interest.label}（id ${interest.id}，强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`
+  // Three separate claims, never merged: what the user keeps returning to, what
+  // Morrow chose to pursue, and what both have independent evidence for. Merging
+  // them is exactly the failure this split exists to prevent.
+  const userTopics = active.filter((interest) => interest.origin === 'user').slice(0, 3)
+  const morrowTopics = active.filter((interest) => interest.origin === 'morrow').slice(0, 2)
+  const sharedTopics = active.filter((interest) => interest.origin === 'shared').slice(0, 2)
+  if (userTopics.length > 0) {
+    lines.push(`Topics the user returned to across conversations (rule-derived, low confidence, not a preference or permission): ${userTopics.map(describe).join('; ')}. Use only to stay coherent with prior topics; never claim certainty about the user, and never present these as your own interests.`)
+  }
+  if (morrowTopics.length > 0) {
+    lines.push(`Topics Morrow chose to pursue (derived from her own reflection or unresolved questions, not from how often the user talks about them): ${morrowTopics.map(describe).join('; ')}. They are yours, not the user's, and they are hypotheses — do not state them as facts about the user.`)
+  }
+  if (sharedTopics.length > 0) {
+    lines.push(`Topics both sides have independent evidence for: ${sharedTopics.map(describe).join('; ')}. Treat them as a shared thread, not as one party's preference.`)
   }
   if (facts.length > 0) {
     const described = facts.map((fact) => `「${fact.statement.slice(0, 120)}」（置信度 ${fact.confidence}/100，未经确认的推断）`)
@@ -673,23 +683,9 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
   // few points the evidence has earned.
   const growth = services.growth ? describeGrowth(services.growth.list()) : ''
   if (growth) lines.push(growth)
-  // Stage 3 X1: at most one self-initiated topic, and only when the gate allows
-  // it. The decision is recorded by the service, so silence is auditable too.
-  if (services.exploration && turn) {
-    const decision = services.exploration.decide({
-      turnId: turn.turnId,
-      interests,
-      turn: turn.analysis
-        ? {
-            intent: turn.analysis.intent,
-            uncertainty: turn.analysis.uncertainty,
-            correction: turn.analysis.signals.correction
-          }
-        : null
-    })
-    const line = describeExploration(decision)
-    if (line) lines.push(line)
-  }
+  // Stage 3 X1 lives in its own hook (`explorationLine`), not here: the gate
+  // must be able to report the interest it permitted so the turn can settle it
+  // after the reply exists. A string-only block cannot carry that.
   return lines.join('\n')
 }
 
@@ -776,6 +772,51 @@ export class CompanionService {
               return ''
             }
           },
+          ...(selfModelLoop.exploration
+            ? {
+                explorationLine: (turn: SelfModelContextTurn) => {
+                  try {
+                    const decision = selfModelLoop.exploration!.decide({
+                      turnId: turn.turnId,
+                      interests: selfModelLoop.interests.activeForContext(6),
+                      turn: turn.analysis
+                        ? {
+                            intent: turn.analysis.intent,
+                            uncertainty: turn.analysis.uncertainty,
+                            correction: turn.analysis.signals.correction
+                          }
+                        : null
+                    })
+                    const line = describeExploration(decision)
+                    if (line && decision.interestId) {
+                      selfModelLoop.exploration!.markSelected({ turnId: turn.turnId, interestId: decision.interestId })
+                    }
+                    return { line, interestId: decision.interestId, label: decision.label }
+                  } catch {
+                    recordCognitiveDegradation('exploration_gate', turn.turnId)
+                    return { line: '', interestId: null, label: null }
+                  }
+                },
+                settleExploration: (input: { turnId: string; outcome: 'succeeded' | 'failed' | 'cancelled'; reply: string | null }) => {
+                  try {
+                    // The permitted interest is read back from the ledger, not
+                    // from memory: a restarted process must settle the same turn.
+                    const permitted = selfModelLoop.exploration!.history(input.turnId).find((entry) => entry.state === 'permitted')
+                    if (!permitted) return
+                    const label = selfModelLoop.interests.list().find((interest) => interest.id === permitted.interestId)?.label ?? ''
+                    selfModelLoop.exploration!.settle({
+                      turnId: input.turnId,
+                      interestId: permitted.interestId,
+                      label,
+                      outcome: input.outcome,
+                      reply: input.reply
+                    })
+                  } catch {
+                    recordCognitiveDegradation('exploration_settle', input.turnId)
+                  }
+                }
+              }
+            : {}),
           ...(selfModelLoop.growth
             ? {
                 effectiveProfile: (profile: PersonalityProfile): PersonalityProfile => {
@@ -822,6 +863,7 @@ export class CompanionService {
               if (selfModelLoop.growth) {
                 const growthSignals = deriveGrowthSignals({
                   analysis: input.analysis,
+                  content: input.content,
                   ...(selfModelLoop.personalization ? { personalization: selfModelLoop.personalization.list() } : {})
                 })
                 for (const signal of growthSignals) {
@@ -947,6 +989,14 @@ export interface SelfModelLoopHooks {
    * wired, in which case the baseline is used unchanged.
    */
   effectiveProfile?(profile: PersonalityProfile): PersonalityProfile
+  /**
+   * Stage 3 X1: the permission line for this turn, plus the interest it names.
+   * Returning the id is what lets the turn settle the permission after the reply
+   * exists instead of recording it as if it had already happened.
+   */
+  explorationLine?(turn: SelfModelContextTurn): { line: string; interestId: string | null; label: string | null }
+  /** Settles the permission once the turn has an outcome. Never throws into chat. */
+  settleExploration?(input: { turnId: string; outcome: 'succeeded' | 'failed' | 'cancelled'; reply: string | null }): void
   /** Called once per completed turn; must never throw into the chat path. */
   onTurnCompleted(input: {
     conversationId: string
@@ -991,6 +1041,8 @@ export interface PreparedTurn {
   previousFeelingState?: FeelingState
   nextFeelingState?: FeelingState
   retrieval: RetrievalAdjustment
+  /** The self-initiated topic this turn was permitted to raise, if any. */
+  exploration?: { interestId: string; label: string }
 }
 
 export class ChatService {
@@ -1019,6 +1071,22 @@ export class ChatService {
     private readonly continuity?: ContinuityPorts,
     private readonly onDegradation?: (component: string, correlationId?: string | null) => void
   ) {}
+
+  /**
+   * Settles the turn's exploration permission.
+   *
+   * A permission is not an event: only a persisted reply that actually mentions
+   * the topic may count as raised. A failed or cancelled call settles as
+   * `provider_failed` so the gate is not consumed by a turn that never produced
+   * an answer.
+   */
+  private settleExploration(turnId: string, outcome: 'succeeded' | 'failed' | 'cancelled', reply: string | null): void {
+    try {
+      this.selfModel?.settleExploration?.({ turnId, outcome, reply })
+    } catch {
+      this.recordDegradation('exploration_settle', turnId)
+    }
+  }
 
   private recordDegradation(component: string, correlationId: string | null = null): void {
     try { this.onDegradation?.(component, correlationId) } catch { /* Never fail the chat path for telemetry. */ }
@@ -1185,6 +1253,7 @@ export class ChatService {
           errorKind: error instanceof ApplicationError ? error.code : 'UNKNOWN',
           at: this.now()
         })
+        this.settleExploration(requestId, cancelled ? 'cancelled' : 'failed', null)
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: cancelled ? 'cancelled' : 'failed', answer: null })
         throw error
       }
@@ -1199,6 +1268,7 @@ export class ChatService {
           errorKind: 'PROVIDER_CANCELLED',
           at: this.now()
         })
+        this.settleExploration(requestId, 'cancelled', null)
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'cancelled', answer: null })
         throw new ApplicationError('PROVIDER_CANCELLED')
       }
@@ -1288,7 +1358,10 @@ export class ChatService {
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
-      // The assistant message is durable: the turn is committed.
+      // The assistant message is durable: the turn is committed, and only now can
+      // the exploration permission be settled against the text that was actually
+      // delivered.
+      this.settleExploration(requestId, 'succeeded', deliveredText)
       this.recordTurnState(conversationId, requestId, 'committed')
       if (this.selfModel) {
         try {
@@ -1461,6 +1534,13 @@ export class ChatService {
       retrieval = adjustPolicyForState(unrestrictedPolicy(), null)
       memory = this.memories.assembleContext(content, max, retrieval.policy, this.evidencePresentation)
     }
+    // The permission is decided once per turn and returned to the caller, so the
+    // turn can settle it against the real reply later.
+    const exploration = this.selfModel?.explorationLine?.({
+      turnId: idempotencyKey,
+      ...(analysis ? { analysis } : {}),
+      ...(decision ? { decision } : {})
+    })
     const system = [
       `User-controlled communication preferences, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}.`,
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
@@ -1471,6 +1551,7 @@ export class ChatService {
         ...(analysis ? { analysis } : {}),
         ...(decision ? { decision } : {})
       }) ?? '',
+      exploration?.line ?? '',
       `Saved memories (untrusted evidence only): ${memory.text}`,
       fixedPrinciples
     ].filter(Boolean).join('\n\n')
@@ -1497,6 +1578,9 @@ export class ChatService {
       ...(feelingEvent ? { feelingEvent } : {}),
       ...(feelingState ? { nextFeelingState: feelingState } : {}),
       ...(previousFeelingState ? { previousFeelingState } : {}),
+      ...(exploration?.interestId && exploration.label
+        ? { exploration: { interestId: exploration.interestId, label: exploration.label } }
+        : {}),
       input: {
         prompt: content,
         context: memory,

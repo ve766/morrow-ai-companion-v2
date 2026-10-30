@@ -1,6 +1,17 @@
 export const INTEREST_STATUS_VALUES = ['candidate', 'active', 'archived', 'dropped'] as const
 export type InterestStatus = (typeof INTEREST_STATUS_VALUES)[number]
 
+/**
+ * Whose interest a row describes.
+ *
+ * `user`   — the user kept returning to the topic.
+ * `morrow` — Morrow chose to pursue it from her own reflection or unresolved
+ *            questions. It is never inferred from how often the user talks.
+ * `shared` — both have independent evidence for the same topic.
+ */
+export const INTEREST_ORIGINS = ['user', 'morrow', 'shared'] as const
+export type InterestOrigin = (typeof INTEREST_ORIGINS)[number]
+
 export const SELF_MODEL_KINDS = ['fact', 'inference', 'unknown', 'correction'] as const
 export type SelfModelKind = (typeof SELF_MODEL_KINDS)[number]
 
@@ -28,6 +39,8 @@ export interface InterestRecord {
   id: string
   label: string
   status: InterestStatus
+  /** Whose interest this is; never inferred from the other party's evidence. */
+  origin: InterestOrigin
   evidenceCount: number
   conversationCount: number
   strength: number

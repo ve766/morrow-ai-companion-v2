@@ -1220,6 +1220,140 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 30,
+    name: 'interest-origin-and-exploration-lifecycle',
+    up(database) {
+      // Three corrections to Stage 3 part one, all of them about *whose* a
+      // signal is and *when* it happened:
+      //
+      // 1. Interest origin. The single `interests` table mixed "topics the user
+      //    kept returning to" with "topics Morrow chose to pursue". They are not
+      //    the same claim, so every row now says which one it is. Existing rows
+      //    were all derived from user turns, so `user` is the honest default.
+      //
+      // 2. Exploration lifecycle. The old `kind` column could only say "raised"
+      //    or "declined", and the only thing that ever wrote it was the prompt
+      //    builder — before the model had replied. That recorded permission as
+      //    if it were an event. The table is rebuilt around a state machine with
+      //    one row per (turn, state), so a retry cannot double count and a
+      //    provider failure cannot be mistaken for a raised topic. Historical
+      //    `raised` rows are re-labelled `permitted`, which is what they
+      //    actually were; `declined` becomes `not_raised`.
+      //
+      // 3. Evidence provenance. A growth signal now names the rule that produced
+      //    it, so a movement can be explained without re-running the analyser.
+      database.exec(`
+        ALTER TABLE interests ADD COLUMN origin TEXT NOT NULL DEFAULT 'user'
+          CHECK (origin IN ('user', 'morrow', 'shared'));
+
+        ALTER TABLE personality_growth_signals ADD COLUMN source TEXT NOT NULL DEFAULT 'unspecified';
+
+        -- The v29 trigger follows the renamed table and is not removed by the
+        -- DROP below, so it must be dropped explicitly before the new table
+        -- reuses the name.
+        DROP TRIGGER IF EXISTS exploration_events_delete_with_turn;
+        ALTER TABLE exploration_events RENAME TO exploration_events_v29;
+        CREATE TABLE exploration_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          interest_id TEXT NOT NULL,
+          state TEXT NOT NULL CHECK (state IN (
+            'permitted', 'selected_for_prompt', 'actually_raised',
+            'not_raised', 'provider_failed', 'user_rejected'
+          )),
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 120),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO exploration_events (id, turn_id, interest_id, state, reason, created_at)
+          SELECT id, turn_id, interest_id,
+                 CASE kind WHEN 'raised' THEN 'permitted' ELSE 'not_raised' END,
+                 reason, created_at
+          FROM exploration_events_v29;
+        DROP TABLE exploration_events_v29;
+        CREATE UNIQUE INDEX exploration_events_turn_state_uq ON exploration_events(turn_id, state);
+        CREATE INDEX exploration_events_time_idx ON exploration_events(created_at DESC);
+        CREATE INDEX exploration_events_state_idx ON exploration_events(state, created_at DESC);
+
+        CREATE TRIGGER exploration_events_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM exploration_events WHERE turn_id = OLD.turn_id;
+        END;
+
+        -- 4. Morrow's own interests need their own evidence kind. Until now the
+        --    ledger could only cite a user message, a memory or a legacy
+        --    aggregate — all of them user-side. A reflection finding is a
+        --    different provenance, and letting it masquerade as a message would
+        --    be exactly the confusion this migration is meant to remove.
+        -- Every trigger that mentions the table must be dropped before the
+        -- rename: SQLite rewrites trigger bodies to the new name, and a trigger
+        -- that keeps pointing at the dropped _v29 table makes unrelated
+        -- statements (any UPDATE on memories) fail with "no such table".
+        DROP TRIGGER IF EXISTS interest_evidence_delete_with_message;
+        DROP TRIGGER IF EXISTS interest_evidence_delete_with_conversation;
+        DROP TRIGGER IF EXISTS interest_evidence_delete_with_memory;
+        DROP TRIGGER IF EXISTS interest_evidence_invalidate_on_memory_retract;
+        DROP TRIGGER IF EXISTS interest_evidence_invalidate_on_memory_revision;
+        ALTER TABLE interest_evidence RENAME TO interest_evidence_v29;
+        CREATE TABLE interest_evidence (
+          interest_id TEXT NOT NULL CHECK (length(interest_id) = 36),
+          evidence_ref TEXT NOT NULL CHECK (length(evidence_ref) BETWEEN 1 AND 96),
+          evidence_kind TEXT NOT NULL CHECK (evidence_kind IN ('message', 'memory', 'legacy', 'reflection')),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) BETWEEN 8 AND 96),
+          polarity TEXT NOT NULL CHECK (polarity IN ('support', 'counter')),
+          match_score REAL NOT NULL CHECK (match_score >= 0 AND match_score <= 1),
+          match_reason TEXT NOT NULL CHECK (length(match_reason) BETWEEN 1 AND 64),
+          created_at TEXT NOT NULL,
+          evidence_revision INTEGER CHECK (evidence_revision IS NULL OR evidence_revision > 0),
+          PRIMARY KEY (interest_id, evidence_ref)
+        ) STRICT;
+        INSERT INTO interest_evidence (interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision)
+          SELECT interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision
+          FROM interest_evidence_v29;
+        DROP TABLE interest_evidence_v29;
+        CREATE INDEX interest_evidence_ref_idx ON interest_evidence(evidence_ref);
+        CREATE INDEX interest_evidence_conversation_idx ON interest_evidence(conversation_id);
+        CREATE UNIQUE INDEX interest_evidence_ref_uq ON interest_evidence(evidence_ref);
+
+        CREATE TRIGGER interest_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM interest_evidence WHERE evidence_kind = 'message' AND evidence_ref = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM interest_evidence WHERE conversation_id = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_memory
+        AFTER DELETE ON memories
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_retract
+        AFTER UPDATE OF status ON memories
+        WHEN NEW.status <> 'active'
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_revision
+        AFTER UPDATE OF revision ON memories
+        WHEN NEW.revision > OLD.revision AND NEW.current_text <> OLD.current_text
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory'
+              AND evidence_ref = OLD.id;
+        END;
+      `)
+    }
   }
 ]
 

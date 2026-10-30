@@ -86,3 +86,37 @@ renderer
 - Agent / 工具执行 / 桌面操控 / 浏览器操控：**没有**任何实现，也不在数据模型里留位。
 - 回合外主动联系：**没有**通道。
 - 记忆巩固与按重要度衰减：**未实现**，只有 180 天过期标记。
+
+
+---
+
+## 6. 后续修复后的运行时变化（Issue #20）
+
+### 6.1 长期层的三行归属
+
+`buildSelfModelContextBlock` 现在按 `interests.origin` 拆成三段，互不合并：
+
+1. `Topics the user returned to…`（`origin=user`）
+2. `Topics Morrow chose to pursue…`（`origin=morrow`）
+3. `Topics both sides have independent evidence for…`（`origin=shared`）
+
+用户证据落在 Morrow 话题上会升级为 `shared`；Morrow 证据落在用户话题上**不会**改写归属。
+
+### 6.2 探索从"写字符串"变成状态机
+
+旧实现把许可写在 prompt 构建里并直接记成 `raised`。现在拆成两个钩子：
+
+```
+prepare() → hooks.explorationLine(turn) → { line, interestId, label } → 写入 system
+                                       → exploration_events(state='permitted')
+                                       → 若 line 非空：state='selected_for_prompt'
+send()    → assistant 消息落库后 → hooks.settleExploration({turnId, outcome, reply})
+                                       → detectRaised(reply,label)
+                                       → 'actually_raised' | 'not_raised' | 'provider_failed'
+```
+
+只有 `actually_raised` 计入 24 小时频次。
+
+### 6.3 人格证据来源可追溯
+
+`personality_growth_signals.source` 记录命中的规则名（如 `explicit_direct_request`），`personality_growth_events.reason` 里带同一来源，因此"为什么漂移"不需要重跑分析器。

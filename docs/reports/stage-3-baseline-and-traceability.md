@@ -69,3 +69,26 @@
 - 本文件不重复旧报告结论；所有"真实/部分/未实现"均以本次读到的源码为准。
 - 脚本化 Provider 的结果只证明接线与载荷，不证明模型质量。
 - 无法执行的项目一律标 BLOCKED / NOT_RUN，不计入分母，也不写成通过。
+
+
+---
+
+## 6. 后续修复（F1–F7）的基线复核
+
+本轮（Issue #20）开工时重新核验：`feat/stage-3-long-term-companion` HEAD = `0ebbdd71fb37cfef671c81f6884a0628ed0900f1`，与任务书给定值一致，无他人提交被覆盖。
+
+逐项复核结论（详见 `docs/reports/stage-3-followup-implementation-report.md`）：
+
+| 编号 | 复核结论 | 处理 |
+|---|---|---|
+| F1 | 属实：`interests` 无归属字段，探索直接吃用户话题 | 迁移 30 加 `origin`；`observeMorrow`；长期层拆三行；探索只认 `morrow/shared` |
+| F2 | 属实：`decide()` 直接写 `raised`，`prepare()` 两次调用会重复 | 状态机 + `UNIQUE(turn_id, state)`；落库后 `settle()` |
+| F3 | 属实：L5 只查 prompt，`好的。` 也能过 | 重写 L5 为四段断言 |
+| F4 | 属实：纠正/记忆请求被当人格证据 | 6 条显式风格规则 + 反证 + `source` 列 |
+| F5 | 属实：L11 另建库 | 全运行时重建 + `restart` 套件 |
+| F6 | 属实：真实时钟下的区块被当作多日 | 注入时钟 + `clock: injected` + 冷却边界实测 |
+| F7 | 属实：L6 只查原则存在 | 降级为客观检查，模型质量 BLOCKED |
+
+## 7. 仍然存在的缺口（本轮未做）
+
+记忆巩固/重要度衰减（§2A）、内在状态 appraisal（§2B）、反思质量评测（§2C）、GoalService 主链（§2D，L10 仍 NOT_RUN）、语音闭环（§2F）。这些不计入任何通过率。

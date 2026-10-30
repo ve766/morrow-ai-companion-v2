@@ -158,3 +158,18 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:longitudinal
 ```
 
 `--ignore-scripts` 后必须补 electron 安装，否则 7 个测试文件因缺少二进制而无法导入（环境问题，非代码缺陷）。
+
+
+---
+
+## 8. 后续交付（Issue #20）
+
+| 项 | 结果 |
+|---|---|
+| F1–F6 | 已按代码级修复，有回归证据（见 `docs/reports/stage-3-followup-implementation-report.md`） |
+| F7 | 降级为客观检查，模型质量 BLOCKED |
+| 全量测试 | **82 文件 / 726 测试通过** |
+| 新增评测套件 | `restart`（6 断言）、`long-conversation`（7 断言，30 轮 / 3 会话） |
+| 迁移 | v30 `interest-origin-and-exploration-lifecycle` |
+| 仍未实现 | §2A 记忆巩固/衰减、§2B appraisal、§2C 反思质量、§2D GoalService（L10 NOT_RUN）、§2F 语音 |
+| 整体状态 | **PARTIAL** |

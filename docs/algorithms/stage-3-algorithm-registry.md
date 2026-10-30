@@ -124,3 +124,46 @@ unsuitable_turn = correction ∨ uncertainty='high' ∨ intent='correction'
 - 记忆巩固（consolidation）与按重要度的衰减/归档策略。
 - 人格漂移的 UI 呈现与用户确认流程（服务层已有 `rollback`，界面未接）。
 - 长对话早期约束的行为层评分规则。
+
+
+---
+
+## G1′ 人格证据派生（Issue #20 重写）
+
+### 证据规则表（只有显式风格指令）
+
+| 维度 | 方向 | `s` | `w` | 规则名 | 模式（节选） |
+|---|---|---|---|---|---|
+| directness | + | 0.8 | 0.8 | `explicit_direct_request` | 直接说/别绕/说重点/开门见山 |
+| directness | − | 0.8 | 0.8 | `explicit_soft_request` | 委婉/别这么直接/温和一点 |
+| warmth | + | 0.7 | 0.7 | `explicit_warmth_request` | 温柔/多关心我/体贴一点 |
+| warmth | − | 0.7 | 0.7 | `explicit_warmth_reduction` | 别煽情/别肉麻/保持距离 |
+| humor | + | 0.7 | 0.7 | `explicit_humor_request` | 幽默/开个玩笑/轻松点 |
+| humor | − | 0.7 | 0.7 | `explicit_humor_reduction` | 严肃点/别开玩笑/正经点 |
+
+约束：
+- 匹配前先 `stripQuotedAndReportedText(content)` —— 别人说的话不是用户的偏好；
+- 同一轮同一维度至多一条证据（`seen` 集合）；
+- 证据写 `source` 列；折叠公式、±8 上限、3 轮门槛、45 天半衰期、回滚语义均未变。
+
+**已废弃的旧映射**：`correction → directness`、`explicitMemoryRequest → warmth`、`personalization.exploration → humor`。理由：它们描述的是内容或工作流，不是稳定风格。
+
+## X1′ 探索生命周期（Issue #20 重写）
+
+```
+状态: permitted → selected_for_prompt → actually_raised | not_raised
+                                      ↘ provider_failed
+                                      ↘ user_rejected
+唯一索引: (turn_id, state)
+```
+
+- 资格：`origin ∈ {morrow, shared}` ∧ `status=active` ∧ `evidence ≥ 3` ∧ `strength ≥ 0.6` ∧ `confidence ≥ 60`；
+- 许可（`permitted`）不计入频次；只有 `actually_raised` 计入 24 小时上限；
+- `detectRaised(reply, label)`：回复包含标签词 → `raised`；回复过短或无词面重合 → `not_raised`；标签无可分词 → `uncertain`（按 `not_raised` 记）；
+- `recent(excludeTurnId)` 排除当前回合，保证预览与校验一致。
+
+**已知局限**：词面匹配会漏掉改写式提出，因此 `not_raised` 不等于"模型没说"，只等于"没有词面证据"。
+
+## F1 兴趣归属
+
+`interests.origin ∈ {user, morrow, shared}`，默认 `user`。Morrow 的来源证据 `evidence_kind='reflection'`，引用反思 finding id，不引用用户消息。用户证据落在 `morrow` 话题上 → `shared`；反向不成立。

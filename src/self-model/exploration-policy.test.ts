@@ -34,6 +34,7 @@ function interest(overrides: Partial<InterestRecord> = {}): InterestRecord {
     id: randomUUID(),
     label: '神经科学',
     status: 'active',
+    origin: 'morrow',
     evidenceCount: 5,
     conversationCount: 3,
     strength: 0.8,
@@ -132,18 +133,59 @@ describe('exploration gate', () => {
 })
 
 describe('ExplorationService', () => {
-  it('records the raise and then enforces its own cooldown', () => {
+  it('records permission but does not count it as a raise', () => {
     const database = openDatabase()
     const service = new ExplorationService(database, () => NOW)
     const candidate = interest()
     const turnId = randomUUID()
 
-    const first = service.decide({ turnId, interests: [candidate], turn: null })
-    expect(first.allowed).toBe(true)
+    const decision = service.decide({ turnId, interests: [candidate], turn: null })
+    expect(decision.allowed).toBe(true)
+    expect(service.history(turnId).map((entry) => entry.state)).toContain('permitted')
+    expect(service.recent().raisedLastDay).toBe(0)
+  })
 
-    const second = service.decide({ turnId: randomUUID(), interests: [candidate], turn: null })
-    expect(second.allowed).toBe(false)
-    expect(['cooldown', 'already_used']).toContain(second.reason)
+  it('counts a raise only after a persisted reply mentions the topic', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest({ label: '神经科学' })
+    const turnId = randomUUID()
+    service.decide({ turnId, interests: [candidate], turn: null })
+    const settled = service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '我最近也在想神经科学里记忆形成的问题。' })
+    expect(settled).toBe('actually_raised')
+    expect(service.recent().raisedLastDay).toBe(1)
+  })
+
+  it('does not count a reply that never mentions the topic', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest({ label: '神经科学' })
+    const turnId = randomUUID()
+    service.decide({ turnId, interests: [candidate], turn: null })
+    expect(service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '好的。' })).toBe('not_raised')
+    expect(service.recent().raisedLastDay).toBe(0)
+  })
+
+  it('never counts a failed or cancelled turn as a raise', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest()
+    const failed = randomUUID()
+    service.decide({ turnId: failed, interests: [candidate], turn: null })
+    expect(service.settle({ turnId: failed, interestId: candidate.id, label: candidate.label, outcome: 'failed', reply: null })).toBe('provider_failed')
+    expect(service.recent().raisedLastDay).toBe(0)
+  })
+
+  it('is idempotent: settling the same turn twice counts once', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest({ label: '神经科学' })
+    const turnId = randomUUID()
+    service.decide({ turnId, interests: [candidate], turn: null })
+    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '说说神经科学。' })
+    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '说说神经科学。' })
+    expect(service.recent().raisedLastDay).toBe(1)
+    expect(service.history(turnId).filter((entry) => entry.state === 'actually_raised')).toHaveLength(1)
   })
 
   it('re-deciding the same turn is stable (the preview and the verified payload agree)', () => {
@@ -154,15 +196,16 @@ describe('ExplorationService', () => {
     const first = service.decide({ turnId, interests: [candidate], turn: null })
     const second = service.decide({ turnId, interests: [candidate], turn: null })
     expect(second).toEqual(first)
+    expect(service.history(turnId).filter((entry) => entry.state === 'permitted')).toHaveLength(1)
   })
 
   it('records nothing when no topic was even eligible', () => {
     const database = openDatabase()
     const service = new ExplorationService(database, () => NOW)
     const candidate = interest({ evidenceCount: 1 })
-    service.decide({ turnId: randomUUID(), interests: [candidate], turn: null })
-    const rows = database.connection.prepare('SELECT kind FROM exploration_events').all() as Array<{ kind: string }>
-    expect(rows).toHaveLength(0)
+    const turnId = randomUUID()
+    service.decide({ turnId, interests: [candidate], turn: null })
+    expect(service.history(turnId)).toHaveLength(0)
     expect(service.recent().raisedLastDay).toBe(0)
   })
 })

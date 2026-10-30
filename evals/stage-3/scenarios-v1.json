@@ -1,24 +1,107 @@
 {
-  "datasetVersion": "stage-3-v1",
-  "harnessVersion": "stage-3-runner-v1",
+  "datasetVersion": "stage-3-v1.1",
+  "harnessVersion": "stage-3-runner-v2",
   "provider": "scripted-offline",
-  "note": "Each scenario is executed by evals/stage-3/runner/cli.ts against a temporary SQLite database and the real CompanionService. A scripted provider is used, so every assertion is about wiring, persistence and the serialized payload — never about model quality.",
+  "note": "Each scenario is executed by evals/stage-3/runner/cli.ts against a temporary SQLite database and the real CompanionService. A scripted provider is used, so every assertion is about wiring, persistence and the serialized payload — never about model quality. L11 rebuilds the whole runtime on the same database file.",
   "scenarios": [
-    { "id": "L1", "name": "跨会话事实与偏好延续", "requirement": "长期记忆跨会话可检索", "executable": true },
-    { "id": "L2", "name": "用户纠正后旧值不再进入请求", "requirement": "纠正清理派生上下文", "executable": true },
-    { "id": "L3", "name": "冲突与缺失记忆的处理", "requirement": "冲突不静默覆盖、缺失不编造", "executable": true },
-    { "id": "L4", "name": "多轮正负反馈下人格稳定", "requirement": "人格稳定 + 有界漂移", "executable": true },
-    { "id": "L5", "name": "用户兴趣与 Morrow 自身关注不混淆", "requirement": "区分用户兴趣/自身关注", "executable": true },
-    { "id": "L6", "name": "有依据的不同意见（原则仍在请求中）", "requirement": "非迎合", "executable": true },
-    { "id": "L7", "name": "内在状态参与表达策略", "requirement": "状态影响表达而非仅入库", "executable": true },
-    { "id": "L8", "name": "兴趣形成、晋升与撤回", "requirement": "兴趣生命周期", "executable": true },
-    { "id": "L9", "name": "反思产出的可追溯性", "requirement": "反思限频、证据门控、不改人格", "executable": true },
-    { "id": "L10", "name": "长期目标跨会话连续性", "requirement": "目标层连续性", "executable": false, "reason": "GoalService 只在 Electron 主进程装配，不在 CompanionService 主链内" },
-    { "id": "L11", "name": "重启后状态连续", "requirement": "重启/备份恢复不丢连续状态", "executable": true },
-    { "id": "L12", "name": "删除消息后派生数据不泄漏", "requirement": "删除级联无残留", "executable": true },
-    { "id": "L13", "name": "无记忆时不编造用户信息", "requirement": "缺失数据不当肯定证据", "executable": true },
-    { "id": "L14", "name": "Provider 失败与恢复", "requirement": "失败不伪造回复", "executable": true },
-    { "id": "L15", "name": "多日模拟：漂移与打扰控制", "requirement": "长期漂移与打扰控制", "executable": false, "reason": "由 evals/stage-3/longitudinal/run.ts 独立执行" }
+    {
+      "id": "L1",
+      "name": "跨会话事实与偏好延续",
+      "requirement": "长期记忆跨会话可检索",
+      "executable": true
+    },
+    {
+      "id": "L2",
+      "name": "用户纠正后旧值不再进入请求",
+      "requirement": "纠正清理派生上下文",
+      "executable": true
+    },
+    {
+      "id": "L3",
+      "name": "冲突与缺失记忆的处理",
+      "requirement": "冲突不静默覆盖、缺失不编造",
+      "executable": true
+    },
+    {
+      "id": "L4",
+      "name": "多轮正负反馈下人格稳定",
+      "requirement": "人格稳定 + 双向有界漂移（显式风格指令，含反证）",
+      "executable": true
+    },
+    {
+      "id": "L5",
+      "name": "用户兴趣与 Morrow 自身关注不混淆",
+      "requirement": "用户兴趣 / Morrow 自身兴趣 / 共同兴趣分离；许可 ≠ 已提出",
+      "executable": true
+    },
+    {
+      "id": "L6",
+      "name": "有依据的不同意见（原则仍在请求中）",
+      "requirement": "非迎合（仅客观检查；模型质量 BLOCKED）",
+      "executable": true
+    },
+    {
+      "id": "L7",
+      "name": "内在状态参与表达策略",
+      "requirement": "状态影响表达而非仅入库",
+      "executable": true
+    },
+    {
+      "id": "L8",
+      "name": "兴趣形成、晋升与撤回",
+      "requirement": "兴趣生命周期",
+      "executable": true
+    },
+    {
+      "id": "L9",
+      "name": "反思产出的可追溯性",
+      "requirement": "反思限频、证据门控、不改人格",
+      "executable": true
+    },
+    {
+      "id": "L10",
+      "name": "长期目标跨会话连续性",
+      "requirement": "目标层连续性",
+      "executable": false,
+      "reason": "GoalService 只在 Electron 主进程装配，不在 CompanionService 主链内"
+    },
+    {
+      "id": "L11",
+      "name": "重启后状态连续",
+      "requirement": "真实主数据库 + 全运行时重建后连续",
+      "executable": true
+    },
+    {
+      "id": "L12",
+      "name": "删除消息后派生数据不泄漏",
+      "requirement": "删除级联无残留",
+      "executable": true
+    },
+    {
+      "id": "L13",
+      "name": "无记忆时不编造用户信息",
+      "requirement": "缺失数据不当肯定证据",
+      "executable": true
+    },
+    {
+      "id": "L14",
+      "name": "Provider 失败与恢复",
+      "requirement": "失败不伪造回复",
+      "executable": true
+    },
+    {
+      "id": "L15",
+      "name": "多日模拟：漂移与打扰控制",
+      "requirement": "长期漂移与打扰控制",
+      "executable": false,
+      "reason": "由 evals/stage-3/longitudinal/run.ts 独立执行"
+    }
   ],
-  "denominator": 15
+  "denominator": 15,
+  "additionalHarnesses": {
+    "restart": "npm run eval:stage3:restart",
+    "longConversation": "npm run eval:stage3:long-conversation",
+    "ablation": "npm run eval:stage3:ablation",
+    "longitudinal": "npm run eval:stage3:longitudinal"
+  }
 }

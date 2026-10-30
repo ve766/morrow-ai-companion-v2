@@ -73,3 +73,12 @@ npx vitest run src/personalization src/self-model
 ```
 
 任何一条断言都可以被单独反驳：断言全部读自数据库、序列化 payload 或返回对象，不读日志。
+
+
+---
+
+## 9. 后续自审（Issue #20）
+
+本轮修复的逐项复核、我如何避免再次自欺、以及仍然存在的 P0/P1，见 `docs/audit/stage-3-followup-audit.md`。
+
+摘要：F1–F6 已修且有回归证据；F7 只保留客观检查；§2A/2B/2C/2D/2F 未实现；整体仍为 PARTIAL。

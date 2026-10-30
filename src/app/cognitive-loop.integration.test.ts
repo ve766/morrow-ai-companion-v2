@@ -140,11 +140,11 @@ describe('cognitive closed loop over a real loopback provider', () => {
       await stack.companion.sendChat({ conversationId: conversationB.id, requestId: randomUUID(), content: '继续。', includeSensitive: false }, () => {})
       const chatRequests = server.requests.filter((request) => request.url.endsWith('/chat/completions'))
       const lastSystem = chatRequests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
-      expect(lastSystem).toContain('Bounded long-term attention signal')
+      expect(lastSystem).toContain('Topics the user returned to across conversations')
       expect(lastSystem).toContain(promoted!.label)
       // earlier requests (before promotion) did not contain the block
       const firstSystem = chatRequests[0]?.body.messages.find((message) => message.role === 'system')?.content ?? ''
-      expect(firstSystem).not.toContain('Bounded long-term attention signal')
+      expect(firstSystem).not.toContain('Topics the user returned to across conversations')
 
       // The unified journal traces the whole chain.
       const journal = stack.events.list({ ascending: true })

@@ -13,7 +13,7 @@ import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { SqliteDatabase } from '../../../src/persistence/database'
 import { MemoryService } from '../../../src/memory/memory-service'
 import { SqliteMemoryRepository } from '../../../src/persistence/memory-repository'
@@ -75,11 +75,26 @@ export interface Options {
   growth: boolean
   exploration: boolean
   reflection: boolean
+  /**
+   * Reuse an existing database file instead of a fresh temporary one. This is
+   * what makes a real restart testable: close the stack, rebuild it on the same
+   * file, and the next turn must read the state the previous process wrote.
+   */
+  databasePath?: string
+  /** Keep the database directory after `close()` (restart scenarios need it). */
+  keepDatabase?: boolean
+  /**
+   * Injected clock. When present, every service that accepts one uses it, so a
+   * simulation can advance time instead of pretending that ten fast blocks are
+   * ten days.
+   */
+  clock?: () => string
 }
 
 export function buildStack(options: Options = { growth: true, exploration: true, reflection: true }): Stack {
-  const directory = mkdtempSync(join(tmpdir(), 'morrow-stage3-eval-'))
-  const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+  const directory = options.databasePath ? dirname(options.databasePath) : mkdtempSync(join(tmpdir(), 'morrow-stage3-eval-'))
+  const database = SqliteDatabase.open(options.databasePath ?? join(directory, 'morrow.sqlite3'))
+  const clock = options.clock
   // The event log is created first because MemoryService writes memory.* events
   // into it, and reflection reads exactly those events.
   const eventLog = new EventLogService(database)
@@ -93,21 +108,26 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     { memories, interests, selfModel, events: eventLog },
     eventLog
   )
-  const personalization = new PersonalizationService(database)
-  const growth = new PersonalityGrowthService(database)
-  const exploration = new ExplorationService(database)
+  const personalization = new PersonalizationService(database, clock)
+  const growth = new PersonalityGrowthService(database, clock)
+  const exploration = new ExplorationService(database, clock)
   const companion = new CompanionService({
     database,
     memories,
     conversations,
     secrets: new MemorySecretStore(),
-    authorize: async (preview) => ({
-      providerId: preview.providerId,
-      payloadSha256: preview.payloadSha256,
-      approvedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      includeSensitive: preview.maximumSensitivity === 'sensitive'
-    }),
+    authorize: async (preview) => {
+      // The consent window must be expressed on the same clock the turn uses;
+      // with an injected clock, a real-time expiry would look already expired.
+      const nowMs = Date.parse(clock ? clock() : new Date().toISOString())
+      return {
+        providerId: preview.providerId,
+        payloadSha256: preview.payloadSha256,
+        approvedAt: new Date(nowMs).toISOString(),
+        expiresAt: new Date(nowMs + 60_000).toISOString(),
+        includeSensitive: preview.maximumSensitivity === 'sensitive'
+      }
+    },
     providerFactory: () => provider,
     selfModelLoop: {
       events: eventLog,
@@ -118,6 +138,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       ...(options.growth ? { growth } : {}),
       ...(options.exploration ? { exploration } : {})
     },
+    ...(clock ? { clock } : {}),
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
@@ -138,12 +159,12 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     exploration,
     close: () => {
       database.close()
-      rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+      if (!options.keepDatabase) rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
     }
   }
 }
 
-function systemText(payload: string): string {
+export function systemText(payload: string): string {
   const parsed = JSON.parse(payload) as { messages?: Array<{ role: string; content: string }> }
   return parsed.messages?.find((message) => message.role === 'system')?.content ?? ''
 }
@@ -244,42 +265,96 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
     run: async (stack) => {
       const baseline = stack.companion.getPersonality()
       const conversation = stack.companion.createConversation()
-      const turns = ['这个回答太长了，说短一点。', '不是这个意思，你理解错了。', '再详细一点。', '不错，继续。', '还是不对，重来。', '谢谢，这样很好。']
+      // Explicit style directives only. A correction or a memory request is not
+      // personality evidence, so it must not move anything.
+      // Three explicit directness requests and three explicit humour
+      // reductions: both dimensions cross the evidence gate, so the *sign* of
+      // each offset is observable instead of being masked by the gate.
+      const turns = [
+        '以后直接说重点，别铺垫。',
+        '不是这个意思，你理解错了。',
+        '还是直接说重点。',
+        '直接说吧，别绕。',
+        '正经点，别开玩笑。',
+        '正经点，别开玩笑。',
+        '正经点，别开玩笑。',
+        '你记得我上次说的吗？'
+      ]
       for (const text of turns) await send(stack, conversation.id, text)
       const after = stack.companion.getPersonality()
       const entries = stack.growth.list()
+      const directness = entries.find((entry) => entry.dimension === 'directness')!
+      const humor = entries.find((entry) => entry.dimension === 'humor')!
       return outcome('L4', [
         { name: '用户编辑的基线未被改写', ok: after.warmth === baseline.warmth && after.directness === baseline.directness && after.humor === baseline.humor, detail: `v${after.version}` },
-        { name: '漂移在硬上限内', ok: entries.every((entry) => Math.abs(entry.offset) <= GROWTH_MAX_OFFSET), detail: entries.map((entry) => `${entry.dimension}:${entry.offset}`).join(',') },
-        { name: '该轮组留下了成长证据', ok: entries.some((entry) => entry.evidenceCount > 0), detail: entries.map((entry) => `${entry.dimension}:${entry.evidenceCount}`).join(',') }
+        { name: '显式风格要求产生正向证据', ok: directness.evidenceCount >= 3 && directness.offset > 0, detail: `${directness.evidenceCount}/${directness.offset}` },
+        { name: '反向要求产生反向证据而非支持', ok: humor.evidenceCount >= 1 && humor.offset < 0, detail: `${humor.evidenceCount}/${humor.offset}` },
+        { name: '漂移仍在硬上限内', ok: entries.every((entry) => Math.abs(entry.offset) <= GROWTH_MAX_OFFSET), detail: entries.map((entry) => `${entry.dimension}:${entry.offset}`).join(',') }
       ])
     }
   },
   {
     id: 'L5',
-    name: '用户兴趣与 Morrow 自身关注不混淆',
+    name: '用户兴趣 / Morrow 自身兴趣 / 共同兴趣分离',
     run: async (stack) => {
-      // Promotion needs evidence from two independent conversations, so the
-      // scenario uses two — the same thing the product does when a user opens a
-      // new chat but keeps talking about the same subject.
-      for (let round = 0; round < 2; round += 1) {
-        const conversation = stack.companion.createConversation()
+      // 1. A topic the user keeps returning to. It must be labelled as the
+      //    user's, and it must NOT become a topic Morrow may raise.
+      const userConversations = [stack.companion.createConversation(), stack.companion.createConversation()]
+      for (const conversation of userConversations) {
         for (let index = 0; index < 3; index += 1) {
           await send(stack, conversation.id, '我最近一直在研究分布式系统的共识算法。')
         }
       }
-      const conversation = stack.companion.createConversation()
-      // A plain information question is the turn type the gate is designed for;
-      // a correction or a high-uncertainty turn would legitimately stay silent.
-      await send(stack, conversation.id, '分布式系统的共识算法里，Paxos 和 Raft 的主要区别是什么？')
-      const system = systemText(stack.provider.lastPayload)
-      const ownLine = system.includes('your own attention')
-      const userLine = system.includes('topics the user returned to')
-      const gate = stack.exploration.recent()
+      const afterUserOnly = stack.interests.activeForContext(10)
+      const userTopic = afterUserOnly.find((interest) => interest.origin === 'user')
+      const userOnlyTurn = randomUUID()
+      await stack.companion.sendChat({ conversationId: userConversations[0]!.id, requestId: userOnlyTurn, content: '分布式系统的共识算法里，Paxos 和 Raft 有什么区别？', includeSensitive: false }, () => undefined)
+      const userOnlyPayload = systemText(stack.provider.lastPayload)
+      const userOnlyStates = stack.exploration.history(userOnlyTurn).map((entry) => entry.state)
+
+      // 2. A topic Morrow chose herself. Independent evidence, cited by finding.
+      const morrowConversation = stack.companion.createConversation()
+      const morrowObservations = 3
+      for (let index = 0; index < morrowObservations; index += 1) {
+        stack.interests.observeMorrow({
+          conversationId: index === 2 ? userConversations[1]!.id : morrowConversation.id,
+          findingId: randomUUID(),
+          occurredAt: new Date(Date.now() + index * 1000).toISOString(),
+          // Deliberately a different subject from the user's: a topic the user
+          // already owns must not be re-attributed to Morrow just because she
+          // thought about it.
+          topicText: '长期记忆里证据与遗忘的边界'
+        })
+      }
+      const owned = stack.interests.activeForContext(10).filter((interest) => interest.origin === 'morrow' || interest.origin === 'shared')
+
+      // 3. The next suitable turn may raise it, but the scripted reply says
+      //    nothing about it, so it must settle as not_raised and not consume the
+      //    budget.
+      const raiseTurn = randomUUID()
+      await stack.companion.sendChat({ conversationId: morrowConversation.id, requestId: raiseTurn, content: '今天想聊点什么？', includeSensitive: false }, () => undefined)
+      const raisePayload = systemText(stack.provider.lastPayload)
+      const raiseStates = stack.exploration.history(raiseTurn).map((entry) => entry.state)
+
+      // 4. A failed provider call on a permitted turn must not count as a raise.
+      const failedTurn = randomUUID()
+      stack.provider.failure = 'upstream timeout'
+      try {
+        await stack.companion.sendChat({ conversationId: morrowConversation.id, requestId: failedTurn, content: '继续吧。', includeSensitive: false }, () => undefined)
+      } catch {
+        // expected
+      } finally {
+        stack.provider.failure = null
+      }
+      const failedStates = stack.exploration.history(failedTurn).map((entry) => entry.state)
+
       return outcome('L5', [
-        { name: '用户兴趣被标注为用户侧信号', ok: userLine, detail: userLine ? 'marker' : 'absent' },
-        { name: '自身关注门禁真的运行并留痕', ok: gate.lastRaisedAt !== null, detail: `lastRaised=${gate.lastRaisedAt ?? 'never'}` },
-        { name: '自身关注若出现则标明是你的而非用户的', ok: !ownLine || system.includes('not as the user'), detail: ownLine ? 'own-topic line present' : 'no own-topic line this turn' }
+        { name: '用户重复话题被标注为用户侧', ok: Boolean(userTopic) && userOnlyPayload.includes('Topics the user returned to'), detail: userTopic ? userTopic.origin : 'none' },
+        { name: '用户兴趣不得被当作 Morrow 自身话题提出', ok: !userOnlyStates.includes('permitted') && !userOnlyStates.includes('actually_raised'), detail: userOnlyStates.join(',') || 'no events' },
+        { name: 'Morrow 自身兴趣有独立证据来源', ok: owned.length > 0 && owned.every((interest) => interest.origin !== 'user'), detail: owned.map((interest) => `${interest.label}:${interest.origin}`).join(',') || 'none' },
+        { name: '自身话题在许可时以第一人称归属进入 payload', ok: raiseStates.includes('permitted') ? raisePayload.includes('your own attention') : true, detail: raiseStates.join(',') || 'no permission' },
+        { name: '回复未提及则不计为已提出', ok: !raiseStates.includes('actually_raised') && stack.exploration.recent().raisedLastDay === 0, detail: raiseStates.join(',') },
+        { name: 'Provider 失败不计为成功探索', ok: failedStates.includes('provider_failed') || failedStates.length === 0, detail: failedStates.join(',') || 'no permission this turn' }
       ])
     }
   },
@@ -366,27 +441,42 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
   },
   {
     id: 'L11',
-    name: '重启后状态连续',
+    name: '真实主数据库重启后状态连续',
     run: async (stack) => {
-      const memory = stack.memories.create('我在做一个长期陪伴项目。', 'personal')
-      const before = stack.companion.getPersonality()
-      // A reopen on the same file is the closest offline equivalent of a restart.
+      // The whole runtime is rebuilt on the same file: database, migrations,
+      // repositories, services and the companion. Nothing is stubbed.
       const directory = mkdtempSync(join(tmpdir(), 'morrow-stage3-restart-'))
       const path = join(directory, 'morrow.sqlite3')
-      const first = SqliteDatabase.open(path)
-      const memoryService = new MemoryService(new SqliteMemoryRepository(first))
-      memoryService.create('重启前写入的记忆。', 'personal')
-      first.close()
-      const second = SqliteDatabase.open(path)
-      const reopened = new MemoryService(new SqliteMemoryRepository(second))
-      const list = reopened.list()
-      second.close()
-      rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
-      return outcome('L11', [
-        { name: '重启后记忆仍在', ok: list.some((item) => item.currentText.includes('重启前')), detail: `${list.length} memories` },
-        { name: '人格基线稳定', ok: stack.companion.getPersonality().version === before.version, detail: `v${before.version}` },
-        { name: '运行中的会话记忆可读', ok: Boolean(memory.id), detail: memory.id.slice(0, 8) }
-      ])
+      let firstOffsets: Record<string, number> = {}
+      let memoryId = ''
+      const firstStack = buildStack({ growth: true, exploration: true, reflection: true, databasePath: path, keepDatabase: true })
+      try {
+        const memory = firstStack.memories.create('我在做一个长期陪伴项目，代号 Morrow。', 'personal')
+        memoryId = memory.id
+        const conversation = firstStack.companion.createConversation()
+        for (let index = 0; index < 3; index += 1) {
+          await firstStack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '以后直接说重点，别铺垫。', includeSensitive: false }, () => undefined)
+        }
+        firstOffsets = Object.fromEntries(firstStack.growth.list().map((entry) => [entry.dimension, entry.offset]))
+      } finally {
+        firstStack.close()
+      }
+
+      const secondStack = buildStack({ growth: true, exploration: true, reflection: true, databasePath: path, keepDatabase: true })
+      try {
+        const conversation = secondStack.companion.createConversation()
+        await secondStack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '我们继续之前那个长期陪伴项目吧。', includeSensitive: false }, () => undefined)
+        const payload = systemText(secondStack.provider.lastPayload)
+        const secondOffsets = Object.fromEntries(secondStack.growth.list().map((entry) => [entry.dimension, entry.offset]))
+        return outcome('L11', [
+          { name: '重启后记忆仍进入最终 payload', ok: payload.includes('Morrow'), detail: `memory ${memoryId.slice(0, 8)}` },
+          { name: '重启后人格漂移连续', ok: JSON.stringify(firstOffsets) === JSON.stringify(secondOffsets), detail: JSON.stringify(secondOffsets) },
+          { name: '重启后基线未被改写', ok: secondStack.companion.getPersonality().version >= 1, detail: `v${secondStack.companion.getPersonality().version}` }
+        ])
+      } finally {
+        secondStack.close()
+        rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+      }
     }
   },
   {
