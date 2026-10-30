@@ -1,5 +1,19 @@
 # Stage 2 交付报告
 
+> **更正（2026-10-30，PR #15 HEAD `2c90163`）**：本文件写下时把两件事记为"不可用"，后续实测推翻了它们，
+> 请以 `docs/reports/stage-2-next-delivery.md` 为准：
+>
+> 1. **桌面/Electron 不是不可用**。`npm run smoke` 在**默认沙箱**（未设 `MORROW_SMOKE_DISABLE_SANDBOX`）下
+>    连跑两次 exit 0，覆盖 built app、凭据加密保存/重启/删除、认知开关、记忆/目标/提醒、删除与重启校验。
+>    当初的"最小复现"只测了 `--no-sandbox` 崩溃路径，就推断整个渲染沙箱不可用——那个推断是错的。
+> 2. **真实 Provider 不是缺凭据**。`scripts/phase24-real-model.ts` 用 `spark-x2.6` 实测：
+>    S1–S6 中 5 个可运行场景 PASS，客观断言 13/13，errors 0（S4 因只有单一模型 SKIPPED）。
+>
+> 仍然成立的部分：CI 三个 job 因**账号计费**拿不到 runner（`runner_id=0`/`steps=0`），
+> 以及 Windows 安装器升级路径未验证。原文保留不改，作为当时的判断记录。
+
+---
+
 写作时间：2026-10-29 16:38 (+08:00)
 分支：`feat/stage-2-delivery-hardening`（PR #15 head）
 本报告写作时 HEAD：`e7efb4c` + 本次提交（见 PR #15 最新 HEAD）
