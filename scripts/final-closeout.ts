@@ -44,6 +44,20 @@ function assertClean(): void {
   }
 }
 
+function isAncestor(ancestor: string, descendant: string): boolean {
+  try {
+    execSync(`git merge-base --is-ancestor ${ancestor} ${descendant}`, { stdio: 'pipe' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function verificationCommit(path: string): string {
+  const text = readFileSync(path, 'utf8')
+  return /^commitSha=(.+)$/mu.exec(text)?.[1]?.trim() ?? ''
+}
+
 function newestVerification(): { path: string; prefix: string } {
   const files = readdirSync(FINAL_DIR).filter((name) => name.endsWith('-verification.txt')).sort()
   if (files.length === 0) throw new Error('no verification log found; run the verification pass first')
@@ -187,20 +201,27 @@ function main(): void {
   assertClean()
   const sha = headSha()
   const { path, prefix } = newestVerification()
-  if (!path.includes(sha.slice(0, 7)) && !path.includes(sha)) {
-    throw new Error(`verification log ${path} was not produced at ${sha}`)
+  // The log is produced at the commit under test; committing the log moves HEAD by
+  // one evidence-only commit. Bind the results to the SHA that produced them and
+  // record the commit they were published in separately — never claim the newer
+  // SHA ran anything.
+  const resultSha = verificationCommit(path)
+  if (!resultSha) throw new Error(`verification log ${path} has no commitSha`)
+  if (!isAncestor(resultSha, sha)) {
+    throw new Error(`verification log ${path} was produced at ${resultSha}, which is not an ancestor of ${sha}`)
   }
   const verification = parseVerification(path)
-  const b1 = buildB1(sha)
-  const b4 = buildB4(sha)
-  const b5 = buildB5(sha)
+  const b1 = buildB1(resultSha)
+  const b4 = buildB4(resultSha)
+  const b5 = buildB5(resultSha)
 
   const failedCommands = verification.filter((entry) => entry.exit !== 0)
   const summary = {
     kind: 'stage2_final_status_matrix' as const,
     generatedAt: new Date().toISOString(),
-    commitSha: sha,
-    shortSha: sha.slice(0, 7),
+    commitSha: resultSha,
+    shortSha: resultSha.slice(0, 7),
+    publishedInCommit: sha,
     branch: execSync('git branch --show-current', { encoding: 'utf8' }).trim(),
     verificationLog: `evals/stage-2/final/${prefix}-verification.txt`,
     environment: { node: process.version, platform: process.platform },
