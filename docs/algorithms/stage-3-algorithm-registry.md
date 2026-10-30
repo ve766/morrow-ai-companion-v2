@@ -220,3 +220,37 @@ T    = 0.5^(age_days / 90)
 - 权重是手工设定的透明基线，**未做标注校准**，不宣称统计学习结果。
 - 归档策略只在启动期执行，没有后台调度器。
 - 合并只按 `fact-slot` 的谓词/值匹配，未覆盖自由文本主题。
+
+
+---
+
+## D1 陪伴目标（Issue §2D）
+
+**源码**：`src/motivation/companion-goal.ts`
+**迁移**：32 `companion-goals`
+**测试**：`src/motivation/companion-goal.test.ts`（10 条）
+
+### 为什么不是现有 GoalService
+
+现有 `GoalService.create()` 只接受**一组固定常量**（`SUPPORTED_GOAL_INTENT` / `GOAL_SUCCESS_CRITERION` / `GOAL_DEFAULT_CONSTRAINTS`），生命周期绑定审批门与工具执行。它是 approved-tool-execution 的演示，属于 Issue 明确排除的 Agent 能力；直接接入陪伴主链会把任务模型混进人格层。因此陪伴目标单独建表、单独服务，`GoalService` 保持不动。
+
+### 数据语义
+
+| 字段 | 含义 |
+|---|---|
+| `owner ∈ {user, shared, morrow}` | 谁的目标。三分不合并 |
+| `priority 1..5` | **1 最优先**，列表按升序排 |
+| `due_at` | 到期即 `expired`，不删除 |
+| `status ∈ {active, paused, completed, cancelled, expired}` | `expired` 由时间产生，`cancelled` 只能由人产生 |
+| `companion_goal_progress(kind ∈ note/step/blocker/decision)` | 追加式进展，随目标级联删除 |
+
+### 规则
+
+1. `activeForContext(limit)` 先跑 `expireOverdue()`，再取 `active`，按 `priority ASC, updated_at DESC`。
+2. 完成/取消/过期的目标**下一轮立即退出** payload。
+3. `resume()` 可恢复 paused/expired；`cancelled` 拒绝恢复（用户取消不该被系统复活）。
+4. 三类归属在 prompt 中分别是 "Goals the user stated (their plan, not yours)" / "Plans both sides agreed on" / "Questions Morrow is pursuing for herself"，措辞明确不可互换。
+
+### 复杂度
+
+`O(G log G)` 排序 + `O(G)` 过期扫描；`G` 为目标数（个位数量级）。

@@ -90,3 +90,15 @@
 | 同槽合并只引用 | `consolidate()` + `memory_consolidations` | 合并/撤回剔除 2 条 | L16 | 同上 |
 
 迁移：31。参数版本：`memory.importance.v1`。
+
+
+## 8. 陪伴目标（§2D）证据
+
+| 需求 | 源码 | 测试 | 评测 |
+|---|---|---|---|
+| 三类归属分离 | `companion-goal.ts` `describeGoals` | 归属措辞 1 条 | L10 |
+| 优先级与到期 | `activeForContext` / `expireOverdue` | 排序/过期/当日到期 3 条 | L10 |
+| 完成即退出上下文 | `setStatus` + `activeForContext` | 完成/恢复 2 条 | L10 |
+| 追加式进展 | `recordProgress` / `progress` | 追加与级联 1 条 | — |
+
+迁移：32。`GoalService` 未改动（属 Agent 侧任务执行，不进入陪伴主链）。

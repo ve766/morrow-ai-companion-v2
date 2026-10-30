@@ -25,6 +25,7 @@ import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-
 import { PersonalizationService } from '../personalization/personalization-service'
 import { PersonalityGrowthService } from '../personalization/personality-growth'
 import { ExplorationService } from '../self-model/exploration-policy'
+import { CompanionGoalService } from '../motivation/companion-goal'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
 import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
@@ -215,6 +216,9 @@ if (hasSingleInstanceLock) {
     // user edited, and neither can contact the user outside a turn.
     const growth = new PersonalityGrowthService(database)
     const exploration = new ExplorationService(database)
+    // §2D: companionship goals live beside the task-execution GoalService, not
+    // inside it; see the migration comment for why the two are not merged.
+    const companionGoals = new CompanionGoalService(database)
     const reflection = new ReflectionService(
       new SqliteReflectionRepository(database),
       { memories, interests, selfModel, events: eventLog },
@@ -231,7 +235,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, goals: companionGoals },
       continuity: { contexts: turnContexts, pending: pendingItems, finalizations, states: new SqliteTurnStateRepository(database) }
     })
     // Settle any turn that was interrupted between its finalization intent and

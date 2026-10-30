@@ -56,6 +56,7 @@ import type { SelfModelService } from '../self-model/self-model-service'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
 import { applyGrowth, describeGrowth, deriveGrowthSignals, type PersonalityGrowthService } from '../personalization/personality-growth'
 import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
+import { describeGoals } from '../motivation/companion-goal'
 import type { MemoryRecord } from '../memory/memory-domain'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
@@ -633,6 +634,8 @@ export interface SelfModelLoopServices {
   growth?: PersonalityGrowthService
   /** Stage 3 X1: constrained self-initiated topics. */
   exploration?: ExplorationService
+  /** Stage 3 §2D: companionship goals, kept separate by ownership. */
+  goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext'>
 }
 
 /** What the long-term layer needs to know about the turn it is describing. */
@@ -683,6 +686,16 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
   // few points the evidence has earned.
   const growth = services.growth ? describeGrowth(services.growth.list()) : ''
   if (growth) lines.push(growth)
+  // Stage 3 §2D: goals are described by owner, never merged into one list.
+  if (services.goals) {
+    try {
+      const goals = services.goals.activeForContext(3)
+      const line = describeGoals(goals)
+      if (line) lines.push(line)
+    } catch {
+      // A goal read failure must not cost the turn its context block.
+    }
+  }
   // Stage 3 X1 lives in its own hook (`explorationLine`), not here: the gate
   // must be able to report the interest it permitted so the turn can settle it
   // after the reply exists. A string-only block cannot carry that.

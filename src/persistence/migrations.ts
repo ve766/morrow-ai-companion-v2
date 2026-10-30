@@ -1394,6 +1394,50 @@ export const migrations: readonly Migration[] = [
         CREATE UNIQUE INDEX memory_consolidations_slot_uq ON memory_consolidations(slot_key);
       `)
     }
+  },
+  {
+    version: 32,
+    name: 'companion-goals',
+    up(database) {
+      // Issue §2D. The existing `goals` table is a task-execution demo: its
+      // `create()` only accepts one fixed intent / success criterion /
+      // constraints triple and its lifecycle is bound to an approval gate and a
+      // tool run. That is the Agent-shaped model this product deliberately keeps
+      // out of the companion layer, so companionship goals get their own table
+      // with the semantics §2D actually asks for:
+      //
+      //   - `owner` keeps "the user wants this", "we agreed on this" and "Morrow
+      //     is curious about this" as three different claims;
+      //   - `priority` and `due_at` make ordering and expiry explicit instead of
+      //     implicit in creation time;
+      //   - progress is a separate append-only table, so a goal's history is not
+      //     a rewritten text field.
+      database.exec(`
+        CREATE TABLE companion_goals (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          title TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 200 AND instr(title, char(0)) = 0),
+          detail TEXT NOT NULL DEFAULT '' CHECK (length(detail) <= 1000 AND instr(detail, char(0)) = 0),
+          owner TEXT NOT NULL CHECK (owner IN ('user', 'shared', 'morrow')),
+          status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'completed', 'cancelled', 'expired')),
+          priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
+          due_at TEXT,
+          source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0)
+        ) STRICT;
+        CREATE INDEX companion_goals_status_idx ON companion_goals(status, priority ASC, updated_at DESC);
+
+        CREATE TABLE companion_goal_progress (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          goal_id TEXT NOT NULL REFERENCES companion_goals(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN ('note', 'step', 'blocker', 'decision')),
+          note TEXT NOT NULL CHECK (length(trim(note)) BETWEEN 1 AND 500 AND instr(note, char(0)) = 0),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX companion_goal_progress_idx ON companion_goal_progress(goal_id, created_at DESC);
+      `)
+    }
   }
 ]
 

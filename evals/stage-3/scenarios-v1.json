@@ -1,6 +1,6 @@
 {
-  "datasetVersion": "stage-3-v1.2",
-  "harnessVersion": "stage-3-runner-v3",
+  "datasetVersion": "stage-3-v1.3",
+  "harnessVersion": "stage-3-runner-v4",
   "provider": "scripted-offline",
   "note": "Each scenario is executed by evals/stage-3/runner/cli.ts against a temporary SQLite database and the real CompanionService. A scripted provider is used, so every assertion is about wiring, persistence and the serialized payload — never about model quality. L11 rebuilds the whole runtime on the same database file.",
   "scenarios": [
@@ -61,9 +61,8 @@
     {
       "id": "L10",
       "name": "长期目标跨会话连续性",
-      "requirement": "目标层连续性",
-      "executable": false,
-      "reason": "GoalService 只在 Electron 主进程装配，不在 CompanionService 主链内"
+      "requirement": "长期目标跨会话连续；用户目标/共同计划/Morrow 问题三分；完成与过期即退出上下文",
+      "executable": true
     },
     {
       "id": "L11",

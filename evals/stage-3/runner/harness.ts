@@ -31,6 +31,7 @@ import { PendingCognitionService } from '../../../src/cognition/pending-items'
 import { PersonalizationService } from '../../../src/personalization/personalization-service'
 import { PersonalityGrowthService, GROWTH_MAX_OFFSET } from '../../../src/personalization/personality-growth'
 import { ExplorationService, decideExploration } from '../../../src/self-model/exploration-policy'
+import { CompanionGoalService } from '../../../src/motivation/companion-goal'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../../src/shared/companion'
 import { MemorySecretStore } from '../../../src/security/secrets'
 import type { ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from '../../../src/providers/provider-policy'
@@ -69,6 +70,7 @@ export interface Stack {
   growth: PersonalityGrowthService
   exploration: ExplorationService
   importance: MemoryImportanceService
+  goals: CompanionGoalService
   close: () => void
 }
 
@@ -114,6 +116,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   const personalization = new PersonalizationService(database, clock)
   const growth = new PersonalityGrowthService(database, clock)
   const exploration = new ExplorationService(database, clock)
+  const goals = new CompanionGoalService(database, clock)
   const companion = new CompanionService({
     database,
     memories,
@@ -139,7 +142,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       ...(options.reflection ? { reflection } : {}),
       personalization,
       ...(options.growth ? { growth } : {}),
-      ...(options.exploration ? { exploration } : {})
+      ...(options.exploration ? { exploration } : {}),
+      goals
     },
     ...(clock ? { clock } : {}),
     continuity: {
@@ -161,6 +165,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     growth,
     exploration,
     importance: memoryImportance,
+    goals,
     close: () => {
       database.close()
       if (!options.keepDatabase) rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
@@ -441,7 +446,31 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
   {
     id: 'L10',
     name: '长期目标跨会话连续性',
-    run: async () => ({ id: 'L10', status: 'NOT_RUN', assertions: [], notRunReason: '目标层（GoalService）不在 CompanionService 主链内，需要 Electron 主进程装配；本 runner 不覆盖。' })
+    run: async (stack) => {
+      // Three ownership classes, deliberately different titles so a merged list
+      // would be visible in the payload.
+      const userGoal = stack.goals.create({ title: '在春天前完成 Morrow 第一阶段', owner: 'user', priority: 2 })
+      const sharedGoal = stack.goals.create({ title: '每周一起复盘一次进展', owner: 'shared', priority: 3 })
+      const morrowGoal = stack.goals.create({ title: '搞清楚长期记忆该保留多久', owner: 'morrow', priority: 4 })
+      const overdue = stack.goals.create({ title: '已经过期的旧计划', owner: 'user', priority: 1, dueAt: '2026-01-01T00:00:00.000Z' })
+
+      const conversation = stack.companion.createConversation()
+      await send(stack, conversation.id, '我们继续推进之前说的那件事。')
+      const payload = systemText(stack.provider.lastPayload)
+
+      stack.goals.complete(userGoal.id)
+      await send(stack, conversation.id, '再说说现在的计划。')
+      const afterComplete = systemText(stack.provider.lastPayload)
+
+      return outcome('L10', [
+        { name: '用户目标以用户归属进入 payload', ok: payload.includes(userGoal.title) && payload.includes('Goals the user stated'), detail: 'marker' },
+        { name: '共同计划单独成句', ok: payload.includes(sharedGoal.title) && payload.includes('Plans both sides agreed on'), detail: 'marker' },
+        { name: 'Morrow 自己的问题不冒充用户目标', ok: payload.includes(morrowGoal.title) && payload.includes('Questions Morrow is pursuing'), detail: 'marker' },
+        { name: '过期目标不再出现在请求里', ok: !payload.includes(overdue.title), detail: stack.goals.get(overdue.id)?.status ?? 'missing' },
+        { name: '完成的目标下一轮消失', ok: !afterComplete.includes(userGoal.title), detail: 'text scan' },
+        { name: '目标状态可查询且可恢复', ok: stack.goals.get(userGoal.id)?.status === 'completed', detail: stack.goals.get(userGoal.id)?.status ?? 'missing' }
+      ])
+    }
   },
   {
     id: 'L11',

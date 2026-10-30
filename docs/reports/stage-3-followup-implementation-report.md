@@ -99,7 +99,7 @@ permitted → selected_for_prompt → actually_raised | not_raised
 | A | 冲突管理（保留不同时间/情境的冲突） | **部分**：既有 conflict 标记保留；未新增按时间/情境的分类 |
 | B | 内在状态 appraisal / 调节重构 | **未实现**（沿用既有实现） |
 | C | 反思候选类型扩展与质量评测 | **部分**（既有 findings 可追溯，未加质量指标） |
-| D | GoalService 接入主链（L10） | **未实现**，L10 仍 NOT_RUN |
+| D | 长期目标跨会话（§2D） | **已实现（D1）**：`CompanionGoalService` + 迁移 32 + 10 条测试 + L10 六断言 |
 | E | 探索真实提出检测 | **已实现**（F2） |
 | F | 语音闭环 | **未实现** |
 
@@ -110,9 +110,9 @@ permitted → selected_for_prompt → actually_raised | not_raised
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | 无错误 |
-| `npx vitest run` | 0 | **83 文件 / 737 测试全通过**（新增 M1 的 11 条） |
+| `npx vitest run` | 0 | **84 文件 / 747 测试全通过**（M1 11 条 + D1 10 条） |
 | `npx electron-vite build` | 0 | 构建成功 |
-| `npm run eval:stage3` | 0 | **14 PASS / 0 FAIL / 2 NOT_RUN**（分母 16） |
+| `npm run eval:stage3` | 0 | **15 PASS / 0 FAIL / 1 NOT_RUN**（分母 16；L10 已可执行） |
 | `npm run eval:stage3:ablation` | 0 | 差异见 §4 |
 | `npm run eval:stage3:longitudinal` | 0 | 7 条断言 PASS（注入时钟） |
 | `npm run eval:stage3:restart` | 0 | 6 条断言 PASS |
@@ -158,4 +158,6 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:long-conversation
 
 F1–F5 已按代码级修复并有回归证据，F6 已修，F7 只保留客观检查并明确 BLOCKED。§2A 的记忆重要度/衰减/合并已实现（M1）。
 
-仍未完成：§2A 的冲突分类（部分）、§2B appraisal、§2C 反思质量评测、§2D GoalService 主链（L10 仍 NOT_RUN）、§2F 语音闭环。因此整体仍为 **PARTIAL**，不按"阶段三完整验收"合并。
+§2D 已用 `CompanionGoalService` 实现（理由见算法登记表 D1：现有 `GoalService` 只能表达固定 intent 的任务执行，属 Agent 侧，强行接入会把任务模型混进陪伴层）。
+
+仍未完成：§2A 的冲突分类（部分）、§2B appraisal、§2C 反思质量评测、§2F 语音闭环。因此整体仍为 **PARTIAL**，不按"阶段三完整验收"合并。

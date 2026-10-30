@@ -139,3 +139,24 @@ MemoryService.create/correct/retract/restore/confirm
 - **检索过滤**：`memory-context-assembler` 的候选集合加 `archived_at IS NULL`，归档记忆不进入 prompt 竞争。
 - **合并只引用**：`memory_consolidations` 存成员 id 列表，正文仍只有 `memories` 一份。
 - **恢复**：`importance.restore(id)` 清空 `archived_at`，内容与修订不变。
+
+
+---
+
+## 8. 陪伴目标（Issue §2D）
+
+`CompanionGoalService`（`src/motivation/companion-goal.ts`）在长期层中提供第三块内容：
+
+```
+buildSelfModelContextBlock
+  ├─ 兴趣三行（user / morrow / shared）
+  ├─ 未经确认的自我推断
+  ├─ 交互偏好
+  ├─ 人格有界漂移
+  └─ 目标三行（user / shared / morrow）   ← §2D
+```
+
+读取路径：`activeForContext(3)` → `expireOverdue()` → `status='active'` 且 `due_at` 未过 → 按优先级升序。
+完成、取消、过期的目标在下一轮直接消失；`resume()` 可恢复（`cancelled` 除外）。
+
+**与既有 `GoalService` 的关系**：后者是审批 + 工具执行的任务演示，留在 Agent 侧，不进入陪伴主链。
