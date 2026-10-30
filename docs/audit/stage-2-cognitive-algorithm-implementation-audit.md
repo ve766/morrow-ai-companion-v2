@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 任务 | issue #17 评论 6516588833 |
-| 实现提交 | `d856e25`（所有结果在该提交、工作区干净时生成） |
+| 实现提交 | `b5d09f8`（代码 `d856e25`，其后一个提交补测试与文档；所有结果都在 `b5d09f8`、工作区干净时生成） |
 | 对照实现报告 | [`docs/reports/stage-2-cognitive-algorithm-implementation.md`](../reports/stage-2-cognitive-algorithm-implementation.md) |
 | 环境 | Windows 10.0.26200、Node v22.22.2 |
 | 结论 | **B1 PASS / B4 PASS / B5 PASS**；B2、B3、A1–A3 回归通过；整体仍受外部条件限制（见 §6） |
@@ -19,7 +19,7 @@
 | 检查真实调用链并列出入口/消费端/特征来源 | ✅ | 报告 §1；`intent-decision` → `intent-confidence` → `cognitive-turn-analyzer` → `companion-service` → payload；每个特征的数据来源在 §2.1 表中 |
 | 六特征（s/e/m/k/a + 候选区分度 d） | ✅ | `intent-confidence.ts` `IntentCandidateConfidence.features`（5 个单候选特征）+ `margin`（集合级 d，明确不塞进单候选向量） |
 | `z_i = w_s s + w_e e + w_m m + w_k k − w_a a`，权重非负、和为 1 | ✅ | 源码常量 + `intent-confidence.test.ts` 首条断言 |
-| 权重通过可测特征与标注开发集确定/校验，不得凭直觉 | ✅ | `scripts/b1-calibrate.ts` 网格搜索 + 双集验证（dev 18/18、holdout 8/8、fixture 26/26），约束与理由写在脚本内；结果文件 `results/2026-10-30T07-24-29-516Z-d856e25-cognitive.json` |
+| 权重通过可测特征与标注开发集确定/校验，不得凭直觉 | ✅ | `scripts/b1-calibrate.ts` 网格搜索 + 双集验证（dev 18/18、holdout 8/8、fixture 26/26），约束与理由写在脚本内；结果文件 `results/2026-10-30T07-34-49-284Z-b5d09f8-cognitive.json` |
 | 样本不足时明确保留为启发式，不得称概率 | ✅ | `calibration: 'uncalibrated_heuristic'`；softmax 只作 `share`（测试断言和为 1 且标注非概率） |
 | 候选差距不足时结合当前轮证据；不得让"有历史"单独抬分 | ✅ | `contextFitOf` 对独立轮次恒返回 1；三档历史同句 topScore 相同（分析器与单元测试各一条） |
 | 低置信度/高歧义 → 澄清或明确不确定 | ✅ | 未解析指代硬闸 + `directionChanging && Δ<floor` + 低分高歧义；payload 断言 `route=clarify` 与澄清指令 |
@@ -52,7 +52,7 @@
 | 结构化 schema 覆盖六类 | ✅ | 迁移 26 扩到 7 类；`intent_correction`、`next_turn_suggestion` 为新增；`self-model.test.ts` 断言发现的 kind 均在枚举内 |
 | 每项记录来源引用/置信度/候选或确认/创建轮次/撤回语义 | ✅ | `evidence_json`（事件/记忆/条目 id）、`confidence`、`run_id`+`created_at`、`interests.status` 与证据账本 |
 | `ΔP = clip_ε(η·G·Map(R))`，结构化建议经映射与门控，不直接乘人格向量 | ✅ | 现状：人格更新只走 `personalization-service` 的有界更新（单轮 ≤0.05、折叠重算）；反思**不直接写人格**，只产出建议类发现。**Map 未实现为独立函数**——见 §5 |
-| 正向 fixture：full 与 no_reflection 的 payload 有可解释差异 | ✅ | `ablation/results/2026-10-30T07-24-31-267Z-d856e25-reflection-positive.json`：full 3/2→active→块出现；off 2/1→candidate→无块 |
+| 正向 fixture：full 与 no_reflection 的 payload 有可解释差异 | ✅ | `ablation/results/2026-10-30T07-34-50-725Z-b5d09f8-reflection-positive.json`：full 3/2→active→块出现；off 2/1→candidate→无块 |
 | 撤回/删除后差异消失 | ✅ | 撤回两条记忆后探针 payload 不再含注意力块 |
 | 反思失败不阻塞聊天 | ✅ | `src/app/b5-reflection-safety.integration.test.ts`：注入抛错后仍 deliver，且断言注入确实被触发 |
 | 四层报告（运行了/产生候选/过门控/payload 变） | ✅ | 结果 JSON `layers` 字段逐层给出两臂取值 |

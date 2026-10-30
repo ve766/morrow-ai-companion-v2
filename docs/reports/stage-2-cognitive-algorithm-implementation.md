@@ -5,7 +5,7 @@
 | 任务 | issue #17 评论 6516588833 |
 | 分支 | `feat/stage-2-delivery-hardening`（PR #15） |
 | 开工基线 HEAD | `55432fc2816feb223a1205b40592306d205d0bc8` |
-| 实现提交 | `d856e25`（下文所有结果都在该提交、**工作区干净**时生成） |
+| 实现提交 | `b5d09f8`（下文所有结果都在该提交、**工作区干净**时生成） |
 | 环境 | Windows 10.0.26200（MINGW64）、Node v22.22.2 |
 | 自审报告 | [`docs/audit/stage-2-cognitive-algorithm-implementation-audit.md`](../audit/stage-2-cognitive-algorithm-implementation-audit.md) |
 
@@ -110,7 +110,7 @@ const strategy =
 | 单元 | `src/cognition/intent-confidence.test.ts`（10 条） | 权重归一且非零；同句三档历史同分；指代仅在有共享内容时得分；歧义降分；按 z 排序；share 和为 1 且标 `uncalibrated_heuristic`；无候选不追问；未解析指代必追问；两读数同路由不追问 |
 | 分析器 | `src/cognition/cognitive-turn-analyzer.test.ts`（6 条 B1 组） | 三档历史同分且同策略；未解析指代 → clarify；有相关上文 → 不 clarify；"嗯。"无候选不追问；纠正压过上下文；清晰请求跨历史同策略 |
 | 应用级 | `src/app/b1-strategy-payload.integration.test.ts`（3 条） | payload 含 `response route=clarify` 与澄清指令；同一句有上下文后不再出现；清晰个人问题在无关历史下仍 `retrieve_memory` |
-| 校准 | `evals/stage-2/results/2026-10-30T07-24-29-516Z-d856e25-cognitive.json` | dev 18/18、holdout 8/8、fixture 26/26、historyContrast.identical=true |
+| 校准 | `evals/stage-2/results/2026-10-30T07-34-49-284Z-b5d09f8-cognitive.json` | dev 18/18、holdout 8/8、fixture 26/26、historyContrast.identical=true |
 
 ### 2.5 实现过程中修掉的真实缺陷（都不是"为了让测试过"）
 
@@ -168,7 +168,7 @@ off  臂：2 条证据 / 1 个会话 → candidate → 无块
 
 探针轮次发在**新会话**里，所以主题只能经长期层到达 payload，不可能来自会话历史。
 
-结果（`evals/stage-2/ablation/results/2026-10-30T07-24-31-267Z-d856e25-reflection-positive.json`）：
+结果（`evals/stage-2/ablation/results/2026-10-30T07-34-50-725Z-b5d09f8-reflection-positive.json`）：
 
 | 层次 | full | no_reflection |
 |---|---|---|
@@ -221,24 +221,24 @@ off  臂：2 条证据 / 1 个会话 → candidate → 无块
 
 ---
 
-## 6. 命令与结果（`d856e25`，工作区干净）
+## 6. 命令与结果（`b5d09f8`，工作区干净）
 
-验证日志：`evals/stage-2/results/2026-10-30T07-24-53-d856e25-verification.txt`
+验证日志：`evals/stage-2/results/2026-10-30T07-32-08-b5d09f8-verification.txt`
 
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | — |
-| `npx vitest run --maxWorkers=2` | 0 | **77 files / 676 tests** |
+| `npx vitest run --maxWorkers=2` | 0 | **78 files / 677 tests** |
 | `npm run build` | 0 | — |
-| `npm run eval:stage2` | 0 | 12 executed / 12 passed / blocked 2 / notRun 0（45 断言）→ `results/2026-10-30T07-26-54-d856e25.json` |
+| `npm run eval:stage2` | 0 | 12 executed / 12 passed / blocked 2 / notRun 0（45 断言）→ `results/2026-10-30T07-34-10-b5d09f8.json` |
 | `npm run eval:topic-identity` | 0 | P 1.000 / R 0.889（26 对，未变） |
-| `npm run eval:ablation` | 0 | 四臂 → `ablation/results/2026-10-30T07-27-02-d856e25.json` |
+| `npm run eval:ablation` | 0 | 四臂 → `ablation/results/2026-10-30T07-34-19-b5d09f8.json` |
 | `npm run smoke` | 0 | Electron 默认沙箱通过 |
 
 专项结果：
 
-- B1 校准：`results/2026-10-30T07-24-29-516Z-d856e25-cognitive.json`
-- B5 正向消融：`ablation/results/2026-10-30T07-24-31-267Z-d856e25-reflection-positive.json`
+- B1 校准：`results/2026-10-30T07-34-49-284Z-b5d09f8-cognitive.json`
+- B5 正向消融：`ablation/results/2026-10-30T07-34-50-725Z-b5d09f8-reflection-positive.json`
 
 ---
 
