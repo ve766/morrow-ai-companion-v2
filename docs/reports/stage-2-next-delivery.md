@@ -27,7 +27,7 @@
 | 反转改变兴趣状态（P0-B） | **PASS** | 同上 |
 | 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**（26/26 客观断言；S4 缺第二模型） | `evaluation/reports/phase24-real-model-78ff892.json` |
 | 消融 | **4 组全部真实执行**（full / no_personalization / no_context_utility / no_reflection） | `evals/stage-2/ablation/results/*` |
-| 场景 K（真实凭据） | **BLOCKED** | 本环境无凭据 |
+| 场景 K（真实凭据） | **BLOCKED（凭据已在，上游拒绝）** | 三个端点均 403 `no_valid_authorization`：账号无有效订单/额度 |
 | 场景 L（桌面渲染） | **BLOCKED（运行器内）**，桌面路径另有 **PASS** 证据 | 运行器无法托管 GUI 进程；`npm run smoke` 两次 exit 0（沙箱开启） |
 | CI | **BLOCKED（账号计费）** | run 40993696285 注解见 §8 |
 
@@ -140,7 +140,7 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 | 项 | 状态 | 本轮做了什么 | 证据 |
 |---|---|---|---|
-| B1 意图置信度 | **PARTIAL** | 尝试把 `intent === 'uncertain'` 接到 `clarify`，实测标注语料 strategyAccuracy 从 1.000 掉到 0.885（23/26），按数据回退；把该测量与「低置信度不强制追问」写成 2 条测试 | `cognitive-turn-analyzer.test.ts` |
+| B1 意图置信度 | **PARTIAL** | 三次接线尝试都实测回退：①`uncertain→clarify` 使语料准确率 1.000→0.885；②用分数收窄检索宽度会误伤首轮清晰问句（`我住在哪里？` 首轮 0.780、有上文 0.947）；③评估值不在 `CognitiveTurnAnalysis` schema 里，持久化须升版本。三个测量都写成测试 | `cognitive-turn-analyzer.test.ts`（含 3 条测量断言） |
 | B2 人格稳定 | **PASS** | 复核：`savePersonality` 只有用户编辑才升版本；情绪/反馈轮次不写修订；场景 E 4 条断言覆盖 | 场景 E + `personalization-service.test.ts`（11 条） |
 | B3 上下文效用 | **PARTIAL** | `X`（候选集内冲突）与 `D`（未确认且 >120 天的陈旧度）真正接入排序；`P` 仍为 0，理由是没有可辩护的映射，不硬凑 | `memory-context-assembler.test.ts` 2 条排序断言 + `MemoryService.conflictedIds` |
 | B4 轮次状态机 | **PASS** | 补齐 `analyzed` / `context_ready` / `awaiting_consent` / `recovery_required` 四个写入点，9 个状态全部可达 | `turn-state-sequence.integration.test.ts`（3 条，记录型端口断言 7 步序列） |
@@ -195,6 +195,20 @@ npm run smoke     # exit 0（连续两次）
 - 仍然没有证据的是**安装包升级路径**（旧版本 → 新版本的 schema 迁移）：CI 的 `Windows upgrade-path` job 与其它 job 一样被账号计费挡住，本地也没有跑过安装器。
 
 因此桌面从"BLOCKED（渲染沙箱）"改为"**桌面 smoke PASS**"；此前那条结论是错的，原因是最小复现只覆盖了 `--no-sandbox` 崩溃路径，没有试过默认沙箱下的完整 smoke。
+
+## 7.6 真实 Provider：凭据已提供，上游拒绝（K 仍是 BLOCKED）
+
+按指令用环境变量注入凭据（未写入仓库、未打印、未落盘），对三个端点各发一次最小请求：
+
+| 端点 | HTTP | 错误码 | 消息 |
+|---|---|---|---|
+| `POST /v1/responses` | 403 | `no_valid_authorization` | the account lacks an active order, has insufficient quota, or the order is invalid |
+| `POST /v2/chat/completions` | 403 | `11200` | 同上 |
+| `POST /anthropic/v1/messages` | 403 | `11200` | 同上 |
+
+这不是"没有凭据"，而是"凭据被接受、账号未开通"（无效 key 会返回 401）。因此 K 仍为 **BLOCKED**，但阻塞点从"环境无凭据"变成"上游账号无有效订单/额度"——需要开通后重跑 `scripts/phase24-real-model.ts`。
+
+既有的一轮 S1–S6 结果（26/26 客观断言，S4 缺第二模型 SKIPPED）仍按原口径标 PASS WITH LIMITATIONS，**不等同于**本轮重跑。
 
 ## 8. CI：BLOCKED（账号计费，不是代码失败）
 

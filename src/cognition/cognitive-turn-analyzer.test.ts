@@ -19,6 +19,21 @@ describe('B1 confidence is measured, and deliberately not wired to clarify', () 
     expect(reading.analysis.strategy).toBe('answer')
   })
 
+  it('scores a turn mostly by whether there is prior history, not by how vague it is', () => {
+    // Same clear question, only the history differs. The 0.167 gap comes from
+    // the missing `history` component, not from the request being harder to read.
+    // This is why the score is not used to resize retrieval: a rule keyed on it
+    // would fire on every first turn of a conversation, including clear ones.
+    const first = analyzeCognitiveTurnDetailed('我住在哪里？', [], sourceId)
+    const withHistory = analyzeCognitiveTurnDetailed('我住在哪里？', [{ id: priorId, role: 'user', body: '我养了一只叫咪咪的猫。' }], sourceId)
+    expect(first.assessment.confidence).toBeCloseTo(0.78, 2)
+    expect(withHistory.assessment.confidence).toBeCloseTo(0.947, 2)
+    expect(first.assessment.used).not.toContain('history')
+    expect(withHistory.assessment.used).toContain('history')
+    // The strategy is identical: the score moves, the decision does not.
+    expect(first.analysis.strategy).toBe(withHistory.analysis.strategy)
+  })
+
   it('does not let a coin-flip reading force clarify when nothing would be retrieved', () => {
     const reading = analyzeCognitiveTurnDetailed('随便。', [], sourceId)
     expect(reading.decision.needsMemoryRetrieval).toBe(false)
