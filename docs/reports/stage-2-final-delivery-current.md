@@ -24,7 +24,7 @@
 | B4 轮次状态机 | 一轮的生命周期 9 个状态都有真实写入点 | 3 条集成测试（7 步序列、失败止于 `failed`、`recovery_required` 入边） |
 | 评测与消融 | 12 个可执行场景全过；四组消融真跑 | `results/…42a51e0.json`、`ablation/results/…42a51e0.json` |
 | 真实模型 | `spark-x2.6` 下 S1/S2/S3/S5/S6 全过（13/13 客观断言） | `evals/stage-2/provider/phase24-real-model-26aeac7.json` |
-| 桌面 | Electron 默认沙箱 smoke 通过 | `results/verify-42a51e0-061042.log` |
+| 桌面 | Electron 默认沙箱 smoke 通过 | `results/verify-42a51e0-061042.txt` |
 
 ## 2. 当前可用边界（别读过头）
 
@@ -56,5 +56,5 @@
 - 逐项状态、口径冲突修复、剩余风险：[最终审计报告](../audit/stage-2-final-delivery-audit.md)
 - 能力 → 源码 → 测试 → 结果 → SHA：[证据索引](stage-2-evidence-index.md)
 - 算法规则与接线现状：[算法登记表](../algorithms/stage-2-algorithm-registry.md)
-- 本次验证的完整命令日志：[`evals/stage-2/results/verify-42a51e0-061042.log`](../../evals/stage-2/results/verify-42a51e0-061042.log)
+- 本次验证的完整命令日志：[`evals/stage-2/results/verify-42a51e0-061042.txt`](../../evals/stage-2/results/verify-42a51e0-061042.txt)
 - 真实 Provider 原始报告：[`evals/stage-2/provider/`](../../evals/stage-2/provider/)

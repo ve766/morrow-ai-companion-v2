@@ -16,7 +16,7 @@
 
 | # | 能力 | 状态 | 源码 | 测试（文件 + 用例） | 证据 | 能证明 / 不能证明 |
 |---|---|---|---|---|---|---|
-| C1 | 规则层意图判断 | PASS | `src/cognition/intent-decision.ts` | `src/cognition/intent-decision.test.ts` | `evals/stage-2/results/verify-42a51e0-061042.log` | 能：规则命中与策略映射。不能：真实模型下的意图准确率 |
+| C1 | 规则层意图判断 | PASS | `src/cognition/intent-decision.ts` | `src/cognition/intent-decision.test.ts` | `evals/stage-2/results/verify-42a51e0-061042.txt` | 能：规则命中与策略映射。不能：真实模型下的意图准确率 |
 | C2 | 多信号意图置信度（B1） | **PARTIAL** | `src/cognition/intent-confidence.ts`、`src/cognition/cognitive-turn-analyzer.ts` | `src/cognition/cognitive-turn-analyzer.test.ts`：`reports a low-confidence reading without turning it into a question`、`does not let a coin-flip reading force clarify when nothing would be retrieved`、`scores a turn mostly by whether there is prior history, not by how vague it is` | 同上（该文件 18 条全过） | 能：分数被计算并随分析返回；分数由"有无上文"主导（同一句 0.780 vs 0.947）。**不能**：认为它影响了决策——它没有 |
 | C3 | 上下文效用 `U(c)` 的 P/X/D（B3） | PASS | `src/cognition/context-utility.ts` → `src/memory/memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds`；`personalizationFit` | `context-utility.test.ts`（5 条）；`memory-context-assembler.test.ts`：`ranks a record involved in an unresolved conflict below its twin`、`penalises a record that was never confirmed and is old`、`promotes a memory that is about a dimension the user personalised`；`personalization-service.test.ts`：`scores a memory about a personalised dimension and nothing else`、`takes the strongest matching dimension` | 验证日志 + 消融 `no_context_utility` 臂（`ablation/results/2026-10-30T06-12-49-42a51e0.json`，`contextUtilityChangesMemoryOrder: true`） | 能：三个分量都改变投递顺序。不能：`P` 只覆盖"记忆明确提到交互维度"的情形，未提到时恒为 0 |
 | C4 | 轮次状态机（B4） | PASS | `src/cognition/turn-state-machine.ts`、`src/app/companion-service.ts` `recordTurnState` | `turn-state-machine.test.ts`（6 条）；`src/app/turn-state-sequence.integration.test.ts`：`walks received → analyzed → context_ready → awaiting_consent → requesting → response_received → committed`、`records a provider failure after requesting, and never claims a delivery`、`declares the interrupted-only states legal from the steps that can reach them` | 验证日志 | 能：9 个状态都有真实写入点，成功轮次 7 步序列可观测。不能：`recovery_required` 只有状态机边断言，缺"真实中断后恢复"的端到端用例 |
@@ -54,7 +54,7 @@
 
 | # | 能力 | 状态 | 证据 | 边界 |
 |---|---|---|---|---|
-| V1 | 桌面 Electron | PASS | `evals/stage-2/results/verify-42a51e0-061042.log`（`npm run smoke` exit 0，默认沙箱未禁用） | 只覆盖 smoke 列出的路径；不覆盖真实用户交互 |
+| V1 | 桌面 Electron | PASS | `evals/stage-2/results/verify-42a51e0-061042.txt`（`npm run smoke` exit 0，默认沙箱未禁用） | 只覆盖 smoke 列出的路径；不覆盖真实用户交互 |
 | V2 | Windows schema/migration 升级 | PASS | `npx vitest run src/persistence` 57/57（win32、默认并发，见验证日志） | **只是 schema 测试**，不等于安装器升级 |
 | V3 | Windows 安装器升级 | **BLOCKED / NOT VERIFIED** | 无 | 需授权在干净机器执行：装旧版 → 覆盖装新版 → 启动 → 数据保留 |
 | V4 | CI | **BLOCKED** | run [41010305777](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41010305777)：三 job `runner_id=0` / `steps=0`；注解为账号付款失败或额度不足 | **不计通过也不计失败**：没有任何步骤执行过 |

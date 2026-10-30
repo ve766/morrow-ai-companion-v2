@@ -87,7 +87,7 @@ precision 1.000  recall 0.889  FP 0  FN 1  ambiguous 4
 
 ### 2.6 桌面（Electron）
 
-**PASS**。`npm run smoke` 在**默认沙箱**（未设 `MORROW_SMOKE_DISABLE_SANDBOX`）下通过，记录在 `evals/stage-2/results/verify-42a51e0-061042.log`。覆盖 built app、凭据加密保存/重启/删除、认知默认关与显式开启、记忆生命周期、目标与审批、提醒控制、删除与重启校验。
+**PASS**。`npm run smoke` 在**默认沙箱**（未设 `MORROW_SMOKE_DISABLE_SANDBOX`）下通过，记录在 `evals/stage-2/results/verify-42a51e0-061042.txt`。覆盖 built app、凭据加密保存/重启/删除、认知默认关与显式开启、记忆生命周期、目标与审批、提醒控制、删除与重启校验。
 
 ### 2.7 Windows：schema 升级 vs 安装器升级
 
@@ -129,6 +129,7 @@ precision 1.000  recall 0.889  FP 0  FN 1  ambiguous 4
 | 1 | "A–L 12/12、45 assertions、NOT_RUN 0" vs "K/L 可能 BLOCKED" | 两者都对但措辞误导：结果 JSON 为 `executed 12 / passed 12 / blocked 2`，K、L 各 0 断言且 `BLOCKED` | 所有文档改为"12 个**可执行**场景全部 PASS；K、L BLOCKED 未计入"，并新增 §2.1 的场景清单 |
 | 2 | "Windows 57/57" vs "安装器升级未验证" | 57/57 是 `npx vitest run src/persistence`（schema 测试） | 文档拆成两行：schema PASS、安装器 BLOCKED / NOT VERIFIED（§2.7） |
 | 3 | `evaluation/reports/phase24-real-model-26aeac7.json` 访问 404 | **报告从未提交**：`.gitignore:18 evaluation/reports/*` 把脚本输出目录整体忽略，文件一直只在本地 | 逐字节复制到 `evals/stage-2/provider/phase24-real-model-26aeac7.json`（SHA-256 校验一致）+ README；文档引用全部改指向新路径。生成脚本输出路径未改，后续运行需手动复制 |
+| 3b | 同一类问题第二次出现：验证日志 `verify-…-061042.log` 也被 404 | `.gitignore:5 *.log` 忽略所有日志文件 | 日志改名为 `.txt`（不受忽略），文档引用同步；验证脚本改为写 `.txt`。**教训：引用任何证据文件前先用远端 API 确认存在，不能只看本地 `ls`** |
 | 4 | PR HEAD / 评测 JSON `headSha` / 消融 JSON `headSha` 三者不同 | 结果在 `42a51e0` 生成（干净树），PR HEAD 随后多一个"提交结果"的提交 | 文档新增 SHA 口径表，逐份说明"结果生成 SHA"与"当前 HEAD"的区别；旧 SHA 结果保留不覆盖 |
 
 另修正两处此前审计已发现但我自己写错的事实：
@@ -168,7 +169,7 @@ precision 1.000  recall 0.889  FP 0  FN 1  ambiguous 4
 
 ## 6. 验证批次（干净工作树，`dirty_at_start=0`）
 
-日志：`evals/stage-2/results/verify-42a51e0-061042.log`（含每条命令的起止 UTC 与退出码）
+日志：`evals/stage-2/results/verify-42a51e0-061042.txt`（含每条命令的起止 UTC 与退出码）
 
 | 命令 | 退出码 | 结果 |
 |---|---|---|
