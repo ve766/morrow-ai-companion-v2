@@ -7,7 +7,7 @@
 
 | 名称 | SHA | 含义 |
 |---|---|---|
-| 结果生成代码 SHA | `5635a9c6e0023d8bc059f6c4322dd65dc5b9101b` | 下面所有评测 JSON 里的 `headSha`。结果是在**工作区干净**时、于这个提交上生成的 |
+| 结果生成代码 SHA | `e25308ca1fd39c3bca930fd9cbf02809442f16c7` | 下面所有评测 JSON 里的 `headSha`。结果是在**工作区干净**时、于这个提交上生成的 |
 | 当前 PR HEAD | 见 PR #15 最新提交 | 通常比结果 SHA 新一个"结果提交"，因为结果文件本身要提交 |
 
 两者不同是正常的：结果必须绑定生成它的代码，而不是绑定"记录结果的提交"。旧 SHA 的结果文件一律保留，不覆盖、不冒充当前提交。
@@ -17,16 +17,16 @@
 | 能力 | 状态 | 证据 |
 |---|---|---|
 | 评测运行器 A–L（12 个可执行场景） | **PASS 12/12**，45 条断言，NOT_RUN 0 | `evals/stage-2/results/2026-10-30T02-48-36-5635a9c.json` |
-| B1 多信号意图置信度 | **已实现**，未接管 `strategy` | `intent-confidence.test.ts`（5 条） |
+| B1 多信号意图置信度 | **PARTIAL**：已计算并记录，未接管 `strategy`（试接后语料准确率 1.000→0.885，已回退） | `intent-confidence.test.ts` + 2 条测量测试 |
 | B2 渐进式个性化 | **PASS（已接线）** | `personalization-service.test.ts`（11 条，含 P1-A/B/C） |
-| B3 上下文块效用 `U(c)` | **已实现并用于排序**，`P/X/D` 恒 0 | `context-utility.test.ts`（5 条） |
-| B4 轮次状态机 | **已接线 6 个点**，3 个中间态未接 | `turn-state-machine.test.ts`（6 条） |
+| B3 上下文块效用 `U(c)` | **PARTIAL**：`X`/`D` 已接线，`P` 仍为 0（无可辩护映射） | `context-utility.test.ts` + `memory-context-assembler.test.ts` 2 条排序断言 |
+| B4 轮次状态机 | **PASS**：9 个状态全部有写入点 | `turn-state-machine.test.ts` + `turn-state-sequence.integration.test.ts`（3 条） |
 | B5 反思→下一轮 payload | **PASS** | 场景 B5（5 条断言） |
 | 主题同一性匹配 | **PASS（开发集 26 对）** | `topic-identity.test.ts`（12 条）+ 开发集报告 |
 | 记忆证据失效（P0-A） | **PASS** | `interest-invalidation.test.ts`（9 条）+ payload 级 2 条 |
 | 反转改变兴趣状态（P0-B） | **PASS** | 同上 |
 | 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**（26/26 客观断言；S4 缺第二模型） | `evaluation/reports/phase24-real-model-78ff892.json` |
-| 消融 | **部分**：1 条臂可执行（B2），2 条 NOT_RUN | `evals/stage-2/ablation/` |
+| 消融 | **4 组全部真实执行**（full / no_personalization / no_context_utility / no_reflection） | `evals/stage-2/ablation/results/*` |
 | 场景 K（真实凭据） | **BLOCKED** | 本环境无凭据 |
 | 场景 L（桌面渲染） | **BLOCKED** | Chromium 沙箱无法启动，最小复现已证明是环境问题 |
 | CI | **BLOCKED（账号计费）** | run 40993696285 注解见 §8 |
@@ -134,22 +134,46 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 | 反思证据共用占位 id | 所有记忆共用 `0000…`，幂等键一上第二条被当重放丢弃 | `evidenceKind='memory'` + 记忆 id |
 | 证据账本曾是只写计数器 | 重放虚增、删消息不减 | 迁移 24：`interest_evidence` 为唯一真相，聚合降为缓存 |
 
+## 6.5 D 项：B1–B4 逐项核实结果
+
+| 项 | 状态 | 本轮做了什么 | 证据 |
+|---|---|---|---|
+| B1 意图置信度 | **PARTIAL** | 尝试把 `intent === 'uncertain'` 接到 `clarify`，实测标注语料 strategyAccuracy 从 1.000 掉到 0.885（23/26），按数据回退；把该测量与「低置信度不强制追问」写成 2 条测试 | `cognitive-turn-analyzer.test.ts` |
+| B2 人格稳定 | **PASS** | 复核：`savePersonality` 只有用户编辑才升版本；情绪/反馈轮次不写修订；场景 E 4 条断言覆盖 | 场景 E + `personalization-service.test.ts`（11 条） |
+| B3 上下文效用 | **PARTIAL** | `X`（候选集内冲突）与 `D`（未确认且 >120 天的陈旧度）真正接入排序；`P` 仍为 0，理由是没有可辩护的映射，不硬凑 | `memory-context-assembler.test.ts` 2 条排序断言 + `MemoryService.conflictedIds` |
+| B4 轮次状态机 | **PASS** | 补齐 `analyzed` / `context_ready` / `awaiting_consent` / `recovery_required` 四个写入点，9 个状态全部可达 | `turn-state-sequence.integration.test.ts`（3 条，记录型端口断言 7 步序列） |
+
+## 6.6 E 项：四组消融实测
+
+| 臂 | 配置 | 结果 |
+|---|---|---|
+| `full` | 全开 | 个性化块 3/4 轮；记忆投递顺序（夹具下标）`[3,2,0]`；reflection 运行 4 次 |
+| `no_personalization` | 不注入 PersonalizationService | 个性化块 0/4 轮；载荷少 242 字节 |
+| `no_context_utility` | `useContextUtility: false`（真实注入开关） | 顺序变为 `[2,0,3]`：没有效用排序时，陈旧记录按相关度排到最前 |
+| `no_reflection` | 不注入 reflection | reflection 运行 0 次 |
+
+`contextUtilityChangesMemoryOrder: true` 是本轮新增的可观测证据：B3 不是"代码里有"，而是真的改变了模型看到的顺序。
+
+`no_reflection` 的 payload 差异为 0（`attentionBlockTurns` 两臂都是 0）：这 4 轮规划对话没有产生可晋升的兴趣，所以"关掉反思"在这份输入上看不出载荷差别。这是**没有观测到差异**，不是"证明无效"——如实记录。
+
 ## 7. 命令与退出码（在 `5635a9c` 实跑，工作区干净）
 
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | — |
-| `npx vitest run --maxWorkers=2` | 0 | **74 files / 648 tests passed** |
+| `npx vitest run --maxWorkers=2` | 0 | **75 files / 655 tests passed** |
 | `npm run build` | 0 | — |
 | `npm run eval:stage2` | 0 | executed 12 / passed 12 / failed 0 / blocked 2 / notRun 0（45 条断言） |
 | `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.889 / FP 0 / FN 1（26 对） |
-| `npm run eval:ablation` | 0 | wiring difference true（1 条臂） |
+| `npm run eval:ablation` | 0 | 4 组臂全部执行；`wiring difference detected: true` |
 
-结果文件（`headSha = 5635a9c`）：
+结果文件（`headSha = e25308c`）：
 
-- `evals/stage-2/results/2026-10-30T02-48-36-5635a9c.json`（+ `-summary.json`）
+- `evals/stage-2/results/2026-10-30T03-08-17-e25308c.json`（+ `-summary.json`）
 - `evals/stage-2/results/topic-identity-devset-report.json`
-- `evals/stage-2/ablation/results/2026-10-30T02-48-43-5635a9c.json`
+- `evals/stage-2/ablation/results/2026-10-30T03-08-25-e25308c.json`
+
+上一轮 `5635a9c` 的结果（`02-48-36` / `02-48-43`）保留为历史，不覆盖。
 
 ## 8. CI：BLOCKED（账号计费，不是代码失败）
 
@@ -166,10 +190,10 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 | 项 | 状态 |
 |---|---|
-| B1 未接管 `strategy` | 低置信度不会触发澄清；需标注数据重标定 |
-| B3 的 `P/X/D` 恒 0 | 排序未考虑个性化/冲突/过期 |
-| B4 三个中间态未接 | `analyzed` / `awaiting_consent` / `recovery_required` 无写入点 |
-| 消融 2 条臂 | `no_context_utility` / `no_reflection` NOT_RUN |
+| B1 未接管 `strategy` | 低置信度不会触发澄清；实测接入反而降低语料准确率，需校准数据重标定 |
+| B3 的 `P` 恒 0 | 冲突（X）与陈旧（D）已接线；偏好匹配（P）缺可辩护映射 |
+| ~~B4 三个中间态未接~~ | **已解决**：9 个状态全部有写入点，序列有集成测试 |
+| ~~消融 2 条臂~~ | **已解决**：四组臂全部真实执行；`no_reflection` 在本输入上未见载荷差异（如实记录） |
 | 场景 K | BLOCKED（无真实凭据） |
 | 场景 L | BLOCKED（渲染沙箱） |
 | CI | BLOCKED（账号计费） |

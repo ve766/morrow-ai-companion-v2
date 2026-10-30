@@ -8,19 +8,22 @@
 npm run eval:ablation     # 输出 evals/stage-2/ablation/results/<UTC>-<sha>.json
 ```
 
-已实现的臂：
+已实现的臂（四组，全部真实执行）：
 
 | 臂 | 做法 | 观察量 |
 |---|---|---|
-| `full` | 全开 | 每轮 payload 字节数、是否含个性化块 |
-| `no_personalization` | **不注入** `PersonalizationService` | 同上 |
+| `full` | 全开 | payload 字节数、个性化块、记忆投递顺序、反思运行次数 |
+| `no_personalization` | 不注入 `PersonalizationService` | 同上 |
+| `no_context_utility` | `useContextUtility: false`（`MemoryService`/`MemoryContextAssembler` 的真实注入开关） | 记忆投递顺序 |
+| `no_reflection` | 不注入 `reflection`（真实服务，不是桩） | 反思运行次数、注意力块 |
 
-实测（2026-10-29）：`full` 有 2/3 轮出现个性化块，`no_personalization` 为 0/3，第 2 轮差 242 字节。
+实测（`headSha=e25308c`）：
 
-未实现的臂（**NOT_RUN，不计为证据**）：
+- 个性化块：`full` 3/4 轮，`no_personalization` 0/4 轮，第 2–4 轮各差 242 字节。
+- 记忆投递顺序（夹具下标）：`full` `[3,2,0]`，`no_context_utility` `[2,0,3]` —— 没有效用排序时，陈旧记录按相关度排到最前。
+- 反思：`full` 运行 4 次，`no_reflection` 0 次；两臂注意力块均为 0（这 4 轮没有产生可晋升的兴趣），**未见载荷差异**，如实记录，不解释为"无效"。
 
-- `no_context_utility`：B3 没有可注入开关；加开关会改装配器签名。
-- `no_reflection`：B5 需要反思发现跨越"用户确认"边界，用桩伪造该前提等于自证。
+未实现：B1 无臂可做——置信度不改变策略，没有可切换的东西。
 
 ### 为什么不做"关掉然后宣称无效"
 
@@ -45,14 +48,14 @@ npm run eval:ablation     # 输出 evals/stage-2/ablation/results/<UTC>-<sha>.js
 3. 每组结果写入 `evals/stage-2/results/<run-id>.json`，与主评测共用同一状态口径：`FAIL / SKIPPED / BLOCKED / NOT_RUN` 一律不计入通过。
 4. 真实模型参与时，每组重复运行并在结果中记录样本量与失败模式；缺少凭据时整组标 `BLOCKED`。
 
-## 未落地原因（已更新）
+## 注入点从哪来
 
-主评测 harness **已实现并全部跑通**：`evals/stage-2/runner/cli.ts`，12 个场景 45 条断言，
-结果见 `evals/stage-2/results/*`（最新 `headSha=5635a9c`）。
+四组臂都用**装配根的真实开关**，没有 patch 内部函数：
 
-两条臂仍 NOT_RUN，原因不是 harness 缺失，而是缺少**真实注入点**：
+- `no_personalization`：`selfModelLoop` 不传 `personalization`；
+- `no_context_utility`：`new MemoryService(repo, …, { useContextUtility: false })`，
+  装配器退回"只按相关度"的旧排序；
+- `no_reflection`：`selfModelLoop` 不传 `reflection`（传的是真实 `ReflectionService`，不是桩）。
 
-- `no_context_utility`：B3 的 `U(c)` 没有独立开关，加开关要改装配器签名；
-- `no_reflection`：B5 依赖反思发现跨过"用户确认"边界，用桩伪造该前提等于自证。
-
-已有 1 条臂（B2 `no_personalization`）可执行，`wiring difference detected: true`。
+主评测 harness 也已跑通：`evals/stage-2/runner/cli.ts`，12 个场景 45 条断言，
+结果见 `evals/stage-2/results/*`。
