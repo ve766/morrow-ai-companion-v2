@@ -36,7 +36,7 @@ import { EventLogService } from '../../src/persistence/event-log'
 import { InterestService, SqliteInterestRepository } from '../../src/self-model/interest-service'
 import { SelfModelService, SqliteSelfModelRepository } from '../../src/self-model/self-model-service'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../src/shared/companion'
-import type { ProviderInput, ProviderOutput, ProviderPort } from '../../src/providers/provider-policy'
+import type { ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from '../../src/providers/provider-policy'
 
 const databasePath = process.env.MORROW_CRASH_DB ?? ''
 const stage = process.env.MORROW_CRASH_STAGE ?? ''
@@ -57,7 +57,7 @@ function die(payload: Record<string, unknown> = {}): never {
 }
 
 class CrashProvider implements ProviderPort {
-  readonly profile = { id: DEEPSEEK_PROVIDER_ID, providerClass: 'mock' as const, configured: true }
+  readonly profile: ProviderProfile = { id: DEEPSEEK_PROVIDER_ID, providerClass: 'mock', configured: true }
   async generate(_input: ProviderInput): Promise<ProviderOutput> {
     providerCalls += 1
     if (stage === 'during-provider') die()

@@ -50,8 +50,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "7142cdede9177c3e9578cfbbccd6f4ff49b1b693ed766ae58e9eea0f2c8e49c7",
-    "repeatedResultHash": "7142cdede9177c3e9578cfbbccd6f4ff49b1b693ed766ae58e9eea0f2c8e49c7"
+    "resultHash": "7b21ec40a8b4592f065744e0724dc69411d99d00ecc62a6e20d05cd5eaa306c8",
+    "repeatedResultHash": "7b21ec40a8b4592f065744e0724dc69411d99d00ecc62a6e20d05cd5eaa306c8"
   },
   "safety": {
     "automaticMemoryWrites": 0,
@@ -141,8 +141,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [
-          "information_query",
-          "uncertain"
+          "information_query"
         ],
         "confidenceScore": 88,
         "confidenceBasis": "unvalidated_rule_strength",
@@ -526,7 +525,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 88,
+        "confidenceScore": 94,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -914,7 +913,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 92,
+        "confidenceScore": 98,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -1085,5 +1084,5 @@
       }
     }
   ],
-  "reportSha256": "a499e0b032e70338221b200c129874084d6e8e24b4473dac2f14bbc4f957aa74"
+  "reportSha256": "ef24cd751cf3db26678a719b8b5097d71421c2e1652b58247e37e462d77198d3"
 }

@@ -40,7 +40,7 @@ import { EventLogService } from '../src/persistence/event-log'
 import { InterestService, SqliteInterestRepository } from '../src/self-model/interest-service'
 import { SelfModelService, SqliteSelfModelRepository } from '../src/self-model/self-model-service'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../src/shared/companion'
-import type { ProviderInput, ProviderOutput, ProviderPort } from '../src/providers/provider-policy'
+import type { ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from '../src/providers/provider-policy'
 
 const CHILD_BUNDLE = join(process.cwd(), 'node_modules', '.cache', 'b4-crash-child.cjs')
 const directories: string[] = []
@@ -67,7 +67,7 @@ afterAll(() => {
 })
 
 class StubProvider implements ProviderPort {
-  readonly profile = { id: DEEPSEEK_PROVIDER_ID, providerClass: 'mock', configured: true }
+  readonly profile: ProviderProfile = { id: DEEPSEEK_PROVIDER_ID, providerClass: 'mock', configured: true }
   calls = 0
   async generate(_input: ProviderInput): Promise<ProviderOutput> {
     this.calls += 1
