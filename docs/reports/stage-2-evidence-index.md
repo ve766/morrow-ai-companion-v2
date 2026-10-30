@@ -15,7 +15,7 @@
 | 8 | B1 多信号置信度 | `src/cognition/intent-confidence.ts` → analyzer | `intent-confidence.test.ts`（5 条）+ 2 条测量断言 | — | **PARTIAL**：计算并记录；试接 clarify 使语料准确率 1.000→0.885，已回退 |
 | 9 | B2 渐进式个性化 | `src/personalization/personalization-service.ts`、迁移 22 | `personalization-service.test.ts`（11 条，含 P1-A/B/C 与端到端） | 同上 | **PASS（离线）** |
 | 9b | B2 删除一致性 | 同左（证据折叠 + 缓存回填） | 删除源消息后重算回 0.5 | 同上 | **PASS** |
-| 10 | B3 `U(c)` | `context-utility.ts` → `memory-context-assembler.rankScore`；`MemoryService.conflictedIds` | `context-utility.test.ts`（5 条）+ 装配器 2 条排序断言 | `evals/stage-2/ablation/results/*`（`no_context_utility`） | **PARTIAL**：X/D 已接线并改变投递顺序；P 仍 0 |
+| 10 | B3 `U(c)` | `context-utility.ts` → `memory-context-assembler.rankScore`；`MemoryService.conflictedIds`；`personalizationFit` | `context-utility.test.ts`（5 条）+ 装配器 3 条排序断言 + `personalizationFit` 2 条 | `evals/stage-2/ablation/results/*`（`no_context_utility`） | **PASS**：P/X/D 全部接线，X 与 P 各有排序断言，D 按未确认年龄线性计入 |
 | 11 | B4 轮次状态机 | `turn-state-machine.ts` + `companion-service.ts` 写入点 + 迁移 23 | `turn-state-machine.test.ts`（6 条）+ `turn-state-sequence.integration.test.ts`（3 条） | — | **PASS**：9 个状态全部有写入点，成功轮次 7 步序列有断言 |
 | 12 | B5 反思进入下一轮请求 | `reflection.run` → `interests.observe`（主题同一性匹配）→ `activeForContext` | 评测场景 B5（5 条断言） | `evals/stage-2/results/*`（最新） | **PASS**：证据 3 条 / 2 会话，下一轮 payload 含注意力块且带目标兴趣 id |
 | 12a | 主题同一性匹配 | `src/self-model/topic-identity.ts` → `InterestService.observeInner` | `topic-identity.test.ts`（12 条，含开发集指标与框架碰撞） | `evals/stage-2/results/topic-identity-devset-report.json` | **PASS（开发集）**：precision 1.000 / recall 0.889 / FP 0（26 对，devset v2） |
@@ -30,7 +30,7 @@
 | 13e | G 兴趣晋升门槛 | `interestPromotionEligible` | 场景 G（4 条） | 同上 | **PASS**：单会话 3 次不晋升；跨会话晋升；无关主题仍为候选 |
 | 13f | H 反思限流 | `reflection-service.ts` `canRun` | 场景 H（4 条） | 同上 | **PASS**：额度用尽即拒，被拒不留运行记录，窗口 1 小时后重开 |
 | 13g | J 载荷哈希一致 | `hashProviderInput` → `authorize` | 场景 J（4 条） | 同上 | **PASS**：批准哈希等于实发载荷哈希；重放不重发；撤回后哈希改变 |
-| 14 | 消融 | `evals/stage-2/ablation/run.ts` | 四组臂自断言 | `evals/stage-2/ablation/results/*`（最新 `e25308c`） | **PASS（4/4 执行）**：B2 差异 242 字节；B3 改变记忆顺序；B5 反思 4 次 vs 0 次 |
+| 14 | 消融 | `evals/stage-2/ablation/run.ts` | 四组臂自断言 | `evals/stage-2/ablation/results/*`（最新 `6e8fece`） | **PASS（4/4 执行）**：B2 差异 242 字节；B3 改变记忆顺序；B5 反思 4 次 vs 0 次 |
 | 15 | CI | `.github/workflows/ci.yml` | — | run 40993696285（`head_sha=5635a9c`） | **BLOCKED（账号计费）**：`runner_id=0` / `steps=0` / 日志 `BlobNotFound` / 自托管 runner `total_count=0`；check-run 注解为账号付款失败或额度不足 |
 | 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | 场景内自断言 | `evaluation/reports/phase24-real-model-78ff892.json` | **PASS WITH LIMITATIONS**：S1/S2/S3/S5/S6 全过（26/26 客观断言，2 次/场景），S4 SKIPPED（无第二模型） |
 | 17 | Electron / Windows | `src/app/index.ts` | `scripts/smoke.mjs`（`npm run smoke`） | — | **PASS**：连跑两次 exit 0，默认沙箱未禁用；覆盖 built app、凭据保存-重启-删除、认知开关、记忆/目标/提醒、删除与重启校验。安装包升级路径仍无证据 |
