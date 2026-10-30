@@ -1,0 +1,79 @@
+{
+  "datasetVersion": "stage-3-v1",
+  "harnessVersion": "stage-3-runner-v1",
+  "codeCommit": "7dbe70e97f6b1245ca3131328ddad9889bc6561c",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "startedAt": "2026-10-30T12:29:22.160Z",
+  "finishedAt": "2026-10-30T12:29:38.699Z",
+  "denominator": 15,
+  "counts": {
+    "PASS": 13,
+    "NOT_RUN": 2
+  },
+  "scenarios": [
+    {
+      "id": "L1",
+      "status": "PASS"
+    },
+    {
+      "id": "L2",
+      "status": "PASS"
+    },
+    {
+      "id": "L3",
+      "status": "PASS"
+    },
+    {
+      "id": "L4",
+      "status": "PASS"
+    },
+    {
+      "id": "L5",
+      "status": "PASS"
+    },
+    {
+      "id": "L6",
+      "status": "PASS"
+    },
+    {
+      "id": "L7",
+      "status": "PASS"
+    },
+    {
+      "id": "L8",
+      "status": "PASS"
+    },
+    {
+      "id": "L9",
+      "status": "PASS"
+    },
+    {
+      "id": "L10",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "L11",
+      "status": "PASS"
+    },
+    {
+      "id": "L12",
+      "status": "PASS"
+    },
+    {
+      "id": "L13",
+      "status": "PASS"
+    },
+    {
+      "id": "L14",
+      "status": "PASS"
+    },
+    {
+      "id": "L15",
+      "status": "NOT_RUN"
+    }
+  ]
+}
