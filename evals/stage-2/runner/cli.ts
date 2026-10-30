@@ -534,7 +534,16 @@ scenarios.push({
 /** Scenarios that this runner still cannot execute, with the reason recorded honestly. */
 const unexecuted: ScenarioOutcome[] = [
   { id: 'K', status: 'BLOCKED', assertions: [], blockedBy: 'no real provider credential in this environment' },
-  { id: 'L', status: 'BLOCKED', assertions: [], blockedBy: 'Chromium renderer sandbox cannot start on this host' }
+  {
+    id: 'L',
+    status: 'BLOCKED',
+    assertions: [],
+    // Not a product blocker any more: the desktop path is covered by
+    // `npm run smoke`, which launches the built Electron app with the renderer
+    // sandbox ON and passes on this host. This runner still cannot host a GUI
+    // process, so the scenario itself stays out of the offline harness.
+    blockedBy: 'GUI process cannot be hosted inside this offline runner; desktop coverage comes from `npm run smoke` (exit 0, sandbox enabled)'
+  }
 ]
 
 async function main(): Promise<void> {

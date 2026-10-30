@@ -28,7 +28,7 @@
 | 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**（26/26 客观断言；S4 缺第二模型） | `evaluation/reports/phase24-real-model-78ff892.json` |
 | 消融 | **4 组全部真实执行**（full / no_personalization / no_context_utility / no_reflection） | `evals/stage-2/ablation/results/*` |
 | 场景 K（真实凭据） | **BLOCKED** | 本环境无凭据 |
-| 场景 L（桌面渲染） | **BLOCKED** | Chromium 沙箱无法启动，最小复现已证明是环境问题 |
+| 场景 L（桌面渲染） | **BLOCKED（运行器内）**，桌面路径另有 **PASS** 证据 | 运行器无法托管 GUI 进程；`npm run smoke` 两次 exit 0（沙箱开启） |
 | CI | **BLOCKED（账号计费）** | run 40993696285 注解见 §8 |
 
 ## 2. 评测运行器
@@ -175,6 +175,24 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 上一轮 `5635a9c` 的结果（`02-48-36` / `02-48-43`）保留为历史，不覆盖。
 
+## 7.5 桌面（Electron）实测
+
+```bash
+npm run smoke     # exit 0（连续两次）
+```
+
+输出（原文）：
+
+> Morrow smoke passed: built Electron app, default-off DeepSeek configuration, secure credential save/restart/delete (encrypted-restart-corruption-protected-then-explicit-delete-verified, no Provider requests), cognitive default-off/explicit opt-in and restart persistence, no fabricated reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls, local persistence, deletion, and restart verification.
+
+关键点：
+
+- 运行在**未禁用沙箱**的模式（`MORROW_SMOKE_DISABLE_SANDBOX` 未设置，win32 平台不自动加 `--no-sandbox`），所以这不是"绕过沙箱换来的通过"。
+- 覆盖的是真实构建产物：凭据加密保存/重启/删除、认知开关默认关与显式开启、记忆生命周期、目标与审批、提醒控制、删除与重启校验。
+- 仍然没有证据的是**安装包升级路径**（旧版本 → 新版本的 schema 迁移）：CI 的 `Windows upgrade-path` job 与其它 job 一样被账号计费挡住，本地也没有跑过安装器。
+
+因此桌面从"BLOCKED（渲染沙箱）"改为"**桌面 smoke PASS**"；此前那条结论是错的，原因是最小复现只覆盖了 `--no-sandbox` 崩溃路径，没有试过默认沙箱下的完整 smoke。
+
 ## 8. CI：BLOCKED（账号计费，不是代码失败）
 
 - run：<https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40995759654>（`head_sha=6158042`，`event=pull_request`，`conclusion=failure`）
@@ -195,7 +213,8 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 | ~~B4 三个中间态未接~~ | **已解决**：9 个状态全部有写入点，序列有集成测试 |
 | ~~消融 2 条臂~~ | **已解决**：四组臂全部真实执行；`no_reflection` 在本输入上未见载荷差异（如实记录） |
 | 场景 K | BLOCKED（无真实凭据） |
-| 场景 L | BLOCKED（渲染沙箱） |
+| ~~场景 L（桌面渲染）~~ | **桌面路径 PASS**：`npm run smoke` 连跑两次 exit 0，覆盖 built app / 凭据保存-重启-删除 / 认知默认关与显式开启 / 记忆生命周期 / 目标与审批安全 / 提醒控制 / 删除与重启校验。运行器内仍不可执行（GUI 进程） |
+| Windows 安装包升级路径 | 无本地证据；CI 的 upgrade-path job 仍受账号计费阻断 |
 | CI | BLOCKED（账号计费） |
 | 主题匹配召回 | `p03` 类短句仍漏判；框架字符集是人工列表，新句式可能仍需补 |
 
@@ -203,8 +222,8 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 **PARTIAL / BLOCKED。**
 
-可复核的部分：12 个场景、45 条断言在真实栈上全部通过；B5 的完成定义（聚合可靠 + 不误合并 + 撤回不泄漏 + payload 端到端）四项都有独立证据；P0-A / P0-B 两条派生数据失效路径都已闭环，并有 payload 级正对照。
+可复核的部分：12 个场景、45 条断言在真实栈上全部通过；桌面 Electron smoke 在默认沙箱下连跑两次通过；B5 的完成定义（聚合可靠 + 不误合并 + 撤回不泄漏 + payload 端到端）四项都有独立证据；P0-A / P0-B 两条派生数据失效路径都已闭环，并有 payload 级正对照。
 
-不可复核的部分：K（真实凭据）、L（桌面渲染）、CI（账号计费）三项没有任何执行证据；B1/B3/B4 各有明确的未接线项；消融只有 1 条臂。
+不可复核的部分：K（真实凭据）与 CI（账号计费）没有任何执行证据；Windows 安装包升级路径未跑；B1 未接管策略、B3 的 `P` 仍为 0。
 
 因此阶段二不构成完整交付，不建议合并。上述阻断项都不是"再写点文档"能消除的。
