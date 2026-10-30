@@ -205,12 +205,10 @@
 
 | 项 | 状态 | 代码位置 | 行为证据 / 缺口 |
 |---|---|---|---|
-| B1 意图置信度 | **PARTIAL（未接线，两个具体阻塞点）** | `intent-confidence.ts` 计算；`cognitive-turn-analyzer.ts` 只记录 `assessment`，策略仍由 `reference_without_context` / `correctionNeedsDetail` / `needsMemoryRetrieval` 决定 | 试接 `intent === 'uncertain' → clarify`：标注语料 strategyAccuracy 从 **1.000 降到 0.885（23/26）**，因为语料把这些轮次标为 `answer`。按数据回退；`cognitive-turn-analyzer.test.ts` 新增两条把该测量与"低置信度不强制追问"钉住。缺口有三个，都实测过：①**分数主要由"有没有上文"驱动，不由请求模糊度驱动**——同一句 `我住在哪里？`，首轮 0.780、有上文 0.947，差 0.167 全来自缺失的 `history` 分量（`cognitive-turn-analyzer.test.ts` 已钉住）；用它调检索宽度会在每个会话第一轮误伤清晰问句，实测接入后 `我住在哪里？` 首轮被收窄、探索请求被收窄到 3 条；②**接线方向与标注数据冲突**——`uncertain→clarify` 让语料准确率 1.000→0.885；③**没有落地字段**——评估值不在 `CognitiveTurnAnalysis`（`exactKeys` 严格校验），要持久化须加字段并升 schema 版本 |
-
-接入检索宽度这条试过并回退了：规则是"弱读少召回"，但探索型请求天然低分（0.79 左右），会把用户明确要求广度的轮次收窄——第一次实现让 `cognitive-continuity-phase24` 的探索加宽测试从 5 条掉到 3 条。改为排除探索意图后仍不成立：首轮清晰问句照样被收窄。**结论：在分数具备区分度之前，B1 不接线。** |
+| B1 意图置信度 | **PASS（已接线，未校准）** | `intent-confidence.ts` `assessIntentConfidence`；`intent-decision.ts` `scoreIntentCandidates` / `retrievalNeedOf`；`cognitive-turn-analyzer.ts` 消费 assessment 决定 strategy | `z = 0.10·s + 0.60·e + 0.10·m + 0.10·k − 0.10·a`；阈值 `high 0.62 / medium 0.45 / clarify 0.42 / marginFloor 0.08`（`INTENT_CONFIDENCE_BANDS`、`INTENT_MARGIN_FLOOR`）。`k` 对独立轮次恒为 1（与历史无关），只有指代轮次按共享内容取 1/0.2/0；未解析指代是**硬闸**。权重与阈值由 `scripts/b1-calibrate.ts` 在开发集（26）+ 既有 fixture（26）双集搜索，约束：无零权重、completeness ≤0.2、context ≤0.3、semantic+explicitness ≥0.5；结果 dev 18/18、holdout 8/8、fixture 26/26。**校准状态：`uncalibrated_heuristic`**（52 例小样本，softmax 仅作 share）。证据：`intent-confidence.test.ts`（10）、`cognitive-turn-analyzer.test.ts`（6 条 B1 组）、`src/app/b1-strategy-payload.integration.test.ts`（3）、`results/2026-10-30T07-24-29-516Z-d856e25-cognitive.json` |
 | B2 人格稳定 | **PASS（已接线）** | `personalization-service.ts`、迁移 22；`savePersonality` 只有用户编辑才升版本 | 场景 E 4 条断言：4 轮情绪/反馈后版本与数值不变、无静默修订、载荷文案逐轮一致；`personalization-service.test.ts` 13 条含撤回重算与 `personalizationFit` 2 条 |
 | B3 上下文效用 | **PASS（P/X/D 全部接线）** | `memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds` | **X**：候选集内措辞重叠 → 冲突记录排到同分记录之后（`memory-context-assembler.test.ts` 3 条排序断言：X、D、P 各一条）。**D**：`STALE_UNCONFIRMED_DAYS = 120`（源码同值），未确认且超过该天数的陈旧度按 `(age−120)/120` 线性计入，上限 1。**P 已接线**：`PersonalizationService.personalizationFit` 把"记忆是否在讲某个交互维度"（depth/pace/exploration 的关键词）与"该维度被用户推离 0.5 的距离"结合，得到 [0,1] 的偏好吻合度；没提到任何维度的记忆恒为 0，没有证据的维度也恒为 0（未动的 0.5 不是偏好） |
-| B4 轮次状态机 | **PASS（9 个状态全部有真实写入点）** | `companion-service.ts` `recordTurnState`；`turn-state-machine.ts` 转换表 | 见下方逐状态表。`turn-state-sequence.integration.test.ts` 用记录型端口断言成功轮次 7 步序列、失败轮次止于 `failed`，并钉住 `recovery_required` 两条入边 |
+| B4 轮次状态机 | **PASS（10 个状态全部有真实写入点，含 `recovering`）** | `companion-service.ts` `recordTurnState`；`turn-state-machine.ts` 转换表 | 见下方逐状态表。`turn-state-sequence.integration.test.ts` 用记录型端口断言成功轮次 7 步序列、失败轮次止于 `failed`，并钉住 `recovery_required` 两条入边 |
 
 ### 14.1 B4 逐状态写入点（源码 `companion-service.ts`）
 
@@ -225,9 +223,26 @@
 | `committed` | 写库成功后 | 回答已持久化 |
 | `failed` | provider/存储异常分支 | 带错误码 |
 | `cancelled` | 取消或 `PROVIDER_CANCELLED` | 用户中止 |
-| `recovery_required` | `recoverInterruptedTurns` | 有最终化意图但回答未投递 |
+| `recovery_required` | `recoverInterruptedTurns` | 有最终化意图但尚未结算 |
+| `recovering` | `recoverInterruptedTurns`（紧随 `recovery_required`） | 正在修复：按消息是否存在决定 `committed` 或 `failed` |
 
 约束：`turn_states` 每轮一行（只存最新状态），因此"序列"由测试侧包装端口观测，不是从库回读。
+
+## 15. 反思发现的结构化 schema（B5，迁移 26）
+
+| kind | 语义 | 触发证据 | 置信度 |
+|---|---|---|---|
+| `memory_gap` | 记忆被纠正/撤回，相关话题应降低断言 | `memory.corrected` ×≥2 / `memory.retracted` ×≥1 | 55 / 65 |
+| `intent_correction` | 用户纠正的是**助手的理解**，不是某条记忆 | `memory.corrected` ×≥1 | 60 |
+| `bias_hint` | 交互层面的反复纠正 → 回答风格建议 | `feeling.event_applied`（negative_feedback / system_correction）×≥2 | 50 |
+| `consistency_note` | 某条自我判断仍未确认（引用条目 id） | 未确认的 `inference` 条目 | 条目置信度 |
+| `next_turn_suggestion` | 下一轮先确认再断言 | 同上，但产出可执行建议 | 45 |
+| `interest_candidate` | 记忆指向新话题，记为候选兴趣 | `memory.created` ×≤5，每次运行最多 1 条 | 40 |
+| `open_question` | 未解决事项 | 既有通道 | — |
+
+约束（本轮未放宽）：每次运行最多 8 条发现、最多 1 条候选兴趣、每小时最多 6 次运行；所有发现只存 id 引用，不复制用户原文。
+
+接线证据：迁移 26（类型扩到 7 类，行数据逐条复制）、`self-model.test.ts` 断言新增两类会出现且 kind 均在枚举内、`scripts/reflection-positive.ts` 正向消融（full 3/2→active→payload 有块；off 2/1→candidate→无块；撤回后块消失）、`src/app/b5-reflection-safety.integration.test.ts`（反思抛错不阻塞答题）。
 
 ---
 

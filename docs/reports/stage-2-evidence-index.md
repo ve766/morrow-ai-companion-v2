@@ -17,9 +17,9 @@
 | # | 能力 | 状态 | 源码 | 测试（文件 + 用例） | 证据 | 能证明 / 不能证明 |
 |---|---|---|---|---|---|---|
 | C1 | 规则层意图判断 | PASS | `src/cognition/intent-decision.ts` | `src/cognition/intent-decision.test.ts` | `evals/stage-2/results/verify-42a51e0-061042.txt` | 能：规则命中与策略映射。不能：真实模型下的意图准确率 |
-| C2 | 多信号意图置信度（B1） | **PARTIAL** | `src/cognition/intent-confidence.ts`、`src/cognition/cognitive-turn-analyzer.ts` | `src/cognition/cognitive-turn-analyzer.test.ts`：`reports a low-confidence reading without turning it into a question`、`does not let a coin-flip reading force clarify when nothing would be retrieved`、`scores a turn mostly by whether there is prior history, not by how vague it is` | 同上（该文件 18 条全过） | 能：分数被计算并随分析返回；分数由"有无上文"主导（同一句 0.780 vs 0.947）。**不能**：认为它影响了决策——它没有 |
+| C2 | 多信号意图置信度（B1） | **PASS（已接线，未校准）** | `src/cognition/intent-confidence.ts`、`src/cognition/intent-decision.ts`（`scoreIntentCandidates`/`retrievalNeedOf`）、`src/cognition/cognitive-turn-analyzer.ts` | `src/cognition/intent-confidence.test.ts`（10 条：三档历史同分、指代上下文取分、歧义降分、未解析指代必追问、无候选不追问、两读数同路由不追问）；`src/cognition/cognitive-turn-analyzer.test.ts`（6 条 B1 组）；`src/app/b1-strategy-payload.integration.test.ts`（3 条读序列化 payload） | `evals/stage-2/results/2026-10-30T07-24-29-516Z-d856e25-cognitive.json`（dev 18/18、holdout 8/8、fixture 26/26、historyContrast.identical=true）；`evals/stage-2/b1-devset.json` | 能：分数真实改变 `strategy`，payload 出现 `route=clarify` 与澄清指令；同句三档历史同分。不能：称为概率（`uncalibrated_heuristic`）；未统计"错误高置信度率" |
 | C3 | 上下文效用 `U(c)` 的 P/X/D（B3） | PASS | `src/cognition/context-utility.ts` → `src/memory/memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds`；`personalizationFit` | `context-utility.test.ts`（5 条）；`memory-context-assembler.test.ts`：`ranks a record involved in an unresolved conflict below its twin`、`penalises a record that was never confirmed and is old`、`promotes a memory that is about a dimension the user personalised`；`personalization-service.test.ts`：`scores a memory about a personalised dimension and nothing else`、`takes the strongest matching dimension` | 验证日志 + 消融 `no_context_utility` 臂（`ablation/results/2026-10-30T06-12-49-42a51e0.json`，`contextUtilityChangesMemoryOrder: true`） | 能：三个分量都改变投递顺序。不能：`P` 只覆盖"记忆明确提到交互维度"的情形，未提到时恒为 0 |
-| C4 | 轮次状态机（B4） | PASS | `src/cognition/turn-state-machine.ts`、`src/app/companion-service.ts` `recordTurnState` | `turn-state-machine.test.ts`（6 条）；`src/app/turn-state-sequence.integration.test.ts`：`walks received → analyzed → context_ready → awaiting_consent → requesting → response_received → committed`、`records a provider failure after requesting, and never claims a delivery`、`declares the interrupted-only states legal from the steps that can reach them` | 验证日志 | 能：9 个状态都有真实写入点，成功轮次 7 步序列可观测。不能：`recovery_required` 只有状态机边断言，缺"真实中断后恢复"的端到端用例 |
+| C4 | 轮次状态机与恢复（B4） | **PASS** | `src/cognition/turn-state-machine.ts`（10 态，含 `recovering`）、`src/app/companion-service.ts` `recordTurnState` / `recoverInterruptedTurns` | `turn-state-machine.test.ts`（6 条）；`turn-state-sequence.integration.test.ts`（3 条）；`src/app/b4-recovery.integration.test.ts`（4 条故障注入） | 验证日志 + `migrations.test.ts` | 能：提交前中断、提交后意图残留、删除会话、重启四类恢复都有数据库级断言，且不重复调 provider / 不重复消息。不能：覆盖"请求前中断"与"恢复路径中的 Provider 超时" |
 
 ## 2. 记忆与自模型
 
@@ -47,8 +47,17 @@
 | E1 | 12 个可执行场景（A/B/C/D/E/F/G/H/I/J/B4/B5，45 条断言） | PASS | `evals/stage-2/results/2026-10-30T06-12-40-42a51e0.json`：`executed 12 / passed 12 / blocked 2 / notRun 0` | 脚本化 Provider；**不证明模型质量**。K、L 为 BLOCKED，未计入通过 |
 | E2 | 场景 K（真实 Provider 在运行器内） | BLOCKED | 同上（`blockedBy` 字段） | 运行器固定脚本化；真实覆盖见 E5 |
 | E3 | 场景 L（桌面在运行器内） | BLOCKED | 同上 | 运行器托管不了 GUI 进程；桌面覆盖见 V1 |
-| E4 | 四组消融 | PASS（执行） | `evals/stage-2/ablation/results/2026-10-30T06-12-49-42a51e0.json`：`personalizationBlockAppearsOnlyWhenEnabled=true`、`contextUtilityChangesMemoryOrder=true`、`reflectionRunsFull=4` / `Off=0` | `no_reflection` **未见 payload 差异**（注意力块两臂均为 0），不能证明反思收益 |
+| E4 | 消融（含反思正向夹具） | **PASS（执行）** | `evals/stage-2/ablation/results/2026-10-30T07-27-02-d856e25.json`（四臂）；`evals/stage-2/ablation/results/2026-10-30T07-24-31-267Z-d856e25-reflection-positive.json`（正向） | `no_reflection` 在旧夹具上仍无 payload 差异（注意力块两臂为 0）——**该臂本身不构成反思收益的证据**；正向夹具才是：full 3/2→active→有块，off 2/1→candidate→无块 |
 | E5 | 真实 Provider S1–S6 | PASS WITH LIMITATIONS | `evals/stage-2/provider/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`）：5 PASS / 1 SKIPPED，客观 13/13 | 1 次/场景；S4 单模型 SKIPPED，**不是 6/6** |
+
+## 4.5 反思结构化（B5）
+
+| # | 能力 | 状态 | 源码 | 测试 | 证据 | 边界 |
+|---|---|---|---|---|---|---|
+| R1 | 结构化发现 7 类受证据门控 | **PASS** | `src/self-model/reflection-service.ts`、迁移 26、`self-model-domain.ts` | `src/self-model/self-model.test.ts`（断言 `intent_correction`/`next_turn_suggestion` 出现，且 kind 全在枚举内） | 验证日志；`migrations.test.ts` v25→v26 行保留用例 | 能：6 类语义都有对应 kind 与证据引用。不能：`Map(R_t)` 未实现为独立映射（反思不写人格） |
+| R2 | 正向夹具：payload 真变 | **PASS** | 同上 + `src/app/companion-service.ts` 装配 | `scripts/reflection-positive.ts` | `ablation/results/2026-10-30T07-24-31-267Z-d856e25-reflection-positive.json`：四层（运行/候选/门控/payload）两臂取值均记录 | 能：反思是差异的必要条件。不能：估计反思带来的质量提升 |
+| R3 | 撤回后差异消失 | **PASS** | 证据账本（迁移 24/25） | 同上脚本内 `afterRetractionHasAttentionBlock=false` | 同上 | 能：差异随证据失效而消失。不能：覆盖真实用户撤回路径的全部形态 |
+| R4 | 反思失败不阻塞答题 | **PASS** | `companion-service.ts` hooks | `src/app/b5-reflection-safety.integration.test.ts` | 验证日志 | 能：注入抛错后仍 deliver，且注入确被触发 |
 
 ## 5. 环境与平台
 
