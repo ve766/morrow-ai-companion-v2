@@ -56,7 +56,10 @@ function openAt(version: number): { connection: DatabaseSync; ids: BoundaryIds }
   return { connection, ids }
 }
 
-describe('A2 derived cognition follows its source data', () => {
+describe('A2 derived cognition follows its source data', { timeout: 20_000 }, () => {
+  // Each case applies the full migration set; migration 25 (three triggers on
+  // `memories`) pushed the slowest ones past the 5s default, so the suite gets
+  // an explicit budget instead of a timeout that depends on machine speed.
   it('keeps every existing row when upgrading v18 to the current schema', () => {
     const { connection, ids } = openAt(18)
     const before = connection.prepare('SELECT COUNT(*) AS count FROM messages').get() as { count: number }
