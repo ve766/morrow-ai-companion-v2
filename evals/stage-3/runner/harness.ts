@@ -356,8 +356,8 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
         { name: '用户重复话题被标注为用户侧', ok: Boolean(userTopic) && userOnlyPayload.includes('Topics the user returned to'), detail: userTopic ? userTopic.origin : 'none' },
         { name: '用户兴趣不得被当作 Morrow 自身话题提出', ok: !userOnlyStates.includes('permitted') && !userOnlyStates.includes('actually_raised'), detail: userOnlyStates.join(',') || 'no events' },
         { name: 'Morrow 自身兴趣有独立证据来源', ok: owned.length > 0 && owned.every((interest) => interest.origin !== 'user'), detail: owned.map((interest) => `${interest.label}:${interest.origin}`).join(',') || 'none' },
-        { name: '自身话题在许可时以第一人称归属进入 payload', ok: raiseStates.includes('permitted') ? raisePayload.includes('your own attention') : true, detail: raiseStates.join(',') || 'no permission' },
-        { name: '回复未提及则不计为已提出', ok: !raiseStates.includes('actually_raised') && stack.exploration.recent().raisedLastDay === 0, detail: raiseStates.join(',') },
+        { name: '自身话题获得许可并进入 payload', ok: raiseStates.includes('permitted') && raisePayload.includes('your own attention'), detail: raiseStates.join(',') || 'no permission' },
+        { name: '回复未提及则不计为已提出', ok: raiseStates.includes('permitted') && !raiseStates.includes('actually_raised') && stack.exploration.recent().raisedLastDay === 0, detail: raiseStates.join(',') },
         { name: 'Provider 失败不计为成功探索', ok: failedStates.includes('provider_failed') || failedStates.length === 0, detail: failedStates.join(',') || 'no permission this turn' }
       ])
     }
