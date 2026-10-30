@@ -153,7 +153,8 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 ## 8. CI：BLOCKED（账号计费，不是代码失败）
 
-- run：<https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40993696285>（`head_sha=5635a9c`，`event=pull_request`，`conclusion=failure`）
+- 最新 run：<https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40993983389>（`head_sha=c5710d0`，`event=pull_request`，`conclusion=failure`）
+- 上一轮 run：<https://github.com/ve766/morrow-ai-companion-v2/actions/runs/40993696285>（`head_sha=5635a9c`），症状完全相同
 - 三个 job 全部 `runner_id=0`、`runner_name` 为空、`steps=0`、`started_at` 与 run 创建时间同秒
 - job 日志接口返回 `BlobNotFound`（从未产生日志）
 - 仓库自托管 runner：`total_count=0`
