@@ -134,8 +134,10 @@ function buildB1(sha: string) {
 
 function buildB4(sha: string) {
   const reportPath = join(ROOT, 'node_modules', '.cache', 'b4-report.json')
-  execFileSync('npx', [
-    'vitest', 'run',
+  // `npx` is `npx.cmd` on Windows and is not resolvable by execFileSync; calling
+  // the vitest entry point with the current node binary is portable.
+  execFileSync(process.execPath, [
+    'node_modules/vitest/vitest.mjs', 'run',
     'tests/b4-child-crash.test.ts',
     'src/app/b4-recovery.integration.test.ts',
     '--reporter=json',
@@ -169,7 +171,7 @@ function buildB4(sha: string) {
 }
 
 function buildB5(sha: string) {
-  execFileSync('node', ['node_modules/.cache/reflection-positive.cjs'], { cwd: ROOT, stdio: 'pipe', timeout: 600_000 })
+  execFileSync(process.execPath, ['node_modules/.cache/reflection-positive.cjs'], { cwd: ROOT, stdio: 'pipe', timeout: 600_000 })
   const directory = join(ROOT, 'evals', 'stage-2', 'ablation', 'results')
   const files = readdirSync(directory).filter((name) => name.endsWith('-reflection-positive.json')).sort()
   const source = JSON.parse(readFileSync(join(directory, files.at(-1)!), 'utf8')) as Record<string, unknown>
