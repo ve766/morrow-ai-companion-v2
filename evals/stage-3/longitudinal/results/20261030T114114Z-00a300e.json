@@ -1,7 +1,7 @@
 {
   "datasetVersion": "stage-3-v1",
   "harnessVersion": "stage-3-longitudinal-v1",
-  "codeCommit": "84670792fa08352835d4cca88da6355435ee0cd6",
+  "codeCommit": "00a300e5f8a3c03db0663470cbf712ebb8fb5e79",
   "environment": {
     "platform": "win32",
     "node": "v22.22.2"
@@ -10,8 +10,8 @@
   "simulatedDays": 10,
   "turnsPerDay": 3,
   "clockNote": "The clock is real; a \"day\" is a block of three turns, not 24 hours. Wall-clock decay is asserted separately on the pure fold.",
-  "startedAt": "2026-10-30T11:34:54.531Z",
-  "finishedAt": "2026-10-30T11:34:59.312Z",
+  "startedAt": "2026-10-30T11:41:14.500Z",
+  "finishedAt": "2026-10-30T11:41:19.325Z",
   "dayLog": [
     {
       "day": 1,

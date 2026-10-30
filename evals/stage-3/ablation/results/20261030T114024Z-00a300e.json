@@ -1,14 +1,14 @@
 {
   "datasetVersion": "stage-3-v1",
   "harnessVersion": "stage-3-ablation-v1",
-  "codeCommit": "84670792fa08352835d4cca88da6355435ee0cd6",
+  "codeCommit": "00a300e5f8a3c03db0663470cbf712ebb8fb5e79",
   "environment": {
     "platform": "win32",
     "node": "v22.22.2"
   },
   "provider": "scripted-offline (not a model)",
-  "startedAt": "2026-10-30T11:34:07.143Z",
-  "finishedAt": "2026-10-30T11:34:52.513Z",
+  "startedAt": "2026-10-30T11:40:24.718Z",
+  "finishedAt": "2026-10-30T11:41:12.648Z",
   "arms": [
     {
       "id": "full",

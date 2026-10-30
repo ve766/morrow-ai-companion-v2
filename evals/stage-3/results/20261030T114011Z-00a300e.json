@@ -1,14 +1,14 @@
 {
   "datasetVersion": "stage-3-v1",
   "harnessVersion": "stage-3-runner-v1",
-  "codeCommit": "84670792fa08352835d4cca88da6355435ee0cd6",
+  "codeCommit": "00a300e5f8a3c03db0663470cbf712ebb8fb5e79",
   "environment": {
     "platform": "win32",
     "node": "v22.22.2"
   },
   "provider": "scripted-offline (not a model)",
-  "startedAt": "2026-10-30T11:33:42.283Z",
-  "finishedAt": "2026-10-30T11:33:50.393Z",
+  "startedAt": "2026-10-30T11:40:11.191Z",
+  "finishedAt": "2026-10-30T11:40:22.710Z",
   "denominator": 15,
   "counts": {
     "PASS": 13,
@@ -106,7 +106,7 @@
         {
           "name": "自身关注门禁真的运行并留痕",
           "ok": true,
-          "detail": "lastRaised=2026-10-30T11:33:45.951Z"
+          "detail": "lastRaised=2026-10-30T11:40:15.962Z"
         },
         {
           "name": "自身关注若出现则标明是你的而非用户的",
@@ -217,7 +217,7 @@
         {
           "name": "运行中的会话记忆可读",
           "ok": true,
-          "detail": "7c3725fb"
+          "detail": "d251db58"
         }
       ]
     },
