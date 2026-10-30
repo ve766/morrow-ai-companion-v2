@@ -533,7 +533,15 @@ scenarios.push({
 
 /** Scenarios that this runner still cannot execute, with the reason recorded honestly. */
 const unexecuted: ScenarioOutcome[] = [
-  { id: 'K', status: 'BLOCKED', assertions: [], blockedBy: 'no real provider credential in this environment' },
+  {
+    id: 'K',
+    status: 'BLOCKED',
+    assertions: [],
+    // The offline runner is scripted on purpose: a real model would make the
+    // payload assertions depend on generated text. Real-provider coverage lives
+    // in `scripts/phase24-real-model.ts` (S1–S6), which has its own report.
+    blockedBy: 'scripted provider only in this offline runner; real-provider coverage comes from phase24-real-model (5/5 runnable scenarios PASS, S4 SKIPPED)'
+  },
   {
     id: 'L',
     status: 'BLOCKED',

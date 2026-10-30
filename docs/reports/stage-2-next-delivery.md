@@ -25,9 +25,9 @@
 | 主题同一性匹配 | **PASS（开发集 26 对）** | `topic-identity.test.ts`（12 条）+ 开发集报告 |
 | 记忆证据失效（P0-A） | **PASS** | `interest-invalidation.test.ts`（9 条）+ payload 级 2 条 |
 | 反转改变兴趣状态（P0-B） | **PASS** | 同上 |
-| 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**（26/26 客观断言；S4 缺第二模型） | `evaluation/reports/phase24-real-model-78ff892.json` |
+| 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**：5/5 可运行场景 PASS，客观 13/13，S4 SKIPPED | `evaluation/reports/phase24-real-model-26aeac7.json` |
 | 消融 | **4 组全部真实执行**（full / no_personalization / no_context_utility / no_reflection） | `evals/stage-2/ablation/results/*` |
-| 场景 K（真实凭据） | **BLOCKED（凭据已在，上游拒绝）** | 三个端点均 403 `no_valid_authorization`：账号无有效订单/额度 |
+| 场景 K（运行器内） | **BLOCKED（设计如此）** | 离线运行器是脚本化 provider；真实 Provider 证据在 §7.6 |
 | 场景 L（桌面渲染） | **BLOCKED（运行器内）**，桌面路径另有 **PASS** 证据 | 运行器无法托管 GUI 进程；`npm run smoke` 两次 exit 0（沙箱开启） |
 | CI | **BLOCKED（账号计费）** | run 40993696285 注解见 §8 |
 
@@ -196,19 +196,30 @@ npm run smoke     # exit 0（连续两次）
 
 因此桌面从"BLOCKED（渲染沙箱）"改为"**桌面 smoke PASS**"；此前那条结论是错的，原因是最小复现只覆盖了 `--no-sandbox` 崩溃路径，没有试过默认沙箱下的完整 smoke。
 
-## 7.6 真实 Provider：凭据已提供，上游拒绝（K 仍是 BLOCKED）
+## 7.6 真实 Provider（S1–S6）：5/5 可运行场景 PASS
 
-按指令用环境变量注入凭据（未写入仓库、未打印、未落盘），对三个端点各发一次最小请求：
+`scripts/phase24-real-model.ts`，模型 `spark-x2.6`，端点 `maas-api.cn-huabei-1.xf-yun.com`，凭据仅经环境变量注入（未写入仓库、未落报告）。
 
-| 端点 | HTTP | 错误码 | 消息 |
-|---|---|---|---|
-| `POST /v1/responses` | 403 | `no_valid_authorization` | the account lacks an active order, has insufficient quota, or the order is invalid |
-| `POST /v2/chat/completions` | 403 | `11200` | 同上 |
-| `POST /anthropic/v1/messages` | 403 | `11200` | 同上 |
+```
+MORROW_REAL_RUNS=1 MORROW_SPARK_TIMEOUT_MS=120000 MORROW_SPARK_BUDGET_MS=300000
+```
 
-这不是"没有凭据"，而是"凭据被接受、账号未开通"（无效 key 会返回 401）。因此 K 仍为 **BLOCKED**，但阻塞点从"环境无凭据"变成"上游账号无有效订单/额度"——需要开通后重跑 `scripts/phase24-real-model.ts`。
+| 场景 | 结果 | 关键断言 |
+|---|---|---|
+| S1 跨轮偏好 | **PASS 2/2** | 模型提出的候选被持久化为 `model_inferred_confirmed`；后续请求确实带上该值 |
+| S2 撤回 | **PASS 3/3** | 正对照先投递 → 存储为 retracted → 后续请求 delivered=0 |
+| S3 无证据 | **PASS 2/2** | 库里没有盘子相关记忆；也未投递盘子类值 |
+| S4 模型切换 | **SKIPPED** | 只有一个模型 id，无法演示切换（不是 PASS） |
+| S5 状态影响 | **PASS 3/3** | 注意力越过阈值 priority=0.238；后续轮次加宽并多投递（control=5/5 → widened=6/7） |
+| S6 失败重试 | **PASS 3/3** | 失败轮不写回答、记为 failed；重试后恰好一条回答 |
 
-既有的一轮 S1–S6 结果（26/26 客观断言，S4 缺第二模型 SKIPPED）仍按原口径标 PASS WITH LIMITATIONS，**不等同于**本轮重跑。
+合计：**6 个场景，5 PASS / 0 FAIL / 0 BLOCKED / 1 SKIPPED，客观断言 13/13，errors 0**，报告 `evaluation/reports/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`）。
+
+口径说明：
+
+- **1 次/场景**，样本小：这是"行为确实发生"的证据，不是成功率估计。
+- 本轮先出现两次超时（先 `PROVIDER_TIMEOUT`、后 `PROVIDER_DEADLINE`），都是**上游慢**导致，不是断言失败。已把超时与整次预算做成可配（`MORROW_SPARK_TIMEOUT_MS`、`MORROW_SPARK_BUDGET_MS`，默认仍是 45s / 90s）并写进报告；调高后 13/13 全过。
+- 用户提供的**第一个凭据**（`ak-ef…`，模型 `xopdeepseekv4flash0731`）实测是 **403 `no_valid_authorization`**（账号无有效订单/额度），与代码无关；能跑通的是第二个凭据 + `spark-x2.6`。
 
 ## 8. CI：BLOCKED（账号计费，不是代码失败）
 
@@ -241,6 +252,6 @@ npm run smoke     # exit 0（连续两次）
 
 可复核的部分：12 个场景、45 条断言在真实栈上全部通过；桌面 Electron smoke 在默认沙箱下连跑两次通过；B5 的完成定义（聚合可靠 + 不误合并 + 撤回不泄漏 + payload 端到端）四项都有独立证据；P0-A / P0-B 两条派生数据失效路径都已闭环，并有 payload 级正对照。
 
-不可复核的部分：K（真实凭据）与 CI（账号计费）没有任何执行证据；Windows 安装包升级路径未跑；B1 未接管策略、B3 的 `P` 仍为 0。
+不可复核的部分：CI（账号计费）没有任何执行证据；Windows 安装包升级路径未跑；B1 未接管策略、B3 的 `P` 仍为 0。
 
 因此阶段二不构成完整交付，不建议合并。上述阻断项都不是"再写点文档"能消除的。

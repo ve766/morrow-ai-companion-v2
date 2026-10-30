@@ -32,7 +32,7 @@
 | 13g | J 载荷哈希一致 | `hashProviderInput` → `authorize` | 场景 J（4 条） | 同上 | **PASS**：批准哈希等于实发载荷哈希；重放不重发；撤回后哈希改变 |
 | 14 | 消融 | `evals/stage-2/ablation/run.ts` | 四组臂自断言 | `evals/stage-2/ablation/results/*`（最新 `6e8fece`） | **PASS（4/4 执行）**：B2 差异 242 字节；B3 改变记忆顺序；B5 反思 4 次 vs 0 次 |
 | 15 | CI | `.github/workflows/ci.yml` | — | run 40993696285（`head_sha=5635a9c`） | **BLOCKED（账号计费）**：`runner_id=0` / `steps=0` / 日志 `BlobNotFound` / 自托管 runner `total_count=0`；check-run 注解为账号付款失败或额度不足 |
-| 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | 场景内自断言 | `evaluation/reports/phase24-real-model-78ff892.json` | **PASS WITH LIMITATIONS**：S1/S2/S3/S5/S6 全过（26/26 客观断言，2 次/场景），S4 SKIPPED（无第二模型） |
+| 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | 场景内自断言 | `evaluation/reports/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`） | **PASS WITH LIMITATIONS**：S1/S2/S3/S5/S6 全过（**13/13 客观断言，1 次/场景**），S4 SKIPPED（无第二模型）；先前的 78ff892 报告保留为历史 |
 | 17 | Electron / Windows | `src/app/index.ts` | `scripts/smoke.mjs`（`npm run smoke`） | — | **PASS**：连跑两次 exit 0，默认沙箱未禁用；覆盖 built app、凭据保存-重启-删除、认知开关、记忆/目标/提醒、删除与重启校验。安装包升级路径仍无证据 |
 
 ## 复算方式
