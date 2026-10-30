@@ -201,6 +201,15 @@
 | 删除来源后重算 | 证据行由触发器在同一事务删除；`list()` / `activeForContext()` 经 `reconcile` 重折叠并写回缓存 |
 | 测试 | `interest-invalidation.test.ts`（9 条）、`interest-payload-invalidation.integration.test.ts`（2 条，读最终序列化 payload）、`migrations.test.ts`（v24→v25） |
 
+## 14. B1–B4 接线现状（本轮核实，逐项给出代码位置与行为证据）
+
+| 项 | 状态 | 代码位置 | 行为证据 / 缺口 |
+|---|---|---|---|
+| B1 意图置信度 | **PARTIAL（未接线，已测量原因）** | `intent-confidence.ts` 计算；`cognitive-turn-analyzer.ts` 只记录 `assessment`，策略仍由 `reference_without_context` / `correctionNeedsDetail` / `needsMemoryRetrieval` 决定 | 试接 `intent === 'uncertain' → clarify`：标注语料 strategyAccuracy 从 **1.000 降到 0.885（23/26）**，因为语料把这些轮次标为 `answer`。按数据回退；`cognitive-turn-analyzer.test.ts` 新增两条把该测量与"低置信度不强制追问"钉住。缺口：没有校准数据就不能把置信度变成概率或策略开关 |
+| B2 人格稳定 | **PASS（已接线）** | `personalization-service.ts`、迁移 22；`savePersonality` 只有用户编辑才升版本 | 场景 E 4 条断言：4 轮情绪/反馈后版本与数值不变、无静默修订、载荷文案逐轮一致；`personalization-service.test.ts` 11 条含撤回重算 |
+| B3 上下文效用 | **PARTIAL（X/D 已接线，P 仍为 0）** | `memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds` | **X**：候选集内措辞重叠 → 冲突记录排到同分记录之后（`memory-context-assembler.test.ts` 2 条）。**D**：未确认且超过 `STALE_UNCONFIRMED_DAYS=120` 的陈旧度按线性计入。**P 仍为 0**：个性化向量是有界交互风格（warmth/directness…），与"事实偏好"之间没有可辩护的映射，硬凑等于编造 |
+| B4 轮次状态机 | **PASS（9 个状态全部有写入点）** | `companion-service.ts` `recordTurnState` 调用点；`turn-state-machine.ts` 转换表 | 新增 `analyzed`（分析完成）、`context_ready`（载荷已组装）、`awaiting_consent`（等待授权）、`recovery_required`（中断恢复）。`turn-state-sequence.integration.test.ts` 用记录型端口断言成功轮次的完整序列（7 步）与失败轮次止于 `failed`；`recovery_required` 的两条入边另有断言 |
+
 ---
 
 ## 未实现（不得计入已登记）

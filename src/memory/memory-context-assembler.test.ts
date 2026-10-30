@@ -70,3 +70,39 @@ describe('bounded memory context assembly', () => {
     expect(result.characterCount).toBeLessThanOrEqual(500)
   })
 })
+
+describe('context utility: conflict and staleness reach the ranking', () => {
+  // Both records are equally relevant, so the order is decided by the utility
+  // terms rather than by overlap. `selected[].score` is the pre-ranking
+  // relevance, so the assertion is on the order, which is what the ranking
+  // actually produces.
+  const now = '2026-10-29T00:00:00.000Z'
+  const query = '我住在哪里'
+
+  it('ranks a record involved in an unresolved conflict below its twin', () => {
+    const conflicted = memory('11111111-1111-4111-8111-000000000901', '我住在杭州。', 'personal')
+    const plain = memory('11111111-1111-4111-8111-000000000902', '我住在杭州。', 'personal')
+
+    const tie = assembler.assemble(query, [conflicted, plain], 'personal', 25, 3000, now)
+    const ranked = assembler.assemble(query, [conflicted, plain], 'personal', 25, 3000, now, undefined, 'json', new Set([conflicted.id]))
+
+    // Control: without the conflict signal the two are interchangeable.
+    expect(new Set(tie.selected.map((item) => item.id))).toEqual(new Set([conflicted.id, plain.id]))
+    expect(ranked.selected.map((item) => item.id)).toEqual([plain.id, conflicted.id])
+  })
+
+  it('penalises a record that was never confirmed and is old', () => {
+    const stale = memory('11111111-1111-4111-8111-000000000903', '我住在杭州。', 'personal', 'active', {
+      lastConfirmedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+    const confirmed = memory('11111111-1111-4111-8111-000000000904', '我住在杭州。', 'personal', 'active', {
+      lastConfirmedAt: '2026-10-25T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+    const assembled = assembler.assemble(query, [stale, confirmed], 'personal', 25, 3000, now)
+    expect(assembled.selected.map((item) => item.id)).toEqual([confirmed.id, stale.id])
+  })
+})

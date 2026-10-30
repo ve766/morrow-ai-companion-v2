@@ -151,9 +151,20 @@ export function analyzeCognitiveTurnDetailed(
   // open item in the algorithm registry rather than silently changing behaviour.
   const strategy = reasons.has('reference_without_context') || correctionNeedsDetail
     ? 'clarify' as const
-    : decision.needsMemoryRetrieval
-      ? 'retrieve_memory' as const
-      : 'answer' as const
+    // Asking is only worth the cost when the reading is a coin flip *and* the
+    // turn would otherwise retrieve memory: a wrong recall silently feeds the
+    // wrong fact into the answer, while a weak answer can be corrected next turn.
+    //
+    // `intent === 'uncertain'` was tried as an additional trigger and measured:
+    // it drops the labelled corpus strategy accuracy from 1.000 to 0.885
+    // (23/26) because those turns are labelled "answer". The data wins, so the
+    // trigger is not enabled; the measurement is pinned in
+    // `cognitive-turn-analyzer.test.ts` so a later change cannot flip it quietly.
+    : assessment.needsClarification && decision.needsMemoryRetrieval
+      ? 'clarify' as const
+      : decision.needsMemoryRetrieval
+        ? 'retrieve_memory' as const
+        : 'answer' as const
   const evidence = createIntentEvidence(sourceMessageId, topicReferenceMessageId, decision.confidence, uncertainty)
 
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeCognitiveTurn, boundCognitiveHistory } from './cognitive-turn-analyzer'
+import { analyzeCognitiveTurn, analyzeCognitiveTurnDetailed, boundCognitiveHistory } from './cognitive-turn-analyzer'
 import type { CognitiveHistoryMessage } from './cognition'
 
 const sourceId = '00000000-0000-4000-8000-000000000100'
@@ -8,6 +8,23 @@ const priorId = '00000000-0000-4000-8000-000000000101'
 function analyze(content: string, history: CognitiveHistoryMessage[] = [], messageId = sourceId) {
   return analyzeCognitiveTurn(content, history, messageId)
 }
+
+describe('B1 confidence is measured, and deliberately not wired to clarify', () => {
+  it('reports a low-confidence reading without turning it into a question', () => {
+    // "嗯。" is the clearest "I cannot tell" turn this rule layer sees: the
+    // decision says `uncertain` and the multi-signal assessment sits at 0.512.
+    const reading = analyzeCognitiveTurnDetailed('嗯。', [], sourceId)
+    expect(reading.analysis.intent).toBe('uncertain')
+    expect(reading.assessment.confidence).toBeLessThan(0.6)
+    expect(reading.analysis.strategy).toBe('answer')
+  })
+
+  it('does not let a coin-flip reading force clarify when nothing would be retrieved', () => {
+    const reading = analyzeCognitiveTurnDetailed('随便。', [], sourceId)
+    expect(reading.decision.needsMemoryRetrieval).toBe(false)
+    expect(reading.analysis.strategy).toBe('answer')
+  })
+})
 
 describe('local cognitive turn analysis', () => {
   it.each([

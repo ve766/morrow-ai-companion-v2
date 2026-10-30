@@ -65,14 +65,19 @@ function significantTerms(text: string): Set<string> {
 }
 
 export class MemoryService {
-  private readonly contextAssembler = new MemoryContextAssembler()
+  private readonly contextAssembler: MemoryContextAssembler
 
   constructor(
     private readonly repository: MemoryRepository,
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID(),
-    private readonly events?: MemoryEventSink
-  ) {}
+    private readonly events?: MemoryEventSink,
+    options: { useContextUtility?: boolean } = {}
+  ) {
+    this.contextAssembler = new MemoryContextAssembler(
+      options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }
+    )
+  }
 
   create(content: string, sensitivity: MemoryRecord['sensitivity'] = 'personal', options: MemoryCreateOptions = {}): MemoryRecord {
     validateMemoryText(content)
@@ -136,6 +141,28 @@ export class MemoryService {
     return { memoryId: id, conflictsWith }
   }
 
+  /**
+   * Ids whose wording overlaps another active record on the same predicate-ish
+   * terms. One pass over the given set, no event writes: ranking calls this on
+   * every assembly, while `detectConflicts` is the audited single-record view.
+   */
+  conflictedIds(records: readonly MemoryRecord[]): Set<string> {
+    const terms = records.map((record) => significantTerms(record.currentText))
+    const keys = records.map((record) => normalizedMemoryKey(record.currentText))
+    const conflicted = new Set<string>()
+    for (let left = 0; left < records.length; left += 1) {
+      for (let right = left + 1; right < records.length; right += 1) {
+        if (keys[left] === keys[right]) continue
+        let shared = 0
+        for (const term of terms[left]!) if (terms[right]!.has(term)) shared += 1
+        if (shared < CONFLICT_MIN_SHARED_TERMS) continue
+        conflicted.add(records[left]!.id)
+        conflicted.add(records[right]!.id)
+      }
+    }
+    return conflicted
+  }
+
   list(): MemoryRecord[] {
     return this.repository.list()
   }
@@ -155,7 +182,10 @@ export class MemoryService {
 
   assembleContext(query: string, maximumSensitivity: Sensitivity, policy?: RetrievalPolicy, presentation: EvidencePresentation = 'json'): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
-    return this.contextAssembler.assemble(query, this.repository.listActiveForContext(1000), maximumSensitivity, undefined, undefined, undefined, policy, presentation)
+    const records = this.repository.listActiveForContext(1000)
+    // Conflict risk is a property of the candidate set, so it is computed once
+    // here and handed to the ranking instead of being re-derived per record.
+    return this.contextAssembler.assemble(query, records, maximumSensitivity, undefined, undefined, undefined, policy, presentation, this.conflictedIds(records))
   }
 
   history(id: string): MemoryRevisionRecord[] {

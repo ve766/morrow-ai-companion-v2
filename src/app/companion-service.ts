@@ -1025,7 +1025,14 @@ export class ChatService {
       const candidateMessageId = existingUser?.id ?? this.makeId()
       const initialHistory = existing.messages.filter((message) => message.turnId !== requestId)
       const prepared = this.prepare(request, config, initialHistory, candidateMessageId, requestId, settingSnapshot, evaluationAt)
+      // The request payload exists at this point, so the turn has been analysed
+      // and its context assembled. Recording both here is what makes the trace
+      // show *when* consent was requested relative to the analysis, instead of
+      // collapsing four steps into one terminal state.
+      this.recordTurnState(conversationId, requestId, 'analyzed', prepared.analysis ? 'analysis_ready' : 'analysis_unavailable')
+      this.recordTurnState(conversationId, requestId, 'context_ready')
       const preview = consentPreview('chat', config, prepared.input)
+      this.recordTurnState(conversationId, requestId, 'awaiting_consent')
       const consent = await this.authorize(preview)
       if (!consent) throw new ApplicationError('FORBIDDEN')
       const latest = this.conversations.read(conversationId)
@@ -1037,7 +1044,6 @@ export class ChatService {
       const messageId = latestUser?.id ?? candidateMessageId
       const verified = this.prepare(request, this.providers.requireConfigured(), latest.messages.filter((message) => message.turnId !== requestId), messageId, requestId, latestSettings, evaluationAt)
       if (hashProviderInput(verified.input) !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
-      this.recordTurnState(conversationId, requestId, 'context_ready')
       let userMessage = latestUser
       let cognitiveObservationPersisted = Boolean(userMessage?.cognitiveObservations?.length)
       const appendUser = (cognitiveObservation?: CognitiveTurnRecord): ConversationMessage => {
@@ -1626,6 +1632,11 @@ export class ChatService {
           this.applyFinalization(record)
           result.completed += 1
         } else {
+          // The turn stopped between "request sent" and "answer stored". That is
+          // a distinct state from a plain failure: the provider may still have
+          // charged for the call, and a later attempt has to know the turn was
+          // recovered rather than never started.
+          this.recordTurnState(record.conversationId, record.turnId, 'recovery_required', 'interrupted_before_delivery')
           // No answer reached the user. Recording it as interrupted is what the
           // evidence supports; inventing a successful turn would not be.
           this.continuity.contexts.upsert({
