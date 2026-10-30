@@ -186,6 +186,21 @@
 | 修掉的缺陷 3 | `after` 是提交前的投影，revision 与真实状态不一致；事件落库后用已提交状态回填 |
 | 测试 | `turn-context-fidelity.integration.test.ts`（3 条，真 SQLite）、`persistence.test.ts` 嵌套事务 2 条、评测场景 A（4 条）/F（5 条） |
 
+## 13. 证据失效与反转折叠（Stage 2 P0-A / P0-B，本次实现）
+
+| 项 | 值 |
+|---|---|
+| 位置 | 迁移 25（`src/persistence/migrations.ts`）、`src/self-model/interest-service.ts`（`fold` / `evaluate` / `derivedStatus`） |
+| 记忆证据失效 | `interest_evidence.evidence_revision` 记录被观察的修订号；`DELETE ON memories` 删证据；`status` 变非 `active` 删证据；`revision` 增大**且 `current_text` 变化**只删旧修订证据 |
+| 为什么比较文本 | `confirm` 也升 revision 但措辞不变；只看 revision 会让一次确认误删有效证据 |
+| 折叠顺序 | 按 `(created_at, evidence_ref)` 升序；`latestPolarity` 取末行，`recentCounters` = 末次支持之后的 counter 数 |
+| 净支持 | `effectiveSupport = max(0, support − recentCounters)`；驱动状态、强度、置信度 |
+| 状态规则 | ① `dropped`/`archived` 不被证据覆盖；② `latestPolarity='counter'` → `candidate`（立即暂停，保留历史）；③ 否则 `conversationCount ≥ 2 且 effectiveSupport ≥ 3` → `active` |
+| 为什么只扣"末次支持之后"的 counter | 否则 `喜欢→不喜欢→又喜欢` 永远无法恢复；反过来，新 counter 也不会被旧 support 永久压过 |
+| 显示口径 | `evidence_count` 存 raw support（"依据 N 次"是发生过的事实）；`effectiveSupport` 与 `support`/`counter`/`recentCounters` 一并写入 `interest.observed` / `interest.recomputed` 事件 |
+| 删除来源后重算 | 证据行由触发器在同一事务删除；`list()` / `activeForContext()` 经 `reconcile` 重折叠并写回缓存 |
+| 测试 | `interest-invalidation.test.ts`（9 条）、`interest-payload-invalidation.integration.test.ts`（2 条，读最终序列化 payload）、`migrations.test.ts`（v24→v25） |
+
 ---
 
 ## 未实现（不得计入已登记）

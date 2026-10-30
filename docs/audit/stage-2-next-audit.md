@@ -50,7 +50,9 @@ wiring difference: true
 | R13 | 场景 E/F 的触发依赖固定措辞 | 情感事件由本地规则触发，换一种说法可能不产生事件 | 场景断言的是"事件产生后记录是否诚实"，不是"规则召回率"；措辞召回属另一层 |
 | R8 | 迁移前历史证据无消息归属 | 旧聚合计数回填为 `legacy` 证据行，无法按消息撤回 | 升级不会降级既有兴趣；新证据全部可归属、可撤回 |
 | R5 | 脚本化 provider | 不覆盖模型质量 | 真实模型 BLOCKED |
-| R6 | CI runner 未分配 | 无 CI 证据 | BLOCKED |
+| R6 | CI runner 未分配 | 根因已定位：check-run 注解为「recent account payments have failed or your spending limit needs to be increased」；`runner_id=0`、`steps=0`、日志 `BlobNotFound`、自托管 runner 0 | 代码侧无法修复；CI 不计通过也不计失败（未执行任何步骤） |
+| R14 | 框架字符集是人工封闭列表 | 新句式框架可能仍被当成共享内容 | 只会抬高分数（精度风险），已用场景 G 与 3 对框架样本盯住 |
+| R15 | 记忆证据按修订号失效 | 旧库行的 `evidence_revision` 为 NULL，任何一次措辞修订都会清掉它 | 升级不降级既有兴趣（证据仍在，直到修订发生）；新证据全部带修订号 |
 
 ## 4. 是否满足合并门槛
 

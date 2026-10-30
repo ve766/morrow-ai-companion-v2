@@ -20,6 +20,8 @@
 | 12 | B5 反思进入下一轮请求 | `reflection.run` → `interests.observe`（主题同一性匹配）→ `activeForContext` | 评测场景 B5（5 条断言） | `evals/stage-2/results/*`（最新） | **PASS**：证据 3 条 / 2 会话，下一轮 payload 含注意力块且带目标兴趣 id |
 | 12a | 主题同一性匹配 | `src/self-model/topic-identity.ts` → `InterestService.observeInner` | `topic-identity.test.ts`（12 条，含开发集指标与框架碰撞） | `evals/stage-2/results/topic-identity-devset-report.json` | **PASS（开发集）**：precision 1.000 / recall 0.889 / FP 0（26 对，devset v2） |
 | 12b | 兴趣证据账本（幂等/撤回/恢复） | 迁移 24 `interest_evidence` + `InterestService.reconcile` | `interest-evidence.test.ts`（11 条） | — | **PASS**：重放不累计、删消息降级/删除、重启后账本与晋升一致 |
+| 12c | 记忆证据随记忆失效（P0-A） | 迁移 25（`evidence_revision` + 3 个记忆触发器）+ `reconcile` 重折叠 | `interest-invalidation.test.ts`（9 条）、`migrations.test.ts` v24→v25 | `src/app/interest-payload-invalidation.integration.test.ts` | **PASS**：retract / delete / correct（`confirm` 不误删）/ 重启 / 备份恢复，payload 不再含该兴趣 id |
+| 12d | 反转改变兴趣状态（P0-B） | `InterestService.fold` → `evaluate` / `derivedStatus` | `interest-invalidation.test.ts`（4 条反转用例） | 同上 | **PASS**：反转立即 `active→candidate`；重新喜欢恢复；删 counter 来源后重算；重放不重复计数 |
 | 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行（12 场景 / 45 条断言） | `evals/stage-2/results/*`（最新） | A/B/C/D/E/F/G/H/I/J/B4/B5 **PASS**（12/12）；K/L **BLOCKED**；**NOT_RUN 0** |
 | 13a | A 指代依赖 | `intent-decision.ts` `dependsOnPriorTurn` → `turn-context.ts` `contextDependency` | `turn-context-fidelity.integration.test.ts`（3 条）+ 场景 A（4 条） | 同上 | **PASS**：无上文→`unresolved`、自足问句→`none`、代词追问→`prior_turn` |
 | 13b | C 纠正链 | `memory-service.ts` `correct` / `history` | 场景 C（4 条） | 同上 | **PASS**：两条修订成链，下一轮载荷只带新值 |
@@ -29,7 +31,7 @@
 | 13f | H 反思限流 | `reflection-service.ts` `canRun` | 场景 H（4 条） | 同上 | **PASS**：额度用尽即拒，被拒不留运行记录，窗口 1 小时后重开 |
 | 13g | J 载荷哈希一致 | `hashProviderInput` → `authorize` | 场景 J（4 条） | 同上 | **PASS**：批准哈希等于实发载荷哈希；重放不重发；撤回后哈希改变 |
 | 14 | 消融 | 未实现 | — | `evals/stage-2/ablation/README.md` | **NOT_RUN** |
-| 15 | CI | `.github/workflows/ci.yml` | — | run 40840918994（attempt 2） | **BLOCKED**：runner_id=0 / steps=[] |
+| 15 | CI | `.github/workflows/ci.yml` | — | run 40993696285（`head_sha=5635a9c`） | **BLOCKED（账号计费）**：`runner_id=0` / `steps=0` / 日志 `BlobNotFound` / 自托管 runner `total_count=0`；check-run 注解为账号付款失败或额度不足 |
 | 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | 场景内自断言 | `evaluation/reports/phase24-real-model-78ff892.json` | **PASS WITH LIMITATIONS**：S1/S2/S3/S5/S6 全过（26/26 客观断言，2 次/场景），S4 SKIPPED（无第二模型） |
 | 17 | Electron / Windows | `src/app/index.ts` | `scripts/smoke.mjs` | — | **BLOCKED**：渲染沙箱 0x80000003；no-sandbox 后主进程 0xC0000005 |
 

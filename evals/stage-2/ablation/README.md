@@ -45,7 +45,14 @@ npm run eval:ablation     # 输出 evals/stage-2/ablation/results/<UTC>-<sha>.js
 3. 每组结果写入 `evals/stage-2/results/<run-id>.json`，与主评测共用同一状态口径：`FAIL / SKIPPED / BLOCKED / NOT_RUN` 一律不计入通过。
 4. 真实模型参与时，每组重复运行并在结果中记录样本量与失败模式；缺少凭据时整组标 `BLOCKED`。
 
-## 未落地原因
+## 未落地原因（已更新）
 
-A–L 主评测 harness 尚未实现（见 `evals/stage-2/results/2026-10-29T08-35Z-local-not-run.json`）。
-消融依赖同一 harness 的装配开关，因此在 harness 之前实现只会产出不可复算的数字。
+主评测 harness **已实现并全部跑通**：`evals/stage-2/runner/cli.ts`，12 个场景 45 条断言，
+结果见 `evals/stage-2/results/*`（最新 `headSha=5635a9c`）。
+
+两条臂仍 NOT_RUN，原因不是 harness 缺失，而是缺少**真实注入点**：
+
+- `no_context_utility`：B3 的 `U(c)` 没有独立开关，加开关要改装配器签名；
+- `no_reflection`：B5 依赖反思发现跨过"用户确认"边界，用桩伪造该前提等于自证。
+
+已有 1 条臂（B2 `no_personalization`）可执行，`wiring difference detected: true`。
