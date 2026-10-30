@@ -26,7 +26,10 @@ async function main(): Promise<void> {
     const memory = first.memories.create('我的项目代号是 Morrow，正在做长期陪伴。', 'personal')
     const conversation = first.companion.createConversation()
     for (let index = 0; index < 3; index += 1) {
-      await first.companion.sendChat({ conversationId: conversation.id, requestId: crypto.randomUUID(), content: '以后直接说重点，别铺垫。', includeSensitive: false }, () => undefined)
+      // A stated preference, not a bare order: the growth gate abstains on
+      // imperative turns the analyser reads as `uncertain`, which would make this
+      // assertion pass for the wrong reason (zero drift, nothing to compare).
+      await first.companion.sendChat({ conversationId: conversation.id, requestId: crypto.randomUUID(), content: '我更喜欢你直接一点，说重点就行，别绕弯子。', includeSensitive: false }, () => undefined)
     }
     for (let index = 0; index < 3; index += 1) {
       first.interests.observeMorrow({
