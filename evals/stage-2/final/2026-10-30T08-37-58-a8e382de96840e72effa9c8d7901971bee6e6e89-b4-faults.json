@@ -1,0 +1,96 @@
+{
+  "kind": "b4_fault_matrix",
+  "generatedAt": "2026-10-30T08:43:25.532Z",
+  "commitSha": "a8e382de96840e72effa9c8d7901971bee6e6e89",
+  "note": "Process-level windows use a real SIGKILL of a child process; the cleanup-failure window is an injected failure because commit and cleanup share one transaction.",
+  "windows": [
+    {
+      "window": "before_provider",
+      "level": "process-kill",
+      "expectation": "no message, no provider call, settled as failed"
+    },
+    {
+      "window": "during_provider",
+      "level": "process-kill",
+      "expectation": "user message kept, no answer, settled as failed, provider not re-called"
+    },
+    {
+      "window": "after_provider_before_persist",
+      "level": "process-kill",
+      "expectation": "intent kept, no answer, settled as failed, provider not re-called"
+    },
+    {
+      "window": "after_commit_before_cleanup",
+      "level": "injected-failure",
+      "expectation": "answer kept, intent settled, no second answer"
+    },
+    {
+      "window": "repeat_recovery",
+      "level": "process-kill",
+      "expectation": "second pass does nothing in every window"
+    },
+    {
+      "window": "conversation_deleted",
+      "level": "injected-failure",
+      "expectation": "nothing resurrected"
+    },
+    {
+      "window": "restart",
+      "level": "file-database",
+      "expectation": "recovery works after reopening the database"
+    }
+  ],
+  "totals": {
+    "cases": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "suites": [
+    {
+      "file": "tests/b4-child-crash.test.ts",
+      "cases": [
+        {
+          "title": "invents nothing when the process dies before the provider is called",
+          "status": "passed"
+        },
+        {
+          "title": "settles a turn whose provider call was in flight, without re-sending it",
+          "status": "passed"
+        },
+        {
+          "title": "fails a turn that died after the provider answered but before the answer was stored",
+          "status": "passed"
+        },
+        {
+          "title": "completes a turn whose cleanup failed after the answer was stored",
+          "status": "passed"
+        },
+        {
+          "title": "does nothing on a second recovery pass in every window",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/app/b4-recovery.integration.test.ts",
+      "cases": [
+        {
+          "title": "repairs a turn whose assistant message never landed, without calling the provider again",
+          "status": "passed"
+        },
+        {
+          "title": "completes a turn whose message landed but whose intent was left behind, with no second answer",
+          "status": "passed"
+        },
+        {
+          "title": "does not resurrect a conversation that was deleted before recovery",
+          "status": "passed"
+        },
+        {
+          "title": "survives a restart between the interruption and the recovery",
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}
