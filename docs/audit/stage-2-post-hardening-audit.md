@@ -1,5 +1,11 @@
 # Stage 2 复审（hardening 之后）
 
+> **历史快照（2026-10-30 标记）**：本文件记录的是当时（HEAD `e7efb4c`）的判断，不再是当前口径。
+> 当前状态请看 [`docs/reports/stage-2-final-delivery-current.md`](stage-2-final-delivery-current.md)
+> 与 [`docs/audit/stage-2-final-delivery-audit.md`](stage-2-final-delivery-audit.md)。原文保留不改写。
+
+---
+
 复审时间：2026-10-29 16:35 (+08:00)
 复审对象：PR #15 head `feat/stage-2-delivery-hardening`，本文件写作时 HEAD `e7efb4c`
 前序审计：`docs/audit/stage-2-repository-audit.md`（提交 `b6ea4a6`，部分结论已过期，见 §3）

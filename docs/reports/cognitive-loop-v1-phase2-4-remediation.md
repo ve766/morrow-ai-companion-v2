@@ -167,7 +167,7 @@ export MORROW_SPARK_MODEL=spark-x2.6
 | S5 状态影响 | 上下文 `adjustment` 是否生效、投递条数是否增加 | 无 |
 | S6 失败重试 | 失败未写、重试只写 1 条、上下文为 `succeeded` | 无 |
 
-设计上刻意把两类判定分开统计：客观项是 pass/fail，主观项单列，**不合成一个"正确率"**。报告落 `evaluation/reports/phase24-real-model-<sha>.json`，含 `codeSha`、模型 ID、每场景运行次数与逐项判定。
+设计上刻意把两类判定分开统计：客观项是 pass/fail，主观项单列，**不合成一个"正确率"**。报告落 `evaluation/reports/phase24-real-model-<sha>.json`（**该目录被 `.gitignore` 忽略，不入库**；需要长期留存的运行请复制到 `evals/stage-2/provider/` 并配 README，见该目录说明），含 `codeSha`、模型 ID、每场景运行次数与逐项判定。
 
 > 该运行器随后按 issue #14 复审并修改（S1 改为真正的跨轮建立、S4 缺对照记 skipped、空断言不再算通过等），以 `cognitive-loop-v1-phase2-4-closeout.md` 为准。
 

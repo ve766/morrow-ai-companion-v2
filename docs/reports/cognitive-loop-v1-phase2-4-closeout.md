@@ -1,5 +1,11 @@
 # Phase 2.4 Stage 1 Closeout（issue #14）
 
+> **历史快照（2026-10-30 标记）**：本文件记录的是当时（HEAD `8cb3761`）的判断，不再是当前口径。
+> 当前状态请看 [`docs/reports/stage-2-final-delivery-current.md`](stage-2-final-delivery-current.md)
+> 与 [`docs/audit/stage-2-final-delivery-audit.md`](stage-2-final-delivery-audit.md)。原文保留不改写。
+
+---
+
 > **更正（2026-10-30，PR #15 HEAD `2c90163`）**：本文件写下时把两件事记为"不可用"，后续实测推翻了它们，
 > 请以 `docs/reports/stage-2-next-delivery.md` 为准：
 >

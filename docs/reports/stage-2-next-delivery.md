@@ -1,7 +1,14 @@
-# Stage 2 交付状态（issue #17）
+# Stage 2 交付过程记录（issue #17 明细附录）
 
 分支：`feat/stage-2-delivery-hardening`（PR #15，保持 Open，不合并、不发版）
-本文件是阶段二状态的**唯一口径**。历史版本里的"只有 3 个场景可执行 / A–L 未实现"等段落已删除，不再保留互相矛盾的两套说法。
+
+> **定位（2026-10-30 起）**：本文件保留每轮改动的**过程细节**，不再承担"唯一当前口径"的角色。
+> 当前状态只看这两份，任何冲突以它们为准：
+> - 当前交付报告：[`stage-2-final-delivery-current.md`](stage-2-final-delivery-current.md)
+> - 最终审计报告：[`../audit/stage-2-final-delivery-audit.md`](../audit/stage-2-final-delivery-audit.md)
+>
+> 本文件内提到的最新结果 SHA（`8650c48`）是写作时的批次；当前验证批次为 `42a51e0`
+> （见证据索引 §0）。
 
 ## 0. SHA 口径（先看这个）
 
@@ -25,7 +32,7 @@
 | 主题同一性匹配 | **PASS（开发集 26 对）** | `topic-identity.test.ts`（12 条）+ 开发集报告 |
 | 记忆证据失效（P0-A） | **PASS** | `interest-invalidation.test.ts`（9 条）+ payload 级 2 条 |
 | 反转改变兴趣状态（P0-B） | **PASS** | 同上 |
-| 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**：5/5 可运行场景 PASS，客观 13/13，S4 SKIPPED | `evaluation/reports/phase24-real-model-26aeac7.json` |
+| 真实 Provider S1–S6 | **PASS WITH LIMITATIONS**：5/5 可运行场景 PASS，客观 13/13，S4 SKIPPED | `evals/stage-2/provider/phase24-real-model-26aeac7.json` |
 | 消融 | **4 组全部真实执行**（full / no_personalization / no_context_utility / no_reflection） | `evals/stage-2/ablation/results/*` |
 | 场景 K（运行器内） | **BLOCKED（设计如此）** | 离线运行器是脚本化 provider；真实 Provider 证据在 §7.6 |
 | 场景 L（桌面渲染） | **BLOCKED（运行器内）**，桌面路径另有 **PASS** 证据 | 运行器无法托管 GUI 进程；`npm run smoke` 两次 exit 0（沙箱开启） |
@@ -213,7 +220,7 @@ MORROW_REAL_RUNS=1 MORROW_SPARK_TIMEOUT_MS=120000 MORROW_SPARK_BUDGET_MS=300000
 | S5 状态影响 | **PASS 3/3** | 注意力越过阈值 priority=0.238；后续轮次加宽并多投递（control=5/5 → widened=6/7） |
 | S6 失败重试 | **PASS 3/3** | 失败轮不写回答、记为 failed；重试后恰好一条回答 |
 
-合计：**6 个场景，5 PASS / 0 FAIL / 0 BLOCKED / 1 SKIPPED，客观断言 13/13，errors 0**，报告 `evaluation/reports/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`）。
+合计：**6 个场景，5 PASS / 0 FAIL / 0 BLOCKED / 1 SKIPPED，客观断言 13/13，errors 0**，报告 `evals/stage-2/provider/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`）。
 
 口径说明：
 

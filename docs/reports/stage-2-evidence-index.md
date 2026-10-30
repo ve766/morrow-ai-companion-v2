@@ -1,53 +1,76 @@
 # Stage 2 证据索引
 
-单一入口：每项给出源码位置、测试、结果文件与状态。状态口径与评测运行器一致：
-`PASS / FAIL / SKIPPED / BLOCKED / NOT_RUN`，未运行项不计入通过。
+本文件是阶段二**唯一当前索引**，与 [`stage-2-final-delivery-current.md`](stage-2-final-delivery-current.md)、[`stage-2-final-delivery-audit.md`](../audit/stage-2-final-delivery-audit.md) 保持同一口径。
 
-| # | 能力 / 门槛 | 源码入口 | 测试 | 证据文件 | 状态 |
-|---|---|---|---|---|---|
-| 1 | 意图判断（规则层） | `src/cognition/intent-decision.ts` | `src/cognition/intent-decision.test.ts` | — | 单元 PASS；真实模型 BLOCKED |
-| 2 | 轮次分析（信号/不确定性/策略） | `src/cognition/cognitive-turn-analyzer.ts` | `cognitive-turn-analyzer.test.ts` | — | 单元 PASS |
-| 3 | 记忆检索与装配 | `src/memory/retrieval-policy.ts`、`memory-context-assembler.ts` | 现有集成测试 | `evals/stage-2/results/2026-10-29T09-34-34-55c9aef.json`（场景 B/D） | **PASS（离线，脚本化 provider）** |
-| 4 | 撤回与删除边界 | `src/memory/memory-service.ts`、迁移 19/21 | `src/persistence/derived-deletion-boundary.test.ts` | 同上（场景 D） | PASS |
-| 5 | 自我模型不复制原文 | `src/self-model/self-fact-statement.ts`、迁移 20 | `src/self-model/self-fact-statement.test.ts` | — | PASS |
-| 6 | 旧 schema 读取 | `src/cognition/turn-context.ts` `normalizeTurnContext` | `src/cognition/turn-context.test.ts` | — | PASS |
-| 7 | 轮次幂等 | `src/app/companion-service.ts` `send` | `turn-reliability.integration.test.ts` | 同上（场景 I） | PASS |
-| 8 | B1 多信号置信度 | `src/cognition/intent-confidence.ts` → analyzer | `intent-confidence.test.ts`（5 条）+ 2 条测量断言 | — | **PARTIAL**：计算并记录；试接 clarify 使语料准确率 1.000→0.885，已回退 |
-| 9 | B2 渐进式个性化 | `src/personalization/personalization-service.ts`、迁移 22 | `personalization-service.test.ts`（11 条，含 P1-A/B/C 与端到端） | 同上 | **PASS（离线）** |
-| 9b | B2 删除一致性 | 同左（证据折叠 + 缓存回填） | 删除源消息后重算回 0.5 | 同上 | **PASS** |
-| 10 | B3 `U(c)` | `context-utility.ts` → `memory-context-assembler.rankScore`；`MemoryService.conflictedIds`；`personalizationFit` | `context-utility.test.ts`（5 条）+ 装配器 3 条排序断言 + `personalizationFit` 2 条 | `evals/stage-2/ablation/results/*`（`no_context_utility`） | **PASS**：P/X/D 全部接线，X 与 P 各有排序断言，D 按未确认年龄线性计入 |
-| 11 | B4 轮次状态机 | `turn-state-machine.ts` + `companion-service.ts` 写入点 + 迁移 23 | `turn-state-machine.test.ts`（6 条）+ `turn-state-sequence.integration.test.ts`（3 条） | — | **PASS**：9 个状态全部有写入点，成功轮次 7 步序列有断言 |
-| 12 | B5 反思进入下一轮请求 | `reflection.run` → `interests.observe`（主题同一性匹配）→ `activeForContext` | 评测场景 B5（5 条断言） | `evals/stage-2/results/*`（最新） | **PASS**：证据 3 条 / 2 会话，下一轮 payload 含注意力块且带目标兴趣 id |
-| 12a | 主题同一性匹配 | `src/self-model/topic-identity.ts` → `InterestService.observeInner` | `topic-identity.test.ts`（12 条，含开发集指标与框架碰撞） | `evals/stage-2/results/topic-identity-devset-report.json` | **PASS（开发集）**：precision 1.000 / recall 0.889 / FP 0（26 对，devset v2） |
-| 12b | 兴趣证据账本（幂等/撤回/恢复） | 迁移 24 `interest_evidence` + `InterestService.reconcile` | `interest-evidence.test.ts`（11 条） | — | **PASS**：重放不累计、删消息降级/删除、重启后账本与晋升一致 |
-| 12c | 记忆证据随记忆失效（P0-A） | 迁移 25（`evidence_revision` + 3 个记忆触发器）+ `reconcile` 重折叠 | `interest-invalidation.test.ts`（9 条）、`migrations.test.ts` v24→v25 | `src/app/interest-payload-invalidation.integration.test.ts` | **PASS**：retract / delete / correct（`confirm` 不误删）/ 重启 / 备份恢复，payload 不再含该兴趣 id |
-| 12d | 反转改变兴趣状态（P0-B） | `InterestService.fold` → `evaluate` / `derivedStatus` | `interest-invalidation.test.ts`（4 条反转用例） | 同上 | **PASS**：反转立即 `active→candidate`；重新喜欢恢复；删 counter 来源后重算；重放不重复计数 |
-| 13 | A–L 评测 | `evals/stage-2/runner/cli.ts` | 由运行器自身执行（12 场景 / 45 条断言） | `evals/stage-2/results/*`（最新） | A/B/C/D/E/F/G/H/I/J/B4/B5 **PASS**（12/12）；K/L **BLOCKED**；**NOT_RUN 0** |
-| 13a | A 指代依赖 | `intent-decision.ts` `dependsOnPriorTurn` → `turn-context.ts` `contextDependency` | `turn-context-fidelity.integration.test.ts`（3 条）+ 场景 A（4 条） | 同上 | **PASS**：无上文→`unresolved`、自足问句→`none`、代词追问→`prior_turn` |
-| 13b | C 纠正链 | `memory-service.ts` `correct` / `history` | 场景 C（4 条） | 同上 | **PASS**：两条修订成链，下一轮载荷只带新值 |
-| 13c | E 人格稳定 | `personality-service`（用户编辑才升版本） | 场景 E（4 条） | 同上 | **PASS**：4 轮情绪/反馈轮次后版本与数值不变，载荷文案逐轮一致 |
-| 13d | F 状态影响 | `affective-state/feeling.ts` → `applyFinalization` | `turn-context-fidelity.integration.test.ts` + 场景 F（5 条） | 同上 | **PASS**：`applied=true`、`after` 等于已提交状态、单轮变化在限内、载荷声明不可覆盖 |
-| 13e | G 兴趣晋升门槛 | `interestPromotionEligible` | 场景 G（4 条） | 同上 | **PASS**：单会话 3 次不晋升；跨会话晋升；无关主题仍为候选 |
-| 13f | H 反思限流 | `reflection-service.ts` `canRun` | 场景 H（4 条） | 同上 | **PASS**：额度用尽即拒，被拒不留运行记录，窗口 1 小时后重开 |
-| 13g | J 载荷哈希一致 | `hashProviderInput` → `authorize` | 场景 J（4 条） | 同上 | **PASS**：批准哈希等于实发载荷哈希；重放不重发；撤回后哈希改变 |
-| 14 | 消融 | `evals/stage-2/ablation/run.ts` | 四组臂自断言 | `evals/stage-2/ablation/results/*`（最新 `6e8fece`） | **PASS（4/4 执行）**：B2 差异 242 字节；B3 改变记忆顺序；B5 反思 4 次 vs 0 次 |
-| 15 | CI | `.github/workflows/ci.yml` | — | run 40993696285（`head_sha=5635a9c`） | **BLOCKED（账号计费）**：`runner_id=0` / `steps=0` / 日志 `BlobNotFound` / 自托管 runner `total_count=0`；check-run 注解为账号付款失败或额度不足 |
-| 16 | 真实 Provider S1–S6 | `scripts/phase24-real-model.ts` | 场景内自断言 | `evaluation/reports/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`） | **PASS WITH LIMITATIONS**：S1/S2/S3/S5/S6 全过（**13/13 客观断言，1 次/场景**），S4 SKIPPED（无第二模型）；先前的 78ff892 报告保留为历史 |
-| 17 | Electron / Windows | `src/app/index.ts` | `scripts/smoke.mjs`（`npm run smoke`） | — | **PASS**：连跑两次 exit 0，默认沙箱未禁用；覆盖 built app、凭据保存-重启-删除、认知开关、记忆/目标/提醒、删除与重启校验。安装包升级路径仍无证据 |
+## 0. SHA 口径
 
-## 复算方式
+| 名称 | SHA | 含义 |
+|---|---|---|
+| 审计 HEAD | `42a51e075af8a8ce9628c87490c37df8c92b7580` | 本索引所有验证在该提交、**工作区干净**时执行 |
+| 评测结果生成 SHA | `42a51e0` | `evals/stage-2/results/2026-10-30T06-12-40-42a51e0.json`、`ablation/results/2026-10-30T06-12-49-42a51e0.json`、devset 报告 |
+| 真实 Provider 报告 SHA | `26aeac7` | `evals/stage-2/provider/phase24-real-model-26aeac7.json` 的 `codeSha`；生成于更早提交，**不冒充当前 HEAD 的验证** |
 
-```bash
-npm run eval:stage2        # 生成新的 <UTC>-<sha>.json 与 -summary.json，不覆盖旧结果
-npx tsc --noEmit
-npx vitest run --maxWorkers=2
-npm run build
-```
+状态口径：**PASS** 有可复核证据；**PARTIAL** 部分接通；**BLOCKED** 外部条件阻断；**NOT_RUN** 从未执行。
 
-每个结果文件内都带生成它的 `headSha`；旧 SHA 的结果不得当作当前提交的证据。
+## 1. 认知层
 
-## 已知限制
+| # | 能力 | 状态 | 源码 | 测试（文件 + 用例） | 证据 | 能证明 / 不能证明 |
+|---|---|---|---|---|---|---|
+| C1 | 规则层意图判断 | PASS | `src/cognition/intent-decision.ts` | `src/cognition/intent-decision.test.ts` | `evals/stage-2/results/verify-42a51e0-061042.log` | 能：规则命中与策略映射。不能：真实模型下的意图准确率 |
+| C2 | 多信号意图置信度（B1） | **PARTIAL** | `src/cognition/intent-confidence.ts`、`src/cognition/cognitive-turn-analyzer.ts` | `src/cognition/cognitive-turn-analyzer.test.ts`：`reports a low-confidence reading without turning it into a question`、`does not let a coin-flip reading force clarify when nothing would be retrieved`、`scores a turn mostly by whether there is prior history, not by how vague it is` | 同上（该文件 18 条全过） | 能：分数被计算并随分析返回；分数由"有无上文"主导（同一句 0.780 vs 0.947）。**不能**：认为它影响了决策——它没有 |
+| C3 | 上下文效用 `U(c)` 的 P/X/D（B3） | PASS | `src/cognition/context-utility.ts` → `src/memory/memory-context-assembler.ts` `rankScore`；`MemoryService.conflictedIds`；`personalizationFit` | `context-utility.test.ts`（5 条）；`memory-context-assembler.test.ts`：`ranks a record involved in an unresolved conflict below its twin`、`penalises a record that was never confirmed and is old`、`promotes a memory that is about a dimension the user personalised`；`personalization-service.test.ts`：`scores a memory about a personalised dimension and nothing else`、`takes the strongest matching dimension` | 验证日志 + 消融 `no_context_utility` 臂（`ablation/results/2026-10-30T06-12-49-42a51e0.json`，`contextUtilityChangesMemoryOrder: true`） | 能：三个分量都改变投递顺序。不能：`P` 只覆盖"记忆明确提到交互维度"的情形，未提到时恒为 0 |
+| C4 | 轮次状态机（B4） | PASS | `src/cognition/turn-state-machine.ts`、`src/app/companion-service.ts` `recordTurnState` | `turn-state-machine.test.ts`（6 条）；`src/app/turn-state-sequence.integration.test.ts`：`walks received → analyzed → context_ready → awaiting_consent → requesting → response_received → committed`、`records a provider failure after requesting, and never claims a delivery`、`declares the interrupted-only states legal from the steps that can reach them` | 验证日志 | 能：9 个状态都有真实写入点，成功轮次 7 步序列可观测。不能：`recovery_required` 只有状态机边断言，缺"真实中断后恢复"的端到端用例 |
 
-1. 脚本化 provider 只能证明接线与载荷内容，**不能证明模型质量**。
-2. 本仓库的 v2 轮次 schema 目前是"版本容错"，并未新增字段；B1 的 speech acts 落地时会另加字段并升版本。
-3. 场景 D 的判定依赖"正对照"，不要删掉它——运行器开发过程中正是它挡住了假通过。
+## 2. 记忆与自模型
+
+| # | 能力 | 状态 | 源码 | 测试（文件 + 用例） | 证据 | 能证明 / 不能证明 |
+|---|---|---|---|---|---|---|
+| M1 | 记忆撤回/删除/纠正 → 兴趣证据失效 | PASS | 迁移 25（`src/persistence/migrations.ts`）+ `src/self-model/interest-service.ts` `reconcile` | `src/self-model/interest-invalidation.test.ts` 9 条：`drops the evidence when the memory is retracted, and the interest with it`、`drops the evidence when the memory row is deleted outright`、`ages out evidence from an older revision but keeps evidence from the current one`、`keeps the invalidation after a restart`、`carries the invalidation into the snapshot` | 验证日志；`src/persistence/migrations.test.ts` 的 v24→v25 用例 | 能：证据行在同一事务内删除，缓存按剩余证据重折叠。不能：不覆盖"多进程同时改同一记忆" |
+| M2 | 失效不泄漏到最终 payload | PASS | `src/app/companion-service.ts` 上下文装配 | `src/app/interest-payload-invalidation.integration.test.ts`：`drops the interest from the payload when its memory evidence is retracted`、`drops the interest from the payload when the user reverses, and restores it on a newer support` | 同上 | 能：读的是**序列化后的请求**。不能：不覆盖真实模型如何利用该上下文 |
+| M3 | 反转改变兴趣状态 | PASS | `src/self-model/interest-service.ts` `evaluate`/`derivedStatus` | `interest-invalidation.test.ts`：`suspends an active interest as soon as the user reverses`、`lets a newer support clear an older reversal instead of being vetoed forever`、`recomputes from the remaining evidence when the counter source is deleted`、`does not double count a replayed reversal` | 同上 | 能：反转立即降级、可恢复、删反证可重算、重放幂等。不能：不覆盖同秒多条证据的真实并发 |
+| M4 | 兴趣证据账本（幂等/撤回/恢复） | PASS | 迁移 24 + `reconcile` | `src/self-model/interest-evidence.test.ts`（11 条） | 同上 | 能：重放不累计、删消息降级或删除、重启后账本一致 |
+| M5 | 主题同一性匹配 | PASS | `src/self-model/topic-identity.ts` | `src/self-model/topic-identity.test.ts`（12 条） | `evals/stage-2/results/topic-identity-devset-report.json`（26 对，P 1.000 / R 0.889，FP 0 / FN 1） | 能：框架碰撞不合并、同槽替换不合并、歧义保留。不能：26 对是小样本，不具统计意义 |
+| M6 | 撤回与删除边界（通用） | PASS | `src/memory/memory-service.ts`、迁移 19/21 | `src/persistence/derived-deletion-boundary.test.ts`（4 条） | 验证日志 | 能：源数据删除后派生行清理 |
+| M7 | 备份/恢复一致性 | PASS | `src/persistence/backup-service.ts` | `src/persistence/backup-service.test.ts`；`interest-invalidation.test.ts` 的 `carries the invalidation into the snapshot` | 验证日志 | 能：快照不含已撤回证据。不能：不覆盖安装器升级后的恢复 |
+
+## 3. 人格与个性化（B2）
+
+| # | 能力 | 状态 | 源码 | 测试 | 证据 | 边界 |
+|---|---|---|---|---|---|---|
+| P1 | 人格稳定（情绪/反馈不改写人格） | PASS | `src/personalization/personalization-service.ts`、迁移 22 | 评测场景 E（4 条断言）；`src/personalization/personalization-service.test.ts`（13 条） | `evals/stage-2/results/2026-10-30T06-12-40-42a51e0.json` | 能：4 轮情绪/反馈后版本与数值不变。不能：不覆盖长期多会话漂移 |
+| P2 | 有界更新与撤回重算 | PASS | 同上 | `personalization-service.test.ts`（含 P1-A/B/C 三条） | 验证日志 | 能：单轮位移 ≤ 上限、撤回回到 0.5、非法输入零写入 |
+
+## 4. 评测
+
+| # | 能力 | 状态 | 证据 | 边界 |
+|---|---|---|---|---|
+| E1 | 12 个可执行场景（A/B/C/D/E/F/G/H/I/J/B4/B5，45 条断言） | PASS | `evals/stage-2/results/2026-10-30T06-12-40-42a51e0.json`：`executed 12 / passed 12 / blocked 2 / notRun 0` | 脚本化 Provider；**不证明模型质量**。K、L 为 BLOCKED，未计入通过 |
+| E2 | 场景 K（真实 Provider 在运行器内） | BLOCKED | 同上（`blockedBy` 字段） | 运行器固定脚本化；真实覆盖见 E5 |
+| E3 | 场景 L（桌面在运行器内） | BLOCKED | 同上 | 运行器托管不了 GUI 进程；桌面覆盖见 V1 |
+| E4 | 四组消融 | PASS（执行） | `evals/stage-2/ablation/results/2026-10-30T06-12-49-42a51e0.json`：`personalizationBlockAppearsOnlyWhenEnabled=true`、`contextUtilityChangesMemoryOrder=true`、`reflectionRunsFull=4` / `Off=0` | `no_reflection` **未见 payload 差异**（注意力块两臂均为 0），不能证明反思收益 |
+| E5 | 真实 Provider S1–S6 | PASS WITH LIMITATIONS | `evals/stage-2/provider/phase24-real-model-26aeac7.json`（`codeSha=26aeac7`）：5 PASS / 1 SKIPPED，客观 13/13 | 1 次/场景；S4 单模型 SKIPPED，**不是 6/6** |
+
+## 5. 环境与平台
+
+| # | 能力 | 状态 | 证据 | 边界 |
+|---|---|---|---|---|
+| V1 | 桌面 Electron | PASS | `evals/stage-2/results/verify-42a51e0-061042.log`（`npm run smoke` exit 0，默认沙箱未禁用） | 只覆盖 smoke 列出的路径；不覆盖真实用户交互 |
+| V2 | Windows schema/migration 升级 | PASS | `npx vitest run src/persistence` 57/57（win32、默认并发，见验证日志） | **只是 schema 测试**，不等于安装器升级 |
+| V3 | Windows 安装器升级 | **BLOCKED / NOT VERIFIED** | 无 | 需授权在干净机器执行：装旧版 → 覆盖装新版 → 启动 → 数据保留 |
+| V4 | CI | **BLOCKED** | run [41010305777](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41010305777)：三 job `runner_id=0` / `steps=0`；注解为账号付款失败或额度不足 | **不计通过也不计失败**：没有任何步骤执行过 |
+
+## 6. 无证据的项（明列缺口）
+
+| 项 | 缺口 |
+|---|---|
+| B1 接线 | 无"低置信度改变行为"的证据——从未接通，三次尝试实测回退 |
+| `recovery_required` 端到端 | 只有状态机边断言，没有"真实中断 → 进入该状态 → 后续处置"的集成用例 |
+| 真实模型主观质量 | 只有词面代理（`subjectiveScored: 3`），不构成质量评价 |
+| 多模型切换（S4） | 无第二模型凭据 |
+| 安装器升级 | 无任何证据 |
+
+## 7. 历史结果（保留，不覆盖）
+
+`evals/stage-2/results/` 下按 SHA 归档的旧结果全部保留：`5635a9c`、`e25308c`、`fff5a13`、`02c2e4a`、`6e8fece`、`8650c48`、`67f2a37`、`42a51e0`（当前）。消融同理。
+
+真实 Provider 的更早运行（`78ff892`、`50acd83`、`6bf3758`）只存在于本地 `evaluation/reports/`，该目录被 `.gitignore` 忽略、**从未入库**，因此不作为可复核证据引用。
