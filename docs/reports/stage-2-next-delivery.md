@@ -7,7 +7,7 @@
 
 | 名称 | SHA | 含义 |
 |---|---|---|
-| 结果生成代码 SHA | `fff5a13c9d7f2f2ca1bfe9042d45e841f0c1b38d` | 下面所有评测 JSON 里的 `headSha`。结果是在**工作区干净**时、于这个提交上生成的 |
+| 结果生成代码 SHA | `6e8fece940a0889b60e0db85ef8481f15368fbfa` | 下面所有评测 JSON 里的 `headSha`。结果是在**工作区干净**时、于这个提交上生成的 |
 | 当前 PR HEAD | 见 PR #15 最新提交 | 通常比结果 SHA 新一个"结果提交"，因为结果文件本身要提交 |
 
 两者不同是正常的：结果必须绑定生成它的代码，而不是绑定"记录结果的提交"。旧 SHA 的结果文件一律保留，不覆盖、不冒充当前提交。
@@ -158,25 +158,25 @@ gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated 
 
 `no_reflection` 的 payload 差异为 0（`attentionBlockTurns` 两臂都是 0）：这 4 轮规划对话没有产生可晋升的兴趣，所以"关掉反思"在这份输入上看不出载荷差别。这是**没有观测到差异**，不是"证明无效"——如实记录。
 
-## 7. 命令与退出码（在 `fff5a13` 实跑，工作区干净）
+## 7. 命令与退出码（在 `6e8fece` 实跑，工作区干净）
 
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | — |
-| `npx vitest run --maxWorkers=2` | 0 | **75 files / 656 tests passed** |
+| `npx vitest run --maxWorkers=2` | 0 | **75 files / 659 tests passed** |
 | `npm run build` | 0 | — |
 | `npm run eval:stage2` | 0 | executed 12 / passed 12 / failed 0 / blocked 2 / notRun 0（45 条断言） |
 | `npm run eval:topic-identity` | 0 | precision 1.000 / recall 0.889 / FP 0 / FN 1（26 对） |
 | `npm run eval:ablation` | 0 | 4 组臂全部执行；`wiring difference detected: true` |
 | `npm run smoke` | 0 | Electron 默认沙箱通过（连跑两次），见 §7.5 |
 
-结果文件（`headSha = fff5a13`）：
+结果文件（`headSha = 6e8fece`）：
 
-- `evals/stage-2/results/2026-10-30T04-15-26-fff5a13.json`（+ `-summary.json`）
+- `evals/stage-2/results/2026-10-30T04-31-08-6e8fece.json`（+ `-summary.json`）
 - `evals/stage-2/results/topic-identity-devset-report.json`
-- `evals/stage-2/ablation/results/2026-10-30T04-15-43-fff5a13.json`
+- `evals/stage-2/ablation/results/2026-10-30T04-31-24-6e8fece.json`
 
-上一轮结果保留为历史，不覆盖：`02c2e4a`（`03-15-37` / `03-15-45`）、`e25308c`（`03-08-17` / `03-08-25`）、`5635a9c`（`02-48-36` / `02-48-43`）。
+上一轮结果保留为历史，不覆盖：`fff5a13`（`04-15-26` / `04-15-43`）、`02c2e4a`（`03-15-37` / `03-15-45`）、`e25308c`（`03-08-17` / `03-08-25`）、`5635a9c`（`02-48-36` / `02-48-43`）。
 
 ## 7.5 桌面（Electron）实测
 
