@@ -110,7 +110,7 @@ permitted → selected_for_prompt → actually_raised | not_raised
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | 无错误 |
-| `npx vitest run` | 0 | **84 文件 / 747 测试全通过**（M1 11 条 + D1 10 条） |
+| `npx vitest run` | 0 | **84 文件 / 756 测试全通过**（M1 11 + D1 10 + S3-03/S3-04 新增 9） |
 | `npx electron-vite build` | 0 | 构建成功 |
 | `npm run eval:stage3` | 0 | **15 PASS / 0 FAIL / 1 NOT_RUN**（分母 16；L10 已可执行） |
 | `npm run eval:stage3:ablation` | 0 | 差异见 §4 |
@@ -161,3 +161,18 @@ F1–F5 已按代码级修复并有回归证据，F6 已修，F7 只保留客观
 §2D 已用 `CompanionGoalService` 实现（理由见算法登记表 D1：现有 `GoalService` 只能表达固定 intent 的任务执行，属 Agent 侧，强行接入会把任务模型混进陪伴层）。
 
 仍未完成：§2A 的冲突分类（部分）、§2B appraisal、§2C 反思质量评测、§2F 语音闭环。因此整体仍为 **PARTIAL**，不按"阶段三完整验收"合并。
+
+
+---
+
+## 9. 补充审查（S3-01 ~ S3-05）
+
+见 `docs/reports/stage-3-followup-gap-closure.md`。摘要：
+
+| 编号 | 结果 |
+|---|---|
+| S3-01 | **OPEN（P0）**：反思仍把兴趣候选写成用户兴趣，`observeMorrow()` 未被生产链使用 |
+| S3-02 | 已修：L5 两条许可断言改为必须存在 `permitted`，消融恢复判别 |
+| S3-03 | 已修：净证据聚合 + 不确定性门禁 + 非断言语气 abstain |
+| S3-04 | 已修：事务内预算预留（迁移 33），失败/未提出释放名额 |
+| S3-05 | 已修：登记表删除追加段，规则内联，旧映射标 deprecated |

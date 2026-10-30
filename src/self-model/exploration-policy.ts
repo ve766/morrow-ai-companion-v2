@@ -155,8 +155,74 @@ export class ExplorationService {
   constructor(
     private readonly database: SqliteDatabase,
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly makeId: () => string = () => randomUUID()
+    private readonly makeId: () => string = () => randomUUID(),
+    private readonly scope: string = 'install'
   ) {}
+
+  private day(): string {
+    return this.clock().slice(0, 10)
+  }
+
+  /**
+   * Atomically reserves one slot of today's budget.
+   *
+   * The reservation row is written inside `BEGIN IMMEDIATE` *before* the answer is
+   * returned, and the count includes reserved as well as consumed rows. Two turns
+   * racing for the last slot therefore cannot both succeed: the second one blocks
+   * on the write lock, then sees the first row.
+   *
+   * Idempotent on `(scope, day, turn_id)`: a retried or re-prepared turn reads its
+   * own row instead of reserving another.
+   */
+  reserve(turnId: string): 'reserved' | 'consumed' | 'denied' {
+    const id = turnId.toLowerCase()
+    const day = this.day()
+    this.database.connection.exec('BEGIN IMMEDIATE')
+    try {
+      const existing = this.database.connection.prepare(
+        'SELECT state FROM exploration_budget WHERE scope = ? AND day = ? AND turn_id = ?'
+      ).get(this.scope, day, id) as { state: string } | undefined
+      if (existing) {
+        this.database.connection.exec('COMMIT')
+        return existing.state === 'consumed' ? 'consumed' : existing.state === 'denied' ? 'denied' : 'reserved'
+      }
+      const used = Number((this.database.connection.prepare(
+        "SELECT COUNT(*) AS n FROM exploration_budget WHERE scope = ? AND day = ? AND state IN ('reserved', 'consumed')"
+      ).get(this.scope, day) as { n: number }).n)
+      const state = used >= EXPLORATION_MAX_PER_DAY ? 'denied' : 'reserved'
+      this.database.connection.prepare(
+        'INSERT INTO exploration_budget(scope, day, turn_id, state, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run(this.scope, day, id, state, this.clock())
+      this.database.connection.exec('COMMIT')
+      return state
+    } catch (error) {
+      try { this.database.connection.exec('ROLLBACK') } catch { /* already gone */ }
+      throw error
+    }
+  }
+
+  /** Turns a reservation into a real raise. Idempotent. */
+  consume(turnId: string): boolean {
+    const result = this.database.connection.prepare(
+      "UPDATE exploration_budget SET state = 'consumed' WHERE scope = ? AND day = ? AND turn_id = ? AND state IN ('reserved', 'consumed')"
+    ).run(this.scope, this.day(), turnId.toLowerCase())
+    return Number(result.changes) > 0
+  }
+
+  /** Gives the slot back when the turn never actually raised the topic. */
+  release(turnId: string): boolean {
+    const result = this.database.connection.prepare(
+      "UPDATE exploration_budget SET state = 'released' WHERE scope = ? AND day = ? AND turn_id = ? AND state = 'reserved'"
+    ).run(this.scope, this.day(), turnId.toLowerCase())
+    return Number(result.changes) > 0
+  }
+
+  /** How many slots today have been reserved or consumed. */
+  usedToday(): number {
+    return Number((this.database.connection.prepare(
+      "SELECT COUNT(*) AS n FROM exploration_budget WHERE scope = ? AND day = ? AND state IN ('reserved', 'consumed')"
+    ).get(this.scope, this.day()) as { n: number }).n)
+  }
 
   /**
    * Records one lifecycle state for a turn.
@@ -173,11 +239,6 @@ export class ExplorationService {
     `).run(this.makeId(), input.turnId.toLowerCase(), input.interestId, input.state, input.reason.slice(0, 120), this.clock())
   }
 
-  /** The gate allowed a topic for this turn. Permission is not an event. */
-  permit(input: { turnId: string; interestId: string; reason: string }): void {
-    this.transition({ ...input, state: 'permitted' })
-  }
-
   /** The permission actually reached the serialized prompt. */
   markSelected(input: { turnId: string; interestId: string; reason?: string }): void {
     this.transition({ turnId: input.turnId, interestId: input.interestId, state: 'selected_for_prompt', reason: input.reason ?? 'in_payload' })
@@ -186,10 +247,9 @@ export class ExplorationService {
   /**
    * Settles a turn after the provider call.
    *
-   * Only `actually_raised` counts toward the frequency budget. A failed call, a
-   * cancelled one, or a reply that never mentions the topic settles the turn as
-   * something other than a raise — the gate must not be consumed by a turn that
-   * never happened.
+   * Only `actually_raised` keeps the budget slot. A failed call, a cancelled one,
+   * or a reply that never mentions the topic releases it — the gate must not be
+   * consumed by a turn that never happened.
    */
   settle(input: {
     turnId: string
@@ -200,17 +260,21 @@ export class ExplorationService {
   }): 'actually_raised' | 'not_raised' | 'provider_failed' {
     if (input.outcome !== 'succeeded' || input.reply === null) {
       this.transition({ turnId: input.turnId, interestId: input.interestId, state: 'provider_failed', reason: input.outcome })
+      this.release(input.turnId)
       return 'provider_failed'
     }
     const detected = detectRaised(input.reply, input.label)
     const state: 'actually_raised' | 'not_raised' = detected === 'raised' ? 'actually_raised' : 'not_raised'
     this.transition({ turnId: input.turnId, interestId: input.interestId, state, reason: detected })
+    if (state === 'actually_raised') this.consume(input.turnId)
+    else this.release(input.turnId)
     return state
   }
 
   /** The user dismissed the topic (archived / dropped the interest). */
   markUserRejected(input: { turnId: string; interestId: string; reason: string }): void {
     this.transition({ ...input, state: 'user_rejected' })
+    this.release(input.turnId)
   }
 
   /**
@@ -243,10 +307,12 @@ export class ExplorationService {
   }
 
   /**
-   * Runs the gate and records only the *permission*.
+   * Runs the gate, reserves a budget slot, and records only the *permission*.
    *
    * Nothing here claims the topic was raised; that is decided after the reply is
-   * persisted, by `settle()`.
+   * persisted, by `settle()`. A denied reservation keeps the read-only signals
+   * (cooldown, suitability) ahead of the budget so the recorded reason stays
+   * truthful.
    */
   decide(input: { turnId: string; interests: readonly InterestRecord[]; turn: ExplorationInput['turn'] }): ExplorationDecision {
     const recent = this.recent(input.turnId)
@@ -258,9 +324,14 @@ export class ExplorationService {
       turn: input.turn,
       recentlyUsed: recent.raisedInterestIds
     })
-    if (decision.allowed && decision.interestId) {
-      this.permit({ turnId: input.turnId, interestId: decision.interestId, reason: decision.reason })
+    if (!decision.allowed) return decision
+
+    const reservation = this.reserve(input.turnId)
+    if (reservation === 'denied') {
+      this.transition({ turnId: input.turnId, interestId: decision.interestId!, state: 'not_raised', reason: 'budget_denied' })
+      return { allowed: false, reason: 'daily_cap', interestId: null, label: null }
     }
+    this.transition({ turnId: input.turnId, interestId: decision.interestId!, state: 'permitted', reason: decision.reason })
     return decision
   }
 }

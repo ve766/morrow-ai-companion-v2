@@ -42,17 +42,33 @@ effective_d = clamp( baseline_d + offset_d , 0, 100 )
 3. 证据不足门槛时：证据入库，事件记为 `withheld`，`offset = 0`。
 4. `rollback(dimension)`：删除该维度全部证据 → `offset = 0`，事件记 `rolled_back`，**基线从未被触碰**。
 
-### 证据派生映射（窄映射，已知局限）
+### 证据派生映射（唯一当前版本，Issue #20 重写）
 
-| 触发信号 | 维度 | `s` |
-|---|---|---|
-| `signals.correction` 或 `signals.changedMind` | directness | `+0.6` |
-| 否则 `signals.explicitConstraint` | directness | `+0.3` |
-| `signals.explicitMemoryRequest` 或 `explicitMemorySaveRequest` | warmth | `+0.4` |
-| `personalization.exploration > 0.55` 且有证据 | humor | `+0.3` |
-| 其余（含单独 `negation`） | — | 无 |
+只有**显式风格陈述**产生证据，且正负成对：
 
-**局限**：这是规则推导的工程启发式，不是心理测量。它只能表达"用户多次纠正 → 更直接"这类窄关系。
+| 维度 | 极性 | `strength` | 规则名 | 模式（节选） |
+|---|---|---|---|---|
+| directness | + | 0.8 | `explicit_direct_request` | 直接说/别绕/说重点/开门见山 |
+| directness | − | 0.8 | `explicit_soft_request` | 委婉/别这么直接/温和一点 |
+| warmth | + | 0.7 | `explicit_warmth_request` | 温柔/多关心我/体贴一点 |
+| warmth | − | 0.7 | `explicit_warmth_reduction` | 别煽情/别肉麻/保持距离 |
+| humor | + | 0.7 | `explicit_humor_request` | 幽默/开个玩笑/轻松点 |
+| humor | − | 0.7 | `explicit_humor_reduction` | 严肃(一)点/别(老)开玩笑/正经(一)点 |
+
+聚合规则（同一回合、同一维度）：
+
+```
+net_d = clip( Σ polarity·strength , −1, +1 )
+weight = confidenceScore / 100
+```
+
+- **相反证据先聚合再计算**，不再用 first-match/`seen` 吞掉后来的反向证据；完全抵消则该回合不产生证据。
+- **门禁**：`intent='uncertain'`、`confidenceScore < 50`、或 `uncertainty='high' 且 confidence < 65` → abstain。
+- **非断言语气**（如果/假如/扮演/假装/打个比方）与**引述**（`stripQuotedAndReportedText`）→ abstain。
+
+**已废弃（deprecated）**：`correction → directness`、`explicitMemoryRequest → warmth`、`personalization.exploration → humor`。它们描述内容或工作流，不是稳定风格；迁移策略是直接删除，不保留并行规则。
+
+**局限**：规则窄，换一种说法就不触发；`weight` 用的是分析器自身未校准的置信度。
 
 ### 缺失 / 冲突 / 撤回
 
@@ -91,6 +107,24 @@ unsuitable_turn = correction ∨ uncertainty='high' ∨ intent='correction'
 | `COOLDOWN_HOURS` | 6 | 距上次发起的冷却 |
 | `MAX_PER_DAY` | 2 | 滚动 24 小时上限 |
 
+### 预算（S3-04，唯一当前语义）
+
+每日上限不再是"先读后写"，而是**事务内预留**：
+
+```
+BEGIN IMMEDIATE
+  existing = SELECT state FROM exploration_budget WHERE scope=? AND day=? AND turn_id=?
+  if existing: COMMIT; return existing            -- 幂等
+  used = COUNT(state IN ('reserved','consumed'))  -- 预留也占名额
+  state = used >= MAX_PER_DAY ? 'denied' : 'reserved'
+  INSERT exploration_budget(...)
+COMMIT
+```
+
+- `permit` 时预留；`actually_raised` → `consumed`；`not_raised`/`provider_failed`/`user_rejected` → `released`。
+- `(scope, day, turn_id)` 是幂等键；`day` 来自注入时钟的 UTC 日期。
+- 同时存在两个限制：**日预算**（预留表）与**滚动 24 小时窗口**（`recent()`，用于冷却与骚扰控制），二者独立生效，均需通过。
+
 ### 选择规则
 
 在通过门槛的候选里取 `strength` 最大者；并列时取 `lastSeenAt` 更近者；再并列按 `id` 字典序 —— 固定输入下结果确定。
@@ -119,65 +153,11 @@ unsuitable_turn = correction ∨ uncertainty='high' ∨ intent='correction'
 | 兴趣证据折叠与晋升 | `src/self-model/interest-service.ts` | 否 |
 | 反思限频与去重 | `src/self-model/reflection-service.ts` | 否 |
 
-## 未实现（不计入登记表）
-
-- 记忆巩固（consolidation）与按重要度的衰减/归档策略。
-- 人格漂移的 UI 呈现与用户确认流程（服务层已有 `rollback`，界面未接）。
-- 长对话早期约束的行为层评分规则。
-
-
----
-
-## G1′ 人格证据派生（Issue #20 重写）
-
-### 证据规则表（只有显式风格指令）
-
-| 维度 | 方向 | `s` | `w` | 规则名 | 模式（节选） |
-|---|---|---|---|---|---|
-| directness | + | 0.8 | 0.8 | `explicit_direct_request` | 直接说/别绕/说重点/开门见山 |
-| directness | − | 0.8 | 0.8 | `explicit_soft_request` | 委婉/别这么直接/温和一点 |
-| warmth | + | 0.7 | 0.7 | `explicit_warmth_request` | 温柔/多关心我/体贴一点 |
-| warmth | − | 0.7 | 0.7 | `explicit_warmth_reduction` | 别煽情/别肉麻/保持距离 |
-| humor | + | 0.7 | 0.7 | `explicit_humor_request` | 幽默/开个玩笑/轻松点 |
-| humor | − | 0.7 | 0.7 | `explicit_humor_reduction` | 严肃点/别开玩笑/正经点 |
-
-约束：
-- 匹配前先 `stripQuotedAndReportedText(content)` —— 别人说的话不是用户的偏好；
-- 同一轮同一维度至多一条证据（`seen` 集合）；
-- 证据写 `source` 列；折叠公式、±8 上限、3 轮门槛、45 天半衰期、回滚语义均未变。
-
-**已废弃的旧映射**：`correction → directness`、`explicitMemoryRequest → warmth`、`personalization.exploration → humor`。理由：它们描述的是内容或工作流，不是稳定风格。
-
-## X1′ 探索生命周期（Issue #20 重写）
-
-```
-状态: permitted → selected_for_prompt → actually_raised | not_raised
-                                      ↘ provider_failed
-                                      ↘ user_rejected
-唯一索引: (turn_id, state)
-```
-
-- 资格：`origin ∈ {morrow, shared}` ∧ `status=active` ∧ `evidence ≥ 3` ∧ `strength ≥ 0.6` ∧ `confidence ≥ 60`；
-- 许可（`permitted`）不计入频次；只有 `actually_raised` 计入 24 小时上限；
-- `detectRaised(reply, label)`：回复包含标签词 → `raised`；回复过短或无词面重合 → `not_raised`；标签无可分词 → `uncertain`（按 `not_raised` 记）；
-- `recent(excludeTurnId)` 排除当前回合，保证预览与校验一致。
-
-**已知局限**：词面匹配会漏掉改写式提出，因此 `not_raised` 不等于"模型没说"，只等于"没有词面证据"。
-
-## F1 兴趣归属
-
-`interests.origin ∈ {user, morrow, shared}`，默认 `user`。Morrow 的来源证据 `evidence_kind='reflection'`，引用反思 finding id，不引用用户消息。用户证据落在 `morrow` 话题上 → `shared`；反向不成立。
-
-
----
-
 ## M1 记忆重要度、衰减与合并（Issue §2A）
 
 **源码**：`src/memory/memory-importance.ts`
 **迁移**：31 `memory-importance-and-consolidation`
 **测试**：`src/memory/memory-importance.test.ts`（11 条）
-
-### 公式
 
 ```
 I(m) = clip( .30·S + .25·U + .15·R + .10·G + .10·C + .10·T , 0, 1 )
@@ -188,39 +168,22 @@ T    = 0.5^(age_days / 90)
 | 符号 | 含义 | 取值 | 来源 |
 |---|---|---|---|
 | `S` | 来源可靠度 | 1.0 用户明确 / 0.7 已接受建议 / 0.5 回合推导 | `source_category` |
-| `U` | 显式重要性标记 | 0/1（记住/重要/务必/关键） | 记忆正文 |
+| `U` | 显式重要性标记 | 0/1 | 记忆正文 |
 | `R` | 重复提及 | `[0,1)` | `revision` |
-| `G` | 与目标关联 | 0/1（目标/计划/打算） | 记忆正文 |
+| `G` | 与目标关联 | 0/1 | 记忆正文 |
 | `C` | 曾被纠正 | 0/1 | `memory_revisions.change_type='corrected'` |
 | `T` | 时效 | `[0,1]`，半衰期 90 天 | `updated_at` |
 
-参数版本：`memory.importance.v1`，写入 `memory_importance.version`。
+参数版本 `memory.importance.v1` 写入 `memory_importance.version`。
 
-### 更新规则
-
-1. 每次记忆创建/纠正/撤回/恢复后**重算**，不做增量累加，因此删除或纠正会自然收敛。
+规则：
+1. 每次创建/纠正/撤回/恢复后**重算**，不增量累加。
 2. 归档条件：`I < 0.35` **且** `updated_at` 早于 180 天 **且** 未受保护。
-3. **受保护**：`U=1` 或 `C=1` 或 `G=1` —— 时间不会让它们消失。
-4. 归档只写 `archived_at`，不改 `status`：`retracted` 是用户撤回，`archived` 是时间下沉，两者不可混。
-5. 检索侧过滤 `archived_at IS NULL`，因此归档记忆不再竞争 prompt 位置，但内容、修订与来源都保留，`restore()` 可恢复。
+3. 受保护：`U=1` 或 `C=1` 或 `G=1`，时间不可归档。
+4. 归档只写 `archived_at`，不改 `status`；检索侧过滤 `archived_at IS NULL`；`restore()` 可恢复。
+5. 合并按 `(predicate, value)` 分组，只存 `member_ids_json`，不复制正文。
 
-### 合并（consolidation）
-
-同一 `(predicate, value)` 的多条记忆归为一组，写入 `memory_consolidations(slot_key, member_ids_json)`。
-**只存成员 id，不复制正文**；成员被撤回后下一次合并会自动把它从列表剔除。
-
-### 复杂度
-
-- 打分：`O(1)` + 一次修订计数查询。
-- `recomputeAll`：`O(M)`；`consolidate`：`O(M log M)`（分组排序）。
-- 均在启动期一次执行，不在聊天主链上。
-
-### 已知局限
-
-- 权重是手工设定的透明基线，**未做标注校准**，不宣称统计学习结果。
-- 归档策略只在启动期执行，没有后台调度器。
-- 合并只按 `fact-slot` 的谓词/值匹配，未覆盖自由文本主题。
-
+**局限**：权重是手工设定的透明基线，未做标注校准；归档只在启动期执行；合并只覆盖 `fact-slot` 可解析的文本。
 
 ---
 
@@ -230,27 +193,31 @@ T    = 0.5^(age_days / 90)
 **迁移**：32 `companion-goals`
 **测试**：`src/motivation/companion-goal.test.ts`（10 条）
 
-### 为什么不是现有 GoalService
-
-现有 `GoalService.create()` 只接受**一组固定常量**（`SUPPORTED_GOAL_INTENT` / `GOAL_SUCCESS_CRITERION` / `GOAL_DEFAULT_CONSTRAINTS`），生命周期绑定审批门与工具执行。它是 approved-tool-execution 的演示，属于 Issue 明确排除的 Agent 能力；直接接入陪伴主链会把任务模型混进人格层。因此陪伴目标单独建表、单独服务，`GoalService` 保持不动。
-
-### 数据语义
+现有 `GoalService` 只接受固定 intent/successCriterion/constraints 常量并绑定审批与工具执行，属 Agent 侧，**不进入陪伴主链**；陪伴目标单独建模。
 
 | 字段 | 含义 |
 |---|---|
-| `owner ∈ {user, shared, morrow}` | 谁的目标。三分不合并 |
-| `priority 1..5` | **1 最优先**，列表按升序排 |
+| `owner ∈ {user, shared, morrow}` | 三类归属，永不合并 |
+| `priority 1..5` | 1 最优先，列表升序 |
 | `due_at` | 到期即 `expired`，不删除 |
 | `status ∈ {active, paused, completed, cancelled, expired}` | `expired` 由时间产生，`cancelled` 只能由人产生 |
-| `companion_goal_progress(kind ∈ note/step/blocker/decision)` | 追加式进展，随目标级联删除 |
+| `companion_goal_progress(note/step/blocker/decision)` | 追加式，级联删除 |
 
-### 规则
+规则：`activeForContext()` 先 `expireOverdue()` 再取 active；完成/取消/过期下一轮退出 payload；`resume()` 拒绝恢复 cancelled；prompt 三行措辞区分归属。
 
-1. `activeForContext(limit)` 先跑 `expireOverdue()`，再取 `active`，按 `priority ASC, updated_at DESC`。
-2. 完成/取消/过期的目标**下一轮立即退出** payload。
-3. `resume()` 可恢复 paused/expired；`cancelled` 拒绝恢复（用户取消不该被系统复活）。
-4. 三类归属在 prompt 中分别是 "Goals the user stated (their plan, not yours)" / "Plans both sides agreed on" / "Questions Morrow is pursuing for herself"，措辞明确不可互换。
+---
 
-### 复杂度
+## F1 兴趣归属
 
-`O(G log G)` 排序 + `O(G)` 过期扫描；`G` 为目标数（个位数量级）。
+`interests.origin ∈ {user, morrow, shared}`（迁移 30），默认 `user`。Morrow 来源证据 `evidence_kind='reflection'`，引用反思 finding id；用户证据落在 `morrow` 话题上 → `shared`，反向不成立；探索资格只认 `morrow/shared`。
+
+---
+
+## 未实现（不计入登记表）
+
+- Morrow 兴趣的**反思生产链**（S3-01）：`observeMorrow()` 已存在，但反思仍把候选写成用户兴趣。
+- 记忆**冲突分类**（事实冲突/偏好变化/时间变化/情境差异）只保留原冲突标记，未分类。
+- 内在状态 **appraisal** 重构（§2B）。
+- 反思**质量指标**（§2C）。
+- 语音 ASR/TTS 闭环（§2F）。
+- 人格漂移的 UI 呈现与用户确认流程（服务层已有 `rollback`，界面未接）。

@@ -139,60 +139,98 @@ export function foldGrowth(
  */
 interface StyleRule {
   dimension: GrowthDimension
-  /** Signed contribution before the reliability weight is applied. */
-  signal: number
-  /** Reliability of an explicit statement. */
-  weight: number
+  /** Strength of this directive, 0..1. */
+  strength: number
+  /** +1 when the directive asks for more of the trait, −1 when for less. */
+  polarity: 1 | -1
   pattern: RegExp
   source: string
 }
 
 const STYLE_RULES: readonly StyleRule[] = Object.freeze([
-  { dimension: 'directness', signal: 0.8, weight: 0.8, source: 'explicit_direct_request', pattern: /(?:直接(?:一点|说|点)|别绕|直白|说重点|别铺垫|开门见山|\bget to the point\b|\bjust tell me\b)/iu },
-  { dimension: 'directness', signal: -0.8, weight: 0.8, source: 'explicit_soft_request', pattern: /(?:委婉|别这么直接|别太冲|温和一点|说软一点|别那么生硬|\bsofter\b|\bmore tactful\b)/iu },
-  { dimension: 'warmth', signal: 0.7, weight: 0.7, source: 'explicit_warmth_request', pattern: /(?:温柔|多关心我|暖一点|多陪陪我|抱抱|体贴一点|\bbe warmer\b)/iu },
-  { dimension: 'warmth', signal: -0.7, weight: 0.7, source: 'explicit_warmth_reduction', pattern: /(?:别煽情|别肉麻|别腻|冷一点|别关心我|保持距离|\bdon't be so affectionate\b)/iu },
-  { dimension: 'humor', signal: 0.7, weight: 0.7, source: 'explicit_humor_request', pattern: /(?:幽默|开个玩笑|轻松点|逗我|别太严肃|\bmake me laugh\b|\bbe playful\b)/iu },
-  { dimension: 'humor', signal: -0.7, weight: 0.7, source: 'explicit_humor_reduction', pattern: /(?:严肃点|别开玩笑|别说笑|正经点|别贫|\bbe serious\b)/iu }
+  { dimension: 'directness', strength: 0.8, polarity: 1, source: 'explicit_direct_request', pattern: /(?:直接(?:一点|说|点)|别绕|直白|说重点|别铺垫|开门见山|\bget to the point\b|\bjust tell me\b)/iu },
+  { dimension: 'directness', strength: 0.8, polarity: -1, source: 'explicit_soft_request', pattern: /(?:委婉|别这么直接|别太冲|温和一点|说软一点|别那么生硬|\bsofter\b|\bmore tactful\b)/iu },
+  { dimension: 'warmth', strength: 0.7, polarity: 1, source: 'explicit_warmth_request', pattern: /(?:温柔|多关心我|暖一点|多陪陪我|抱抱|体贴一点|\bbe warmer\b)/iu },
+  { dimension: 'warmth', strength: 0.7, polarity: -1, source: 'explicit_warmth_reduction', pattern: /(?:别煽情|别肉麻|别腻|冷一点|别关心我|保持距离|\bdon't be so affectionate\b)/iu },
+  { dimension: 'humor', strength: 0.7, polarity: 1, source: 'explicit_humor_request', pattern: /(?:幽默|开个玩笑|轻松点|逗我|别太严肃|\bmake me laugh\b|\bbe playful\b)/iu },
+  { dimension: 'humor', strength: 0.7, polarity: -1, source: 'explicit_humor_reduction', pattern: /(?:严肃(?:一)?点|别(?:老)?开玩笑|别说笑|正经(?:一)?点|别贫|\bbe serious\b)/iu }
 ])
 
 /**
- * Derives at most one signal per dimension from one user turn.
+ * Turns in which a style phrase is *talked about* rather than *asked for*.
+ * They must abstain: a hypothesis, a role-play instruction or a rhetorical
+ * question is not a preference.
+ */
+const NON_ASSERTIVE = /(?:如果|假如|要是|假设|倘若|万一|扮演|假装|角色扮演|开个玩笑说|打个比方|比如说|反问|\bif you were\b|\bimagine\b|\bpretend\b|\bhypothetical\b)/iu
+
+/** Below this the analyser is not sure enough for a stable-trait claim. */
+export const GROWTH_MIN_CONFIDENCE = 50
+
+export interface DerivedGrowthSignal {
+  dimension: GrowthDimension
+  /** Net evidence, −1..1: positive asks for more, negative for less. */
+  signal: number
+  /** Evidence reliability, 0..1 (the analyser's own confidence). */
+  weight: number
+  /** Which rules contributed, joined with `+`. */
+  source: string
+}
+
+/**
+ * Derives at most one *net* signal per dimension from one user turn.
  *
- * Rules:
- *   - only an explicit style directive counts (see `STYLE_RULES`);
- *   - a turn whose intent reading is `high` uncertainty contributes nothing —
- *     an ambiguous message is not a style statement;
- *   - at most one signal per dimension per turn, so a message that mentions the
- *     same preference twice cannot double count;
- *   - a directive that contradicts an earlier one arrives as the opposite sign,
- *     which is the counter-evidence the fold needs.
+ * Two corrections to the first version:
  *
- * Returns the matched rule as `source` so a movement can be explained later
- * without re-running the analyser.
+ *   - **Opposite evidence in the same turn is aggregated, not dropped.** A
+ *     sentence that says "直接说，但别太冲" matches both directness rules; the
+ *     first-match/`seen` design kept only the positive one. The net is now
+ *     `Σ polarity·strength`, so the turn lands close to neutral instead of
+ *     inventing a preference.
+ *   - **Uncertain, hypothetical and quoted turns abstain.** Confidence below
+ *     `GROWTH_MIN_CONFIDENCE`, a hypothesis marker, a role-play instruction or
+ *     reported speech yields no evidence at all rather than a guess.
+ *
+ * The reliability weight is the analyser's own confidence, so a rule can never
+ * claim more certainty than the reading it came from.
  */
 export function deriveGrowthSignals(input: {
   analysis: CognitiveTurnAnalysis | undefined
   /** The user's own words for this turn. Required: style is stated, not inferred. */
   content?: string
   personalization?: readonly PersonalizationEntry[]
-}): Array<{ dimension: GrowthDimension; signal: number; weight: number; source: string }> {
+}): DerivedGrowthSignal[] {
   const analysis = input.analysis
   const content = input.content
   if (!analysis || typeof content !== 'string' || content.trim().length === 0) return []
-  // Quoted or reported speech is not the user's own directive: `他说"直接说重点"`
-  // describes someone else's preference. The same stripping the analyzer uses is
-  // applied here before matching.
+  // Explicit gate on the analyser's own uncertainty signals, not on the mere
+  // presence of an analysis object.
+  if (analysis.intent === 'uncertain' || analysis.confidenceScore < GROWTH_MIN_CONFIDENCE) return []
+  if (analysis.uncertainty === 'high' && analysis.confidenceScore < 65) return []
+
+  // Quoted or reported speech is not the user's own directive.
   const own = stripQuotedAndReportedText(content)
   if (own.trim().length === 0) return []
+  // A hypothesis or a role play is not a preference.
+  if (NON_ASSERTIVE.test(own)) return []
 
-  const signals: Array<{ dimension: GrowthDimension; signal: number; weight: number; source: string }> = []
-  const seen = new Set<GrowthDimension>()
-  for (const rule of STYLE_RULES) {
-    if (seen.has(rule.dimension)) continue
-    if (!rule.pattern.test(own)) continue
-    seen.add(rule.dimension)
-    signals.push({ dimension: rule.dimension, signal: rule.signal, weight: rule.weight, source: rule.source })
+  const matched = STYLE_RULES.filter((rule) => rule.pattern.test(own))
+  if (matched.length === 0) return []
+
+  const weight = Math.min(1, Math.max(0, analysis.confidenceScore / 100))
+  const byDimension = new Map<GrowthDimension, { net: number; sources: string[] }>()
+  for (const rule of matched) {
+    const aggregate = byDimension.get(rule.dimension) ?? { net: 0, sources: [] }
+    aggregate.net += rule.polarity * rule.strength
+    aggregate.sources.push(rule.source)
+    byDimension.set(rule.dimension, aggregate)
+  }
+
+  const signals: DerivedGrowthSignal[] = []
+  for (const [dimension, aggregate] of byDimension) {
+    const net = Math.min(1, Math.max(-1, aggregate.net))
+    // Perfect cancellation is not a weak preference; it is no evidence.
+    if (Math.abs(net) < 1e-9) continue
+    signals.push({ dimension, signal: Number(net.toFixed(4)), weight, source: aggregate.sources.join('+') })
   }
   return signals
 }

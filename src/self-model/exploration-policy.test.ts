@@ -199,6 +199,70 @@ describe('ExplorationService', () => {
     expect(service.history(turnId).filter((entry) => entry.state === 'permitted')).toHaveLength(1)
   })
 
+  it('reserves atomically and refuses the third raise of the day', () => {
+    const database = openDatabase()
+    let now = '2026-10-30T09:00:00.000Z'
+    const service = new ExplorationService(database, () => now)
+    const candidates = [interest({ label: '神经科学' }), interest({ label: '分布式系统' }), interest({ label: '航海史' })]
+    const outcomes: string[] = []
+    for (const candidate of candidates) {
+      const turnId = randomUUID()
+      const decision = service.decide({ turnId, interests: [candidate], turn: null })
+      if (!decision.allowed) { outcomes.push('denied'); continue }
+      service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: `说说${candidate.label}。` })
+      outcomes.push('raised')
+      now = new Date(Date.parse(now) + 7 * 60 * 60 * 1000).toISOString()
+    }
+    expect(outcomes).toEqual(['raised', 'raised', 'denied'])
+    expect(service.usedToday()).toBe(2)
+  })
+
+  it('releases the slot when the reply never mentions the topic', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest({ label: '神经科学' })
+    const first = randomUUID()
+    service.decide({ turnId: first, interests: [candidate], turn: null })
+    expect(service.usedToday()).toBe(1)
+    service.settle({ turnId: first, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '好的。' })
+    expect(service.usedToday()).toBe(0)
+  })
+
+  it('releases the slot when the provider fails', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest()
+    const turnId = randomUUID()
+    service.decide({ turnId, interests: [candidate], turn: null })
+    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'failed', reply: null })
+    expect(service.usedToday()).toBe(0)
+  })
+
+  it('starts a fresh budget on the next day', () => {
+    const database = openDatabase()
+    let now = '2026-10-30T09:00:00.000Z'
+    const service = new ExplorationService(database, () => now)
+    const first = interest({ label: '神经科学' })
+    const second = interest({ label: '分布式系统' })
+    for (const candidate of [first, second]) {
+      const turnId = randomUUID()
+      service.decide({ turnId, interests: [candidate], turn: null })
+      service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: `再说说${candidate.label}。` })
+      now = new Date(Date.parse(now) + 7 * 60 * 60 * 1000).toISOString()
+    }
+    expect(service.usedToday()).toBe(2)
+    // Two limits are enforced at once: the calendar-day budget and a rolling
+    // 24-hour window. Move far enough that the rolling window has also cleared,
+    // otherwise this would test the wrong one.
+    now = '2026-10-31T20:00:00.000Z'
+    expect(service.usedToday()).toBe(0)
+    // A third topic: the first two were already raised and are legitimately
+    // skipped as repeats, which would mask the budget reset.
+    const third = interest({ label: '航海史' })
+    const next = randomUUID()
+    expect(service.decide({ turnId: next, interests: [third], turn: null }).allowed).toBe(true)
+  })
+
   it('records nothing when no topic was even eligible', () => {
     const database = openDatabase()
     const service = new ExplorationService(database, () => NOW)

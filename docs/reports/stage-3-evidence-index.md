@@ -102,3 +102,16 @@
 | 追加式进展 | `recordProgress` / `progress` | 追加与级联 1 条 | — |
 
 迁移：32。`GoalService` 未改动（属 Agent 侧任务执行，不进入陪伴主链）。
+
+
+## 9. 补充审查证据（S3-01 ~ S3-05）
+
+| 编号 | 源码 | 测试 | 文档 |
+|---|---|---|---|
+| S3-01 | —（未实现） | — | gap-closure §一 |
+| S3-02 | `evals/stage-3/runner/harness.ts` | — | `ablation/results/*` |
+| S3-03 | `src/personalization/personality-growth.ts` | `personality-growth.test.ts`（23） | 登记表 G1 |
+| S3-04 | `src/self-model/exploration-policy.ts`、迁移 33 | `exploration-policy.test.ts`（19） | 登记表 X1「预算」 |
+| S3-05 | — | — | `docs/algorithms/stage-3-algorithm-registry.md` |
+
+整改矩阵：`docs/reports/stage-3-followup-gap-closure.md`。

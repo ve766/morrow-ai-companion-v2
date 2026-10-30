@@ -1438,6 +1438,32 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX companion_goal_progress_idx ON companion_goal_progress(goal_id, created_at DESC);
       `)
     }
+  },
+  {
+    version: 33,
+    name: 'exploration-budget-reservation',
+    up(database) {
+      // S3-04. The previous budget was read-then-write: count the raises, decide,
+      // then record one. Two turns racing for the last slot could both pass.
+      //
+      // This table turns the budget into a reservation inside a single
+      // `BEGIN IMMEDIATE` transaction: the row is written before the decision is
+      // returned, and the count includes both reserved and consumed rows. A
+      // failed, cancelled or unmentioned turn releases its slot; a real raise
+      // consumes it. `(scope, day, turn_id)` is the idempotency key, so a retried
+      // turn can never reserve twice.
+      database.exec(`
+        CREATE TABLE exploration_budget (
+          scope TEXT NOT NULL DEFAULT 'install',
+          day TEXT NOT NULL CHECK (length(day) = 10),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          state TEXT NOT NULL CHECK (state IN ('reserved', 'consumed', 'released', 'denied')),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (scope, day, turn_id)
+        ) STRICT;
+        CREATE INDEX exploration_budget_day_idx ON exploration_budget(scope, day, state);
+      `)
+    }
   }
 ]
 

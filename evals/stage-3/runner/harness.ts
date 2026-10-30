@@ -280,14 +280,15 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
       // reductions: both dimensions cross the evidence gate, so the *sign* of
       // each offset is observable instead of being masked by the gate.
       const turns = [
-        '以后直接说重点，别铺垫。',
-        '不是这个意思，你理解错了。',
-        '还是直接说重点。',
-        '直接说吧，别绕。',
-        '正经点，别开玩笑。',
-        '正经点，别开玩笑。',
-        '正经点，别开玩笑。',
-        '你记得我上次说的吗？'
+        // Stated preferences, not bare orders: a bare imperative is read as
+        // `uncertain` and the growth gate legitimately abstains on it.
+        '我更喜欢你直接一点，说重点就行，别绕弯子。',
+        '我不太喜欢你老是开玩笑，聊正事的时候正经一点。',
+        '我更喜欢你直接一点，别绕弯子。',
+        '我不太喜欢你老是开玩笑，正经一点。',
+        '我更喜欢你直接一点，说重点。',
+        '我不太喜欢你老是开玩笑，正经一点。',
+        '不是这个意思，你理解错了。'
       ]
       for (const text of turns) await send(stack, conversation.id, text)
       const after = stack.companion.getPersonality()

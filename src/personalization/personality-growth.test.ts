@@ -169,6 +169,34 @@ describe('growth evidence derivation', () => {
     expect(signals[0]!.source).toBe('explicit_soft_request')
   })
 
+  it('aggregates contradictory evidence in one turn instead of keeping the first match', () => {
+    const signals = deriveGrowthSignals({ analysis: analysis(), content: '直接说重点，但也别太冲。' })
+    const directness = signals.find((signal) => signal.dimension === 'directness')
+    // +0.8 and −0.8 cancel: the turn is not a preference in either direction.
+    expect(directness).toBeUndefined()
+  })
+
+  it('keeps a partial net when the two directions differ in strength', () => {
+    const signals = deriveGrowthSignals({ analysis: analysis(), content: '说话委婉一点，但重要的地方直接说重点。' })
+    const directness = signals.find((signal) => signal.dimension === 'directness')
+    expect(directness?.signal ?? 0).toBe(0)
+  })
+
+  it('abstains below the confidence floor', () => {
+    expect(deriveGrowthSignals({ analysis: analysis({}, 40), content: '直接说吧。' })).toEqual([])
+  })
+
+  it('abstains on an unreadable turn', () => {
+    const uncertain = analysis()
+    uncertain.intent = 'uncertain'
+    expect(deriveGrowthSignals({ analysis: uncertain, content: '直接说吧。' })).toEqual([])
+  })
+
+  it('abstains on a hypothesis or a role play', () => {
+    expect(deriveGrowthSignals({ analysis: analysis(), content: '如果你是朋友，你会不会直接说重点？' })).toEqual([])
+    expect(deriveGrowthSignals({ analysis: analysis(), content: '假装你是我的教练，严肃点批评我。' })).toEqual([])
+  })
+
   it('does not treat a correction or a memory request as a personality signal', () => {
     const corrected = deriveGrowthSignals({ analysis: analysis({ correction: true }), content: '不是这个意思，你理解错了。' })
     const remembered = deriveGrowthSignals({ analysis: analysis({ explicitMemoryRequest: true }), content: '你还记得我住在哪吗？' })
@@ -180,7 +208,7 @@ describe('growth evidence derivation', () => {
     expect(deriveGrowthSignals({ analysis: analysis(), content: '他说「直接说重点」，你觉得呢？' })).toEqual([])
   })
 
-  it('never emits two signals for the same dimension in one turn', () => {
+  it('emits at most one net signal per dimension per turn', () => {
     const signals = deriveGrowthSignals({ analysis: analysis(), content: '直接说重点，也别绕，开门见山。' })
     expect(signals.filter((signal) => signal.dimension === 'directness')).toHaveLength(1)
   })
