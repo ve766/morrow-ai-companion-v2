@@ -18,7 +18,8 @@
 import type { Sensitivity } from '../shared/companion'
 import type { IntentLabel } from './intent-decision'
 
-export const COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 1 as const
+export const COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 2 as const
+export const LEGACY_COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION = 1 as const
 
 export type CognitiveTurnStatus = 'succeeded' | 'failed' | 'cancelled'
 
@@ -54,7 +55,7 @@ export interface TurnContextState {
 }
 
 export interface CognitiveTurnContext {
-  schemaVersion: typeof COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION
+  schemaVersion: typeof COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION | typeof LEGACY_COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION
   /** The turn id (request id) doubles as the idempotency key. */
   turnId: string
   conversationId: string
@@ -68,6 +69,13 @@ export interface CognitiveTurnContext {
     confidenceLevel: string
     strategy: string
     reasons: string[]
+    /**
+     * How this turn depends on the previous one. Recorded because it cannot be
+     * reconstructed from `reasons`: a reference can be true for the turn while
+     * another label wins and drops the reference code from the winning set.
+     * Optional so v2 rows written before this field stay readable.
+     */
+    contextDependency?: 'none' | 'prior_turn' | 'unresolved'
   }
   retrieval: {
     policyIntent: string
@@ -140,7 +148,9 @@ function isState(value: unknown): value is TurnContextState {
 export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnContext {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const record = value as Record<string, unknown>
-  if (record.schemaVersion !== COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return false
+  // Version 1 rows are immutable historical evidence. Accept them on reads,
+  // while every new write uses v2. Never reinterpret an unknown future version.
+  if (record.schemaVersion !== LEGACY_COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION && record.schemaVersion !== COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return false
   if (typeof record.turnId !== 'string' || !uuidPattern.test(record.turnId)) return false
   if (typeof record.conversationId !== 'string' || !uuidPattern.test(record.conversationId)) return false
   if (typeof record.userMessageId !== 'string' || !uuidPattern.test(record.userMessageId)) return false
@@ -153,6 +163,8 @@ export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnCo
   if (typeof intent.label !== 'string') return false
   if (intent.label !== 'unavailable' && !labelPattern.test(intent.label)) return false
   if (!isFiniteNumber(intent.confidence)) return false
+  if (intent.contextDependency !== undefined &&
+    intent.contextDependency !== 'none' && intent.contextDependency !== 'prior_turn' && intent.contextDependency !== 'unresolved') return false
 
   const retrieval = record.retrieval as Record<string, unknown> | undefined
   if (!retrieval || typeof retrieval !== 'object') return false
@@ -183,6 +195,21 @@ export function isCognitiveTurnContext(value: unknown): value is CognitiveTurnCo
   const updates = record.updates as Record<string, unknown> | undefined
   if (!updates || typeof updates !== 'object' || !Array.isArray(updates.pendingItemIds)) return false
   return true
+}
+
+/**
+ * Read adapter for legacy rows.
+ *
+ * A schema-1 payload is returned in the current shape so every reader sees the
+ * same record type, but the fields that version never wrote stay `undefined`:
+ * "this turn predates the field" must not be confused with "the turn had none".
+ * The stored JSON is never rewritten; only the in-memory result changes.
+ */
+export function normalizeTurnContext(value: unknown): CognitiveTurnContext | null {
+  if (!isCognitiveTurnContext(value)) return null
+  const record = value as CognitiveTurnContext
+  if (record.schemaVersion === COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION) return record
+  return { ...record, schemaVersion: COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION }
 }
 
 export interface BuildTurnContextInput {

@@ -1,0 +1,77 @@
+{
+  "kind": "reflection_positive_ablation",
+  "generatedAt": "2026-10-30T07:17:04.866Z",
+  "headSha": "55432fc2816feb223a1205b40592306d205d0bc8",
+  "harness": "reflection-positive-v1",
+  "providerMode": "scripted",
+  "fixture": {
+    "memories": [
+      "我在学咖啡拉花。",
+      "最近一直在练咖啡拉花。"
+    ],
+    "topicTurns": [
+      "今天又练了咖啡拉花。"
+    ],
+    "probeTurn": "继续。",
+    "intent": "2 memory-backed evidence rows (1 conversation) + 1 message evidence (another conversation) = 3 / 2, which is exactly the promotion threshold; without reflection only 1 / 1 remains"
+  },
+  "arms": [
+    {
+      "arm": "full",
+      "reflectionEnabled": true,
+      "reflectionRuns": 3,
+      "interestStatusBefore": "candidate",
+      "interestStatusAfter": "candidate",
+      "interestEvidence": 1,
+      "interestConversations": 1,
+      "probePayloadHasAttentionBlock": false,
+      "probePayloadMentionsInterestId": null,
+      "afterRetractionHasAttentionBlock": false,
+      "payloadBytes": 1098
+    },
+    {
+      "arm": "no_reflection",
+      "reflectionEnabled": false,
+      "reflectionRuns": 0,
+      "interestStatusBefore": "candidate",
+      "interestStatusAfter": "candidate",
+      "interestEvidence": 1,
+      "interestConversations": 1,
+      "probePayloadHasAttentionBlock": false,
+      "probePayloadMentionsInterestId": null,
+      "afterRetractionHasAttentionBlock": null,
+      "payloadBytes": 1098
+    }
+  ],
+  "layers": {
+    "reflectionRan": {
+      "full": true,
+      "no_reflection": false
+    },
+    "candidateProduced": {
+      "full": true,
+      "no_reflection": true
+    },
+    "gatePassed": {
+      "full": false,
+      "no_reflection": false
+    },
+    "payloadChanged": {
+      "full": false,
+      "no_reflection": false
+    }
+  },
+  "comparison": {
+    "reflectionRunsDiffer": true,
+    "promotionDiffers": false,
+    "probePayloadDiffers": false,
+    "payloadBytesDelta": 0,
+    "retractionRemovesBlock": true,
+    "interestIdVisibleInFullPayload": false
+  },
+  "limits": [
+    "Scripted provider: this measures what is serialized, not reply quality.",
+    "One fixture: it shows the wiring exists and the gate is decisive, not a rate.",
+    "The probe turn is sent in a fresh conversation, so the topic can only arrive through the long-term layer."
+  ]
+}

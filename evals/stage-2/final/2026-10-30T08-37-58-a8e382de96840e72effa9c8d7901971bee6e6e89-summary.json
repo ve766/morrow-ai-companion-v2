@@ -1,0 +1,128 @@
+{
+  "kind": "stage2_final_status_matrix",
+  "generatedAt": "2026-10-30T08:43:28.456Z",
+  "commitSha": "a8e382de96840e72effa9c8d7901971bee6e6e89",
+  "shortSha": "a8e382d",
+  "publishedInCommit": "5d4f8b2f9ff4d06f425d2ab88774cecbde044e65",
+  "branch": "feat/stage-2-delivery-hardening",
+  "verificationLog": "evals/stage-2/final/2026-10-30T08-37-58-a8e382de96840e72effa9c8d7901971bee6e6e89-verification.txt",
+  "environment": {
+    "node": "v22.22.2",
+    "platform": "win32"
+  },
+  "items": [
+    {
+      "id": "P0-1-B1",
+      "status": "PASS",
+      "evidence": [
+        "evals/stage-2/final/2026-10-30T08-37-58-a8e382de96840e72effa9c8d7901971bee6e6e89-b1.json"
+      ],
+      "note": "strategy wired to the score; calibration label stays uncalibrated_heuristic"
+    },
+    {
+      "id": "P0-2-B4",
+      "status": "PASS",
+      "evidence": [
+        "evals/stage-2/final/2026-10-30T08-37-58-a8e382de96840e72effa9c8d7901971bee6e6e89-b4-faults.json",
+        "evals/stage-2/final/2026-10-30T08-37-58-a8e382de96840e72effa9c8d7901971bee6e6e89-verification.txt"
+      ],
+      "note": "3 windows by real SIGKILL, 1 by injected cleanup failure"
+    },
+    {
+      "id": "P0-3-B5",
+      "status": "PASS",
+      "evidence": [
+        "evals/stage-2/final/2026-10-30T08-37-58-a8e382de96840e72effa9c8d7901971bee6e6e89-b5-ablation.json"
+      ],
+      "note": "mapping pipeline + dedupe + pending personality candidate"
+    },
+    {
+      "id": "P1-1-regression",
+      "status": "PASS",
+      "evidence": [
+        "evals/stage-2/final/2026-10-30T08-37-58-a8e382de96840e72effa9c8d7901971bee6e6e89-verification.txt"
+      ],
+      "note": "B2/B3/A1–A3 suites included in npm test"
+    },
+    {
+      "id": "CI",
+      "status": "BLOCKED",
+      "evidence": [
+        "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41010305777"
+      ],
+      "blockedReason": "account billing: jobs never acquired a runner (runner_id=0, steps=0)"
+    },
+    {
+      "id": "real-provider",
+      "status": "NOT_RUN",
+      "evidence": [
+        "evals/stage-2/provider/phase24-real-model-26aeac7.json"
+      ],
+      "blockedReason": "no credential provided in this session; previous report kept with its own codeSha"
+    },
+    {
+      "id": "windows-installer",
+      "status": "BLOCKED",
+      "evidence": [],
+      "blockedReason": "no installer built or installed in this environment"
+    }
+  ],
+  "commands": [
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "exit": 0
+    },
+    {
+      "name": "tests",
+      "command": "npm test",
+      "exit": 0
+    },
+    {
+      "name": "evaluate",
+      "command": "npm run evaluate",
+      "exit": 0
+    },
+    {
+      "name": "evaluate-cognition",
+      "command": "npm run evaluate:cognition",
+      "exit": 0
+    },
+    {
+      "name": "build",
+      "command": "npm run build",
+      "exit": 0
+    },
+    {
+      "name": "smoke",
+      "command": "npm run smoke",
+      "exit": 0
+    },
+    {
+      "name": "eval-stage2",
+      "command": "npm run eval:stage2",
+      "exit": 0
+    },
+    {
+      "name": "eval-topic-identity",
+      "command": "npm run eval:topic-identity",
+      "exit": 0
+    },
+    {
+      "name": "eval-ablation",
+      "command": "npm run eval:ablation",
+      "exit": 0
+    },
+    {
+      "name": "b4-child-crash",
+      "command": "npx vitest run tests/b4-child-crash.test.ts",
+      "exit": 0
+    },
+    {
+      "name": "b4-recovery",
+      "command": "npx vitest run src/app/b4-recovery.integration.test.ts",
+      "exit": 0
+    }
+  ],
+  "failedCommands": []
+}

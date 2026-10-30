@@ -201,3 +201,42 @@ describe('durable memory lifecycle', () => {
     database.close()
   })
 })
+
+describe('nested transactions', () => {
+  // Regression: `transaction` used to run `BEGIN IMMEDIATE` unconditionally, so
+  // any read that opened its own transaction inside a write threw "cannot start
+  // a transaction within a transaction". Callers that swallow errors (the turn
+  // finalization reads the committed feeling state) then continued with a
+  // default value, and every successful turn recorded `applied: false`.
+  it('lets an inner read see the outer transaction’s uncommitted writes', () => {
+    const database = SqliteDatabase.open(':memory:')
+    database.connection.exec('CREATE TABLE probe(id INTEGER PRIMARY KEY, value TEXT NOT NULL)')
+    const inner = database.transaction(() => database.transaction(() => {
+      database.connection.prepare('INSERT INTO probe(id, value) VALUES (1, ?)').run('inner')
+      return database.connection.prepare('SELECT value FROM probe WHERE id = 1').get() as { value: string }
+    }))
+    expect(inner.value).toBe('inner')
+    expect(database.connection.prepare('SELECT count(*) AS count FROM probe').get()).toEqual({ count: 1 })
+    database.close()
+  })
+
+  it('rolls back only the inner work when the inner call fails', () => {
+    const database = SqliteDatabase.open(':memory:')
+    database.connection.exec('CREATE TABLE probe(id INTEGER PRIMARY KEY, value TEXT NOT NULL)')
+    const outer = database.transaction(() => {
+      database.connection.prepare('INSERT INTO probe(id, value) VALUES (1, ?)').run('outer')
+      try {
+        database.transaction(() => {
+          database.connection.prepare('INSERT INTO probe(id, value) VALUES (2, ?)').run('inner')
+          throw new Error('inner failure')
+        })
+      } catch {
+        // Expected: the caller decides whether the outer work survives.
+      }
+      return database.connection.prepare('SELECT id FROM probe ORDER BY id').all() as Array<{ id: number }>
+    })
+    expect(outer).toEqual([{ id: 1 }])
+    expect(database.connection.prepare('SELECT count(*) AS count FROM probe').get()).toEqual({ count: 1 })
+    database.close()
+  })
+})

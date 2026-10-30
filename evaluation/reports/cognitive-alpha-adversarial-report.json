@@ -115,8 +115,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "cb1c242d95ed9eb30c74e9e05bb225677432187a14178ba9c2263f7ce2dfe660",
-    "repeatedResultHash": "cb1c242d95ed9eb30c74e9e05bb225677432187a14178ba9c2263f7ce2dfe660"
+    "resultHash": "846cd5edc7a842cdee13fdb352ad2534d7b527518155c21c2048a3ed5d26364a",
+    "repeatedResultHash": "846cd5edc7a842cdee13fdb352ad2534d7b527518155c21c2048a3ed5d26364a"
   },
   "gate": {
     "passed": true,
@@ -1146,7 +1146,7 @@
           "explanation",
           "feedback"
         ],
-        "strategy": "retrieve_memory",
+        "strategy": "clarify",
         "topicReferenceMessageId": null,
         "eventType": "system_correction",
         "confidenceScore": 94,
@@ -1163,7 +1163,7 @@
           "activation": 0.08,
           "tension": 0.2
         },
-        "promptGuidanceCharacters": 1147
+        "promptGuidanceCharacters": 1182
       },
       "checks": {
         "intentAllowed": true,
@@ -2053,7 +2053,7 @@
         "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "eventType": null,
-        "confidenceScore": 88,
+        "confidenceScore": 94,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low",
         "stateValues": {
@@ -2619,5 +2619,5 @@
       "passed": true
     }
   ],
-  "reportSha256": "fea286ae0f8116c82be1229809825b34867321a283a1c44cbf37fcf24ab548c0"
+  "reportSha256": "d01d37e7483d101a1cf97125b73460d81255d9eadd25f00e927e2aaead6b5bd9"
 }

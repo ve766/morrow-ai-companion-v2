@@ -1,4 +1,5 @@
 import type { AssembledMemoryContext, ContextConflict, ContextMemory, Sensitivity } from '../shared/companion'
+import { contextUtility, freshnessOf } from '../cognition/context-utility'
 import type { MemoryRecord } from './memory-domain'
 import { compareFactValues, readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
 import type { RetrievalPolicy } from './retrieval-policy'
@@ -97,14 +98,58 @@ function timeMarkers(value: string): Set<string> {
   return new Set(normalize(value).match(TIME_MARKERS) ?? [])
 }
 
-function rankScore(item: { record: MemoryRecord; score: number }, now: string): number {
+/**
+ * A record that was never confirmed and is older than this many days is treated
+ * as stale for ranking. It is still delivered — freshness already decays — but
+ * it loses the tie against a confirmed record on the same topic.
+ */
+export const STALE_UNCONFIRMED_DAYS = 120
+
+/**
+ * Ordering is the documented context utility (B3), not an ad-hoc sum:
+ * U = wr·R + wf·F + wq·Q + wp·P − wx·X − wd·D.
+ *
+ * `conflict` and `stale` are wired:
+ *   - X = 1 when this record's wording overlaps another candidate on the same
+ *     terms (`MemoryService.conflictedIds`), i.e. the store holds two competing
+ *     values and one of them is about to be quoted;
+ *   - D grows linearly from 0 at `STALE_UNCONFIRMED_DAYS` to 1 at twice that,
+ *     and only for records that were never confirmed by the user.
+ *
+ * `preference` comes from `PersonalizationService.personalizationFit`: a memory
+ * that explicitly talks about depth/pacing/breadth is promoted in proportion to
+ * how far the user has pushed that dimension from the neutral 0.5. A memory that
+ * names no dimension keeps 0 — the term never invents a preference.
+ */
+function rankScore(
+  item: { record: MemoryRecord; score: number },
+  now: string,
+  conflictedIds?: ReadonlySet<string>,
+  preferenceFor?: (record: MemoryRecord) => number
+): number {
   const reference = item.record.lastConfirmedAt ?? item.record.updatedAt
-  const ageDays = Math.max(0, (Date.parse(now) - Date.parse(reference)) / 86_400_000)
-  const recency = 2 * Math.pow(0.5, ageDays / 30)
-  return item.score + item.record.confidence / 50 + recency
+  const ageDays = (Date.parse(now) - Date.parse(reference)) / 86_400_000
+  const stale = item.record.lastConfirmedAt === null && Number.isFinite(ageDays) && ageDays > STALE_UNCONFIRMED_DAYS
+    ? Math.min(1, (ageDays - STALE_UNCONFIRMED_DAYS) / STALE_UNCONFIRMED_DAYS)
+    : 0
+  return contextUtility({
+    relevance: item.score,
+    freshness: freshnessOf(reference, now),
+    quality: (item.record.confidence / 100) * (item.record.sourceCategory === 'user_explicit_input' ? 1 : 0.5),
+    preference: preferenceFor ? preferenceFor(item.record) : 0,
+    conflict: conflictedIds?.has(item.record.id) ? 1 : 0,
+    stale
+  }).score
 }
 
 export class MemoryContextAssembler {
+  /**
+   * `useContextUtility: false` is the ablation switch for B3. It is a real
+   * injection point, not a test-only patch: the `no_context_utility` arm builds
+   * a service with it off and compares the serialized payloads.
+   */
+  constructor(private readonly options: { useContextUtility?: boolean } = {}) {}
+
   assemble(
     query: string,
     records: MemoryRecord[],
@@ -113,7 +158,11 @@ export class MemoryContextAssembler {
     maxCharacters = 3000,
     now: string = new Date().toISOString(),
     policy?: RetrievalPolicy,
-    presentation: EvidencePresentation = 'json'
+    presentation: EvidencePresentation = 'json',
+    /** Ids whose wording competes with another candidate; drives the X term. */
+    conflictedIds?: ReadonlySet<string>,
+    /** Preference fit for the P term; 0 when absent. */
+    preferenceFor?: (record: MemoryRecord) => number
   ): AssembledMemoryContext {
     const queryTerms = queryTermsOf(query)
     const phrase = normalize(query).trim()
@@ -163,10 +212,14 @@ export class MemoryContextAssembler {
         if (policy?.requireContentOverlap) return lexical
         return lexical || item.slotMatch
       })
-      .sort((left, right) =>
-        rankScore(right, now) - rankScore(left, now) ||
-        right.record.updatedAt.localeCompare(left.record.updatedAt) ||
-        left.record.id.localeCompare(right.record.id))
+      .sort((left, right) => this.options.useContextUtility === false
+        // Legacy ordering (relevance only) used by the ablation arm.
+        ? right.score - left.score ||
+          right.record.updatedAt.localeCompare(left.record.updatedAt) ||
+          left.record.id.localeCompare(right.record.id)
+        : rankScore(right, now, conflictedIds, preferenceFor) - rankScore(left, now, conflictedIds, preferenceFor) ||
+          right.record.updatedAt.localeCompare(left.record.updatedAt) ||
+          left.record.id.localeCompare(right.record.id))
 
     const selected: ContextMemory[] = []
     const slots = new Map<string, FactSlot | null>()

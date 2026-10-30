@@ -1,0 +1,483 @@
+{
+  "headSha": "a8e382de96840e72effa9c8d7901971bee6e6e89",
+  "generatedAt": "2026-10-30T08:40:04.489Z",
+  "algorithmVersion": "topic-identity-v1",
+  "devSetVersion": "topic-identity-devset-v2",
+  "thresholds": {
+    "same": 0.45,
+    "ambiguous": 0.35
+  },
+  "totals": {
+    "pairs": 26,
+    "truePositive": 8,
+    "falsePositive": 0,
+    "trueNegative": 17,
+    "falseNegative": 1,
+    "ambiguous": 4
+  },
+  "confusion": {
+    "same->same": 8,
+    "same->different": 1,
+    "different->same": 0,
+    "different->different": 17
+  },
+  "metrics": {
+    "precision": 1,
+    "recall": 0.8888888888888888
+  },
+  "failures": [
+    {
+      "id": "p03",
+      "kind": "cjk_expression_change",
+      "expected": "same",
+      "got": "different",
+      "score": 0.1625,
+      "reason": "below_threshold"
+    }
+  ],
+  "rows": [
+    {
+      "id": "p01",
+      "kind": "cjk_expression_change",
+      "label": "same",
+      "decision": "same",
+      "score": 0.9148,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.2727,
+        "unigramJaccard": 0.4545,
+        "preferredContainment": 0.75,
+        "sharedPreferred": 3,
+        "sharedRun": 4,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p02",
+      "kind": "cjk_expression_change",
+      "label": "same",
+      "decision": "same",
+      "score": 0.7917,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.25,
+        "unigramJaccard": 0.4167,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 3,
+        "sharedRun": 4,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p03",
+      "kind": "cjk_expression_change",
+      "label": "same",
+      "decision": "different",
+      "score": 0.1625,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0.0833,
+        "unigramJaccard": 0.25,
+        "preferredContainment": 0.25,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p04",
+      "kind": "punctuation_whitespace",
+      "label": "same",
+      "decision": "same",
+      "score": 1,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 1,
+        "unigramJaccard": 1,
+        "preferredContainment": 1,
+        "sharedPreferred": 2,
+        "sharedRun": 4,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p05",
+      "kind": "duplicate",
+      "label": "same",
+      "decision": "same",
+      "score": 1,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 1,
+        "unigramJaccard": 1,
+        "preferredContainment": 1,
+        "sharedPreferred": 5,
+        "sharedRun": 6,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p06",
+      "kind": "english",
+      "label": "same",
+      "decision": "same",
+      "score": 0.7133,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.2,
+        "unigramJaccard": 0.3333,
+        "preferredContainment": 0.6,
+        "sharedPreferred": 3,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p07",
+      "kind": "english",
+      "label": "same",
+      "decision": "same",
+      "score": 0.6536,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.1667,
+        "unigramJaccard": 0.2857,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 3,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p08",
+      "kind": "cross_session",
+      "label": "same",
+      "decision": "same",
+      "score": 0.9049,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.2308,
+        "unigramJaccard": 0.3571,
+        "preferredContainment": 1,
+        "sharedPreferred": 3,
+        "sharedRun": 3,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n01",
+      "kind": "hypernym",
+      "label": "different",
+      "decision": "different",
+      "score": 0.2097,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0.125,
+        "unigramJaccard": 0.2222,
+        "preferredContainment": 0.3333,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n02",
+      "kind": "hypernym",
+      "label": "different",
+      "decision": "different",
+      "score": 0.6,
+      "reason": "hypernym_or_too_short",
+      "signals": {
+        "bigramJaccard": 0.3333,
+        "unigramJaccard": 0.5,
+        "preferredContainment": 1,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n03",
+      "kind": "hypernym",
+      "label": "different",
+      "decision": "different",
+      "score": 0.1658,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0.1111,
+        "unigramJaccard": 0.2,
+        "preferredContainment": 0.25,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n04",
+      "kind": "same_word_different_meaning",
+      "label": "different",
+      "decision": "different",
+      "score": 0.2635,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0.0769,
+        "unigramJaccard": 0.1538,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": true,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n05",
+      "kind": "negation",
+      "label": "different",
+      "decision": "different",
+      "score": 1,
+      "reason": "polarity_conflict",
+      "signals": {
+        "bigramJaccard": 0.5556,
+        "unigramJaccard": 0.7778,
+        "preferredContainment": 1,
+        "sharedPreferred": 5,
+        "sharedRun": 6,
+        "polarityConflict": true,
+        "objectSubstitution": true
+      }
+    },
+    {
+      "id": "n06",
+      "kind": "negation",
+      "label": "different",
+      "decision": "different",
+      "score": 1,
+      "reason": "polarity_conflict",
+      "signals": {
+        "bigramJaccard": 0.2727,
+        "unigramJaccard": 0.4545,
+        "preferredContainment": 1,
+        "sharedPreferred": 3,
+        "sharedRun": 4,
+        "polarityConflict": true,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n07",
+      "kind": "different_object",
+      "label": "different",
+      "decision": "ambiguous",
+      "score": 0.435,
+      "reason": "object_substitution_suspected",
+      "signals": {
+        "bigramJaccard": 0.5,
+        "unigramJaccard": 0.6,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": true
+      }
+    },
+    {
+      "id": "n08",
+      "kind": "different_object",
+      "label": "different",
+      "decision": "different",
+      "score": 0.1429,
+      "reason": "hypernym_or_too_short",
+      "signals": {
+        "bigramJaccard": 0.3333,
+        "unigramJaccard": 0.4286,
+        "preferredContainment": 0,
+        "sharedPreferred": 0,
+        "sharedRun": 1,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n09",
+      "kind": "similar_but_distinct",
+      "label": "different",
+      "decision": "different",
+      "score": 0.2433,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0.2,
+        "unigramJaccard": 0.3333,
+        "preferredContainment": 0.3333,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n10",
+      "kind": "similar_but_distinct",
+      "label": "different",
+      "decision": "different",
+      "score": 0.2433,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0.2,
+        "unigramJaccard": 0.3333,
+        "preferredContainment": 0.3333,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n11",
+      "kind": "english",
+      "label": "different",
+      "decision": "different",
+      "score": 0.175,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0,
+        "unigramJaccard": 0.25,
+        "preferredContainment": 0.3333,
+        "sharedPreferred": 1,
+        "sharedRun": 1,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n12",
+      "kind": "english",
+      "label": "different",
+      "decision": "ambiguous",
+      "score": 0.525,
+      "reason": "object_substitution_suspected",
+      "signals": {
+        "bigramJaccard": 0.3333,
+        "unigramJaccard": 0.5,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 2,
+        "sharedRun": 0,
+        "polarityConflict": false,
+        "objectSubstitution": true
+      }
+    },
+    {
+      "id": "n13",
+      "kind": "short_cjk",
+      "label": "different",
+      "decision": "different",
+      "score": 0.565,
+      "reason": "hypernym_or_too_short",
+      "signals": {
+        "bigramJaccard": 0.25,
+        "unigramJaccard": 0.4,
+        "preferredContainment": 1,
+        "sharedPreferred": 1,
+        "sharedRun": 2,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n14",
+      "kind": "unrelated",
+      "label": "different",
+      "decision": "different",
+      "score": 0,
+      "reason": "below_threshold",
+      "signals": {
+        "bigramJaccard": 0,
+        "unigramJaccard": 0,
+        "preferredContainment": 0,
+        "sharedPreferred": 0,
+        "sharedRun": 0,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n15",
+      "kind": "negation",
+      "label": "different",
+      "decision": "different",
+      "score": 1,
+      "reason": "polarity_conflict",
+      "signals": {
+        "bigramJaccard": 0.6364,
+        "unigramJaccard": 0.8182,
+        "preferredContainment": 1,
+        "sharedPreferred": 5,
+        "sharedRun": 5,
+        "polarityConflict": true,
+        "objectSubstitution": true
+      }
+    },
+    {
+      "id": "n16",
+      "kind": "shared_frame",
+      "label": "different",
+      "decision": "ambiguous",
+      "score": 0.3905,
+      "reason": "ambiguous_overlap",
+      "signals": {
+        "bigramJaccard": 0.4,
+        "unigramJaccard": 0.4545,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 1,
+        "sharedRun": 1,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "n17",
+      "kind": "shared_frame",
+      "label": "different",
+      "decision": "ambiguous",
+      "score": 0.395,
+      "reason": "ambiguous_overlap",
+      "signals": {
+        "bigramJaccard": 0.4,
+        "unigramJaccard": 0.5,
+        "preferredContainment": 0.5,
+        "sharedPreferred": 1,
+        "sharedRun": 1,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    },
+    {
+      "id": "p16",
+      "kind": "cjk_expression_change",
+      "label": "same",
+      "decision": "same",
+      "score": 0.9556,
+      "reason": "same_topic",
+      "signals": {
+        "bigramJaccard": 0.3333,
+        "unigramJaccard": 0.5556,
+        "preferredContainment": 1,
+        "sharedPreferred": 2,
+        "sharedRun": 3,
+        "polarityConflict": false,
+        "objectSubstitution": false
+      }
+    }
+  ],
+  "note": "Development-set result on a hand-labelled sample; not a calibrated population estimate."
+}

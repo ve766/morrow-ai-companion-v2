@@ -1,0 +1,211 @@
+# Stage 2 final closeout verification
+commitSha=a8e382de96840e72effa9c8d7901971bee6e6e89
+shortSha=a8e382d
+branch=feat/stage-2-delivery-hardening
+dirty=1
+node=v22.22.2
+npm=10.9.7
+os=MINGW64_NT-10.0-26200 3.6.9-b4195d69.x86_64
+startedAt=2026-10-30T08:38:01Z
+
+## typecheck
+command: npm run typecheck
+started: 2026-10-30T08:38:01Z
+finished: 2026-10-30T08:38:09Z
+exit: 0
+--- last 15 lines ---
+
+> morrow-ai-companion-v2@1.0.0 typecheck
+> tsc --noEmit
+
+
+## tests
+command: npm test
+started: 2026-10-30T08:38:09Z
+finished: 2026-10-30T08:39:08Z
+exit: 0
+--- last 15 lines ---
+     [33m[2m✓[22m[39m keeps the age and health values usable for a slot question[33m 826[2mms[22m[39m
+   [32m✓[39m slice 2.2: mood, polarity and time state at the payload [2m(4)[22m
+     [33m[2m✓[22m[39m does not turn a question into a confirmed fact[33m 531[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a negated health statement as a contradiction, not as agreement[33m 486[2mms[22m[39m
+     [33m[2m✓[22m[39m does not merge a mixed-time health statement into a current fact[33m 437[2mms[22m[39m
+     [33m[2m✓[22m[39m still keeps retracted and above-ceiling memories out of the payload[33m 380[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m80 passed[39m[22m[90m (80)[39m
+[2m      Tests [22m [1m[32m693 passed[39m[22m[90m (693)[39m
+[2m   Start at [22m 16:38:11
+[2m   Duration [22m 57.01s[2m (tests 97%, import 2%, transform 1%)[22m
+
+[2m    Isolate [22m [33m80 workers spawned[39m[2m · ~768ms startup each (spawn + environment, per file)[22m
+[2m            [22m [2mat least ~4.81s faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+
+
+## evaluate
+command: npm run evaluate
+started: 2026-10-30T08:39:09Z
+finished: 2026-10-30T08:39:11Z
+exit: 0
+--- last 15 lines ---
+
+> morrow-ai-companion-v2@1.0.0 evaluate
+> node scripts/run-evaluation.mjs
+
+{"passed":true,"dataset":"morrow-synthetic-memory-retrieval","cases":11,"baseline":"m1-substring","baselinePrecision":0.4,"baselineRecall":1,"candidate":"scope-aware-token","candidatePrecision":1,"candidateRecall":1,"candidateSourceLeaks":0,"candidateScopeLeaks":0,"candidateRestrictedLeaks":0,"candidateUnknownLeaks":0,"m2Safety":true,"deterministicHash":"209d8d3745b3d85193cf4deda77a06e7a35eb0837e7ac92bccd5478e33a22ea7","reportSha256":"908c1ef7ab7180b2e2174ef459fb2629071b986bb60b9b33c9340d27a245acf9","report":"evaluation/reports/m3-synthetic-retrieval-report.json","m4Reminders":{"passed":true,"cases":19,"precision":1,"recall":1,"falsePositives":0,"safetyLeaks":0,"deterministicHash":"b61fcb94565235fe500aa6f313ead175b19a5fe60013171e498e6edf6927ca01","reportSha256":"ccea2ce1b15e8a63f76f314453a749bec651200c8bb9f04c45e4ea7c393d4ede","report":"evaluation/reports/m4-synthetic-reminder-report.json"}}
+(node:14928) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+## evaluate-cognition
+command: npm run evaluate:cognition
+started: 2026-10-30T08:39:11Z
+finished: 2026-10-30T08:39:14Z
+exit: 0
+--- last 15 lines ---
+
+> morrow-ai-companion-v2@1.0.0 evaluate:cognition
+> node scripts/run-cognitive-core-evaluation.mjs
+
+{"passed":true,"durationMs":307.36,"cognitive":{"dataset":"cognitive-turn-synthetic-v1","cases":26,"intentAccuracy":1,"strategyAccuracy":1,"correctionPrecision":1,"correctionRecall":1,"deterministicReplay":true,"gate":{"passed":true,"failedChecks":[]},"report":"evaluation/reports/cognitive-turn-synthetic-example.json"},"feeling":{"dataset":"morrow-feeling-synthetic","cases":34,"intentAccuracy":1,"eventClassificationAccuracy":1,"eventDetectionPrecision":1,"eventDetectionRecall":1,"stateDirectionAccuracy":1,"attentionDirectionAccuracy":1,"userAffectTransferCount":0,"attentionBoundViolations":0,"evidenceTraceabilityFailures":0,"deterministicReplay":true,"gate":{"passed":true,"failedChecks":[]},"report":"evaluation/reports/feeling-synthetic-example.json"},"cognitiveAlpha":{"dataset":"morrow-cognitive-alpha-adversarial","cases":28,"safetyCriticalCases":19,"intentAllowlistAccuracy":1,"strategyAllowlistAccuracy":1,"topicReferenceAccuracy":1,"uncertaintyBucketAgreement":1,"eventTypeAccuracy":1,"eventDetectionPrecision":1,"eventDetectionRecall":1,"stateChangeAccuracy":1,"safetyCriticalPassRate":1,"userAffectTransferViolations":0,"rawEventTextLeaks":0,"calibration":{"measured":false,"limitation":"Rule strength scores and uncertainty buckets are not calibrated probabilities. This deterministic synthetic fixture cannot establish confidence calibration or real-user accuracy; no ECE, Brier score, or reliability curve is claimed."},"deterministicReplay":true,"gate":{"passed":true,"failedChecks":[]},"report":"evaluation/reports/cognitive-alpha-adversarial-report.json"},"intentDecision":{"dataset":"intent-decision-synthetic-v1","cases":25,"intentAccuracy":1,"routingAccuracy":1,"perClass":{"information_query":{"correct":4,"total":4},"continuation":{"correct":2,"total":2},"correction":{"correct":2,"total":2},"preference_expression":{"correct":2,"total":2},"emotion_expression":{"correct":2,"total":2},"goal_or_plan":{"correct":2,"total":2},"new_topic":{"correct":2,"total":2},"ambiguous":{"correct":3,"total":3},"self_fact":{"correct":2,"total":2},"feedback":{"correct":1,"total":1},"explanation":{"correct":2,"total":2},"exploration":{"correct":1,"total":1}},"deterministicReplay":true,"gate":{"passed":true,"failedChecks":[]},"report":"evaluation/reports/intent-decision-synthetic-example.json"},"offlineExecution":{"providerCalls":0,"networkCalls":0,"networkGuarded":true,"toolCalls":0}}
+
+## build
+command: npm run build
+started: 2026-10-30T08:39:14Z
+finished: 2026-10-30T08:39:20Z
+exit: 0
+--- last 15 lines ---
+[32m✓ built in 1.38s[39m
+[36mvite v6.4.5 [32mbuilding SSR bundle for production...[36m[39m
+transforming...
+[32m✓[39m 2 modules transformed.
+rendering chunks...
+[2mout/preload/[22m[36mindex.js  [39m[1m[2m8.92 kB[22m[1m[22m
+[32m✓ built in 193ms[39m
+[36mvite v6.4.5 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 13 modules transformed.
+rendering chunks...
+[2m../../out/renderer/[22m[32mindex.html                 [39m[1m[2m25.04 kB[22m[1m[22m
+[2m../../out/renderer/[22m[35massets/index-BKo2bJ4h.css  [39m[1m[2m24.99 kB[22m[1m[22m
+[2m../../out/renderer/[22m[36massets/index-BlNhTzmE.js   [39m[1m[2m79.73 kB[22m[1m[22m
+[32m✓ built in 956ms[39m
+
+## smoke
+command: npm run smoke
+started: 2026-10-30T08:39:20Z
+finished: 2026-10-30T08:39:49Z
+exit: 0
+--- last 15 lines ---
+
+> morrow-ai-companion-v2@1.0.0 smoke
+> node scripts/smoke.mjs
+
+(node:17148) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Morrow smoke passed: built Electron app, default-off DeepSeek configuration, secure credential save/restart/delete (encrypted-restart-corruption-protected-then-explicit-delete-verified, no Provider requests), cognitive default-off/explicit opt-in and restart persistence, no fabricated reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls, local persistence, deletion, and restart verification.
+
+## eval-stage2
+command: npm run eval:stage2
+started: 2026-10-30T08:39:49Z
+finished: 2026-10-30T08:40:01Z
+exit: 0
+--- last 15 lines ---
+B: PASS (2/2 assertions)
+D: PASS (3/3 assertions)
+I: PASS (3/3 assertions)
+B5: PASS (5/5 assertions)
+B4: PASS (3/3 assertions)
+A: PASS (4/4 assertions)
+C: PASS (4/4 assertions)
+E: PASS (4/4 assertions)
+F: PASS (5/5 assertions)
+G: PASS (4/4 assertions)
+H: PASS (4/4 assertions)
+J: PASS (4/4 assertions)
+K: BLOCKED — scripted provider only in this offline runner; real-provider coverage comes from phase24-real-model (5/5 runnable scenarios PASS, S4 SKIPPED)
+L: BLOCKED — GUI process cannot be hosted inside this offline runner; desktop coverage comes from `npm run smoke` (exit 0, sandbox enabled)
+counts: {"executed":12,"passed":12,"failed":0,"skipped":0,"blocked":2,"notRun":0} report=E:\opencode\morrow-v1-cognitive-v1\evals\stage-2\results\2026-10-30T08-40-01-a8e382d.json
+
+## eval-topic-identity
+command: npm run eval:topic-identity
+started: 2026-10-30T08:40:01Z
+finished: 2026-10-30T08:40:04Z
+exit: 0
+--- last 15 lines ---
+n16   shared_frame                  different  ambiguous   0.3905  ambiguous_overlap
+n17   shared_frame                  different  ambiguous   0.3950  ambiguous_overlap
+p16   cjk_expression_change         same       same        0.9556  same_topic
+
+confusion matrix (rows = labelled, columns = predicted)
+  same->same 8   same->different 1
+  diff->same 0   diff->different 17
+ambiguous decisions: 4
+precision 1.000  recall 0.889
+gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated (actual 1)
+
+misclassified:
+  p03 (cjk_expression_change) expected=same got=different score=0.1625 reason=below_threshold
+
+report written: E:\opencode\morrow-v1-cognitive-v1\evals\stage-2\results\topic-identity-devset-report.json  headSha: a8e382de96840e72effa9c8d7901971bee6e6e89
+
+## eval-ablation
+command: npm run eval:ablation
+started: 2026-10-30T08:40:05Z
+finished: 2026-10-30T08:40:15Z
+exit: 0
+--- last 15 lines ---
+
+> morrow-ai-companion-v2@1.0.0 eval:ablation
+> node node_modules/esbuild/bin/esbuild evals/stage-2/ablation/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage2-ablation.cjs --log-level=warning && node node_modules/.cache/stage2-ablation.cjs
+
+(node:19536) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+full: personalization block in 3/4 payloads, bytes=1393,1427,1496,3404
+no_personalization: block in 0/4 payloads, bytes=1393,1185,1254,3162
+wiring difference detected: true
+report: E:\opencode\morrow-v1-cognitive-v1\evals\stage-2\ablation\results\2026-10-30T08-40-14-a8e382d.json
+
+## b4-child-crash
+command: npx vitest run tests/b4-child-crash.test.ts
+started: 2026-10-30T08:40:15Z
+finished: 2026-10-30T08:40:26Z
+exit: 0
+--- last 15 lines ---
+(node:7604) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m tests/b4-child-crash.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4627[2mms[22m[39m
+   [32m✓[39m B4 process-level crash recovery [2m(5)[22m
+     [33m[2m✓[22m[39m invents nothing when the process dies before the provider is called[33m 1018[2mms[22m[39m
+     [33m[2m✓[22m[39m settles a turn whose provider call was in flight, without re-sending it[33m 683[2mms[22m[39m
+     [33m[2m✓[22m[39m fails a turn that died after the provider answered but before the answer was stored[33m 570[2mms[22m[39m
+     [33m[2m✓[22m[39m completes a turn whose cleanup failed after the answer was stored[33m 535[2mms[22m[39m
+     [33m[2m✓[22m[39m does nothing on a second recovery pass in every window[33m 1543[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 16:40:20
+[2m   Duration [22m 5.24s[2m (tests 94%, transform 3%, import 3%)[22m
+
+
+## b4-recovery
+command: npx vitest run src/app/b4-recovery.integration.test.ts
+started: 2026-10-30T08:40:26Z
+finished: 2026-10-30T08:40:32Z
+exit: 0
+--- last 15 lines ---
+
+[90mstderr[2m | src/app/b4-recovery.integration.test.ts[2m > [22m[2mB4 recovery loop[2m > [22m[2msurvives a restart between the interruption and the recovery
+[22m[39mThe completed assistant response could not be stored; the turn will be recovered as interrupted.
+
+ [32m✓[39m src/app/b4-recovery.integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1307[2mms[22m[39m
+   [32m✓[39m B4 recovery loop [2m(4)[22m
+     [33m[2m✓[22m[39m repairs a turn whose assistant message never landed, without calling the provider again[33m 357[2mms[22m[39m
+     [33m[2m✓[22m[39m completes a turn whose message landed but whose intent was left behind, with no second answer[33m 327[2mms[22m[39m
+     [33m[2m✓[22m[39m survives a restart between the interruption and the recovery[33m 344[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 16:40:30
+[2m   Duration [22m 1.94s[2m (tests 80%, transform 11%, import 8%, worker 1%)[22m
+
+
+finishedAt=2026-10-30T08:40:32Z

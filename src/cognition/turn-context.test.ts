@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildCognitiveTurnContext,
+  COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION,
   isCognitiveTurnContext,
   snapshotState,
   type BuildTurnContextInput,
@@ -81,7 +82,9 @@ describe('turn context shape', () => {
 
   it('rejects a tampered record on the read path', () => {
     const context = buildCognitiveTurnContext(input())
-    expect(isCognitiveTurnContext({ ...context, schemaVersion: 2 })).toBe(false)
+    expect(context.schemaVersion).toBe(2)
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 1 })).toBe(true)
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 3 })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, status: 'unknown' })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, retrieval: { ...context.retrieval, selected: [{ id: 'x' }] } })).toBe(false)
     expect(isCognitiveTurnContext({ ...context, provider: { ...context.provider, outcome: 'ok' } })).toBe(false)
@@ -121,6 +124,79 @@ describe('turn context store', () => {
       repository.upsert(context)
       expect(repository.get(turnId)).toEqual(context)
       expect(repository.listByConversation(conversationId, 10)).toHaveLength(1)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('reads a stored schema 1 payload back through the repository', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      // A literal schema-1 payload: this is the field set the older writer
+      // actually produced (no stage 2 fields), not the current builder with a
+      // version number changed afterwards.
+      const legacy = {
+        schemaVersion: 1,
+        turnId,
+        conversationId,
+        userMessageId,
+        assistantMessageId,
+        recordedAt: '2026-01-01T00:00:00.000Z',
+        status: 'succeeded',
+        intent: {
+          label: 'information_query',
+          confidence: 80,
+          confidenceLevel: 'high',
+          strategy: 'retrieve_memory',
+          reasons: ['question_marker']
+        },
+        retrieval: {
+          policyIntent: 'information_query',
+          baseMax: 25,
+          effectiveMax: 25,
+          adjustment: null,
+          selected: [{
+            id: memoryId,
+            status: 'active',
+            sourceCategory: 'user_explicit_input',
+            sensitivity: 'personal',
+            revision: 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            score: 0.5
+          }],
+          conflicts: [],
+          omitted: 0,
+          maximumSensitivity: 'personal'
+        },
+        personality: { version: 1, warmth: 50, directness: 50, humor: 30, disagreementStyle: 'gentle' },
+        feeling: { before: null, after: null, eventType: null, applied: false },
+        guard: null,
+        provider: { id: 'deepseek', model: 'deepseek-chat', outcome: 'succeeded', attempts: 1, errorKind: null },
+        updates: { pendingItemIds: [], memoryCandidates: 0 }
+      }
+      database.connection.prepare(`
+        INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(turnId, conversationId, 'succeeded', '2026-01-01T00:00:00.000Z', JSON.stringify(legacy))
+
+      const read = repository.get(turnId)
+      expect(read).not.toBeNull()
+      expect(read!.turnId).toBe(turnId)
+      expect(read!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+      expect(read!.retrieval.selected[0]!.id).toBe(memoryId)
+      // The legacy payload's own values survive the read unchanged; this schema
+      // version adds no fields, so the check is on equivalence, not on absence.
+      expect(read!.intent.confidence).toBe(80)
+      expect(read!.provider.model).toBe('deepseek-chat')
+
+      const listed = repository.listByConversation(conversationId, 10)
+      expect(listed).toHaveLength(1)
+      expect(listed[0]!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+
+      // Reading must not rewrite the stored payload.
+      const stored = JSON.parse(String((database.connection.prepare('SELECT payload_json FROM cognitive_turn_contexts WHERE turn_id = ?').get(turnId) as { payload_json: string }).payload_json))
+      expect(stored.schemaVersion).toBe(1)
     } finally {
       database.close()
     }

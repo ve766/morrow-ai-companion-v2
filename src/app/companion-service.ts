@@ -46,12 +46,17 @@ import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
 import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
 import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
+import type { TurnState, TurnStatePort } from '../cognition/turn-state-machine'
 import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
+import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
+import type { MemoryRecord } from '../memory/memory-domain'
+import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
+import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
 
 const fixedPrinciples = [
@@ -618,6 +623,10 @@ export interface SelfModelLoopServices {
   events: EventLogService
   interests: InterestService
   selfModel: SelfModelService
+  /** Rate-limited post-turn reflection; never allowed to fail the chat path. */
+  reflection?: Pick<ReflectionService, 'run'>
+  /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
+  personalization?: PersonalizationService
 }
 
 // Context block for the long-term layer: rule-derived interests and
@@ -628,12 +637,23 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices): str
   const facts = services.selfModel.activeStatementsForContext(3)
   const lines: string[] = []
   if (interests.length > 0) {
-    const described = interests.map((interest) => `${interest.label}（强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`)
+    // The id is included so a serialized request can be traced back to the
+    // exact interest row and its evidence ledger during an audit. It is an
+    // internal identifier, never user content.
+    const described = interests.map((interest) => `${interest.label}（id ${interest.id}，强度 ${interest.strength.toFixed(2)}，置信度 ${interest.confidence}/100，依据 ${interest.evidenceCount} 次）`)
     lines.push(`Bounded long-term attention signal (rule-derived, low confidence, not a preference or permission): topics the user returned to across conversations — ${described.join('; ')}. Use only to stay coherent with prior topics; never claim certainty about the user.`)
   }
   if (facts.length > 0) {
     const described = facts.map((fact) => `「${fact.statement.slice(0, 120)}」（置信度 ${fact.confidence}/100，未经确认的推断）`)
     lines.push(`Unverified self-knowledge awaiting user confirmation — ${described.join('; ')}. Do not present these as facts about the user.`)
+  }
+  // Stage 2 B2: bounded interaction preferences. Only dimensions that actually
+  // collected evidence are described; a default 0.5 with zero evidence is not a
+  // finding and must not be presented as one.
+  const learned = services.personalization?.list().filter((entry) => entry.evidenceCount > 0) ?? []
+  if (learned.length > 0) {
+    const described = learned.map((entry) => `${entry.dimension}=${entry.value.toFixed(2)}（${entry.evidenceCount} 轮证据）`)
+    lines.push(`Bounded interaction preference state (rule-derived heuristic, uncalibrated, not a feeling): ${described.join('; ')}. It may only tune pacing and how much to explore; it never changes facts, permissions or the user's explicit instructions.`)
   }
   return lines.join('\n')
 }
@@ -683,12 +703,41 @@ export class CompanionService {
     this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
     const selfModelLoop = options.selfModelLoop
+    const recordCognitiveDegradation = (component: string, correlationId: string | null = null): void => {
+      try {
+        selfModelLoop?.events.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'cognition.degraded',
+          actor: 'system',
+          subjectType: 'cognitive_component',
+          subjectId: component,
+          correlationId,
+          // Deliberately no exception message, prompt, memory text or user text.
+          payload: { component, reasonCode: 'DERIVED_STATE_UNAVAILABLE' }
+        })
+      } catch {
+        // Observability is best-effort and cannot change the user-visible turn.
+      }
+    }
     const hooks: SelfModelLoopHooks | undefined = selfModelLoop
       ? {
+          ...(selfModelLoop.personalization
+            ? {
+                preferenceFor: (record: MemoryRecord) => {
+                  try {
+                    const entries = selfModelLoop.personalization!.list()
+                    return entries.some((entry) => entry.evidenceCount > 0) ? personalizationFit(record.currentText, entries) : 0
+                  } catch {
+                    return 0
+                  }
+                }
+              }
+            : {}),
           contextBlock: () => {
             try {
               return buildSelfModelContextBlock(selfModelLoop)
             } catch {
+              recordCognitiveDegradation('self_model_context')
               return ''
             }
           },
@@ -701,18 +750,47 @@ export class CompanionService {
                 topicText: input.content
               })
               selfModelLoop.interests.archiveStale(input.occurredAt)
-              if (input.analysis?.signals.explicitSelfFact) {
-                selfModelLoop.selfModel.record({
-                  kind: 'fact',
-                  statement: input.content.slice(0, 2000),
-                  confidence: 55,
-                  sourceMessageId: input.userMessageId,
-                  conversationId: input.conversationId,
-                  correlationId: input.userMessageId
-                })
+              // Stage 2 B2. Rule-derived hints carry a low reliability weight so
+              // one turn moves a dimension by at most eta * w (<= 0.05 here).
+              if (selfModelLoop.personalization) {
+                const signals: PersonalizationSignal[] = []
+                const intent = input.analysis?.intent
+                if (intent === 'planning' || intent === 'exploration') {
+                  signals.push({ dimension: 'exploration', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
+                }
+                if (input.analysis?.signals.explicitConstraint) {
+                  signals.push({ dimension: 'pace', signal: -0.5, weight: 0.8, turnId: input.turnId, at: input.occurredAt })
+                }
+                if (input.analysis?.signals.explicitMemoryRequest) {
+                  signals.push({ dimension: 'depth', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
+                }
+                for (const signal of signals) selfModelLoop.personalization.apply(signal)
               }
+              if (input.analysis?.signals.explicitSelfFact) {
+                // Only a structured predicate/value pair is stored; the message
+                // itself stays in `messages` and is referenced, never copied.
+                const statement = deriveSelfFactStatement(input.content)
+                if (statement) {
+                  selfModelLoop.selfModel.record({
+                    kind: 'fact',
+                    statement,
+                    confidence: 55,
+                    sourceMessageId: input.userMessageId,
+                    conversationId: input.conversationId,
+                    correlationId: input.userMessageId
+                  })
+                } else {
+                  // Nothing readable to keep: record the skip instead of
+                  // storing prose or inventing a placeholder fact.
+                  recordCognitiveDegradation('self_model_fact_unstructured', input.userMessageId)
+                }
+              }
+              // Reflection runs only after a persisted assistant turn. Its own
+              // hourly budget prevents it from running on every rapid message.
+              // Findings are evidence-linked and do not directly edit personality.
+              selfModelLoop.reflection?.run('post_conversation')
             } catch {
-              // The long-term layer must never break the chat path.
+              recordCognitiveDegradation('self_model_turn_hook', input.userMessageId)
             }
           }
         }
@@ -734,7 +812,7 @@ export class CompanionService {
       : undefined
     const ledger = options.ledger ?? journal
     this.continuity = options.continuity
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -794,11 +872,18 @@ export class CompanionService {
 }
 
 export interface SelfModelLoopHooks {
+  /**
+   * B3's P term: how much a saved memory is about a dimension the user has
+   * personalised. Absent when personalization is not wired.
+   */
+  preferenceFor?(record: MemoryRecord): number
   /** Bounded context block describing long-term interests and unverified self-knowledge. */
   contextBlock(): string
   /** Called once per completed turn; must never throw into the chat path. */
   onTurnCompleted(input: {
     conversationId: string
+    /** Request id: the idempotency key shared with the turn context. */
+    turnId: string
     userMessageId: string
     occurredAt: string
     content: string
@@ -819,6 +904,8 @@ export interface ContinuityPorts {
   pending: PendingCognitionService
   /** Persisted finalization intents, used to settle interrupted turns. */
   finalizations: TurnFinalizationPort
+  /** Persistent turn lifecycle (B4). Optional so offline callers stay simple. */
+  states?: TurnStatePort
 }
 
 /**
@@ -861,13 +948,32 @@ export class ChatService {
     /** How delivered evidence is rendered; see CompanionService options. */
     private readonly evidencePresentation: EvidencePresentation = 'json',
     /** Phase 2.4 turn context and pending-item stores. */
-    private readonly continuity?: ContinuityPorts
+    private readonly continuity?: ContinuityPorts,
+    private readonly onDegradation?: (component: string, correlationId?: string | null) => void
   ) {}
+
+  private recordDegradation(component: string, correlationId: string | null = null): void {
+    try { this.onDegradation?.(component, correlationId) } catch { /* Never fail the chat path for telemetry. */ }
+  }
+
+  /**
+   * Records one lifecycle step. A lifecycle write is observability, never a
+   * reason to fail a chat, so an illegal move or storage error is swallowed
+   * here and surfaces in tests through the repository instead.
+   */
+  private recordTurnState(conversationId: string, turnId: string, state: TurnState, reason: string | null = null): void {
+    try {
+      this.continuity?.states?.enter({ turnId, conversationId, state, updatedAt: this.now(), reason })
+    } catch {
+      // Intentionally silent: the chat path must not depend on the trace.
+    }
+  }
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
     try {
       return this.cognition.get()
     } catch {
+      this.recordDegradation('cognitive_settings_read')
       return { enabled: false, available: false, updatedAt: null, analyzerVersion: COGNITIVE_ANALYZER_VERSION }
     }
   }
@@ -921,12 +1027,14 @@ export class ChatService {
           })
           if (event) this.feelings.recordCompletedTurn(event, existingAssistant.id, this.now())
         } catch {
+          this.recordDegradation('feeling_state_recovery', requestId)
           console.warn('Local feeling-state recovery was unavailable; returning the saved conversation.')
         }
       }
       return { conversation: existing.conversation, userMessage: existingUser, assistantMessage: existingAssistant, includedMemoryCount: 0 }
     }
     this.locks.add(conversationId)
+    this.recordTurnState(conversationId, requestId, 'received')
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
     try {
@@ -935,7 +1043,14 @@ export class ChatService {
       const candidateMessageId = existingUser?.id ?? this.makeId()
       const initialHistory = existing.messages.filter((message) => message.turnId !== requestId)
       const prepared = this.prepare(request, config, initialHistory, candidateMessageId, requestId, settingSnapshot, evaluationAt)
+      // The request payload exists at this point, so the turn has been analysed
+      // and its context assembled. Recording both here is what makes the trace
+      // show *when* consent was requested relative to the analysis, instead of
+      // collapsing four steps into one terminal state.
+      this.recordTurnState(conversationId, requestId, 'analyzed', prepared.analysis ? 'analysis_ready' : 'analysis_unavailable')
+      this.recordTurnState(conversationId, requestId, 'context_ready')
       const preview = consentPreview('chat', config, prepared.input)
+      this.recordTurnState(conversationId, requestId, 'awaiting_consent')
       const consent = await this.authorize(preview)
       if (!consent) throw new ApplicationError('FORBIDDEN')
       const latest = this.conversations.read(conversationId)
@@ -968,6 +1083,7 @@ export class ChatService {
           userMessage = appendUser(observation)
           cognitiveObservationPersisted = Boolean(userMessage.cognitiveObservations?.length)
         } catch {
+          this.recordDegradation('cognitive_observation_persist', requestId)
           console.warn('Local cognitive observation was unavailable; continuing with core chat persistence.')
           if (!userMessage) userMessage = appendUser()
         }
@@ -977,7 +1093,9 @@ export class ChatService {
       if (!userMessage) throw new ApplicationError('STORAGE_ERROR')
       let output: Awaited<ReturnType<typeof dispatchToProvider>>
       try {
+        this.recordTurnState(conversationId, requestId, 'requesting')
         output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => onDelta?.(delta))
+        this.recordTurnState(conversationId, requestId, 'response_received')
       } catch (error) {
         // A cancelled request is not a failed one: the adapter reports
         // `PROVIDER_CANCELLED` when the caller aborted, and the abort may also
@@ -986,6 +1104,7 @@ export class ChatService {
         // provider fault.
         const cancelled = controller.signal.aborted ||
           (error instanceof ApplicationError && error.code === 'PROVIDER_CANCELLED')
+        this.recordTurnState(conversationId, requestId, cancelled ? 'cancelled' : 'failed', error instanceof ApplicationError ? error.code : 'UNKNOWN')
         // A failed call is recorded as a failed call, never dropped from the
         // denominator and never counted as a model error.
         this.recordTerminalContext({
@@ -1101,16 +1220,20 @@ export class ChatService {
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
+      // The assistant message is durable: the turn is committed.
+      this.recordTurnState(conversationId, requestId, 'committed')
       if (this.selfModel) {
         try {
           this.selfModel.onTurnCompleted({
             conversationId,
+            turnId: requestId,
             userMessageId: userMessage.id,
             occurredAt: this.now(),
             content: request.content.trim(),
             ...(verified.analysis ? { analysis: verified.analysis } : {})
           })
         } catch {
+          this.recordDegradation('self_model_turn_hook', requestId)
           console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
         }
       }
@@ -1179,11 +1302,13 @@ export class ChatService {
         try {
           this.ledger(evaluation)
         } catch {
+          this.recordDegradation('turn_evaluation_ledger', input.requestId)
           console.warn('Turn evaluation ledger was unavailable; the chat result is unaffected.')
         }
       }
       return evaluation
     } catch {
+      this.recordDegradation('turn_evaluation_build', input.requestId)
       return undefined
     }
   }
@@ -1234,7 +1359,7 @@ export class ChatService {
         // amount; neither can widen permission, status or sensitivity, which
         // are applied inside the assembler.
         retrieval = adjustPolicyForState(policyForIntent(decision.intent), previousFeelingState)
-        memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation)
+        memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation, this.selfModel?.preferenceFor)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         if (stateView.available) {
@@ -1351,7 +1476,16 @@ export class ChatService {
         confidence: prepared.decision?.confidence ?? 0,
         confidenceLevel: prepared.decision?.confidenceLevel ?? 'low',
         strategy: prepared.analysis?.strategy ?? 'unavailable',
-        reasons: prepared.decision?.reasons ?? []
+        reasons: prepared.decision?.reasons ?? [],
+        // Recorded separately from `reasons` because the winning label's
+        // reasons do not include the reference code when another label wins:
+        // "它最难的部分是什么？" is an information_query that still depends on the
+        // previous turn, and an audit of reference resolution needs to see that.
+        contextDependency: (prepared.decision?.reasons ?? []).includes('reference_without_context')
+          ? 'unresolved'
+          : prepared.decision?.dependsOnPriorTurn === true
+            ? 'prior_turn'
+            : 'none'
       },
       retrieval: {
         policyIntent: prepared.retrieval.policy.intent,
@@ -1426,6 +1560,7 @@ export class ChatService {
         blockedClaimKinds: input.blockedClaimKinds
       })
     } catch {
+      this.recordDegradation('pending_item_draft', input.requestId)
       pendingDrafts = []
     }
     const record: TurnFinalizationRecord = {
@@ -1449,6 +1584,7 @@ export class ChatService {
     try {
       this.continuity.finalizations.put(record)
     } catch {
+      this.recordDegradation('turn_finalization_persist', input.requestId)
       console.warn('The turn finalization intent could not be stored; crash recovery is unavailable for this turn.')
       return null
     }
@@ -1465,12 +1601,21 @@ export class ChatService {
   private applyFinalization(record: TurnFinalizationRecord): void {
     if (!this.continuity) return
     const pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    const committedState = this.feelings.snapshot().state
     const applied = record.feelingEventId !== null &&
-      this.feelings.snapshot().state.sourceEventId === record.feelingEventId
+      committedState.sourceEventId === record.feelingEventId
     this.continuity.contexts.upsert({
       ...record.contextTemplate,
       turnId: record.turnId,
-      feeling: { ...record.contextTemplate.feeling, applied },
+      feeling: {
+        ...record.contextTemplate.feeling,
+        // `after` was written from a projection taken before the event
+        // committed, so it carried the pre-commit revision and showed a state
+        // that never existed as a persisted revision. Once the event landed,
+        // record the state that is actually stored.
+        after: applied ? snapshotState(committedState) : record.contextTemplate.feeling.after,
+        applied
+      },
       updates: { ...record.contextTemplate.updates, pendingItemIds }
     })
   }
@@ -1497,16 +1642,32 @@ export class ChatService {
     } catch {
       return result
     }
+    const settledTurnIds = new Set<string>()
     for (const record of records) {
+      settledTurnIds.add(record.turnId.toLowerCase())
       try {
         const conversation = this.conversations.read(record.conversationId)
         const delivered = conversation.messages.some((message) => message.id === record.assistantMessageId && message.role === 'assistant')
+        // The intent is the evidence that a turn stopped mid-flight. Mark it
+        // before repairing it, so the lifecycle shows "known broken" and then
+        // "something is repairing it" instead of jumping straight to a verdict.
+        this.recordTurnState(record.conversationId, record.turnId, 'recovery_required', 'intent_without_settlement')
+        this.recordTurnState(record.conversationId, record.turnId, 'recovering', 'recovery_attempt')
         if (delivered) {
+          // The commit landed; only the bookkeeping is missing. Applying the
+          // intent again is safe: the turn context is an upsert keyed by turn id
+          // and the feeling event is compared against the committed state.
           this.applyFinalization(record)
+          this.recordTurnState(record.conversationId, record.turnId, 'committed', 'recovered_after_commit')
           result.completed += 1
         } else {
+          // The turn stopped between "request sent" and "answer stored". That is
+          // a distinct state from a plain failure: the provider may still have
+          // charged for the call, and a later attempt has to know the turn was
+          // recovered rather than never started.
           // No answer reached the user. Recording it as interrupted is what the
           // evidence supports; inventing a successful turn would not be.
+          this.recordTurnState(record.conversationId, record.turnId, 'failed', 'INTERRUPTED')
           this.continuity.contexts.upsert({
             ...record.contextTemplate,
             // Key the record by the intent's turn id, never by whatever the
@@ -1522,12 +1683,43 @@ export class ChatService {
           result.interrupted += 1
         }
         this.continuity.finalizations.remove(record.turnId)
+        settledTurnIds.add(record.turnId.toLowerCase())
       } catch {
         // The conversation is gone or the store is unavailable: keep the intent
         // for a later attempt instead of dropping evidence silently.
         result.dropped += 1
       }
     }
+    // Second pass: turns that stopped without ever writing a finalization intent.
+    // A crash during the provider call is exactly this shape — the request may
+    // have been received by the upstream, so the outcome is unknown. They are
+    // settled as failed (or committed when an answer is already stored) and are
+    // never re-sent: without a provider idempotency key a retry could duplicate
+    // a non-idempotent call.
+    const states = this.continuity.states
+    if (states?.listUnsettled) {
+      let unsettled: Array<{ turnId: string; conversationId: string; state: string }>
+      try {
+        unsettled = states.listUnsettled(50)
+      } catch {
+        unsettled = []
+      }
+      for (const row of unsettled) {
+        if (settledTurnIds.has(row.turnId.toLowerCase())) continue
+        try {
+          const conversation = this.conversations.read(row.conversationId)
+          const delivered = conversation.messages.some((message) => message.turnId === row.turnId && message.role === 'assistant')
+          this.recordTurnState(row.conversationId, row.turnId, 'recovery_required', 'unsettled_state_without_intent')
+          this.recordTurnState(row.conversationId, row.turnId, 'recovering', 'recovery_attempt')
+          this.recordTurnState(row.conversationId, row.turnId, delivered ? 'committed' : 'failed', delivered ? 'recovered_after_commit' : 'INTERRUPTED_UNKNOWN_OUTCOME')
+          if (delivered) result.completed += 1
+          else result.interrupted += 1
+        } catch {
+          result.dropped += 1
+        }
+      }
+    }
+
     return result
   }
 
@@ -1556,6 +1748,7 @@ export class ChatService {
         pendingItemIds: []
       }))
     } catch {
+      this.recordDegradation('turn_context_persist', input.requestId)
       console.warn('Turn context could not be recorded; the conversation itself is unaffected.')
     }
   }

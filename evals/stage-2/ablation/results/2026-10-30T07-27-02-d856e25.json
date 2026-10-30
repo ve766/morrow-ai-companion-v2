@@ -1,0 +1,241 @@
+{
+  "harnessVersion": "stage-2-ablation-v1",
+  "headSha": "d856e255b1f0232cc5930d8bc439a4025c66090d",
+  "startedAt": "2026-10-30T07:26:58.633Z",
+  "finishedAt": "2026-10-30T07:27:02.822Z",
+  "providerMode": "scripted",
+  "dataset": {
+    "turns": 4,
+    "memories": 2
+  },
+  "arms": [
+    {
+      "arm": "full",
+      "config": {
+        "personalization": true,
+        "contextUtility": true,
+        "reflection": true
+      },
+      "turns": 4,
+      "payloadBytes": [
+        1393,
+        1427,
+        1496,
+        3404
+      ],
+      "personalizationBlockTurns": 3,
+      "memoryOrderByTurn": [
+        [],
+        [],
+        [],
+        [
+          3,
+          2,
+          0
+        ]
+      ],
+      "reflectionRuns": 4,
+      "attentionBlockTurns": 0,
+      "recordedPersonalization": [
+        {
+          "dimension": "exploration",
+          "value": 0.515,
+          "evidenceCount": 1
+        },
+        {
+          "dimension": "depth",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "pace",
+          "value": 0.5,
+          "evidenceCount": 0
+        }
+      ]
+    },
+    {
+      "arm": "no_personalization",
+      "config": {
+        "personalization": false,
+        "contextUtility": true,
+        "reflection": true
+      },
+      "turns": 4,
+      "payloadBytes": [
+        1393,
+        1185,
+        1254,
+        3162
+      ],
+      "personalizationBlockTurns": 0,
+      "memoryOrderByTurn": [
+        [],
+        [],
+        [],
+        [
+          3,
+          2,
+          0
+        ]
+      ],
+      "reflectionRuns": 4,
+      "attentionBlockTurns": 0,
+      "recordedPersonalization": [
+        {
+          "dimension": "exploration",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "depth",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "pace",
+          "value": 0.5,
+          "evidenceCount": 0
+        }
+      ]
+    },
+    {
+      "arm": "no_context_utility",
+      "config": {
+        "personalization": true,
+        "contextUtility": false,
+        "reflection": true
+      },
+      "turns": 4,
+      "payloadBytes": [
+        1393,
+        1427,
+        1496,
+        3404
+      ],
+      "personalizationBlockTurns": 3,
+      "memoryOrderByTurn": [
+        [],
+        [],
+        [],
+        [
+          2,
+          0,
+          3
+        ]
+      ],
+      "reflectionRuns": 4,
+      "attentionBlockTurns": 0,
+      "recordedPersonalization": [
+        {
+          "dimension": "exploration",
+          "value": 0.515,
+          "evidenceCount": 1
+        },
+        {
+          "dimension": "depth",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "pace",
+          "value": 0.5,
+          "evidenceCount": 0
+        }
+      ]
+    },
+    {
+      "arm": "no_reflection",
+      "config": {
+        "personalization": true,
+        "contextUtility": true,
+        "reflection": false
+      },
+      "turns": 4,
+      "payloadBytes": [
+        1393,
+        1427,
+        1496,
+        3404
+      ],
+      "personalizationBlockTurns": 3,
+      "memoryOrderByTurn": [
+        [],
+        [],
+        [],
+        [
+          3,
+          2,
+          0
+        ]
+      ],
+      "reflectionRuns": 0,
+      "attentionBlockTurns": 0,
+      "recordedPersonalization": [
+        {
+          "dimension": "exploration",
+          "value": 0.515,
+          "evidenceCount": 1
+        },
+        {
+          "dimension": "depth",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "pace",
+          "value": 0.5,
+          "evidenceCount": 0
+        }
+      ]
+    }
+  ],
+  "comparison": {
+    "personalizationBlockAppearsOnlyWhenEnabled": true,
+    "fullBlockTurns": 3,
+    "offBlockTurns": 0,
+    "payloadBytesDelta": [
+      0,
+      242,
+      242,
+      242
+    ],
+    "contextUtilityChangesMemoryOrder": true,
+    "fullMemoryOrder": [
+      [],
+      [],
+      [],
+      [
+        3,
+        2,
+        0
+      ]
+    ],
+    "noContextUtilityMemoryOrder": [
+      [],
+      [],
+      [],
+      [
+        2,
+        0,
+        3
+      ]
+    ],
+    "contextUtilityPayloadBytesDelta": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "reflectionRunsFull": 4,
+    "reflectionRunsOff": 0,
+    "attentionBlockTurnsFull": 0,
+    "attentionBlockTurnsOff": 0
+  },
+  "notRun": [],
+  "limits": [
+    "Scripted provider: this measures what is serialized, not reply quality.",
+    "One conversation per arm, three turns: enough to detect a wiring difference, not a rate.",
+    "B1 has no arm: the confidence score does not change the strategy, so there is nothing to switch off."
+  ]
+}

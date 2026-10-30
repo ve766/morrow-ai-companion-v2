@@ -1,0 +1,19 @@
+{
+  "datasetVersion": "v1",
+  "harnessVersion": "stage-2-runner-v1",
+  "headSha": "67f2a3769938c4228b11cd1eecb291e35be9fbfe",
+  "startedAt": "2026-10-30T06:09:10.612Z",
+  "finishedAt": "2026-10-30T06:09:22.299Z",
+  "providerMode": "scripted",
+  "providerNote": "The provider returns fixed text. This runner proves wiring and payload contents, never model quality.",
+  "counts": {
+    "executed": 12,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0,
+    "blocked": 2,
+    "notRun": 0
+  },
+  "passRate": 1,
+  "passRateDenominator": "PASS + FAIL only; SKIPPED, BLOCKED and NOT_RUN are excluded, never counted as passing."
+}

@@ -75,8 +75,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "c4acd88f4a0b4ff4a9b3747069d149ef5a67100074cb0ae3c887a11defb609d8",
-    "repeatedResultHash": "c4acd88f4a0b4ff4a9b3747069d149ef5a67100074cb0ae3c887a11defb609d8"
+    "resultHash": "330ddbeb9bf7e283facffdea7d430df53b103832ceabfb39dc0ebcb1bc18f4a5",
+    "repeatedResultHash": "330ddbeb9bf7e283facffdea7d430df53b103832ceabfb39dc0ebcb1bc18f4a5"
   },
   "checks": {
     "minimumCases": true,
@@ -1414,7 +1414,7 @@
       "actual": {
         "intent": "information_query",
         "eventType": null,
-        "confidenceScore": 92,
+        "confidenceScore": 98,
         "uncertainty": "medium",
         "delta": {
           "valence": 0,
@@ -1526,5 +1526,5 @@
       }
     }
   ],
-  "reportSha256": "325fc857c24feda32ed3b68e5f7f8a73786e66587141f62b6f8351c221e8afbe"
+  "reportSha256": "68fb169a58d273e8d33f72ec2a01b5d8a1375a21395b4062385b808119d9f735"
 }

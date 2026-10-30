@@ -742,6 +742,402 @@ export const migrations: readonly Migration[] = [
           ON cognitive_turn_finalizations(created_at);
       `)
     }
+  },
+  {
+    version: 19,
+    name: 'delete-derived-cognition-with-source-data',
+    up(database) {
+      // Derived companion state must not outlive the conversation/message that
+      // supplied its evidence. Keep this in the database so every deletion path
+      // (UI, service, restore/maintenance) receives the same privacy guarantee.
+      database.exec(`
+        CREATE TRIGGER self_model_entries_delete_with_source_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM self_model_entries WHERE source_message_id = OLD.id;
+          DELETE FROM interests WHERE source_message_id = OLD.id;
+        END;
+
+        CREATE TRIGGER cognitive_turn_contexts_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM cognitive_turn_contexts WHERE conversation_id = OLD.id;
+          DELETE FROM cognitive_pending_items WHERE conversation_id = OLD.id;
+          DELETE FROM cognitive_turn_finalizations WHERE conversation_id = OLD.id;
+        END;
+      `)
+    }
+  },
+  {
+    version: 20,
+    name: 'self-model-statements-stop-copying-messages',
+    up(database) {
+      // Rows written before this migration stored `message.body` verbatim. The
+      // statement is replaced by a non-semantic marker and the row is retracted,
+      // so it stops reaching the prompt while the row, its evidence reference and
+      // its audit trail survive. Only literal copies of the referenced message
+      // are touched: a statement that is not a copy is left exactly as it is.
+      // The message itself is untouched, so the fact remains recoverable from its
+      // source of truth.
+      database.exec(`
+        UPDATE self_model_entries
+        SET statement = '历史推断已撤回：原文不再保留，来源消息见 source_message_id。',
+            status = 'retracted',
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE kind = 'fact'
+          AND status = 'active'
+          AND source_message_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM messages m
+            WHERE m.id = self_model_entries.source_message_id
+              AND (m.body = self_model_entries.statement
+                   OR substr(m.body, 1, 2000) = self_model_entries.statement)
+          );
+      `)
+    }
+  },
+  {
+    version: 21,
+    name: 'finalization-intent-follows-its-messages',
+    up(database) {
+      // `cognitive_turn_finalizations` carries message ids without foreign keys,
+      // so deleting one message used to leave a finalization row naming a row
+      // that no longer exists. Migration 19 only covered conversation deletion.
+      // A recovery pass could then try to settle a turn from a dangling intent.
+      database.exec(`
+        CREATE TRIGGER cognitive_turn_finalizations_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM cognitive_turn_finalizations
+          WHERE user_message_id = OLD.id OR assistant_message_id = OLD.id;
+        END;
+      `)
+    }
+  },
+  {
+    version: 22,
+    name: 'bounded-personalization-state',
+    up(database) {
+      // Two tables on purpose. `personalization_state` is the bounded value the
+      // prompt reads; `personalization_signals` is the per-turn evidence behind
+      // it, so a value can always be recomputed or withdrawn instead of being an
+      // opaque number nobody can audit.
+      database.exec(`
+        CREATE TABLE personalization_state (
+          dimension TEXT PRIMARY KEY NOT NULL CHECK (dimension IN ('exploration', 'depth', 'pace')),
+          value REAL NOT NULL CHECK (value >= 0 AND value <= 1),
+          evidence_count INTEGER NOT NULL CHECK (evidence_count >= 0),
+          revision INTEGER NOT NULL CHECK (revision > 0),
+          updated_at TEXT NOT NULL,
+          last_turn_id TEXT CHECK (last_turn_id IS NULL OR length(last_turn_id) = 36)
+        ) STRICT;
+
+        CREATE TABLE personalization_signals (
+          dimension TEXT NOT NULL CHECK (dimension IN ('exploration', 'depth', 'pace')),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          signal REAL NOT NULL CHECK (signal >= -1 AND signal <= 1),
+          weight REAL NOT NULL CHECK (weight >= 0 AND weight <= 1),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (dimension, turn_id)
+        ) STRICT;
+
+        CREATE INDEX personalization_signals_turn_idx ON personalization_signals(turn_id);
+
+        CREATE TRIGGER personalization_signals_delete_with_turn_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM personalization_signals WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
+  },
+  {
+    version: 23,
+    name: 'persistent-turn-state',
+    up(database) {
+      // One row per turn holding where it stopped. The turn context keeps the
+      // terminal verdict; this table is the lifecycle that leads to it, so an
+      // interrupted turn can be told apart from one that never started.
+      database.exec(`
+        CREATE TABLE turn_states (
+          turn_id TEXT PRIMARY KEY NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          state TEXT NOT NULL CHECK (state IN (
+            'received', 'analyzed', 'context_ready', 'awaiting_consent',
+            'requesting', 'response_received', 'committed',
+            'failed', 'cancelled', 'recovery_required'
+          )),
+          updated_at TEXT NOT NULL,
+          reason TEXT CHECK (reason IS NULL OR length(reason) <= 64)
+        ) STRICT;
+
+        CREATE INDEX turn_states_conversation_idx ON turn_states(conversation_id, updated_at DESC);
+
+        CREATE TRIGGER turn_states_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM turn_states WHERE conversation_id = OLD.id;
+        END;
+
+        CREATE TRIGGER turn_states_delete_with_turn_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM turn_states WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
+  },
+  {
+    version: 24,
+    name: 'interest-evidence-ledger',
+    up(database) {
+      // The interest aggregates (`evidence_count`, `conversation_count`) were
+      // write-only counters: a replayed turn could inflate them, and deleting a
+      // source message left them untouched, so a retracted observation kept
+      // feeding an active interest. This migration makes the individual
+      // observations the source of truth and demotes the aggregates to a cache
+      // that is folded back from them.
+      database.exec(`
+        ALTER TABLE interests ADD COLUMN profile_json TEXT NOT NULL DEFAULT '{}';
+
+        CREATE TABLE interest_evidence (
+          interest_id TEXT NOT NULL CHECK (length(interest_id) = 36),
+          evidence_ref TEXT NOT NULL CHECK (length(evidence_ref) BETWEEN 1 AND 96),
+          evidence_kind TEXT NOT NULL CHECK (evidence_kind IN ('message', 'memory', 'legacy')),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) BETWEEN 8 AND 96),
+          polarity TEXT NOT NULL CHECK (polarity IN ('support', 'counter')),
+          match_score REAL NOT NULL CHECK (match_score >= 0 AND match_score <= 1),
+          match_reason TEXT NOT NULL CHECK (length(match_reason) BETWEEN 1 AND 64),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (interest_id, evidence_ref)
+        ) STRICT;
+
+        CREATE INDEX interest_evidence_ref_idx ON interest_evidence(evidence_ref);
+        CREATE INDEX interest_evidence_conversation_idx ON interest_evidence(conversation_id);
+
+        -- One observation can only ever be attributed to one interest; this is
+        -- what makes a replayed turn idempotent instead of double-counted.
+        CREATE UNIQUE INDEX interest_evidence_ref_uq ON interest_evidence(evidence_ref);
+
+        CREATE TRIGGER interest_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM interest_evidence WHERE evidence_kind = 'message' AND evidence_ref = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM interest_evidence WHERE conversation_id = OLD.id;
+        END;
+      `)
+
+      // Backfill: the old rows only kept aggregate counts, so each count becomes
+      // one synthetic evidence row. They are marked 'legacy' and cannot be
+      // retracted, because the schema never recorded which message produced
+      // them. The first row keeps the real conversation id and the next
+      // `conversation_count - 1` get a synthetic id, so folding reproduces the
+      // stored counts exactly instead of demoting existing interests.
+      database.exec(`
+        WITH RECURSIVE seq(n) AS (
+          SELECT 1
+          UNION ALL
+          SELECT n + 1 FROM seq WHERE n < (SELECT COALESCE(MAX(evidence_count), 0) FROM interests)
+        )
+        INSERT INTO interest_evidence(
+          interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at
+        )
+        SELECT
+          i.id,
+          'legacy:' || i.id || ':' || seq.n,
+          'legacy',
+          CASE
+            WHEN seq.n = 1 OR seq.n > i.conversation_count THEN i.conversation_id
+            ELSE 'legacy-conv:' || i.id || ':' || seq.n
+          END,
+          'support',
+          1,
+          'backfilled_legacy_aggregate',
+          i.updated_at
+        FROM interests i
+        JOIN seq ON seq.n <= i.evidence_count;
+      `)
+    }
+  },
+  {
+    version: 25,
+    name: 'memory-backed-interest-evidence-invalidation',
+    up(database) {
+      // Reflection records a saved memory as interest evidence, but migration 24
+      // only cleaned evidence when a *message* or *conversation* was deleted. A
+      // retracted or corrected memory therefore kept feeding an interest, and the
+      // interest could stay active and reach the next prompt on evidence the user
+      // had already taken back.
+      //
+      // The evidence row also had no revision, so a correction could not be told
+      // apart from the revision that was actually observed. `evidence_revision`
+      // records which revision of the memory was seen; NULL means the row predates
+      // this migration (or is a legacy aggregate), and is treated as stale as soon
+      // as the memory is corrected.
+      database.exec(`
+        ALTER TABLE interest_evidence ADD COLUMN evidence_revision INTEGER
+          CHECK (evidence_revision IS NULL OR evidence_revision > 0);
+
+        CREATE INDEX interest_evidence_memory_idx
+          ON interest_evidence(evidence_kind, evidence_ref);
+
+        -- A deleted memory takes its evidence with it, in the same statement.
+        CREATE TRIGGER interest_evidence_delete_with_memory
+        AFTER DELETE ON memories
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+        END;
+
+        -- Retracting a memory is a statement that the stored fact is no longer
+        -- wanted; evidence drawn from it is no longer valid, while the row itself
+        -- is kept so a restore can be observed again.
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_retract
+        AFTER UPDATE OF status ON memories
+        WHEN NEW.status <> 'active'
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+        END;
+
+        -- A correction replaces the wording that was observed. Only evidence from
+        -- an older revision is dropped: a row recorded against the new revision
+        -- stays, so a re-observation after the correction is not thrown away.
+        --
+        -- The text comparison matters: confirming a memory also bumps its
+        -- revision, but the wording the user saw is unchanged, so the evidence is
+        -- still true. Without this guard a plain "confirm" deleted valid evidence.
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_revision
+        AFTER UPDATE OF revision ON memories
+        WHEN NEW.revision > OLD.revision AND NEW.current_text <> OLD.current_text
+        BEGIN
+          DELETE FROM interest_evidence
+            WHERE evidence_kind = 'memory'
+              AND evidence_ref = OLD.id
+              AND (evidence_revision IS NULL OR evidence_revision < NEW.revision);
+        END;
+      `)
+    }
+  },
+  {
+    version: 26,
+    name: 'reflection-finding-kinds',
+    up(database) {
+      // The reflection schema could describe gaps, questions, bias hints, interest
+      // candidates and consistency notes, but not two categories the algorithm
+      // actually produces: a correction of how the assistant understood the user
+      // (`intent_correction`) and a bounded suggestion for the next turn
+      // (`next_turn_suggestion`). SQLite cannot alter a CHECK, so the table is
+      // rebuilt; the primary key, the cascade and the index are preserved and the
+      // rows are copied verbatim.
+      database.exec(`
+        ALTER TABLE reflection_findings RENAME TO reflection_findings_v25;
+        CREATE TABLE reflection_findings (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          run_id TEXT NOT NULL REFERENCES reflection_runs(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN (
+            'memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note',
+            'intent_correction', 'next_turn_suggestion'
+          )),
+          statement TEXT NOT NULL CHECK (length(trim(statement)) BETWEEN 1 AND 1000 AND instr(statement, char(0)) = 0),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO reflection_findings (id, run_id, kind, statement, confidence, evidence_json, created_at)
+          SELECT id, run_id, kind, statement, confidence, evidence_json, created_at FROM reflection_findings_v25;
+        DROP TABLE reflection_findings_v25;
+        CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
+      `)
+    }
+  },
+  {
+    version: 27,
+    name: 'reflection-finding-identity-and-personality-pending',
+    up(database) {
+      // Two missing pieces of the reflection pipeline:
+      //
+      // 1. Identity. Re-running reflection over the same evidence produced a new
+      //    finding and, for interest candidates, a second evidence row. The dedupe
+      //    key makes one (kind, statement, evidence set) exist once, so a re-run is
+      //    idempotent instead of additive.
+      //
+      // 2. A parking place for personality proposals. Reflection must never move
+      //    the stable baseline; a proposal is stored as *pending* with its evidence,
+      //    confidence and expiry, and only a user confirmation may consume it.
+      database.exec(`
+        ALTER TABLE reflection_findings ADD COLUMN dedupe_key TEXT;
+        CREATE UNIQUE INDEX reflection_findings_dedupe_uq
+          ON reflection_findings(dedupe_key) WHERE dedupe_key IS NOT NULL;
+
+        CREATE TABLE pending_personality_candidates (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          finding_id TEXT NOT NULL REFERENCES reflection_findings(id) ON DELETE CASCADE,
+          dimension TEXT NOT NULL CHECK (dimension IN ('exploration', 'depth', 'pace')),
+          direction TEXT NOT NULL CHECK (direction IN ('increase', 'decrease')),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX pending_personality_status_idx ON pending_personality_candidates(status, created_at);
+      `)
+    }
+  },
+  {
+    version: 28,
+    name: 'turn-state-recovering',
+    up(database) {
+      // The state machine gained `recovering`, but the table's CHECK still listed
+      // only the ten original states, so every write of the new state failed and
+      // was swallowed by the lifecycle recorder: the trace silently stayed at
+      // `recovery_required` while the code believed it had moved on. SQLite cannot
+      // alter a CHECK, so the table is rebuilt and its rows copied verbatim.
+      database.exec(`
+        ALTER TABLE turn_states RENAME TO turn_states_v27;
+        CREATE TABLE turn_states (
+          turn_id TEXT PRIMARY KEY NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          state TEXT NOT NULL CHECK (state IN (
+            'received', 'analyzed', 'context_ready', 'awaiting_consent',
+            'requesting', 'response_received', 'committed',
+            'failed', 'cancelled', 'recovery_required', 'recovering'
+          )),
+          updated_at TEXT NOT NULL,
+          reason TEXT CHECK (reason IS NULL OR length(reason) <= 64)
+        ) STRICT;
+        INSERT INTO turn_states (turn_id, conversation_id, state, updated_at, reason)
+          SELECT turn_id, conversation_id, state, updated_at, reason FROM turn_states_v27;
+        DROP TABLE turn_states_v27;
+        CREATE INDEX turn_states_conversation_idx ON turn_states(conversation_id, updated_at DESC);
+
+        -- The cascades are triggers, not foreign keys (the table has no REFERENCES
+        -- clause). After the rename they were re-pointed at the temporary name but
+        -- stayed attached to the conversations / messages tables, so dropping the
+        -- temporary table left them behind — still deleting from a table that no
+        -- longer exists. They must be dropped and recreated against the rebuilt
+        -- table, otherwise deleting a conversation or a message would leave
+        -- lifecycle rows behind and recovery would act on turns whose source is gone.
+        DROP TRIGGER IF EXISTS turn_states_delete_with_conversation;
+        DROP TRIGGER IF EXISTS turn_states_delete_with_turn_message;
+        CREATE TRIGGER turn_states_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM turn_states WHERE conversation_id = OLD.id;
+        END;
+        CREATE TRIGGER turn_states_delete_with_turn_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM turn_states WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
   }
 ]
 

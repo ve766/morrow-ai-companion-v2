@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { isRemoteConfigValid, remoteSpecFor } from './provider-registry'
-import { SPARK_MAAS_BASE_URL } from '../shared/companion'
+import { SPARK_MAAS_BASE_URL, SPARK_PROVIDER_ID } from '../shared/companion'
 
 describe('phase 2.3: remote provider registry', () => {
   it('accepts the Spark MaaS host with an account model id', () => {
     expect(isRemoteConfigValid('spark', SPARK_MAAS_BASE_URL, 'xdeepseekv3')).toBe(true)
     expect(isRemoteConfigValid('spark', SPARK_MAAS_BASE_URL, 'xop3qwen235b')).toBe(true)
+  })
+
+  it('accepts the current Spark MaaS model id shape from the vendor console', () => {
+    // The console now hands out ids such as `xopdeepseekv4flash0731`, not only
+    // `spark-*`. A fixed pattern would make the new account unusable without a
+    // code change, so this pins the accepted shape rather than a single literal.
+    const spec = remoteSpecFor(SPARK_PROVIDER_ID)!
+    expect(spec.modelPattern.test('xopdeepseekv4flash0731')).toBe(true)
+    expect(spec.modelPattern.test('spark-x2.6')).toBe(true)
+    expect(spec.modelPattern.test('has space')).toBe(false)
+    expect(spec.modelPattern.test('')).toBe(false)
   })
 
   it('rejects a Spark config on any other host', () => {

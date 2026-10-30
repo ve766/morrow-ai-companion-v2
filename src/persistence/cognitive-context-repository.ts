@@ -8,7 +8,7 @@
 import type { SqliteDatabase } from './database'
 import type { CognitiveTurnContext } from '../cognition/turn-context'
 import type { PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
-import { isCognitiveTurnContext } from '../cognition/turn-context'
+import { isCognitiveTurnContext, normalizeTurnContext } from '../cognition/turn-context'
 export interface TurnContextPort {
   /** Insert, or replace a record that did not reach a successful outcome. */
   upsert(context: CognitiveTurnContext): void
@@ -39,7 +39,12 @@ export class SqliteTurnContextRepository implements TurnContextPort {
         status = excluded.status,
         recorded_at = excluded.recorded_at,
         payload_json = excluded.payload_json
-      WHERE cognitive_turn_contexts.status <> 'succeeded'
+      -- Forbid a downgrade, not an update. The previous condition was
+      -- status <> 'succeeded', which also blocked the same turn's own
+      -- finalization patch: the context is first written as succeeded, so the
+      -- patch that fills in feeling.applied and the committed state was
+      -- silently dropped and every successful turn kept a pre-commit value.
+      WHERE cognitive_turn_contexts.status <> 'succeeded' OR excluded.status = 'succeeded'
     `).run(
       context.turnId,
       context.conversationId,
@@ -56,7 +61,7 @@ export class SqliteTurnContextRepository implements TurnContextPort {
     if (!row) return null
     try {
       const parsed: unknown = JSON.parse(row.payload_json)
-      return isCognitiveTurnContext(parsed) ? parsed : null
+      return normalizeTurnContext(parsed)
     } catch {
       return null
     }
@@ -71,7 +76,8 @@ export class SqliteTurnContextRepository implements TurnContextPort {
     for (const row of rows) {
       try {
         const parsed: unknown = JSON.parse(row.payload_json)
-        if (isCognitiveTurnContext(parsed)) contexts.push(parsed)
+        const context = normalizeTurnContext(parsed)
+        if (context) contexts.push(context)
       } catch {
         continue
       }

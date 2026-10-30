@@ -3,12 +3,22 @@ import type { MemoryService } from '../memory/memory-service'
 import type { InterestService } from './interest-service'
 import type { SelfModelService } from './self-model-service'
 import { deriveInterestLabel } from './interest-service'
-import type { ReflectionFinding, ReflectionFindingKind, ReflectionRunSummary, ReflectionTrigger } from './self-model-domain'
+import type {
+  PendingPersonalityCandidate,
+  ReflectionFinding,
+  ReflectionFindingKind,
+  ReflectionRunSummary,
+  ReflectionTrigger
+} from './self-model-domain'
+import { dedupeKeyOf, mapReflectionFinding, type EvidenceCheck, type ReflectionEffect } from './reflection-mapping'
 
 export interface ReflectionRepositoryPort {
   runsSince(trigger: ReflectionTrigger | undefined, sinceMs: number): Array<{ id: string; finished_at: string }>
   createRun(summary: ReflectionRunSummary): void
-  createFinding(finding: ReflectionFinding): void
+  /** Returns false when the finding already exists (same dedupe key). */
+  createFinding(finding: ReflectionFinding): boolean
+  createPendingPersonalityCandidate(candidate: PendingPersonalityCandidate): void
+  listPendingPersonalityCandidates(): PendingPersonalityCandidate[]
   findingsForRun(runId: string): ReflectionFinding[]
   listRuns(limit: number): ReflectionRunSummary[]
 }
@@ -52,11 +62,40 @@ export class SqliteReflectionRepository implements ReflectionRepositoryPort {
     `).run(summary.id, summary.trigger, summary.startedAt, summary.finishedAt, summary.examinedTurns, summary.examinedEvents, summary.findingsCount, summary.status)
   }
 
-  createFinding(finding: ReflectionFinding): void {
+  createFinding(finding: ReflectionFinding): boolean {
+    const result = this.database.connection.prepare(`
+      INSERT OR IGNORE INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at, dedupe_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(finding.id, finding.runId, finding.kind, finding.statement, finding.confidence, JSON.stringify(finding.evidence), finding.createdAt, finding.dedupeKey ?? null)
+    return Number(result.changes) > 0
+  }
+
+  createPendingPersonalityCandidate(candidate: PendingPersonalityCandidate): void {
     this.database.connection.prepare(`
-      INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(finding.id, finding.runId, finding.kind, finding.statement, finding.confidence, JSON.stringify(finding.evidence), finding.createdAt)
+      INSERT INTO pending_personality_candidates(id, finding_id, dimension, direction, confidence, evidence_json, status, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      candidate.id, candidate.findingId, candidate.dimension, candidate.direction,
+      candidate.confidence, JSON.stringify(candidate.evidence), candidate.status,
+      candidate.createdAt, candidate.expiresAt
+    )
+  }
+
+  listPendingPersonalityCandidates(): PendingPersonalityCandidate[] {
+    const rows = this.database.connection.prepare(
+      'SELECT * FROM pending_personality_candidates ORDER BY created_at, id'
+    ).all() as unknown as Array<Record<string, unknown>>
+    return rows.map((row) => ({
+      id: String(row.id),
+      findingId: String(row.finding_id),
+      dimension: row.dimension as PendingPersonalityCandidate['dimension'],
+      direction: row.direction as PendingPersonalityCandidate['direction'],
+      confidence: Number(row.confidence),
+      evidence: JSON.parse(String(row.evidence_json)) as Array<{ kind: string; id: string }>,
+      status: row.status as PendingPersonalityCandidate['status'],
+      createdAt: String(row.created_at),
+      expiresAt: String(row.expires_at)
+    }))
   }
 
   findingsForRun(runId: string): ReflectionFinding[] {
@@ -120,6 +159,15 @@ export class ReflectionService {
     return this.repository.findingsForRun(runId)
   }
 
+  /**
+   * Personality proposals parked by reflection. They are never applied here:
+   * the list exists so a user-facing surface can ask for confirmation, and so a
+   * test can prove the baseline was not touched.
+   */
+  pendingPersonalityCandidates(): PendingPersonalityCandidate[] {
+    return this.repository.listPendingPersonalityCandidates()
+  }
+
   canRun(now: string = this.clock()): boolean {
     return this.repository.runsSince(undefined, Date.parse(now) - 3_600_000).length < MAX_RUNS_PER_HOUR
   }
@@ -144,6 +192,17 @@ export class ReflectionService {
         evidence: corrections.slice(-3).map((event) => ({ kind: 'event', id: event.id }))
       })
     }
+    // 1b. Intent correction: the user said the assistant read them wrong. This is
+    //     about *understanding*, not about a stored claim, so it is its own kind —
+    //     the next turn should re-state its reading before asserting anything.
+    if (corrections.length >= 1) {
+      findings.push({
+        kind: 'intent_correction',
+        statement: '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答，而不是沿用旧判断。',
+        confidence: 60,
+        evidence: corrections.slice(-2).map((event) => ({ kind: 'event', id: event.id }))
+      })
+    }
     const retractions = memoryEvents.filter((event) => event.eventType === 'memory.retracted')
     if (retractions.length >= 1) {
       findings.push({
@@ -159,11 +218,18 @@ export class ReflectionService {
     const feedbackEvents = examinedEvents.filter((event) => event.eventType === 'feeling.event_applied')
     const negative = feedbackEvents.filter((event) => event.payload.lastEventType === 'negative_feedback' || event.payload.lastEventType === 'system_correction')
     if (negative.length >= 2) {
+      // A repeated *content* correction points at how deep the answers go; that is
+      // the only dimension this evidence can name. It is a heuristic mapping, and
+      // it only ever produces a *pending* proposal — never a baseline change.
+      const aboutDepth = negative.some((event) => event.payload.lastEventType === 'system_correction')
       findings.push({
         kind: 'bias_hint',
         statement: '多次交互被用户纠正；近期回答应更直接地承认不确定性，并减少重复已纠正的说法。',
         confidence: 50,
-        evidence: negative.slice(-3).map((event) => ({ kind: 'event', id: event.id }))
+        evidence: [
+          ...negative.slice(-3).map((event) => ({ kind: 'event', id: event.id })),
+          ...(aboutDepth ? [{ kind: 'dimension', id: 'depth' }] : [])
+        ]
       })
     }
 
@@ -172,6 +238,18 @@ export class ReflectionService {
     //    references the entry instead of quoting it: the quoted text is user
     //    content and a finding is read by the shell and may reach a log.
     const unverified = this.dependencies.selfModel.list({ status: 'active' }).filter((entry) => entry.kind === 'inference')
+    // 3b. Next-turn suggestion: a bounded action, derived from the same unverified
+    //     entries but phrased as something to *do* rather than something to note.
+    //     Suggestions never become instructions on their own: they are read by the
+    //     shell and by the self-model block, and they carry the entry they came from.
+    if (unverified.length > 0) {
+      findings.push({
+        kind: 'next_turn_suggestion',
+        statement: '存在未经确认的自我推断；下一轮在用到相关内容前，先用一句话向用户确认。',
+        confidence: 45,
+        evidence: unverified.slice(0, 2).map((entry) => ({ kind: 'self_model_entry', id: entry.id }))
+      })
+    }
     for (const entry of unverified.slice(0, 2)) {
       findings.push({
         kind: 'consistency_note',
@@ -183,6 +261,9 @@ export class ReflectionService {
 
     // 4. Interest candidate: at most one per run, only as a 'candidate' —
     //    promotion still requires independent multi-conversation evidence.
+    //    Where each candidate came from is kept here so the effect layer can
+    //    record evidence with the right conversation and timestamp.
+    const candidateOrigins = new Map<string, { conversationId: string; occurredAt: string }>()
     let candidateCreated = 0
     for (const event of memoryEvents.filter((item) => item.eventType === 'memory.created').slice(-5)) {
       if (findings.length >= MAX_FINDINGS_PER_RUN || candidateCreated >= MAX_CANDIDATE_INTERESTS_PER_RUN) break
@@ -199,11 +280,11 @@ export class ReflectionService {
           confidence: 40,
           evidence: [{ kind: 'memory', id: memory!.id }]
         })
-        this.dependencies.interests.observe({
+        // The effect is applied *after* the finding is stored and deduped: a
+        // re-run over the same memory must not add a second evidence row.
+        candidateOrigins.set(memory!.id, {
           conversationId: event.correlationId ?? '00000000-0000-4000-8000-000000000000',
-          messageId: '00000000-0000-4000-8000-000000000000',
-          occurredAt: event.occurredAt,
-          topicText: memory!.currentText
+          occurredAt: event.occurredAt
         })
         candidateCreated += 1
       }
@@ -221,9 +302,59 @@ export class ReflectionService {
       status: 'completed'
     }
     this.repository.createRun(summary)
-    for (const finding of findings) {
-      this.repository.createFinding({ ...finding, id: this.makeId().toLowerCase(), runId, createdAt: finishedAt })
+
+    // Evidence validity is decided once, from records that exist right now: a
+    // finding whose source was retracted or deleted in the meantime must not
+    // produce an effect, and must not be silently stored as if it had.
+    const eventIds = new Set(examinedEvents.map((event) => event.id))
+    const memoryIds = new Set(this.dependencies.memories.list().map((record) => record.id))
+    const entryIds = new Set(this.dependencies.selfModel.list({ status: 'active' }).map((entry) => entry.id))
+    const check: EvidenceCheck = {
+      isValid: (ref) => {
+        if (ref.kind === 'event') return eventIds.has(ref.id)
+        if (ref.kind === 'memory') return memoryIds.has(ref.id)
+        if (ref.kind === 'self_model_entry') return entryIds.has(ref.id)
+        return false
+      }
     }
+
+    let stored = 0
+    let duplicates = 0
+    const rejected: Array<{ kind: ReflectionFindingKind; reason: string }> = []
+    const effects: string[] = []
+    for (const draft of findings) {
+      const finding: ReflectionFinding = {
+        ...draft,
+        id: this.makeId().toLowerCase(),
+        runId,
+        createdAt: finishedAt,
+        dedupeKey: dedupeKeyOf(draft)
+      }
+      const effect = mapReflectionFinding(finding, check)
+      if (effect.effect === 'rejected') {
+        rejected.push({ kind: finding.kind, reason: effect.reason })
+        this.events?.tryRecord({
+          sourceModule: 'self-model',
+          eventType: 'reflection.finding_rejected',
+          actor: 'system',
+          subjectType: 'reflection_run',
+          subjectId: runId,
+          correlationId: null,
+          payload: { kind: finding.kind, reason: effect.reason }
+        })
+        continue
+      }
+      // INSERT OR IGNORE on the dedupe key: the row is the idempotency boundary,
+      // and the effect only runs when the row is new.
+      if (!this.repository.createFinding(finding)) {
+        duplicates += 1
+        continue
+      }
+      stored += 1
+      effects.push(effect.effect)
+      this.applyEffect(finding, effect, candidateOrigins, finishedAt)
+    }
+
     this.events?.tryRecord({
       sourceModule: 'self-model',
       eventType: 'reflection.completed',
@@ -231,8 +362,97 @@ export class ReflectionService {
       subjectType: 'reflection_run',
       subjectId: runId,
       correlationId: null,
-      payload: { trigger, findings: findings.length, examinedEvents: examinedEvents.length }
+      payload: {
+        trigger,
+        findings: findings.length,
+        stored,
+        duplicates,
+        rejected: rejected.length,
+        effects,
+        examinedEvents: examinedEvents.length
+      }
     })
     return summary
+  }
+
+  /**
+   * Applies exactly one typed effect for a finding that was just stored.
+   *
+   * Nothing here writes the personality baseline, and nothing executes an
+   * action: `pending_personality` parks a proposal, `bounded_suggestion` and
+   * `intent_correction_candidate` are recorded for the shell to read. Only
+   * `interest_evidence` writes state, and that state is still judged by the
+   * promotion gate.
+   */
+  private applyEffect(
+    finding: ReflectionFinding,
+    effect: ReflectionEffect,
+    candidateOrigins: Map<string, { conversationId: string; occurredAt: string }>,
+    at: string
+  ): void {
+    switch (effect.effect) {
+      case 'descriptive':
+        return
+      case 'interest_evidence': {
+        const memory = this.dependencies.memories.list().find((record) => record.id === effect.memoryId)
+        if (!memory) return
+        const origin = candidateOrigins.get(effect.memoryId)
+        this.dependencies.interests.observe({
+          conversationId: origin?.conversationId ?? '00000000-0000-4000-8000-000000000000',
+          // The memory is the evidence here, not a message: a shared placeholder
+          // id made every memory look like the same observation.
+          messageId: memory.id,
+          evidenceKind: 'memory',
+          // The revision is what lets a later correction age this row out.
+          evidenceRevision: memory.revision,
+          occurredAt: origin?.occurredAt ?? at,
+          topicText: memory.currentText
+        })
+        return
+      }
+      case 'intent_correction_candidate':
+      case 'bounded_suggestion':
+        // Recorded for the shell; deliberately no state change. An intent
+        // correction must never overwrite what the user just said, and a
+        // suggestion must never execute anything.
+        this.events?.tryRecord({
+          sourceModule: 'self-model',
+          eventType: effect.effect === 'intent_correction_candidate'
+            ? 'reflection.intent_correction_candidate'
+            : 'reflection.bounded_suggestion',
+          actor: 'system',
+          subjectType: 'reflection_finding',
+          subjectId: finding.id,
+          correlationId: null,
+          payload: { kind: finding.kind, confidence: finding.confidence }
+        })
+        return
+      case 'pending_personality': {
+        const expiresAt = new Date(Date.parse(at) + 14 * 24 * 3_600_000).toISOString()
+        this.repository.createPendingPersonalityCandidate({
+          id: this.makeId().toLowerCase(),
+          findingId: finding.id,
+          dimension: effect.dimension,
+          direction: effect.direction,
+          confidence: finding.confidence,
+          evidence: finding.evidence,
+          status: 'pending',
+          createdAt: at,
+          expiresAt
+        })
+        this.events?.tryRecord({
+          sourceModule: 'self-model',
+          eventType: 'reflection.personality_candidate_pending',
+          actor: 'system',
+          subjectType: 'reflection_finding',
+          subjectId: finding.id,
+          correlationId: null,
+          payload: { dimension: effect.dimension, direction: effect.direction, expiresAt }
+        })
+        return
+      }
+      default:
+        return
+    }
   }
 }

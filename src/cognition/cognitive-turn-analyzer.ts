@@ -10,7 +10,8 @@ import {
   type CognitiveTurnSignals,
   type CognitiveUncertainty
 } from './cognition'
-import { decideIntent, type IntentDecision, type IntentLabel } from './intent-decision'
+import { decideIntent, retrievalNeedOf, scoreIntentCandidates, type IntentDecision, type IntentLabel } from './intent-decision'
+import { assessIntentConfidence, type IntentAssessment, type IntentConfidenceOverrides } from './intent-confidence'
 
 export const COGNITIVE_HISTORY_LIMIT_MESSAGES = 12
 export const COGNITIVE_HISTORY_LIMIT_CHARACTERS = 6000
@@ -71,6 +72,12 @@ function uncertaintyFor(intent: CognitiveIntent, confidence: number, alternative
 export interface CognitiveTurnReading {
   analysis: CognitiveTurnAnalysis
   decision: IntentDecision
+  /**
+   * Multi-signal reading (B1). Computed at decision time from the signals that
+   * actually exist; `missing` says which ones did not. It is not persisted as a
+   * calibrated probability because it is not one.
+   */
+  assessment: IntentAssessment
 }
 
 /**
@@ -81,7 +88,13 @@ export interface CognitiveTurnReading {
 export function analyzeCognitiveTurnDetailed(
   content: string,
   history: readonly CognitiveHistoryMessage[],
-  sourceMessageId: string
+  sourceMessageId: string,
+  /**
+   * Weight/threshold overrides. Production never passes this; the B1 weight
+   * search does, so the search evaluates the *same* code path instead of a
+   * re-implementation that could drift.
+   */
+  confidenceOverrides: IntentConfidenceOverrides = {}
 ): CognitiveTurnReading {
   if (typeof content !== 'string' || content.trim().length === 0 || content.length > 8000 || !isCognitiveUuid(sourceMessageId)) {
     throw new TypeError('Invalid cognitive turn input.')
@@ -123,10 +136,35 @@ export function analyzeCognitiveTurnDetailed(
       ? 'none' as const
       : 'current' as const
   const topicReferenceMessageId = topicSource === 'previous_user_message' ? priorUser!.id : null
-  const correctionNeedsDetail = signals.correction && !signals.explicitSelfFact && !signals.changedMind && wordCount(current) <= 4
+  // "不对" carries no corrected value and must be asked about; "我说的是上海"
+  // carries one and must not be. Two word-units is the boundary: 1-2 units are
+  // bare negation ("不对", "我说错了"), 3+ already contain the new value.
+  const correctionNeedsDetail = signals.correction && !signals.explicitSelfFact && !signals.changedMind && wordCount(current) <= 2
   // Only a *reference* we could not resolve asks for clarification. A plain
   // statement that matches no intent rule is answered, not interrogated.
-  const strategy = reasons.has('reference_without_context') || correctionNeedsDetail
+  // B1: the weighted reading decides whether an ambiguous label may be answered
+  // at all. Asking is the safe failure mode; guessing is not.
+  const assessment = assessIntentConfidence({
+    content: current,
+    priorUserBody: priorUser?.body ?? null,
+    candidates: scoreIntentCandidates({
+      content: current,
+      hasPriorTurn: Boolean(priorUser),
+      priorUserBody: priorUser?.body ?? null
+    })
+  }, confidenceOverrides)
+  // B1 consumes the assessment here, and the rule is deliberately conservative:
+  // asking interrupts the user, so clarification is reserved for turns where the
+  // two leading readings retrieve differently — i.e. where misreading changes
+  // the direction of the answer. A vague turn with one plausible reading is
+  // still answered. An explicit correction overrides any context-derived
+  // reading, and an authorisation gate is never bypassed by a high score.
+  // B1's wiring point is the clarify gate. The retrieval *route* stays with the
+  // rule layer on purpose: a reference turn may point at a fact that lives in
+  // memory rather than in the window ("那我之前说的茶呢？"), so rerouting it from
+  // the score alone silently dropped recall. The score decides *whether to ask*,
+  // not *where to look*.
+  const strategy = reasons.has('reference_without_context') || correctionNeedsDetail || assessment.needsClarification
     ? 'clarify' as const
     : decision.needsMemoryRetrieval
       ? 'retrieve_memory' as const
@@ -135,6 +173,7 @@ export function analyzeCognitiveTurnDetailed(
 
   return {
     decision,
+    assessment,
     analysis: {
       schemaVersion: COGNITIVE_SCHEMA_VERSION,
       analyzerVersion: COGNITIVE_ANALYZER_VERSION,

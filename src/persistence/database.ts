@@ -127,16 +127,34 @@ export class SqliteDatabase {
     }
   }
 
+  /**
+   * Runs `operation` in a transaction, nested or not.
+   *
+   * Nesting used to throw `cannot start a transaction within a transaction`,
+   * and the callers that read state inside a write (the turn finalization reads
+   * the committed feeling state) swallowed that error and carried on with a
+   * default value. A nested call now becomes a savepoint, so an inner read sees
+   * the outer transaction's uncommitted writes and an inner failure rolls back
+   * only the inner work.
+   */
+  private transactionDepth = 0
+
   transaction<T>(operation: () => T): T {
     if (this.closed) throw new Error('Local storage is closed.')
-    this.connection.exec('BEGIN IMMEDIATE')
+    const nested = this.transactionDepth > 0
+    const savepoint = `morrow_sp_${this.transactionDepth}`
+    this.connection.exec(nested ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE')
+    this.transactionDepth += 1
     try {
       const value = operation()
-      this.connection.exec('COMMIT')
+      this.transactionDepth -= 1
+      this.connection.exec(nested ? `RELEASE ${savepoint}` : 'COMMIT')
       return value
     } catch (error) {
+      this.transactionDepth -= 1
       try {
-        this.connection.exec('ROLLBACK')
+        this.connection.exec(nested ? `ROLLBACK TO ${savepoint}` : 'ROLLBACK')
+        if (nested) this.connection.exec(`RELEASE ${savepoint}`)
       } catch {
         throw new Error('Local storage operation failed.')
       }

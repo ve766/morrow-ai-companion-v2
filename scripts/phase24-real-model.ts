@@ -55,6 +55,10 @@ const apiKey = process.env.MORROW_SPARK_API_KEY ?? ''
 const model = process.env.MORROW_SPARK_MODEL ?? 'spark-x2.6'
 const alternateModel = process.env.MORROW_SPARK_MODEL_2 ?? ''
 const runs = Math.max(1, Number(process.env.MORROW_REAL_RUNS ?? '3'))
+/** Per-attempt ceiling for one provider call; 45s is the adapter default. */
+const timeoutMs = Math.max(5_000, Number(process.env.MORROW_SPARK_TIMEOUT_MS ?? '45000'))
+/** Whole-call budget including retries; a slow reasoning model can exceed the default. */
+const budgetMs = Math.max(timeoutMs, Number(process.env.MORROW_SPARK_BUDGET_MS ?? String(timeoutMs * 2)))
 
 if (apiKey.length === 0) {
   console.error([
@@ -116,7 +120,10 @@ function buildStack(): Stack {
         includeSensitive: preview.maximumSensitivity === 'sensitive'
       }
     },
-    providerFactory: (config) => new OpenAICompatibleProvider(config, secrets),
+    // A real model answering a long state-influence prompt can exceed the 45s
+    // default; the ceiling is configurable so a slow upstream does not read as a
+    // failed assertion. The value is printed in the report.
+    providerFactory: (config) => new OpenAICompatibleProvider(config, secrets, undefined, timeoutMs, { totalBudgetMs: budgetMs }),
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
@@ -500,6 +507,8 @@ async function main(): Promise<void> {
     model,
     alternateModel: alternateModel.length > 0 ? alternateModel : null,
     runsPerScenario: runs,
+    providerTimeoutMs: timeoutMs,
+    providerBudgetMs: budgetMs,
     /**
      * The harness approves every provider request itself. The product path
      * shows a consent preview to the user and requires an explicit approval
