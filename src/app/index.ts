@@ -22,6 +22,8 @@ import { createLogger } from '../observability/logger'
 import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { PersonalizationService } from '../personalization/personalization-service'
+import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { ExplorationService } from '../self-model/exploration-policy'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
 import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
@@ -190,6 +192,11 @@ if (hasSingleInstanceLock) {
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
     const personalization = new PersonalizationService(database)
+    // Stage 3: bounded personality drift and constrained self-initiated topics.
+    // Both are evidence-led and reversible; neither can write the baseline the
+    // user edited, and neither can contact the user outside a turn.
+    const growth = new PersonalityGrowthService(database)
+    const exploration = new ExplorationService(database)
     const reflection = new ReflectionService(
       new SqliteReflectionRepository(database),
       { memories, interests, selfModel, events: eventLog },
@@ -206,7 +213,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration },
       continuity: { contexts: turnContexts, pending: pendingItems, finalizations, states: new SqliteTurnStateRepository(database) }
     })
     // Settle any turn that was interrupted between its finalization intent and

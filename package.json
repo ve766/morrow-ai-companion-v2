@@ -20,6 +20,9 @@
     "verify:phase23": "node node_modules/esbuild/bin/esbuild scripts/verify-phase23-report.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-phase23.cjs --log-level=warning && node node_modules/.cache/verify-phase23.cjs",
     "eval:stage2": "node node_modules/esbuild/bin/esbuild evals/stage-2/runner/cli.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage2-eval.cjs --log-level=warning && node node_modules/.cache/stage2-eval.cjs",
     "eval:ablation": "node node_modules/esbuild/bin/esbuild evals/stage-2/ablation/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage2-ablation.cjs --log-level=warning && node node_modules/.cache/stage2-ablation.cjs",
+    "eval:stage3": "node node_modules/esbuild/bin/esbuild evals/stage-3/runner/cli.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-eval.cjs --log-level=warning && node node_modules/.cache/stage3-eval.cjs",
+    "eval:stage3:ablation": "node node_modules/esbuild/bin/esbuild evals/stage-3/ablation/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-ablation.cjs --log-level=warning && node node_modules/.cache/stage3-ablation.cjs",
+    "eval:stage3:longitudinal": "node node_modules/esbuild/bin/esbuild evals/stage-3/longitudinal/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-longitudinal.cjs --log-level=warning && node node_modules/.cache/stage3-longitudinal.cjs",
     "eval:topic-identity": "node node_modules/esbuild/bin/esbuild evals/stage-2/topic-identity-metrics.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/topic-identity.cjs --log-level=warning && node node_modules/.cache/topic-identity.cjs"
   },
   "devDependencies": {

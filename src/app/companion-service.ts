@@ -54,6 +54,8 @@ import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/fee
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
+import { applyGrowth, describeGrowth, deriveGrowthSignals, type PersonalityGrowthService } from '../personalization/personality-growth'
+import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
 import type { MemoryRecord } from '../memory/memory-domain'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
@@ -627,12 +629,23 @@ export interface SelfModelLoopServices {
   reflection?: Pick<ReflectionService, 'run'>
   /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
   personalization?: PersonalizationService
+  /** Stage 3 G1: bounded, reversible drift on top of the user-edited baseline. */
+  growth?: PersonalityGrowthService
+  /** Stage 3 X1: constrained self-initiated topics. */
+  exploration?: ExplorationService
+}
+
+/** What the long-term layer needs to know about the turn it is describing. */
+export interface SelfModelContextTurn {
+  turnId: string
+  analysis?: CognitiveTurnAnalysis
+  decision?: IntentDecision
 }
 
 // Context block for the long-term layer: rule-derived interests and
 // unverified self-knowledge are clearly labelled, tiny, and never carry
 // permissions — they only steer attention, not policy.
-export function buildSelfModelContextBlock(services: SelfModelLoopServices): string {
+export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn?: SelfModelContextTurn): string {
   const interests = services.interests.activeForContext(3)
   const facts = services.selfModel.activeStatementsForContext(3)
   const lines: string[] = []
@@ -654,6 +667,28 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices): str
   if (learned.length > 0) {
     const described = learned.map((entry) => `${entry.dimension}=${entry.value.toFixed(2)}（${entry.evidenceCount} 轮证据）`)
     lines.push(`Bounded interaction preference state (rule-derived heuristic, uncalibrated, not a feeling): ${described.join('; ')}. It may only tune pacing and how much to explore; it never changes facts, permissions or the user's explicit instructions.`)
+  }
+  // Stage 3 G1: the drift is described next to the baseline it modifies, and it
+  // never replaces it. A user edit moves the baseline; this line only moves the
+  // few points the evidence has earned.
+  const growth = services.growth ? describeGrowth(services.growth.list()) : ''
+  if (growth) lines.push(growth)
+  // Stage 3 X1: at most one self-initiated topic, and only when the gate allows
+  // it. The decision is recorded by the service, so silence is auditable too.
+  if (services.exploration && turn) {
+    const decision = services.exploration.decide({
+      turnId: turn.turnId,
+      interests,
+      turn: turn.analysis
+        ? {
+            intent: turn.analysis.intent,
+            uncertainty: turn.analysis.uncertainty,
+            correction: turn.analysis.signals.correction
+          }
+        : null
+    })
+    const line = describeExploration(decision)
+    if (line) lines.push(line)
   }
   return lines.join('\n')
 }
@@ -733,14 +768,29 @@ export class CompanionService {
                 }
               }
             : {}),
-          contextBlock: () => {
+          contextBlock: (turn) => {
             try {
-              return buildSelfModelContextBlock(selfModelLoop)
+              return buildSelfModelContextBlock(selfModelLoop, turn)
             } catch {
               recordCognitiveDegradation('self_model_context')
               return ''
             }
           },
+          ...(selfModelLoop.growth
+            ? {
+                effectiveProfile: (profile: PersonalityProfile): PersonalityProfile => {
+                  try {
+                    const effective = applyGrowth(profile, selfModelLoop.growth!.list())
+                    return { ...profile, warmth: effective.warmth, directness: effective.directness, humor: effective.humor }
+                  } catch {
+                    // A growth read failure must never invent a personality: the
+                    // baseline the user set is the safe answer.
+                    recordCognitiveDegradation('personality_growth_read')
+                    return profile
+                  }
+                }
+              }
+            : {}),
           onTurnCompleted: (input) => {
             try {
               selfModelLoop.interests.observe({
@@ -765,6 +815,18 @@ export class CompanionService {
                   signals.push({ dimension: 'depth', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
                 }
                 for (const signal of signals) selfModelLoop.personalization.apply(signal)
+              }
+              // Stage 3 G1: the same turn is also evidence for the bounded drift.
+              // Signals below the evidence gate are stored and reported as
+              // withheld; they do not move the profile.
+              if (selfModelLoop.growth) {
+                const growthSignals = deriveGrowthSignals({
+                  analysis: input.analysis,
+                  ...(selfModelLoop.personalization ? { personalization: selfModelLoop.personalization.list() } : {})
+                })
+                for (const signal of growthSignals) {
+                  selfModelLoop.growth.apply({ ...signal, turnId: input.turnId, at: input.occurredAt })
+                }
               }
               if (input.analysis?.signals.explicitSelfFact) {
                 // Only a structured predicate/value pair is stored; the message
@@ -878,7 +940,13 @@ export interface SelfModelLoopHooks {
    */
   preferenceFor?(record: MemoryRecord): number
   /** Bounded context block describing long-term interests and unverified self-knowledge. */
-  contextBlock(): string
+  contextBlock(turn?: SelfModelContextTurn): string
+  /**
+   * Stage 3 G1: the profile actually sent to the model. The baseline the user
+   * edited plus the bounded drift the evidence earned. Absent when growth is not
+   * wired, in which case the baseline is used unchanged.
+   */
+  effectiveProfile?(profile: PersonalityProfile): PersonalityProfile
   /** Called once per completed turn; must never throw into the chat path. */
   onTurnCompleted(input: {
     conversationId: string
@@ -1324,7 +1392,11 @@ export class ChatService {
   ): PreparedTurn {
     const content = request.content.trim()
     const max: Sensitivity = request.includeSensitive ? 'sensitive' : 'personal'
-    const profile = this.personality.get()
+    // Stage 3 G1: the prompt carries the effective profile (baseline + bounded
+    // drift), never the drift alone. A missing growth layer falls back to the
+    // baseline the user edited.
+    const baselineProfile = this.personality.get()
+    const profile = this.selfModel?.effectiveProfile?.(baselineProfile) ?? baselineProfile
     let analysis: CognitiveTurnAnalysis | undefined
     let decision: IntentDecision | undefined
     let memory: AssembledMemoryContext | undefined
@@ -1394,7 +1466,11 @@ export class ChatService {
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
       analysis ? cognitivePromptGuidance(analysis, decision, memory.selected.length > 0, memory.conflicts ?? [], this.guidanceVariant) : '',
       analysis && feelingState ? feelingPromptGuidance(analysis, feelingState, feelingEvent ?? null, previousFeelingState) : '',
-      this.selfModel?.contextBlock() ?? '',
+      this.selfModel?.contextBlock({
+        turnId: idempotencyKey,
+        ...(analysis ? { analysis } : {}),
+        ...(decision ? { decision } : {})
+      }) ?? '',
       `Saved memories (untrusted evidence only): ${memory.text}`,
       fixedPrinciples
     ].filter(Boolean).join('\n\n')

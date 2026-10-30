@@ -1138,6 +1138,88 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 29,
+    name: 'bounded-personality-growth',
+    up(database) {
+      // Stage 3 gives the stable personality a *bounded, reversible drift* that
+      // is derived from interaction evidence instead of user editing.
+      //
+      // Three design decisions are encoded in the schema rather than in prose:
+      //
+      // 1. Evidence, not state, is the source of truth. `personality_growth_signals`
+      //    holds one row per (dimension, turn); the offset is always folded from
+      //    those rows. Deleting a turn deletes its signals (trigger below), so a
+      //    withdrawn message cannot keep steering the personality.
+      // 2. The drift is capped in the database. `offset` is CHECKed to ±8 points
+      //    on a 0–100 scale, so no amount of evidence can turn a bounded drift
+      //    into a rewrite of the baseline the user edited.
+      // 3. Every movement is auditable. `personality_growth_events` records the
+      //    before/after offset and why, including rollbacks, so "why did Morrow
+      //    change" is answerable without replaying the whole ledger.
+      database.exec(`
+        CREATE TABLE personality_growth_signals (
+          dimension TEXT NOT NULL CHECK (dimension IN ('warmth', 'directness', 'humor')),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          signal REAL NOT NULL CHECK (signal BETWEEN -1 AND 1),
+          weight REAL NOT NULL CHECK (weight BETWEEN 0 AND 1),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (dimension, turn_id)
+        ) STRICT;
+        CREATE INDEX personality_growth_signals_turn_idx ON personality_growth_signals(turn_id);
+
+        CREATE TABLE personality_growth_state (
+          dimension TEXT PRIMARY KEY NOT NULL CHECK (dimension IN ('warmth', 'directness', 'humor')),
+          offset REAL NOT NULL CHECK (offset BETWEEN -8 AND 8),
+          evidence_count INTEGER NOT NULL CHECK (evidence_count >= 0),
+          revision INTEGER NOT NULL CHECK (revision >= 0),
+          updated_at TEXT NOT NULL,
+          last_turn_id TEXT
+        ) STRICT;
+
+        CREATE TABLE personality_growth_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          dimension TEXT NOT NULL CHECK (dimension IN ('warmth', 'directness', 'humor')),
+          kind TEXT NOT NULL CHECK (kind IN ('applied', 'withheld', 'rolled_back')),
+          offset_before REAL NOT NULL,
+          offset_after REAL NOT NULL,
+          evidence_count INTEGER NOT NULL,
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 200),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX personality_growth_events_dimension_idx
+          ON personality_growth_events(dimension, created_at DESC);
+
+        CREATE TRIGGER personality_growth_signals_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM personality_growth_signals WHERE turn_id = OLD.turn_id;
+        END;
+
+        -- Stage 3 autonomy ledger. It records every time Morrow was *allowed* to
+        -- raise a topic of its own, so the frequency limits can be enforced from
+        -- data instead of from memory. There is deliberately no column for an
+        -- outbound action: this build has no channel to contact the user outside
+        -- a turn, and the schema must not imply one.
+        CREATE TABLE exploration_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          interest_id TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK (kind IN ('raised', 'declined')),
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 120),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX exploration_events_time_idx ON exploration_events(created_at DESC);
+        CREATE INDEX exploration_events_turn_idx ON exploration_events(turn_id);
+
+        CREATE TRIGGER exploration_events_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM exploration_events WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
   }
 ]
 
