@@ -19,6 +19,27 @@ export class SqliteTurnStateRepository implements TurnStatePort {
     return { turnId: row.turn_id, conversationId: row.conversation_id, state: row.state, updatedAt: row.updated_at, reason: row.reason }
   }
 
+  /**
+   * Turns that are not in a terminal state: evidence that a process stopped
+   * between two lifecycle writes. Recovery uses this to settle turns that never
+   * produced a finalization intent (a crash during the provider call leaves no
+   * intent, but it does leave the state).
+   */
+  listUnsettled(limit = 50): TurnStateRecord[] {
+    const rows = this.database.connection.prepare(`
+      SELECT turn_id, conversation_id, state, updated_at, reason FROM turn_states
+      WHERE state NOT IN ('committed', 'failed', 'cancelled')
+      ORDER BY updated_at, turn_id LIMIT ?
+    `).all(limit) as unknown as Array<{ turn_id: string; conversation_id: string; state: TurnState; updated_at: string; reason: string | null }>
+    return rows.map((row) => ({
+      turnId: row.turn_id,
+      conversationId: row.conversation_id,
+      state: row.state,
+      updatedAt: row.updated_at,
+      reason: row.reason
+    }))
+  }
+
   enter(record: TurnStateRecord): void {
     const current = this.get(record.turnId)
     if (!canTransition(current?.state ?? null, record.state)) {

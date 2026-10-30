@@ -40,10 +40,12 @@ const PREDECESSORS: Readonly<Record<TurnState, readonly (TurnState | null)[]>> =
   awaiting_consent: ['context_ready'],
   requesting: ['awaiting_consent', 'context_ready'],
   response_received: ['requesting'],
-  committed: ['response_received'],
+  committed: ['response_received', 'recovering'],
   failed: ['received', 'analyzed', 'context_ready', 'awaiting_consent', 'requesting', 'response_received', 'recovering'],
   cancelled: ['awaiting_consent', 'requesting', 'context_ready', 'recovering'],
-  recovery_required: ['requesting', 'response_received'],
+  // A turn can be interrupted at any non-terminal step, not only while a request
+  // is in flight: the state at the moment of the crash is the evidence.
+  recovery_required: ['received', 'analyzed', 'context_ready', 'awaiting_consent', 'requesting', 'response_received'],
   recovering: ['recovery_required'],
 }
 
@@ -78,6 +80,8 @@ export interface TurnStateRecord {
 }
 
 export interface TurnStatePort {
+  /** Non-terminal turns; optional so older callers/tests keep working. */
+  listUnsettled?(limit?: number): TurnStateRecord[]
   enter(record: TurnStateRecord): void
   get(turnId: string): TurnStateRecord | null
 }

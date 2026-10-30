@@ -1055,6 +1055,89 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
       `)
     }
+  },
+  {
+    version: 27,
+    name: 'reflection-finding-identity-and-personality-pending',
+    up(database) {
+      // Two missing pieces of the reflection pipeline:
+      //
+      // 1. Identity. Re-running reflection over the same evidence produced a new
+      //    finding and, for interest candidates, a second evidence row. The dedupe
+      //    key makes one (kind, statement, evidence set) exist once, so a re-run is
+      //    idempotent instead of additive.
+      //
+      // 2. A parking place for personality proposals. Reflection must never move
+      //    the stable baseline; a proposal is stored as *pending* with its evidence,
+      //    confidence and expiry, and only a user confirmation may consume it.
+      database.exec(`
+        ALTER TABLE reflection_findings ADD COLUMN dedupe_key TEXT;
+        CREATE UNIQUE INDEX reflection_findings_dedupe_uq
+          ON reflection_findings(dedupe_key) WHERE dedupe_key IS NOT NULL;
+
+        CREATE TABLE pending_personality_candidates (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          finding_id TEXT NOT NULL REFERENCES reflection_findings(id) ON DELETE CASCADE,
+          dimension TEXT NOT NULL CHECK (dimension IN ('exploration', 'depth', 'pace')),
+          direction TEXT NOT NULL CHECK (direction IN ('increase', 'decrease')),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX pending_personality_status_idx ON pending_personality_candidates(status, created_at);
+      `)
+    }
+  },
+  {
+    version: 28,
+    name: 'turn-state-recovering',
+    up(database) {
+      // The state machine gained `recovering`, but the table's CHECK still listed
+      // only the ten original states, so every write of the new state failed and
+      // was swallowed by the lifecycle recorder: the trace silently stayed at
+      // `recovery_required` while the code believed it had moved on. SQLite cannot
+      // alter a CHECK, so the table is rebuilt and its rows copied verbatim.
+      database.exec(`
+        ALTER TABLE turn_states RENAME TO turn_states_v27;
+        CREATE TABLE turn_states (
+          turn_id TEXT PRIMARY KEY NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          state TEXT NOT NULL CHECK (state IN (
+            'received', 'analyzed', 'context_ready', 'awaiting_consent',
+            'requesting', 'response_received', 'committed',
+            'failed', 'cancelled', 'recovery_required', 'recovering'
+          )),
+          updated_at TEXT NOT NULL,
+          reason TEXT CHECK (reason IS NULL OR length(reason) <= 64)
+        ) STRICT;
+        INSERT INTO turn_states (turn_id, conversation_id, state, updated_at, reason)
+          SELECT turn_id, conversation_id, state, updated_at, reason FROM turn_states_v27;
+        DROP TABLE turn_states_v27;
+        CREATE INDEX turn_states_conversation_idx ON turn_states(conversation_id, updated_at DESC);
+
+        -- The cascades are triggers, not foreign keys (the table has no REFERENCES
+        -- clause). After the rename they were re-pointed at the temporary name but
+        -- stayed attached to the conversations / messages tables, so dropping the
+        -- temporary table left them behind — still deleting from a table that no
+        -- longer exists. They must be dropped and recreated against the rebuilt
+        -- table, otherwise deleting a conversation or a message would leave
+        -- lifecycle rows behind and recovery would act on turns whose source is gone.
+        DROP TRIGGER IF EXISTS turn_states_delete_with_conversation;
+        DROP TRIGGER IF EXISTS turn_states_delete_with_turn_message;
+        CREATE TRIGGER turn_states_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM turn_states WHERE conversation_id = OLD.id;
+        END;
+        CREATE TRIGGER turn_states_delete_with_turn_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM turn_states WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
   }
 ]
 

@@ -110,6 +110,31 @@ export interface ReflectionFinding {
   confidence: number
   evidence: Array<{ kind: string; id: string }>
   createdAt: string
+  /**
+   * Identity of the finding (kind + normalised statement + evidence set).
+   * A second run over the same evidence must not add a second row or a second
+   * effect, so the key is unique in the schema.
+   */
+  dedupeKey?: string
+}
+
+/**
+ * A personality proposal parked by reflection.
+ *
+ * The stable baseline is never moved by background work: this row carries the
+ * evidence, confidence and an expiry, and stays `pending` until a user
+ * confirmation consumes it. Nothing in the app applies it automatically.
+ */
+export interface PendingPersonalityCandidate {
+  id: string
+  findingId: string
+  dimension: 'exploration' | 'depth' | 'pace'
+  direction: 'increase' | 'decrease'
+  confidence: number
+  evidence: Array<{ kind: string; id: string }>
+  status: 'pending' | 'accepted' | 'rejected' | 'expired'
+  createdAt: string
+  expiresAt: string
 }
 
 export interface ReflectionRunSummary {

@@ -47,6 +47,21 @@ describe('B1 feature model', () => {
     expect(without.candidates[0]!.features.context).toBe(1)
   })
 
+  it('keeps a standalone reading unchanged under conflicting history too', () => {
+    // Four histories, one reading. The fourth is a prior turn that contradicts
+    // the current statement — it must not lift or lower the score of a reading
+    // that does not depend on it.
+    const candidates = [candidate('information_query', 80)]
+    const without = assessIntentConfidence(input('我住在哪里？', candidates, null))
+    const unrelated = assessIntentConfidence(input('我住在哪里？', candidates, '帮我看看这道数学题。'))
+    const related = assessIntentConfidence(input('我住在哪里？', candidates, '我最近在找杭州的房子。'))
+    const conflicting = assessIntentConfidence(input('我住在哪里？', candidates, '你住在北京，对吧？'))
+    for (const other of [unrelated, related, conflicting]) {
+      expect(other.topScore).toBe(without.topScore)
+    }
+    expect(conflicting.candidates[0]!.features.context).toBe(1)
+  })
+
   it('gives a reference reading context credit only when the prior turn shares content', () => {
     const candidates = [candidate('continuation', 86, ['reference_to_prior_turn'])]
     const unresolved = assessIntentConfidence(input('那后天呢？', candidates, null))

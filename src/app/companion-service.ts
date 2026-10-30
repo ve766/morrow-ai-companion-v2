@@ -1642,7 +1642,9 @@ export class ChatService {
     } catch {
       return result
     }
+    const settledTurnIds = new Set<string>()
     for (const record of records) {
+      settledTurnIds.add(record.turnId.toLowerCase())
       try {
         const conversation = this.conversations.read(record.conversationId)
         const delivered = conversation.messages.some((message) => message.id === record.assistantMessageId && message.role === 'assistant')
@@ -1681,12 +1683,43 @@ export class ChatService {
           result.interrupted += 1
         }
         this.continuity.finalizations.remove(record.turnId)
+        settledTurnIds.add(record.turnId.toLowerCase())
       } catch {
         // The conversation is gone or the store is unavailable: keep the intent
         // for a later attempt instead of dropping evidence silently.
         result.dropped += 1
       }
     }
+    // Second pass: turns that stopped without ever writing a finalization intent.
+    // A crash during the provider call is exactly this shape — the request may
+    // have been received by the upstream, so the outcome is unknown. They are
+    // settled as failed (or committed when an answer is already stored) and are
+    // never re-sent: without a provider idempotency key a retry could duplicate
+    // a non-idempotent call.
+    const states = this.continuity.states
+    if (states?.listUnsettled) {
+      let unsettled: Array<{ turnId: string; conversationId: string; state: string }>
+      try {
+        unsettled = states.listUnsettled(50)
+      } catch {
+        unsettled = []
+      }
+      for (const row of unsettled) {
+        if (settledTurnIds.has(row.turnId.toLowerCase())) continue
+        try {
+          const conversation = this.conversations.read(row.conversationId)
+          const delivered = conversation.messages.some((message) => message.turnId === row.turnId && message.role === 'assistant')
+          this.recordTurnState(row.conversationId, row.turnId, 'recovery_required', 'unsettled_state_without_intent')
+          this.recordTurnState(row.conversationId, row.turnId, 'recovering', 'recovery_attempt')
+          this.recordTurnState(row.conversationId, row.turnId, delivered ? 'committed' : 'failed', delivered ? 'recovered_after_commit' : 'INTERRUPTED_UNKNOWN_OUTCOME')
+          if (delivered) result.completed += 1
+          else result.interrupted += 1
+        } catch {
+          result.dropped += 1
+        }
+      }
+    }
+
     return result
   }
 

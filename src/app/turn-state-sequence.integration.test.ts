@@ -136,12 +136,19 @@ describe('turn state sequence', () => {
   })
 
   it('declares the interrupted-only states legal from the steps that can reach them', () => {
-    // `recovery_required` is written by `recoverInterruptedTurns`; these two
-    // assertions pin the only edges that may lead into it, so a later change
-    // cannot make the write point silently illegal.
-    expect(canTransition('requesting', 'recovery_required')).toBe(true)
-    expect(canTransition('response_received', 'recovery_required')).toBe(true)
-    expect(canTransition('received', 'recovery_required')).toBe(false)
+    // A turn can be interrupted at any non-terminal step, so `recovery_required`
+    // is reachable from every one of them — and from none of the terminal ones,
+    // because recovery must never revive a finished turn.
+    for (const state of ['received', 'analyzed', 'context_ready', 'awaiting_consent', 'requesting', 'response_received'] as const) {
+      expect(canTransition(state, 'recovery_required')).toBe(true)
+    }
+    for (const state of ['committed', 'failed', 'cancelled'] as const) {
+      expect(canTransition(state, 'recovery_required')).toBe(false)
+      expect(canTransition(state, 'recovering')).toBe(false)
+    }
+    expect(canTransition('recovery_required', 'recovering')).toBe(true)
+    expect(canTransition('recovering', 'committed')).toBe(true)
+    expect(canTransition('recovering', 'failed')).toBe(true)
     expect(canTransition('awaiting_consent', 'requesting')).toBe(true)
   })
 })
