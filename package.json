@@ -26,7 +26,8 @@
     "eval:stage3:restart": "node node_modules/esbuild/bin/esbuild evals/stage-3/restart/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-restart.cjs --log-level=warning && node node_modules/.cache/stage3-restart.cjs",
     "eval:stage3:long-conversation": "node node_modules/esbuild/bin/esbuild evals/stage-3/long-conversation/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-longconv.cjs --log-level=warning && node node_modules/.cache/stage3-longconv.cjs",
     "eval:topic-identity": "node node_modules/esbuild/bin/esbuild evals/stage-2/topic-identity-metrics.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/topic-identity.cjs --log-level=warning && node node_modules/.cache/topic-identity.cjs",
-    "eval:stage3:live": "node node_modules/esbuild/bin/esbuild evals/stage-3/live/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-live.cjs --log-level=warning && node node_modules/.cache/stage3-live.cjs"
+    "eval:stage3:live": "node node_modules/esbuild/bin/esbuild evals/stage-3/live/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-live.cjs --log-level=warning && node node_modules/.cache/stage3-live.cjs",
+    "eval:stage3:intent": "node node_modules/esbuild/bin/esbuild evals/stage-3/intent-understanding/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/c1-intent.cjs --log-level=warning && node node_modules/.cache/c1-intent.cjs"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
