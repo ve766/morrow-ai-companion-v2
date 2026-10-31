@@ -63,8 +63,8 @@ async function main(): Promise<void> {
   }
 
   const payload = {
-    datasetVersion: 'stage-3-v1',
-    harnessVersion: 'stage-3-long-conversation-v1',
+    datasetVersion: 'stage-3-v2.1',
+    harnessVersion: 'stage-3-long-conversation-v2',
     codeCommit: head(),
     environment: { platform: process.platform, node: process.version },
     provider: 'scripted-offline (not a model)',

@@ -1,8 +1,8 @@
 {
-  "datasetVersion": "stage-3-v2.0",
-  "harnessVersion": "stage-3-runner-v5",
+  "datasetVersion": "stage-3-v2.1",
+  "harnessVersion": "stage-3-runner-v6",
   "provider": "scripted-offline",
-  "note": "Scripted provider. Every assertion is about wiring, persistence and the serialized payload. L5 and L10 now drive production paths only; the harness no longer calls observeMorrow() or goals.create() to seed a pass.",
+  "note": "Scripted provider. Every assertion is about wiring, persistence and the serialized payload. L5 and L12 were tightened on 2026-10-31: L5 requires model_attempted and actually_raised (a permission alone fails), L12 requires real evidence before the delete. Scripted results never stand in for model quality.",
   "scenarios": [
     {
       "id": "L1",
@@ -31,7 +31,7 @@
     {
       "id": "L5",
       "name": "用户兴趣与 Morrow 自身关注不混淆",
-      "requirement": "用户/Morrow/共同兴趣三分，且 Morrow 兴趣由真实反思生产链产生（不靠测试注入）",
+      "requirement": "用户/Morrow/共同兴趣三分；Morrow 兴趣由真实反思生产链产生，逐条引用知识缺口事件；必须证明模型实际被调用并主动提出话题（actually_raised），仅有 permitted/selected_for_prompt 不合格",
       "executable": true
     },
     {
@@ -79,7 +79,7 @@
     {
       "id": "L12",
       "name": "删除消息后派生数据不泄漏",
-      "requirement": "删除级联无残留",
+      "requirement": "删除前必须存在真实派生证据（evidence=0 直接 FAIL），删除后证据行与偏移投影同步清除",
       "executable": true
     },
     {
@@ -108,5 +108,17 @@
     "longConversation": "npm run eval:stage3:long-conversation",
     "ablation": "npm run eval:stage3:ablation",
     "longitudinal": "npm run eval:stage3:longitudinal"
-  }
+  },
+  "paramsVersion": "stage-3-params-v2",
+  "changeLog": [
+    {
+      "version": "stage-3-v2.1",
+      "at": "2026-10-31",
+      "changes": [
+        "L5: per-gap Morrow evidence, morrow/shared separation, model_attempted, actually_raised (keyword hit alone is not enough)",
+        "L12: precondition changed from evidence>=0 to evidence>0, and the projection must shrink after deletion",
+        "results carry datasetVersion, harnessVersion, paramsVersion, clock, provider model id and unmeasured claims"
+      ]
+    }
+  ]
 }

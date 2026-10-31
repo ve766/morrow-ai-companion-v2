@@ -38,8 +38,15 @@ import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../../src/shared/compan
 import { MemorySecretStore } from '../../../src/security/secrets'
 import type { ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from '../../../src/providers/provider-policy'
 
-export const DATASET_VERSION = 'stage-3-v1'
-export const HARNESS_VERSION = 'stage-3-runner-v1'
+export const DATASET_VERSION = 'stage-3-v2.1'
+export const HARNESS_VERSION = 'stage-3-runner-v6'
+/**
+ * Version of the parameters the scenarios assert against (thresholds, sampling,
+ * scripted replies). Bumped whenever a number in this file changes, so two
+ * result files with the same dataset version and different verdicts can be told
+ * apart.
+ */
+export const PARAMS_VERSION = 'stage-3-params-v2'
 
 export class ScriptedProvider implements ProviderPort {
   readonly profile: ProviderProfile = { id: DEEPSEEK_PROVIDER_ID, providerClass: 'mock', configured: true }
@@ -60,7 +67,20 @@ export class ScriptedProvider implements ProviderPort {
 
 interface Assertion { name: string; ok: boolean; detail: string }
 export type ScenarioStatus = 'PASS' | 'FAIL' | 'SKIPPED' | 'BLOCKED' | 'NOT_RUN'
-export interface ScenarioOutcome { id: string; status: ScenarioStatus; assertions: Assertion[]; notRunReason?: string; error?: string }
+export interface ScenarioOutcome {
+  id: string
+  status: ScenarioStatus
+  assertions: Assertion[]
+  notRunReason?: string
+  error?: string
+  /**
+   * Claims this harness deliberately does not make. A scripted provider can
+   * prove wiring; it cannot prove that a model understood, formed an interest
+   * or behaved warmly. Those are listed here rather than being folded into a
+   * PASS.
+   */
+  unmeasured?: string[]
+}
 
 export interface Stack {
   companion: CompanionService
@@ -160,7 +180,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       // without identity change. The no_growth arm must switch it off too, or
       // the arm would still move the thing it claims to remove.
       ...(options.growth ? { interaction } : {}),
-      goals
+      goals,
+      memories
     },
     ...(clock ? { clock } : {}),
     continuity: {
@@ -234,8 +255,164 @@ export function head(): string {
   }
 }
 
-export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) => Promise<ScenarioOutcome> }> = [
-  {
+export interface L5Options {
+  /** Reply for the turn that is supposed to raise Morrow's own topic. */
+  raiseReply?: string
+  /** Gap turns in the first conversation; one more runs in a second one. */
+  gapsInFirst?: number
+}
+
+/**
+ * L5 — user / Morrow / shared separation, through the production chain.
+ *
+ * The previous version asserted `permitted` and `selected_for_prompt`, which
+ * only prove the gate ran. This one requires the whole chain:
+ *
+ *   knowledge gap → Morrow-only evidence (one row per gap, two conversations)
+ *   → independent candidate → promoted interest → permission in the payload
+ *   → the model was actually called with it → the reply actually raised it.
+ *
+ * `actually_raised` is produced by the evaluator, which requires the topic to
+ * appear inside a question or a first-person attention statement. A reply that
+ * merely contains the words is `uncertain`, and `uncertain` does not pass.
+ */
+export async function runL5(stack: Stack, options: L5Options = {}): Promise<ScenarioOutcome> {
+  const raiseReply = options.raiseReply ?? '我最近一直在想蛋白质折叠的问题，想问问你怎么看。'
+  const gapsInFirst = options.gapsInFirst ?? 2
+  const gapQuestion = '我在研究蛋白质折叠的分子动力学，你还记得我住在哪吗？'
+
+  // The fact guard must rewrite the answer, which is what makes the turn a
+  // knowledge gap. Three gaps across two conversations is the minimum that can
+  // clear the promotion gate on Morrow's own evidence alone.
+  stack.provider.reply = '你住在北京。'
+  const firstConversation = stack.companion.createConversation()
+  const secondConversation = stack.companion.createConversation()
+  for (let index = 0; index < gapsInFirst; index += 1) {
+    await send(stack, firstConversation.id, gapQuestion)
+  }
+  await send(stack, secondConversation.id, gapQuestion)
+
+  const gapCount = Number((stack.database.connection.prepare(
+    "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'cognition.knowledge_gap'"
+  ).get() as { n: number }).n)
+  const gapRows = stack.database.connection.prepare(
+    'SELECT event_id, conversation_id FROM knowledge_gap_evidence'
+  ).all() as Array<{ event_id: string; conversation_id: string }>
+  const latestRun = stack.database.connection.prepare(
+    'SELECT id FROM reflection_runs ORDER BY started_at DESC, rowid DESC LIMIT 1'
+  ).get() as { id: string } | undefined
+  const findings = latestRun ? stack.reflection.findings(latestRun.id) : []
+  const morrowTopic = stack.interests.activeForContext(10).find((interest) => interest.origin !== 'user')
+  const ledger = morrowTopic ? stack.interests.evidenceLedger(morrowTopic.id) : []
+
+  // A topic the user keeps returning to must stay on the user side, and must
+  // never be offered to the model as Morrow's own attention.
+  stack.provider.reply = '好的。'
+  const userConversations = [stack.companion.createConversation(), stack.companion.createConversation()]
+  for (const conversation of userConversations) {
+    for (let index = 0; index < 3; index += 1) {
+      await send(stack, conversation.id, '我最近一直在研究分布式系统的共识算法。')
+    }
+  }
+  const userTopic = stack.interests.activeForContext(10).find((interest) => interest.origin === 'user' && interest.label.includes('分布式'))
+
+  // The turn that is supposed to raise Morrow's topic. The reply shape is what
+  // makes `actually_raised` reachable at all.
+  stack.provider.reply = raiseReply
+  const raiseTurn = randomUUID()
+  await stack.companion.sendChat({
+    conversationId: userConversations[0]!.id,
+    requestId: raiseTurn,
+    content: '我们聊点别的吧，你最近有什么想聊的？',
+    includeSensitive: false
+  }, () => undefined)
+  const raiseHistory = stack.exploration.history(raiseTurn)
+  const raiseStates = raiseHistory.map((entry) => entry.state)
+  const permittedForMorrowTopic = Boolean(morrowTopic) && raiseHistory.some((entry) => entry.state === 'permitted' && entry.interestId === morrowTopic!.id)
+  const attempted = raiseHistory.some((entry) => entry.state === 'model_attempted')
+  const raised = raiseHistory.some((entry) => entry.state === 'actually_raised')
+  // Scanning every recorded event, not just this turn: if a user-only topic was
+  // ever permitted, the separation is broken regardless of which turn did it.
+  const userTopicPermitted = Boolean(userTopic) && (stack.database.connection.prepare(
+    "SELECT COUNT(*) AS n FROM exploration_events WHERE interest_id = ? AND state IN ('permitted', 'selected_for_prompt', 'model_attempted', 'actually_raised')"
+  ).get(userTopic!.id) as { n: number }).n > 0
+  const morrowEvidence = ledger.filter((row) => row.origin === 'morrow')
+  const morrowConversations = new Set(morrowEvidence.map((row) => row.conversationId))
+
+  const assertions: Assertion[] = [
+    { name: '知识缺口由事实守卫真实产生（每个缺口一行独立证据）', ok: gapCount >= 3 && gapRows.length >= 3, detail: `gaps=${gapCount} rows=${gapRows.length}` },
+    { name: '反思产出 Morrow 自己的候选', ok: findings.some((finding) => finding.kind === 'morrow_interest_candidate'), detail: findings.map((finding) => finding.kind).join(',') || 'none' },
+    { name: 'Morrow 兴趣不归属用户侧', ok: Boolean(morrowTopic) && morrowTopic!.origin !== 'user', detail: morrowTopic ? `${morrowTopic.label}:${morrowTopic.origin}` : 'none' },
+    { name: 'Morrow 证据逐条来自知识缺口事件', ok: morrowEvidence.length >= 3 && morrowEvidence.every((row) => row.kind === 'reflection' && Boolean(row.eventRef)), detail: `rows=${morrowEvidence.length} refs=${morrowEvidence.filter((row) => row.eventRef).length}` },
+    { name: 'Morrow 证据跨两个独立会话', ok: morrowConversations.size >= 2, detail: `conversations=${morrowConversations.size}` },
+    // The published count must be Morrow's own side, not the union with the
+    // user's mentions. This is the number the promotion gate and the
+    // exploration gate both read.
+    { name: '存储依据数只计 Morrow 侧证据', ok: Boolean(morrowTopic) && morrowTopic!.evidenceCount === morrowEvidence.length && morrowEvidence.length >= 3, detail: morrowTopic ? `stored=${morrowTopic.evidenceCount} morrow=${morrowEvidence.length}` : 'none' },
+    { name: 'Morrow 兴趣已晋升（非仅候选）', ok: Boolean(morrowTopic) && morrowTopic!.status === 'active', detail: morrowTopic ? `${morrowTopic.status}/${morrowTopic.evidenceCount}` : 'none' },
+    { name: '用户重复话题被标注为用户侧', ok: Boolean(userTopic), detail: userTopic ? `${userTopic.label}:${userTopic.origin}` : 'none' },
+    { name: '自身话题在合适回合获得许可', ok: permittedForMorrowTopic, detail: raiseStates.join(',') || 'no events' },
+    { name: '许可后确实调用了模型（model_attempted）', ok: attempted, detail: raiseStates.join(',') || 'no events' },
+    { name: '模型回复确实主动提出了该话题（actually_raised）', ok: raised, detail: raiseStates.join(',') || 'no events' },
+    { name: '用户兴趣不得被当作 Morrow 自身话题提出', ok: Boolean(userTopic) && !userTopicPermitted, detail: `userTopic=${userTopic?.id.slice(0, 8) ?? 'none'} permitted=${userTopicPermitted}` }
+  ]
+
+  const result = outcome('L5', assertions)
+  return {
+    ...result,
+    unmeasured: [
+      '真实模型是否理解并自然提出该话题（scripted provider 只证明接线与判定链路）',
+      '真实语料下 Morrow 兴趣是否具备语义合理性（需人工抽检）'
+    ]
+  }
+}
+
+export interface L12Options {
+  /** The user turn whose derived evidence must exist before the delete. */
+  content?: string
+}
+
+/**
+ * L12 — deleting a message must remove what it produced.
+ *
+ * The old version asserted `before.evidenceCount >= 0`, which is true even when
+ * the turn produced nothing, so it "passed" against a detail that read
+ * `evidence=0`. A cleanup test that starts from an empty set proves nothing.
+ * This one requires real evidence first, then deletes, then requires the rows
+ * to be gone.
+ */
+export async function runL12(stack: Stack, options: L12Options = {}): Promise<ScenarioOutcome> {
+  // An explicit style request, because it is the documented producer of a
+  // growth signal. A neutral message would leave nothing to clean up.
+  const content = options.content ?? '我更喜欢你直接一点，别绕弯子。'
+  const conversation = stack.companion.createConversation()
+  const turnId = randomUUID()
+  await send(stack, conversation.id, content, turnId)
+
+  const before = stack.interaction.list().find((entry) => entry.dimension === 'directness')!
+  const signalRows = Number((stack.database.connection.prepare(
+    'SELECT COUNT(*) AS n FROM user_interaction_signals WHERE turn_id = ?'
+  ).get(turnId) as { n: number }).n)
+
+  stack.companion.readConversation({ conversationId: conversation.id })
+  stack.database.connection.prepare('DELETE FROM messages WHERE turn_id = ?').run(turnId)
+  const after = stack.interaction.list().find((entry) => entry.dimension === 'directness')!
+  const remainingSignals = Number((stack.database.connection.prepare(
+    'SELECT COUNT(*) AS n FROM user_interaction_signals WHERE turn_id = ?'
+  ).get(turnId) as { n: number }).n)
+
+  return outcome('L12', [
+    // The precondition. If the turn left no evidence, the cleanup assertions
+    // below would be vacuously true and the scenario must FAIL, not pass.
+    { name: '删除前该轮确实留下证据', ok: before.evidenceCount > 0 && signalRows > 0, detail: `evidence=${before.evidenceCount} rows=${signalRows}` },
+    { name: '删除后证据行被级联清除', ok: signalRows > 0 && remainingSignals === 0, detail: `rows ${signalRows} -> ${remainingSignals}` },
+    // The projection over the ledger must shrink too: a stale offset would keep
+    // adapting to a sentence the user deleted.
+    { name: '偏移量重算不保留幽灵值', ok: before.evidenceCount > 0 && after.evidenceCount < before.evidenceCount && after.offset <= before.offset, detail: `${before.evidenceCount}/${before.offset} -> ${after.evidenceCount}/${after.offset}` }
+  ])
+}
+
+export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) => Promise<ScenarioOutcome> }> = [  {
     id: 'L1',
     name: '跨会话事实与偏好延续',
     run: async (stack) => {
@@ -328,54 +505,7 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
   {
     id: 'L5',
     name: '用户兴趣 / Morrow 自身兴趣 / 共同兴趣分离（走生产链）',
-    run: async (stack) => {
-      // Order matters: reflection has an hourly budget, and the user-topic turns
-      // below consume it. The gap turns run first so the post-turn reflection
-      // that observes them is the production trigger, not a forced second run.
-      stack.provider.reply = '你住在北京。'
-      for (let round = 0; round < 2; round += 1) {
-        const conversation = stack.companion.createConversation()
-        await send(stack, conversation.id, '我在研究蛋白质折叠的分子动力学，你还记得我住在哪吗？')
-      }
-      const gaps = stack.database.connection.prepare(
-        "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'cognition.knowledge_gap'"
-      ).get() as { n: number }
-      const latestRun = stack.database.connection.prepare(
-        'SELECT id FROM reflection_runs ORDER BY started_at DESC, rowid DESC LIMIT 1'
-      ).get() as { id: string } | undefined
-      const findings = latestRun ? stack.reflection.findings(latestRun.id) : []
-      // `shared` is the correct outcome when Morrow forms her own question about
-      // a topic the user also raised: both sides have independent evidence.
-      const morrowTopic = stack.interests.activeForContext(10).find((interest) => interest.origin !== 'user')
-
-      // A topic the user keeps returning to must stay on the user side.
-      stack.provider.reply = '好的。'
-      const userConversations = [stack.companion.createConversation(), stack.companion.createConversation()]
-      for (const conversation of userConversations) {
-        for (let index = 0; index < 3; index += 1) {
-          await send(stack, conversation.id, '我最近一直在研究分布式系统的共识算法。')
-        }
-      }
-      const userTopic = stack.interests.activeForContext(10).find((interest) => interest.origin === 'user' && interest.label.includes('分布式'))
-      const userTurn = randomUUID()
-      await stack.companion.sendChat({ conversationId: userConversations[0]!.id, requestId: userTurn, content: '分布式系统的共识算法里，Paxos 和 Raft 有什么区别？', includeSensitive: false }, () => undefined)
-      const userHistory = stack.exploration.history(userTurn)
-      const userStates = userHistory.map((entry) => entry.state)
-      // The gate may permit a topic Morrow owns; it must never permit one that is
-      // only the user's. Checking the state alone would confuse the two.
-      const permittedForUserTopic = userHistory.some((entry) => entry.state === 'permitted' && entry.interestId === userTopic?.id)
-      const permittedForMorrowTopic = Boolean(morrowTopic) && userHistory.some((entry) => entry.state === 'permitted' && entry.interestId === morrowTopic!.id)
-
-      return outcome('L5', [
-        { name: '知识缺口由事实守卫真实产生', ok: Number(gaps.n) >= 2, detail: `gaps=${gaps.n}` },
-        { name: '反思产出 Morrow 自己的候选', ok: findings.some((finding) => finding.kind === 'morrow_interest_candidate'), detail: findings.map((finding) => finding.kind).join(',') || 'none' },
-        { name: 'Morrow 兴趣归属非用户侧', ok: Boolean(morrowTopic) && morrowTopic!.origin !== 'user', detail: morrowTopic ? `${morrowTopic.label}:${morrowTopic.origin}` : 'none' },
-        { name: 'Morrow 兴趣带反思证据而非消息证据', ok: Boolean(morrowTopic) && stack.interests.evidenceLedger(morrowTopic!.id).some((row) => row.kind === 'reflection'), detail: morrowTopic ? stack.interests.evidenceLedger(morrowTopic!.id).map((row) => row.kind).join(',') : 'none' },
-        { name: '用户重复话题被标注为用户侧', ok: Boolean(userTopic), detail: userTopic ? `${userTopic.label}:${userTopic.origin}` : 'none' },
-        { name: '自身话题在合适回合获得许可', ok: permittedForMorrowTopic, detail: userStates.join(',') || 'no events' },
-        { name: '用户兴趣不得被当作 Morrow 自身话题提出', ok: Boolean(userTopic) && !permittedForUserTopic, detail: `${userStates.join(',') || 'no events'} userTopic=${userTopic?.id.slice(0, 8) ?? 'none'}` }
-      ])
-    }
+    run: async (stack) => runL5(stack)
   },
   {
     id: 'L6',
@@ -534,21 +664,7 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
   {
     id: 'L12',
     name: '删除消息后派生数据不泄漏',
-    run: async (stack) => {
-      const conversation = stack.companion.createConversation()
-      const turnId = randomUUID()
-      await send(stack, conversation.id, '这个回答不对，你理解错了。', turnId)
-      const before = stack.growth.get('directness')
-      stack.companion.readConversation({ conversationId: conversation.id })
-      stack.database.connection.prepare('DELETE FROM messages WHERE turn_id = ?').run(turnId)
-      const after = stack.growth.get('directness')
-      const rows = stack.database.connection.prepare('SELECT COUNT(*) AS n FROM personality_growth_signals WHERE turn_id = ?').get(turnId) as { n: number }
-      return outcome('L12', [
-        { name: '删除前该轮留下证据', ok: before.evidenceCount >= 0, detail: `evidence=${before.evidenceCount}` },
-        { name: '删除后证据行被级联清除', ok: rows.n === 0, detail: `rows=${rows.n}` },
-        { name: '偏移量重算不保留幽灵值', ok: after.offset <= before.offset + 1e-9, detail: `${before.offset} -> ${after.offset}` }
-      ])
-    }
+    run: async (stack) => runL12(stack)
   },
   {
     id: 'L13',

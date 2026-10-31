@@ -53,8 +53,8 @@ async function main(): Promise<void> {
   })
 
   const payload = {
-    datasetVersion: 'stage-3-v1',
-    harnessVersion: 'stage-3-ablation-v1',
+    datasetVersion: 'stage-3-v2.1',
+    harnessVersion: 'stage-3-ablation-v2',
     codeCommit: sha,
     environment: { platform: process.platform, node: process.version },
     provider: 'scripted-offline (not a model)',

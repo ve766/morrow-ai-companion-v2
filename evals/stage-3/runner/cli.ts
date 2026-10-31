@@ -4,7 +4,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { DATASET_VERSION, HARNESS_VERSION, buildStack, head, scenarios } from './harness'
+import { DATASET_VERSION, HARNESS_VERSION, PARAMS_VERSION, buildStack, head, scenarios } from './harness'
 
 export async function main(): Promise<void> {
   const root = resolve(process.cwd())
@@ -29,13 +29,27 @@ export async function main(): Promise<void> {
   const payload = {
     datasetVersion: DATASET_VERSION,
     harnessVersion: HARNESS_VERSION,
+    paramsVersion: PARAMS_VERSION,
     codeCommit: sha,
     environment: { platform: process.platform, node: process.version },
+    // The wall clock the harness used. Every scenario here runs on real time;
+    // the longitudinal runner is the one that injects a clock, and it says so
+    // in its own file.
+    clock: 'real',
     provider: 'scripted-offline (not a model)',
+    providerModelId: 'scripted-offline',
     startedAt,
     finishedAt,
     denominator: scenarios.length,
     counts,
+    // Claims this run cannot support. Kept in the file so a reader cannot
+    // mistake "15 scenarios passed" for "the companion works with a real model".
+    unmeasured: [
+      'real model understanding, interest formation and conversational quality',
+      'Electron renderer behaviour',
+      'Windows install/upgrade',
+      'any time span longer than one process run'
+    ],
     scenarios: results
   }
   const stamp = startedAt.replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
