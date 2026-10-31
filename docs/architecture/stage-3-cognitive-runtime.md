@@ -284,3 +284,53 @@ begin(identity):
 - `complete()` / `fail()` 都带 `claim_owner = :worker`，**只有持有者能收尾**。
 - `busy` 不是错误：outbox 行保持 pending，持有者完成或租约过期后自然可再领。
 - 租约让"进程崩溃留下的 running"变成"可恢复"，而不是"永远卡住"或"被误认为已完成"。
+
+---
+
+## 12. C1：语境与意图理解的运行时（2026-10-31）
+
+上一节的 `prepare` 里只有一个 `analyzeCognitiveTurnDetailed`，它返回一个标签和一个分数。本节描述取代它的结构。
+
+### 12.1 一次读取的组成
+
+```
+reading = combine(
+  analyzeSpeechAct(content, priorAssistant),      // 这是什么动作、是谁的动作
+  readLocalContext(history),                       // 承接的是什么
+  scoreIntentCandidates(...) + assessConfidence,   // 要什么、有多确定
+  extractSlots(...)                                // 还缺什么
+)
+→ status / responseMode / mayExecute
+```
+
+三者独立计算，`reading` 只是把它们绑在一起。**没有一个函数能同时决定「是什么动作」和「要做什么」**，这是本轮的核心改动：旧实现里两者是同一个标签。
+
+### 12.2 事务与读取的位置
+
+```
+prepare:
+  读 history（boundCognitiveHistory：12 条 / 6000 字）
+  → readTurn
+  → policyForIntent(reading.primaryIntent) → assembleContext
+  → cognitivePromptGuidance(reading)
+  → 序列化 payload
+
+sendChat（事务）:
+  messages(user)
+  → intent_readings 写入（UNIQUE(message_id)；supersede 旧行；stop_previous 关闭未决项）
+  → cognitive_turn_observations（legacy）
+```
+
+写入顺序是刻意的：**先写消息得到 message id，再写读法**，因为 `intent_readings.message_id` 有指向 `messages(id, conversation_id)` 的外键。删除消息时读法随之消失，不需要触发器。
+
+### 12.3 降级路径
+
+| 失败 | 行为 |
+|---|---|
+| `readTurn` 抛错 | `prepare` 捕获，`analysis/decision/reading` 全部 `undefined`，本轮无分析继续 |
+| `intent_readings` 写入失败 | `recordDegradation('intent_reading_persist')`，消息与回复照常 |
+| 旧行内容与本次不一致 | `ApplicationError('CONFLICT')`，不写半条 |
+
+### 12.4 下游约束
+
+`cognitivePromptGuidance` 现在多一条 `Speech act: …; intent status: …`，以及按 `responseMode` 选择的行为约束。**只有结论进 prompt**：槽位值、支持/反证码、候选取舍都是存储字段，不序列化。这一点由 `tests/c1-mainchain.test.ts` 断言（payload 不含 `entitiesAndSlots` / `supportingSignals`）。

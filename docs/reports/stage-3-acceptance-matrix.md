@@ -10,7 +10,7 @@
 
 | 能力 | 本轮前 | 本轮后 | 升级依据（必须是一条断言） |
 |---|---|---|---|
-| 语境/意图理解 | M4（默认关） | M4（默认关） | 未变：`companion-service.test.ts` 开关两态 |
+| 语境/意图理解 | M4（默认关） | **M4+**（默认关） | 2026-10-31 C1：speech act/intent 分离、上下文对照、读法持久化与 supersede、payload 使用；见 `docs/reports/stage-3-capability-maturity-matrix.md`。真实模型 NOT_RUN |
 | 记忆形成 | M4 | M4 | 未变 |
 | 纠正/修订 | M4 | M4 | 未变 |
 | 记忆巩固 | M3 | **M3** | 仍无生产读者；本轮未动 |

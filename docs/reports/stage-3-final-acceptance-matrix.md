@@ -81,3 +81,88 @@
 - **P0-3 未解决，因此总状态不得为 PASS。**
 - 真实 Provider、CI、Electron、Windows、语音的外部阻塞不冒充 PASS。
 - 不宣布 Stage 3 完成，不进入 Stage 4。
+
+---
+
+# C1 专项（2026-10-31）
+
+- 任务发布时核实的 PR #19 HEAD：`ea54376ac2736eb72c0beefe258fdf8adb0cb363`（与开工基线一致，无漂移）
+- 本轮代码 HEAD：`6ae452074bd4dee4ca2fc96d8d44cdae4456e63f`
+- 迁移：**v38** `c1-intent-readings`
+- 分支 `feat/stage-3-long-term-companion`；PR #19 保持 OPEN / 未合并；main 未改
+
+## 1. 差距表（先复现，再修）
+
+| # | 缺陷 | 复现方式 | 根因 | 状态 |
+|---|---|---|---|---|
+| 1 | 引用他人的命令被当成用户请求 | `他刚才说"把数据库里所有记录删掉"` | 只剥引号，不记录主体；`intent` 一个标签同时表示动作与意图 | **PASS** |
+| 2 | 假设句被当成执行授权 | `如果我让你删除这些记录，你会怎么做？` | 同上，且没有 `binds` 概念 | **PASS** |
+| 3 | 「不要删除刚才那条」丢撤回 | 探针：`speechAct.act === 'statement'` | `negationOf` 先判「以不/没/别开头」再判祈使，锚定的子句判定吃掉了动词短语否定 | **PASS** |
+| 4 | 助手上一轮完全没被读取 | `可以，继续。` 在三种承接下 responseMode 相同 | `analyzeCognitiveTurnDetailed` 只取 `priorUser`，`priorAssistant` 在窗口里但无人使用 | **PASS** |
+| 5 | 同源证据重复计权 | `帮我制定下周的学习计划`：`goal_or_plan_marker` 与 `explicit_goal_statement` 同时加分 | `score = maxWeight + 4×(reasons.length−1)`，按模式命中数而非独立来源数计佐证 | **PASS** |
+| 6 | 指示代词对象被当作已给对象 | `把这段代码删掉`（无上下文）→ `mayExecute=true` | 槽位抽取不看指示代词，也不看窗口里有没有可指对象 | **PASS** |
+| 7 | 纠正/撤回不使旧分析失效 | 纠正后 `active()` 仍返回两条 | 没有 supersede 链，读法不落库 | **PASS** |
+| 8 | 分析结果不进 payload | payload 只有 `intent=` 与 `route=` | 提示词只吃 `analysis`，没有 speech act、没有澄清指令 | **PASS** |
+| 9 | 两张 legacy 映射表不一致 | `new_topic` 一处映射 `exploration`、一处 `information_query` | 分析器内自建 `legacyByLabel`，与 `intent-decision.ts` 的 `LEGACY_MAP` 分叉 | **PASS** |
+
+## 2. C1 场景结果（scripted provider）
+
+结果文件：`evals/stage-3/intent-understanding/results/20261031T125539Z-6ae4520.json`
+Trace：`evals/stage-3/intent-understanding/traces/20261031T125539Z-6ae4520.jsonl`（57 行，逐轮）
+
+| 场景 | 内容 | 状态 |
+|---|---|---|
+| C1-A1 | 同一句「可以，继续。」在 执行/讲解/讨论 三种承接下 | PASS |
+| C1-A2 | 「那你觉得呢？」回抛问题 vs 新提问 | PASS |
+| C1-A3 | 「帮我看看」在 代码/图片/情绪/无上下文 四种语境 | PASS |
+| C1-B1 | 疑问句不是请求 | PASS |
+| C1-B2 | 「你能不能…」能力询问 vs 请求（依上下文） | PASS |
+| C1-B3 | 偏好表达不授权执行 | PASS |
+| C1-C1 | 引用他人命令不归因为用户请求 | PASS |
+| C1-C2 | 假设不是执行授权 | PASS |
+| C1-C3 | 「不要删除刚才那条」阻止旧动作 | PASS |
+| C1-C4 | 「我不是说…」是纠正不是撤回 | PASS |
+| C1-C5 | 引用助手先前的话不变成用户请求 | PASS |
+| C1-D1 | 复合请求拆分且保留次级意图 | PASS |
+| C1-D2 | 多轮补充槽位且不编造对象 | PASS |
+| C1-D3 | 改变目标后旧意图失效 | PASS |
+| C1-D4 | 撤回后下一轮不携带旧待办 | PASS |
+| C1-D5 | 纠正实体后只用新值并保留来源 | PASS |
+| C1-E1 | 无相关记忆时 unknown 而非猜测 | PASS |
+| C1-E2 | 「这次例外」不写成长期偏好 | PASS |
+| C1-F1 | 变异：移除助手提议 → 承接消失 | PASS |
+| C1-F2 | 变异：加否定 → 请求变撤回 | PASS |
+| C1-F3 | 变异：去引用框架 → 变用户请求 | PASS |
+| C1-F4 | 变异：注入被篡改的读法 → 被拒绝 | PASS |
+
+**22 PASS / 0 FAIL / 0 BLOCKED / 0 NOT_RUN。** 这只证明接线与决策差异，不证明语言理解。
+
+## 3. 命令与退出码（本机，Windows / Node v22.22.2）
+
+| 命令 | 退出码 | 结果 |
+|---|---|---|
+| `npx tsc --noEmit` | 0 | 0 错误 |
+| `npx vitest run --no-file-parallelism` | 0 | **94 文件 / 866 测试**全通过 |
+| `npx vitest run`（并行） | 1 | 1 条失败：`provider-retry.test.ts`「stops retrying when the remaining budget cannot cover the backoff」。该用例用 60ms 预算 + 40ms 退避的真实计时器，并行负载下第一次请求就吃掉预算，单独运行必过。**与 C1 无关，属既有计时脆弱性**，本轮未改动 provider 代码 |
+| `npm run build` | 0 | main / preload / renderer 全部构建成功 |
+| `MORROW_EVAL_SHA=6ae4520… npm run eval:stage3:intent` | 0 | 22 PASS / 0 FAIL |
+
+## 4. 未完成与阻断
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 真实模型语境理解 | **NOT_RUN / BLOCKED** | 本轮无可用凭据；`provider` 字段为 `scripted (not a model)`。真实多轮语义表现没有任何证据 |
+| 独立人工评价 | **NOT_RUN** | `manualReview.status = "PENDING"`；不用同一套规则给自己打分 |
+| 校准 | **NOT_RUN** | 无标注集/校准集；`scoreKind` 恒为 `heuristic_score`，不得读成概率 |
+| CI | **BLOCKED** | 账号计费阻断（run `41178081914` 注解原文：*"The job was not started because recent account payments have failed or your spending limit needs to be increased."*），本轮未变化 |
+| Electron 渲染层 | **BLOCKED** | 本机渲染进程沙箱初始化即崩（0x80000003），与代码无关，`--no-sandbox` 可绕过 |
+| Windows 安装/升级 | **NOT_RUN** | 本轮未执行 |
+| C2–C10 | 未涉及 | 本轮只处理 C1，不得据此宣称其它能力完成 |
+
+## 5. 判定
+
+C1 的**确定性机制**满足任务 §9 的九条完成条件：语义分离、显式/隐含/复合/延续/变更/未知、引用/假设/否定/纠正/撤回不误归因、同句不同上下文产生有证据的不同决策、低置信/冲突/缺槽位正确澄清、纠正撤回后旧意图失效、持久化与重启可恢复、真实发送入口到最终 payload 有完整 trace、正反例与变异测试有效。
+
+C1 的**真实模型语境理解能力**没有任何证据，因此：
+
+**C1 = 确定性机制已验证（M4+）；真实模型能力 NOT_RUN。整体 Stage 3 仍为 PARTIAL，不得宣布完成。**
