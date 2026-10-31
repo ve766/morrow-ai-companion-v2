@@ -182,14 +182,27 @@ describe('growth evidence derivation', () => {
     expect(directness?.signal ?? 0).toBe(0)
   })
 
-  it('abstains below the confidence floor', () => {
-    expect(deriveGrowthSignals({ analysis: analysis({}, 40), content: '直接说吧。' })).toEqual([])
-  })
-
-  it('abstains on an unreadable turn', () => {
+  it('treats an explicit style phrase as evidence even when the intent label abstains', () => {
+    // "希望你能直接一点" is an unmistakable request, but the intent classifier
+    // routes it as `uncertain` at confidence 30 because it is about how to
+    // answer rather than what to do. Abstaining on that lost two of the three
+    // natural requests in the real-provider run, so the lexical match wins and
+    // the weight is floored rather than dropped.
     const uncertain = analysis()
     uncertain.intent = 'uncertain'
-    expect(deriveGrowthSignals({ analysis: uncertain, content: '直接说吧。' })).toEqual([])
+    const signals = deriveGrowthSignals({ analysis: uncertain, content: '希望你能直接一点。' })
+    expect(signals.map((signal) => signal.dimension)).toEqual(['directness'])
+    expect(signals[0]!.weight).toBeGreaterThanOrEqual(0.6)
+  })
+
+  it('still abstains when the reading is both highly uncertain and very low confidence', () => {
+    const unsure = analysis({}, 20)
+    unsure.uncertainty = 'high'
+    expect(deriveGrowthSignals({ analysis: unsure, content: '直接说吧。' })).toEqual([])
+  })
+
+  it('abstains on a turn with no style phrase at all', () => {
+    expect(deriveGrowthSignals({ analysis: analysis({}, 40), content: '今天天气不错。' })).toEqual([])
   })
 
   it('abstains on a hypothesis or a role play', () => {

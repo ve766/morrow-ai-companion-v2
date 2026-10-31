@@ -174,7 +174,9 @@ describe('P0-3 outbox effect ledger', () => {
     database.close()
     const reopened = SqliteDatabase.open(path)
     cleanup.push(() => reopened.close())
-    const ledger = new CognitiveEffectLedger(reopened, clock)
+    // The lease has to have expired before another process may take the claim
+    // over; a fixed clock would otherwise make an abandoned claim look live.
+    const ledger = new CognitiveEffectLedger(reopened, () => '2026-10-31T00:05:00.000Z')
     expect(ledger.requeueInterrupted()).toBe(1)
 
     const goals = new CompanionGoalService(reopened, clock)
@@ -399,5 +401,74 @@ describe('P0-4 knowledge gap durability', () => {
       "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'cognition.knowledge_gap'"
     ).get() as { n: number }
     expect(Number(gaps.n)).toBe(1)
+  })
+})
+
+describe('P0-1 effect claim is atomic across connections', () => {
+  const identity = { turnId: '11111111-1111-4111-8111-111111111111', module: 'goal', handlerVersion: 1, effectKey: 'project' }
+
+  it('lets exactly one of two connections claim the same effect', () => {
+    const { database, path } = openFile()
+    const second = SqliteDatabase.open(path)
+    cleanup.push(() => second.close())
+
+    const ledgerA = new CognitiveEffectLedger(database, clock)
+    const ledgerB = new CognitiveEffectLedger(second, clock)
+
+    // Both try to claim the same row before either completes. Only the
+    // conditional UPDATE that changes a row may return 'run'.
+    expect(ledgerA.begin(identity)).toBe('run')
+    expect(ledgerB.begin(identity)).toBe('busy')
+
+    // The loser cannot finish the winner's work.
+    expect(ledgerB.complete(identity)).toBe(false)
+    expect(ledgerA.complete(identity)).toBe(true)
+
+    // Once applied, a later attempt is reported as done, not re-run.
+    expect(ledgerB.begin(identity)).toBe('applied')
+  })
+
+  it('lets a second connection take over an expired lease, and blocks the old owner', () => {
+    const { database, path } = openFile()
+    const second = SqliteDatabase.open(path)
+    cleanup.push(() => second.close())
+
+    const ledgerA = new CognitiveEffectLedger(database, () => '2026-10-31T00:00:00.000Z')
+    const ledgerB = new CognitiveEffectLedger(second, () => '2026-10-31T00:05:00.000Z')
+
+    expect(ledgerA.begin(identity)).toBe('run')
+    // The lease is 60s; five minutes later the claim is abandoned work.
+    expect(ledgerB.begin(identity)).toBe('run')
+    expect(ledgerA.complete(identity)).toBe(false)
+    expect(ledgerB.complete(identity)).toBe(true)
+  })
+
+  it('refuses to steal a lease that is still live', () => {
+    const { database, path } = openFile()
+    const second = SqliteDatabase.open(path)
+    cleanup.push(() => second.close())
+
+    const ledgerA = new CognitiveEffectLedger(database, () => '2026-10-31T00:00:00.000Z')
+    const ledgerB = new CognitiveEffectLedger(second, () => '2026-10-31T00:00:30.000Z')
+
+    expect(ledgerA.begin(identity)).toBe('run')
+    expect(ledgerB.begin(identity)).toBe('busy')
+  })
+})
+
+describe('P0-4 the prompt separates "not retrieved" from "never told"', () => {
+  it('tells the model that a missing memory was not retrieved, not never saved', async () => {
+    const stack = buildTestStack()
+    cleanup.push(() => stack.close())
+    const conversation = stack.companion.createConversation()
+    await stack.companion.sendChat(
+      { conversationId: conversation.id, requestId: randomUUID(), content: '我今天有点累。', includeSensitive: false },
+      () => undefined
+    )
+    const payload = stack.provider.lastPayload
+    const system = (JSON.parse(payload) as { messages: Array<{ role: string; content: string }> })
+      .messages.find((message) => message.role === 'system')?.content ?? ''
+    expect(system).toContain('was not retrieved this turn')
+    expect(system).toContain('never that the user never told you')
   })
 })

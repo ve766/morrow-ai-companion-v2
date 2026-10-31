@@ -48,19 +48,37 @@ function seedMessage(database: SqliteDatabase): { conversationId: string; messag
 }
 
 describe('goal time resolution', () => {
-  it('resolves a year-month horizon to the end of that month in UTC+8', () => {
-    const due = resolveDueAt('我打算在明年三月之前完成 Morrow 的第一阶段。', NOW)
-    expect(due.unresolved).toBe(false)
-    expect(due.dueAt).toBe('2027-03-31T15:59:59.000Z')
-    expect(due.expression).toBe('明年三月')
+  // The boundary word decides the deadline. "三月之前" and "三月底前" are one
+  // month apart, and resolving both to the end of March moved a real user's
+  // commitment by a month.
+  const cases: Array<[string, string, string]> = [
+    ['我打算在明年三月之前完成 Morrow 的第一阶段。', '2027-02-28T15:59:59.000Z', 'before'],
+    ['我打算在明年三月底前完成。', '2027-03-31T15:59:59.000Z', 'end'],
+    ['我打算在明年三月内完成。', '2027-03-31T15:59:59.000Z', 'end'],
+    ['我打算在明年三月开始时动手。', '2027-02-28T16:00:00.000Z', 'start'],
+    ['我打算明年三月以后再说。', '2027-02-28T16:00:00.000Z', 'after'],
+    ['我打算明年三月推进这件事。', '2027-03-31T15:59:59.000Z', 'end'],
+    ['我打算三月前完成。', '2027-02-28T15:59:59.000Z', 'before'],
+    ['我计划在2027年1月15日之前交付。', '2027-01-14T15:59:59.000Z', 'before'],
+    ['我计划在2027年1月15日交付。', '2027-01-15T15:59:59.000Z', 'end'],
+    ['我打算3天后把草稿写完。', '2026-11-03T15:59:59.000Z', 'end'],
+    ['我打算下个月之前完成。', '2026-10-31T15:59:59.000Z', 'before']
+  ]
+  for (const [text, expected, boundary] of cases) {
+    it(`resolves ${text} to ${expected}`, () => {
+      const due = resolveDueAt(text, NOW)
+      expect(due.unresolved).toBe(false)
+      expect(due.dueAt).toBe(expected)
+      expect(due.boundary).toBe(boundary)
+    })
+  }
+
+  it('keeps the boundary word in the expression so the clarification can quote it', () => {
+    expect(resolveDueAt('我打算在明年三月之前完成。', NOW).expression).toBe('明年三月之前')
   })
 
-  it('resolves a relative day count', () => {
-    expect(resolveDueAt('我打算3天后把草稿写完。', NOW).dueAt).toBe('2026-11-03T15:59:59.000Z')
-  })
-
-  it('resolves an explicit date', () => {
-    expect(resolveDueAt('我计划在2027年1月15日之前交付。', NOW).dueAt).toBe('2027-01-15T15:59:59.000Z')
+  it('handles a leap-year February boundary', () => {
+    expect(resolveDueAt('我打算在2028年三月之前完成。', NOW).dueAt).toBe('2028-02-29T15:59:59.000Z')
   })
 
   it('keeps an unresolvable horizon as a question instead of inventing a date', () => {
@@ -76,7 +94,8 @@ describe('goal candidate reading', () => {
     const reading = readGoalUtterance({ text: '我打算在明年三月之前完成 Morrow 的第一阶段。', now: NOW })
     expect(reading.intent).toBe('commitment')
     expect(reading.content).toBe('完成 Morrow 的第一阶段')
-    expect(reading.dueAt).toBe('2027-03-31T15:59:59.000Z')
+    // "之前" ends when March starts, not at the end of March.
+    expect(reading.dueAt).toBe('2027-02-28T15:59:59.000Z')
     expect(reading.needsConfirmation).toBe(false)
     expect(reading.owner).toBe('user')
   })
@@ -84,7 +103,8 @@ describe('goal candidate reading', () => {
   it('marks a joint plan as shared rather than the user\'s private goal', () => {
     const reading = readGoalUtterance({ text: '我们打算下个月之前一起把原型做出来。', now: NOW })
     expect(reading.owner).toBe('shared')
-    expect(reading.dueAt).toBe('2026-11-30T15:59:59.000Z')
+    // Same rule for a month horizon: "下个月之前" ends when next month starts.
+    expect(reading.dueAt).toBe('2026-10-31T15:59:59.000Z')
   })
 
   it('refuses a suggestion addressed to Morrow instead of reassigning it to her', () => {
@@ -128,7 +148,7 @@ describe('goal creation and lifecycle', () => {
     const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
     expect(result.goalId).not.toBeNull()
     const goal = goals.get(result.goalId!)!
-    expect(goal.dueAt).toBe('2027-03-31T15:59:59.000Z')
+    expect(goal.dueAt).toBe('2027-02-28T15:59:59.000Z')
     expect(goal.title).toBe('完成 Morrow 的第一阶段')
     expect(goal.owner).toBe('user')
     expect(goal.sourceMessageId).toBe(messageId)

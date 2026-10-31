@@ -43,7 +43,14 @@ export interface EffectRecord extends EffectIdentity {
   lastErrorCode: string | null
   appliedAt: string | null
   updatedAt: string
+  /** Which worker holds the claim, null when nobody does. */
+  claimOwner: string | null
+  /** When the claim stops being exclusive; an expired lease is claimable again. */
+  leaseUntil: string | null
 }
+
+/** How long one claim is exclusive before another worker may take it over. */
+export const EFFECT_LEASE_MS = 60_000
 
 interface EffectRow {
   effect_id: string
@@ -56,6 +63,8 @@ interface EffectRow {
   last_error_code: string | null
   applied_at: string | null
   updated_at: string
+  claim_owner: string | null
+  lease_until: string | null
 }
 
 function mapRow(row: EffectRow): EffectRecord {
@@ -69,7 +78,9 @@ function mapRow(row: EffectRow): EffectRecord {
     attempts: row.attempts,
     lastErrorCode: row.last_error_code,
     appliedAt: row.applied_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    claimOwner: row.claim_owner ?? null,
+    leaseUntil: row.lease_until ?? null
   }
 }
 
@@ -77,7 +88,9 @@ export class CognitiveEffectLedger {
   constructor(
     private readonly database: SqliteDatabase,
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly makeId: () => string = () => randomUUID()
+    private readonly makeId: () => string = () => randomUUID(),
+    /** Identifies this worker so a claim cannot be completed by another one. */
+    private readonly workerId: string = makeId()
   ) {}
 
   /**
@@ -88,32 +101,64 @@ export class CognitiveEffectLedger {
    * row is moved to `running` and the caller owns it until it calls
    * `complete` or `fail`.
    */
-  begin(identity: EffectIdentity): 'run' | 'applied' {
-    const at = this.clock()
-    this.database.connection.prepare(`
-      INSERT INTO cognitive_effect_ledger(effect_id, turn_id, module, handler_version, effect_key, state, attempts, last_error_code, applied_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
-      ON CONFLICT(turn_id, module, handler_version, effect_key) DO NOTHING
-    `).run(this.makeId().toLowerCase(), identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, at, at)
-    const row = this.find(identity)
-    if (!row) throw new Error('Effect ledger row disappeared immediately after insert.')
-    if (row.state === 'applied') return 'applied'
-    this.database.connection.prepare(`
-      UPDATE cognitive_effect_ledger
-      SET state = 'running', attempts = attempts + 1, updated_at = ?
-      WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
-    `).run(at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey)
-    return 'run'
+  begin(identity: EffectIdentity): 'run' | 'applied' | 'busy' {
+    // One transaction, one conditional UPDATE, and a changed-row count. The old
+    // version read the row and then wrote `running` with no predicate and no
+    // transaction, so two connections could both decide they owned the effect.
+    //
+    // The claim is conditional on (a) a claimable state and (b) the lease being
+    // absent or expired. Whoever changes a row owns it; everyone else gets
+    // 'busy' or 'applied' and must not run the side effect.
+    return this.database.transaction(() => {
+      const at = this.clock()
+      this.database.connection.prepare(`
+        INSERT INTO cognitive_effect_ledger(effect_id, turn_id, module, handler_version, effect_key, state, attempts, last_error_code, applied_at, created_at, updated_at, claim_owner, lease_until)
+        VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?, NULL, NULL)
+        ON CONFLICT(turn_id, module, handler_version, effect_key) DO NOTHING
+      `).run(this.makeId().toLowerCase(), identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, at, at)
+
+      const lease = new Date(Date.parse(at) + EFFECT_LEASE_MS).toISOString()
+      const claimed = this.database.connection.prepare(`
+        UPDATE cognitive_effect_ledger
+        SET state = 'running',
+            claim_owner = ?,
+            lease_until = ?,
+            attempts = attempts + 1,
+            updated_at = ?
+        WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
+          AND state IN ('pending', 'failed_retryable')
+      `).run(this.workerId, lease, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey)
+      if (Number(claimed.changes) === 1) return 'run'
+
+      const row = this.find(identity)
+      if (!row) throw new Error('Effect ledger row disappeared immediately after insert.')
+      if (row.state === 'applied') return 'applied'
+      // A `running` row whose lease expired is abandoned work: take it over.
+      if (row.state === 'running' && row.leaseUntil !== null && row.leaseUntil < at) {
+        const stolen = this.database.connection.prepare(`
+          UPDATE cognitive_effect_ledger
+          SET claim_owner = ?, lease_until = ?, attempts = attempts + 1, updated_at = ?
+          WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
+            AND state = 'running' AND lease_until = ?
+        `).run(this.workerId, lease, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, row.leaseUntil)
+        if (Number(stolen.changes) === 1) return 'run'
+      }
+      if (row.state === 'terminal_failed') return 'busy'
+      return 'busy'
+    })
   }
 
-  /** Marks the effect applied. Call this only after the business write committed. */
-  complete(identity: EffectIdentity): void {
+  /** Marks the effect applied. Only the claiming worker may do this. */
+  complete(identity: EffectIdentity): boolean {
     const at = this.clock()
-    this.database.connection.prepare(`
+    const result = this.database.connection.prepare(`
       UPDATE cognitive_effect_ledger
-      SET state = 'applied', applied_at = ?, last_error_code = NULL, updated_at = ?
+      SET state = 'applied', applied_at = ?, last_error_code = NULL, updated_at = ?,
+          lease_until = NULL
       WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
-    `).run(at, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey)
+        AND claim_owner = ?
+    `).run(at, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, this.workerId)
+    return Number(result.changes) === 1
   }
 
   /**
@@ -129,9 +174,10 @@ export class CognitiveEffectLedger {
     const state: EffectState = attempts >= EFFECT_MAX_ATTEMPTS ? 'terminal_failed' : 'failed_retryable'
     this.database.connection.prepare(`
       UPDATE cognitive_effect_ledger
-      SET state = ?, last_error_code = ?, updated_at = ?
+      SET state = ?, last_error_code = ?, updated_at = ?, lease_until = NULL
       WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
-    `).run(state, errorCode.slice(0, 64), at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey)
+        AND claim_owner = ?
+    `).run(state, errorCode.slice(0, 64), at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, this.workerId)
     return state
   }
 
@@ -176,9 +222,10 @@ export class CognitiveEffectLedger {
   requeueInterrupted(): number {
     const at = this.clock()
     const result = this.database.connection.prepare(`
-      UPDATE cognitive_effect_ledger SET state = 'failed_retryable', updated_at = ?
-      WHERE state = 'running'
-    `).run(at)
+      UPDATE cognitive_effect_ledger
+      SET state = 'failed_retryable', updated_at = ?, lease_until = NULL
+      WHERE state = 'running' AND (lease_until IS NULL OR lease_until <= ?)
+    `).run(at, at)
     return Number(result.changes)
   }
 }

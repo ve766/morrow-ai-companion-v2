@@ -2046,7 +2046,65 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
-  }
+  },
+  {
+    version: 36,
+    name: 'effect-ledger-atomic-claim',
+    up(database) {
+      // P0-1 of the final round. `begin()` used to read the row and then UPDATE
+      // it to `running` without a transaction and without a state predicate, so
+      // two connections could both observe a claimable row and both return
+      // 'run'. Sequential drains never showed it because nothing overlapped.
+      //
+      // A claim now carries an owner and a lease: the UPDATE is conditional on
+      // the previous state *and* on the lease having expired, and the caller
+      // must see exactly one changed row. Completion and failure are likewise
+      // conditioned on the owner, so a worker cannot finish someone else's work.
+      database.exec(`
+        ALTER TABLE cognitive_effect_ledger ADD COLUMN claim_owner TEXT;
+        ALTER TABLE cognitive_effect_ledger ADD COLUMN lease_until TEXT;
+        CREATE INDEX cognitive_effect_ledger_claim_idx ON cognitive_effect_ledger(state, lease_until);
+      `)
+    }
+  },
+  {
+    version: 37,
+    name: 'spark-chat-completions-v2',
+    up(database) {
+      // The shared real-model contract pins Spark Chat Completions to /v2.
+      // The product built its URL as `${endpoint}/chat/completions`, so the
+      // stored endpoint has to carry the version. /v1 answered 200 with an empty
+      // completion for spark-x2.6, which is why this is a fix and not a rename.
+      //
+      // The table is rebuilt because the endpoint is guarded by a CHECK: an
+      // UPDATE alone would be rejected. Existing /v1 rows are migrated to /v2 so
+      // an install that already configured the provider keeps working.
+      database.exec(`
+        CREATE TABLE provider_profiles_v37 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (id IN ('deepseek', 'local-openai', 'spark')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (
+            (id = 'deepseek' AND endpoint = 'https://api.deepseek.com')
+            OR (id = 'spark' AND endpoint = 'https://maas-api.cn-huabei-1.xf-yun.com/v2')
+            OR (id = 'local-openai' AND length(endpoint) BETWEEN 8 AND 2000)
+          ),
+          model TEXT NOT NULL CHECK (
+            (id = 'deepseek' AND model = 'deepseek-flash')
+            OR (id IN ('spark', 'local-openai') AND length(model) BETWEEN 1 AND 64)
+          ),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO provider_profiles_v37(id, provider_class, endpoint, model, enabled, updated_at)
+          SELECT id, provider_class,
+                 CASE WHEN id = 'spark' THEN 'https://maas-api.cn-huabei-1.xf-yun.com/v2' ELSE endpoint END,
+                 model, enabled, updated_at
+          FROM provider_profiles;
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v37 RENAME TO provider_profiles;
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

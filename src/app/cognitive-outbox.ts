@@ -95,6 +95,8 @@ export interface DrainResult {
    * between "retried safely" and "duplicated".
    */
   replayed: number
+  /** Rows another worker holds a live claim on. Not an error, not progress. */
+  busy: number
 }
 
 /**
@@ -228,7 +230,7 @@ export class CognitionOutbox {
    */
   drain(projectors: readonly CognitiveProjector[], options: { turnId?: string; limit?: number } = {}): DrainResult {
     const rows = this.pending(options.turnId, options.limit ?? 100)
-    const result: DrainResult = { done: 0, failed: 0, skipped: 0, replayed: 0 }
+    const result: DrainResult = { done: 0, failed: 0, skipped: 0, replayed: 0, busy: 0 }
     for (const row of rows) {
       const projector = projectors.find((candidate) => candidate.module === row.module && candidate.version === row.handlerVersion)
       if (!projector) {
@@ -242,9 +244,17 @@ export class CognitionOutbox {
         effectKey: OUTBOX_EFFECT_KEY
       }
       try {
-        if (this.ledger.begin(identity) === 'applied') {
+        const claim = this.ledger.begin(identity)
+        if (claim === 'applied') {
           this.mark(row, 'done', null, row.attempts)
           result.replayed += 1
+          continue
+        }
+        if (claim === 'busy') {
+          // Another worker owns this effect right now. Leaving the row pending
+          // is correct: the owner will complete it, and if it dies the lease
+          // expires and the row becomes claimable again.
+          result.busy += 1
           continue
         }
         projector.project({

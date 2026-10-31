@@ -52,14 +52,30 @@ import { PersonalityGrowthService } from '../../../src/personalization/personali
 import { UserInteractionProfileService } from '../../../src/personalization/interaction-profile'
 import { CompanionGoalService } from '../../../src/motivation/companion-goal'
 import { ExplorationService } from '../../../src/self-model/exploration-policy'
-import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, SPARK_PROVIDER_ID } from '../../../src/shared/companion'
+import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, SPARK_MAAS_BASE_URL, SPARK_PROVIDER_ID } from '../../../src/shared/companion'
 import { MemorySecretStore } from '../../../src/security/secrets'
 import { OpenAICompatibleProvider } from '../../../src/providers/openai-compatible'
 import type { ProviderInput, ProviderOutput, ProviderPort } from '../../../src/providers/provider-policy'
 
 export const DATASET_VERSION = 'stage-3-live-v1'
-export const HARNESS_VERSION = 'stage-3-live-runner-v1'
-export const PARAMS_VERSION = 'stage-3-live-params-v1'
+export const HARNESS_VERSION = 'stage-3-live-runner-v2'
+export const PARAMS_VERSION = 'stage-3-live-params-v2'
+
+/**
+ * Shared real-model contract defaults.
+ *
+ * These come from `docs/testing/shared-real-model-test-contract.md`. The runner
+ * refuses to start if the product's own endpoint differs from the contract URL,
+ * because a test that talks to a different endpoint than the product does is
+ * not evidence about the product.
+ */
+export const CONTRACT = Object.freeze({
+  model: 'spark-x2.6',
+  chatCompletionsUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions',
+  responsesUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/v1/responses',
+  anthropicMessagesUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/anthropic/v1/messages',
+  apiKeyEnv: 'MORROW_TEST_API_KEY'
+})
 
 interface Assertion { name: string; ok: boolean; detail: string }
 type Status = 'PASS' | 'FAIL' | 'NOT_RUN' | 'BLOCKED'
@@ -92,21 +108,26 @@ interface TurnRecord {
 type LiveProvider = 'deepseek' | 'spark'
 
 function providerOf(): { id: string; model: string; label: LiveProvider } {
-  const label = (process.env.MORROW_LIVE_PROVIDER ?? 'deepseek').toLowerCase()
+  const label = (process.env.MORROW_LIVE_PROVIDER ?? 'spark').toLowerCase()
   if (label === 'spark') {
-    return { id: SPARK_PROVIDER_ID, model: process.env.MORROW_LIVE_MODEL ?? 'spark-x2.6', label }
+    return { id: SPARK_PROVIDER_ID, model: process.env.MORROW_TEST_MODEL ?? CONTRACT.model, label }
   }
   if (label !== 'deepseek') throw new Error(`Unknown MORROW_LIVE_PROVIDER: ${label}`)
-  return { id: DEEPSEEK_PROVIDER_ID, model: process.env.MORROW_LIVE_MODEL ?? DEEPSEEK_MODEL, label: 'deepseek' }
+  return { id: DEEPSEEK_PROVIDER_ID, model: process.env.MORROW_TEST_MODEL ?? DEEPSEEK_MODEL, label: 'deepseek' }
 }
 
-function readKey(provider: LiveProvider): string {
-  const fromEnv = process.env.DEEPSEEK_API_KEY
-  if (fromEnv && fromEnv.trim().length >= 16) return fromEnv.trim()
-  const file = process.env.MORROW_LIVE_KEY_FILE ?? join(resolve(process.cwd()), '.tmp', `${provider}.key`)
-  const raw = readFileSync(file, 'utf8').trim()
-  if (raw.length < 16) throw new Error('The key file is empty or too short.')
-  return raw
+/**
+ * The credential is read from the contract environment variable only.
+ *
+ * There is no file fallback on purpose: a test that can silently pick up a key
+ * from a path is a test that can run with the wrong credential, and the contract
+ * exists to make exactly one path possible.
+ */
+function readKeyOrNull(): string | null {
+  const fromEnv = process.env[CONTRACT.apiKeyEnv]
+  if (!fromEnv) return null
+  const key = fromEnv.trim()
+  return key.length >= 16 ? key : null
 }
 
 function head(): string {
@@ -219,7 +240,37 @@ function systemText(payload: string): string {
 async function main(): Promise<void> {
   const startedAt = new Date().toISOString()
   const target = providerOf()
-  const key = readKey(target.label)
+  const key = readKeyOrNull()
+  if (!key) {
+    // BLOCKED_NO_SECRET is a first-class result, not a crash: the contract says
+    // a missing secret must be recorded as blocked, never faked with a scripted
+    // provider.
+    const stamp = startedAt.replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
+    const outDir = join(resolve(process.cwd()), 'evals', 'real-provider', 'results')
+    mkdirSync(outDir, { recursive: true })
+    const file = join(outDir, `${stamp}-${head().slice(0, 7)}.json`)
+    writeFileSync(file, `${JSON.stringify({
+      status: 'BLOCKED_NO_SECRET',
+      reason: `Environment variable ${CONTRACT.apiKeyEnv} is not set.`,
+      datasetVersion: DATASET_VERSION,
+      harnessVersion: HARNESS_VERSION,
+      paramsVersion: PARAMS_VERSION,
+      codeCommit: head(),
+      provider: target.label,
+      providerModelId: target.model,
+      expectedEndpoint: CONTRACT.chatCompletionsUrl,
+      startedAt,
+      finishedAt: new Date().toISOString()
+    }, null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify({ file, status: 'BLOCKED_NO_SECRET' }, null, 2)}\n`)
+    return
+  }
+
+  const contractUrl = process.env.MORROW_TEST_CHAT_COMPLETIONS_URL ?? CONTRACT.chatCompletionsUrl
+  const productUrl = `${SPARK_MAAS_BASE_URL}/chat/completions`
+  if (target.label === 'spark' && contractUrl !== productUrl) {
+    throw new Error(`The product endpoint ${productUrl} differs from the contract endpoint ${contractUrl}.`)
+  }
   const stack = buildStack()
   stack.companion.saveProvider({ providerId: target.id as typeof DEEPSEEK_PROVIDER_ID, model: target.model, enabled: true, apiKey: key })
 
@@ -403,8 +454,10 @@ async function main(): Promise<void> {
         detail: `memory=${residencyAfter?.current_text ?? 'missing'} selected=${correctionTurn.selectedMemoryIds.includes(memoriesCreated.residence!)}`
       },
       {
-        name: '长期目标的期限被真实解析并落库',
-        ok: Boolean(goalPayload) && goalPayload!.due_at === '2027-03-31T15:59:59.000Z' && goalPayload!.owner === 'user',
+        name: '长期目标的期限按边界语义解析并落库（三月之前 = 二月底）',
+        // "三月之前" ends when March starts: 2027-02-28 23:59:59 +08. The first
+        // version of this runner asserted 2027-03-31 and was wrong — see P0-2.
+        ok: Boolean(goalPayload) && goalPayload!.due_at === '2027-02-28T15:59:59.000Z' && goalPayload!.owner === 'user',
         detail: goalPayload ? `${goalPayload.title.slice(0, 24)} due=${goalPayload.due_at} owner=${goalPayload.owner}` : 'none'
       },
       {
@@ -468,9 +521,12 @@ async function main(): Promise<void> {
       codeCommit: head(),
       environment: { platform: process.platform, node: process.version },
       clock: 'real',
+      status: status === 'PASS' ? 'REAL_PROVIDER_PASS' : 'REAL_PROVIDER_FAIL',
       provider: `${target.label} (live)`,
       providerId: target.id,
       providerModelId: target.model,
+      endpoint: contractUrl,
+      protocol: 'openai-chat-completions',
       startedAt,
       finishedAt,
       turns: turns.length,
@@ -508,7 +564,7 @@ async function main(): Promise<void> {
     if (/(?:sk|ak)-[A-Za-z0-9_-]{16,}/u.test(serialized)) throw new Error('Refusing to write: a key-shaped string is present in the result payload.')
 
     const stamp = startedAt.replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
-    const outDir = join(resolve(process.cwd()), 'evals', 'stage-3', 'live', 'results')
+    const outDir = join(resolve(process.cwd()), 'evals', 'real-provider', 'results')
     mkdirSync(outDir, { recursive: true })
     const file = join(outDir, `${stamp}-${head().slice(0, 7)}.json`)
     writeFileSync(file, `${serialized}\n`)

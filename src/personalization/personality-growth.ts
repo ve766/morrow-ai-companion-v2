@@ -207,10 +207,6 @@ export function deriveGrowthSignals(input: {
   const analysis = input.analysis
   const content = input.content
   if (!analysis || typeof content !== 'string' || content.trim().length === 0) return []
-  // Explicit gate on the analyser's own uncertainty signals, not on the mere
-  // presence of an analysis object.
-  if (analysis.intent === 'uncertain' || analysis.confidenceScore < GROWTH_MIN_CONFIDENCE) return []
-  if (analysis.uncertainty === 'high' && analysis.confidenceScore < 65) return []
 
   // Quoted or reported speech is not the user's own directive.
   const own = stripQuotedAndReportedText(content)
@@ -221,7 +217,19 @@ export function deriveGrowthSignals(input: {
   const matched = STYLE_RULES.filter((rule) => rule.pattern.test(own))
   if (matched.length === 0) return []
 
-  const weight = Math.min(1, Math.max(0, analysis.confidenceScore / 100))
+  // An explicit style phrase is lexical evidence, and a lexical match is more
+  // reliable than the intent classifier's routing label. "希望你能直接一点"
+  // carries an unmistakable request even though the classifier calls the turn
+  // `uncertain` at confidence 30 — that label is about what the user wants
+  // *done*, not about what the sentence says. Abstaining on it lost two of the
+  // three natural requests in the real-provider run.
+  //
+  // The abstention that remains is the one that is still about the sentence: a
+  // reading that is both highly uncertain and below 25 confidence is not
+  // something to move a dimension on, however suggestive the words are.
+  if (analysis.uncertainty === 'high' && analysis.confidenceScore < 25) return []
+
+  const weight = Math.min(1, Math.max(0.6, analysis.confidenceScore / 100))
   const byDimension = new Map<GrowthDimension, { net: number; sources: string[] }>()
   for (const rule of matched) {
     const aggregate = byDimension.get(rule.dimension) ?? { net: 0, sources: [] }
