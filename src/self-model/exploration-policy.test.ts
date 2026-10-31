@@ -195,8 +195,8 @@ describe('ExplorationService', () => {
     const candidate = interest({ label: '神经科学' })
     const turnId = randomUUID()
     service.decide({ turnId, interests: [candidate], turn: null })
-    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '说说神经科学。' })
-    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '说说神经科学。' })
+    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '我最近一直在想神经科学的问题。' })
+    service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '我最近一直在想神经科学的问题。' })
     expect(service.recent().raisedLastDay).toBe(1)
     expect(service.history(turnId).filter((entry) => entry.state === 'actually_raised')).toHaveLength(1)
   })
@@ -222,7 +222,7 @@ describe('ExplorationService', () => {
       const turnId = randomUUID()
       const decision = service.decide({ turnId, interests: [candidate], turn: null })
       if (!decision.allowed) { outcomes.push('denied'); continue }
-      service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: `说说${candidate.label}。` })
+      service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: `我最近一直在想${candidate.label}的问题。` })
       outcomes.push('raised')
       now = new Date(Date.parse(now) + 7 * 60 * 60 * 1000).toISOString()
     }
@@ -260,7 +260,7 @@ describe('ExplorationService', () => {
     for (const candidate of [first, second]) {
       const turnId = randomUUID()
       service.decide({ turnId, interests: [candidate], turn: null })
-      service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: `再说说${candidate.label}。` })
+      service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: `我还是想弄明白${candidate.label}。` })
       now = new Date(Date.parse(now) + 7 * 60 * 60 * 1000).toISOString()
     }
     expect(service.usedToday()).toBe(2)

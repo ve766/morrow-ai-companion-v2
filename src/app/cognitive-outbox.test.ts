@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '../persistence/database'
-import { CognitionOutbox, OUTBOX_MAX_ATTEMPTS, type CognitiveProjector } from './cognitive-outbox'
+import { CognitionOutbox, COGNITIVE_MODULES, OUTBOX_MAX_ATTEMPTS, type CognitiveProjector } from './cognitive-outbox'
 
 let directory = ''
 let database: SqliteDatabase | undefined
@@ -48,8 +48,8 @@ describe('CognitionOutbox', () => {
     outbox.enqueue({ turnId, conversationId, userMessageId: messageId, occurredAt: '2026-10-31T00:00:00.000Z', analysis: null })
     outbox.enqueue({ turnId, conversationId, userMessageId: messageId, occurredAt: '2026-10-31T00:00:00.000Z', analysis: null })
 
-    expect(outbox.pending().length).toBe(6)
-    expect(outbox.stats()).toEqual({ pending: 6, failed: 0, cancelled: 0 })
+    expect(outbox.pending().length).toBe(COGNITIVE_MODULES.length)
+    expect(outbox.stats()).toEqual({ pending: COGNITIVE_MODULES.length, failed: 0, cancelled: 0 })
   })
 
   it('isolates a failing module so the others still run', () => {
@@ -74,7 +74,7 @@ describe('CognitionOutbox', () => {
     expect(result.failed).toBe(1)
     // The failed row stays pending for the next attempt; the two modules with no
     // projector in this drain are skipped, not silently marked done.
-    expect(outbox.stats()).toEqual({ pending: 4, failed: 0, cancelled: 0 })
+    expect(outbox.stats()).toEqual({ pending: COGNITIVE_MODULES.length - 2, failed: 0, cancelled: 0 })
   })
 
   it('is idempotent: draining ten times applies each module once', () => {
@@ -89,7 +89,7 @@ describe('CognitionOutbox', () => {
     for (let index = 0; index < 10; index += 1) outbox.drain(projectors)
 
     expect(calls).toBe(1)
-    expect(outbox.stats()).toEqual({ pending: 5, failed: 0, cancelled: 0 })
+    expect(outbox.stats()).toEqual({ pending: COGNITIVE_MODULES.length - 1, failed: 0, cancelled: 0 })
   })
 
   it('parks a permanently failing row instead of retrying forever', () => {
@@ -132,7 +132,7 @@ describe('CognitionOutbox', () => {
     db.connection.prepare('DELETE FROM conversations WHERE id = ?').run(conversationId)
 
     expect(outbox.pending()).toHaveLength(0)
-    expect(outbox.stats()).toEqual({ pending: 0, failed: 0, cancelled: 6 })
+    expect(outbox.stats()).toEqual({ pending: 0, failed: 0, cancelled: COGNITIVE_MODULES.length })
   })
 
   it('never stores the user text, only references', () => {

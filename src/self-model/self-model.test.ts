@@ -216,7 +216,9 @@ describe('B5 reflection pipeline: mapping, evidence, idempotency', () => {
     const findings1 = reflection.findings(run1.id).length
     const evidence1 = interests.evidenceLedger(interests.list()[0]?.id ?? 'none').length
 
-    // Same evidence, second run: nothing new is stored and nothing is re-applied.
+    // Same evidence, second run: the cursor has already consumed those events,
+    // so nothing is examined at all. Re-reading the first 200 rows forever is
+    // exactly the blindness this replaced.
     const run2 = reflection.run('manual')
     expect('skipped' in run2).toBe(false)
     if ('skipped' in run2) return
@@ -225,8 +227,20 @@ describe('B5 reflection pipeline: mapping, evidence, idempotency', () => {
     expect(interests.evidenceLedger(interests.list()[0]?.id ?? 'none').length).toBe(evidence1)
     // `events.list` returns newest first.
     const second = events.list({ eventType: 'reflection.completed' })[0]!
-    expect(Number(second.payload.duplicates)).toBeGreaterThan(0)
-    expect(Number(second.payload.stored)).toBe(0)
+    expect(Number(second.payload.examinedMemoryEvents)).toBe(0)
+
+    // Rewinding the cursor — what a lost cursor or a version bump looks like —
+    // must not duplicate anything. The findings are deduped by key and their
+    // effects are already recorded in the ledger, so a full replay is a no-op.
+    database.connection.prepare('UPDATE reflection_cursors SET last_seq = 0').run()
+    const run3 = reflection.run('manual')
+    expect('skipped' in run3).toBe(false)
+    if ('skipped' in run3) return
+    expect(reflection.findings(run3.id)).toHaveLength(0)
+    expect(interests.evidenceLedger(interests.list()[0]?.id ?? 'none').length).toBe(evidence1)
+    const third = events.list({ eventType: 'reflection.completed' })[0]!
+    expect(Number(third.payload.duplicates)).toBeGreaterThan(0)
+    expect(Number(third.payload.stored)).toBe(0)
   })
 
   it('does not re-create interest evidence after the source memory is retracted', () => {
