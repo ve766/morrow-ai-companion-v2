@@ -36,7 +36,7 @@
 | P0-5 | 读拒绝门；读 `confirm()`/`retract()` 证据写入；`actor:'morrow'` 判 `model_text` | 通过。模型复述不进入用户重复计数 |
 | P1-6 | 读 `goal-time` 解析与 `acceptCandidate` 事务；14 条测试；删除来源传播 | 通过。期限不丢、重试不重复、孤儿候选不可接受 |
 | P1-7 | 跑 `eval-assertions.test.ts`（3 条要求 FAIL）；核对结果文件溯源字段 | 通过。断言能失败，且不把 NOT_RUN/uncertain 计为通过 |
-| P1-8 | 查 Actions run、查凭据可用性 | **BLOCKED**，理由在验收矩阵 §3 |
+| P1-8 | 查 Actions run 与 check-run 注解、查凭据可用性 | **BLOCKED**。注解原文："The job was not started because recent account payments have failed or your spending limit needs to be increased."（run `41178081914`）——外部计费阻断，可复核 |
 
 ## 3. 我未能证明的事
 

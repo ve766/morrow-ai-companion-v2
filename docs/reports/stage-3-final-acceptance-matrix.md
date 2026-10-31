@@ -42,7 +42,7 @@
 
 | 项 | 状态 | 可复核证据 |
 |---|---|---|
-| GitHub Actions 有效运行 | BLOCKED | run [41166380523](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41166380523)：三个 job `steps=[]`、`runner_id=0`。这不是测试失败，也绝不是 CI 通过 |
+| GitHub Actions 有效运行 | BLOCKED | run [41178081914](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41178081914)（HEAD `91f6173`）：三个 job 均 `conclusion=failure`、`steps=[]`、`runner_name` 为空。check-run 注解原文：*"The job was not started because recent account payments have failed or your spending limit needs to be increased."* —— 这是账号计费/额度问题，不是测试失败，也绝不是 CI 通过 |
 | 真实模型多轮陪伴 | BLOCKED | 无可用凭据；未读取/上传/打印任何凭据。scripted 结果只覆盖接线 |
 | Electron renderer | BLOCKED | 本机沙箱初始化崩溃（0x80000003），空白 `data:` 页同样复现，`--no-sandbox` 可绕过 → 环境问题 |
 | Windows 安装升级 | NOT_RUN | 本轮未执行 |

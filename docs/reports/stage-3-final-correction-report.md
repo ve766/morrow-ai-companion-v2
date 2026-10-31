@@ -59,7 +59,7 @@
 
 | 项 | 状态 | 证据 |
 |---|---|---|
-| 有效 CI | **BLOCKED** | Actions run `41166380523` 三个 job `steps=[]`、`runner_id=0`，runner 未启动；本轮新增提交后仍需重新观察 |
+| 有效 CI | **BLOCKED** | run [41178081914](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41178081914)：三个 job `steps=[]`、`runner_name` 为空，注解为 *"The job was not started because recent account payments have failed or your spending limit needs to be increased."* —— 账号计费/额度阻断，非代码失败 |
 | 真实 Provider 多轮陪伴 | **BLOCKED** | 本轮未持有可用真实凭据，未读取/上传/打印任何凭据；scripted provider 只证明接线 |
 | Electron renderer | **BLOCKED** | 本机渲染进程沙箱初始化即崩（0x80000003），属环境问题，非代码；CI 双平台覆盖 |
 | Windows 安装升级 | **NOT_RUN** | 未在本轮执行安装器验收 |
