@@ -19,7 +19,7 @@
 import { readFactSlot, type FactSlot } from '../memory/fact-slot'
 import type { CognitiveIntent } from './cognition'
 
-export const INTENT_DECISION_VERSION = 'intent-rules-v1' as const
+export const INTENT_DECISION_VERSION = 'intent-rules-v2' as const
 
 export const INTENT_LABELS = [
   'information_query',
@@ -33,6 +33,10 @@ export const INTENT_LABELS = [
   // A plain self-disclosure ("我住在杭州") is neither a preference nor a query;
   // it keeps its own class so it is never read as either.
   'self_fact',
+  // A request for an action ("帮我把这段代码删掉") is not a question. Without its
+  // own label it was either `ambiguous` or `information_query`, and both are
+  // wrong in a way that reaches the retrieval policy.
+  'request',
   // Preserved from the earlier taxonomy so stored turns keep a meaningful label.
   'explanation',
   'exploration',
@@ -76,9 +80,17 @@ const LEGACY_MAP: Readonly<Record<IntentLabel, CognitiveIntent>> = {
   new_topic: 'information_query',
   ambiguous: 'uncertain',
   self_fact: 'sharing',
+  // The legacy taxonomy has no request class; a request is answered like a
+  // query, and the speech act carries the difference that matters.
+  request: 'information_query',
   explanation: 'explanation',
   exploration: 'exploration',
   feedback: 'feedback'
+}
+
+/** The single projection from a Phase-2 label onto the legacy taxonomy. */
+export function legacyIntentOf(label: IntentLabel): CognitiveIntent {
+  return LEGACY_MAP[label]
 }
 
 /** Retrieval need per label. Ambiguity deliberately retrieves nothing. */
@@ -94,6 +106,7 @@ export const RETRIEVAL: Readonly<Record<IntentLabel, boolean>> = {
   new_topic: false,
   ambiguous: false,
   self_fact: false,
+  request: true,
   explanation: false,
   exploration: false,
   feedback: false
@@ -110,6 +123,7 @@ const CANDIDATE: Readonly<Record<IntentLabel, boolean>> = {
   new_topic: false,
   ambiguous: false,
   self_fact: true,
+  request: false,
   explanation: false,
   exploration: false,
   feedback: false
@@ -118,7 +132,19 @@ const CANDIDATE: Readonly<Record<IntentLabel, boolean>> = {
 interface RuleSignal {
   label: IntentLabel
   weight: number
-  reason: string
+  /** Every rule text that fired for this source, kept for the audit trail. */
+  reasons: string[]
+  /**
+   * What evidence produced this signal.
+   *
+   * Two rules reading the *same* evidence must not count twice. `EXPLICIT_GOAL`
+   * and `GOAL_REQUEST` are two patterns over one sentence, and a turn ending in
+   * "？" fired both `question_marker` and `question_punctuation` — same surface
+   * fact, two weights. The corroboration bonus used to be computed from the raw
+   * signal count, so one sentence could look like three independent cues.
+   * Signals now collapse by source before anything is scored.
+   */
+  source: string
 }
 
 const CORRECTION = /(?:更正|纠正|我(?:刚才)?(?:说错了?|讲错了?)|你理解错了|我的意思是|我说的是|我不是说|其实(?:我|是)|不对|不是我说的|记错了|改正|不应该是)|\b(?:correction|i meant|i mean|i was wrong|that's not right|that is not right|not what i meant|not what i asked|you misunderstood|your answer(?: is| was)? (?:wrong|incorrect)|(?:this|that|the) answer (?:is|was) (?:wrong|incorrect)|you(?:'re| are) wrong|you got (?:it|that) wrong|i gave you the wrong|actually i (?:meant|said))\b/iu
@@ -129,6 +155,8 @@ const EMOTION = /(?:想倾诉|想吐槽|只是想说|心情(?:很|有点)?(?:差
 const GOAL_REQUEST = /(?:计划|规划|安排|下一步|帮我制定|帮我计划|怎么开始|如何开始)|\b(?:plan|planning|schedule|roadmap|next steps|help me plan|how should i start)\b/iu
 /** An explicit goal statement: the user says what they intend to do. */
 const EXPLICIT_GOAL = /(?:我(?:打算|计划|准备|想要?)|我的目标|目标是|我想(?:先|要|在|于|把|完成|实现|开始))|\b(?:i want to|i want to achieve|my goal is|i intend to|i plan to)\b/iu
+/** An imperative asking Morrow to do something, not to answer something. */
+const REQUEST_SHAPE = /(?:帮我|帮忙|请(?:你)?(?:帮|给|把)|麻烦(?:你)?|给我(?:把|写|改|看|查)|替我|把[^，。！？,!?]{1,20}(?:删|改|加|换|做|写|清空|移))|(?:please|can you|could you|would you|help me)/iu
 const EXPLANATION = /(?:解释(?:一下)?|说明一下|为什么会|为什么(?:是|要|会|不|.{1,12})|原理|原因是什么|是什么意思|怎么回事)|\b(?:explain|why does|why is|how does|what causes|what does .* mean)\b/iu
 const EXPLORATION = /(?:聊聊|讨论一下|探讨|探索|头脑风暴|一起想想|有什么想法|可以聊)|\b(?:brainstorm|explore|let's discuss|let us discuss|talk through|what are some ideas)\b/iu
 const INFORMATION = /(?:什么|怎么|如何|为什么|哪一?个|哪家|哪些|哪种|哪儿|哪里|什么时候|多少|谁|是否|吗[？?。!！]?$|怎么样)|\b(?:what|who|where|when|which|why|how|can you tell me|could you tell me|do you know|is there|are there)\b/iu
@@ -138,7 +166,7 @@ const AMBIGUOUS_REFERENCE = /(?:你指的是什么|不确定你指|不太明白�
 const FOLLOW_UP = /^(?:那.{0,24}(?:呢|怎么办|如何|怎么|为什么|可以吗|行吗)|然后|所以|那么|(?:这个|那个|它|这件事|那件事)(?:呢|怎么办|如何|怎么|为什么|怎么样)|上面|刚才|之前)|\b(?:and then|then what|what about|how so|why so|what next|about that|and it|and this)\b/iu
 // `that` is deliberately absent: it is a conjunction in "remember that I…".
 // Only pronouns and explicit back-references count as a reference.
-const DEICTIC = /(?:这个|那个|它|他们|她们|这件事|那件事|上面(?:说的)?|刚才(?:说的)?|之前(?:说的)?|那么|那里|这点)|\b(?:it|this|those|these)\b|\b(?:the above|what about that|that mean|this mean|how so|why so|then what|what next)\b/iu
+const DEICTIC = /(?:这个|那个|它|他们|她们|这件事|那件事|上面(?:说的)?|刚才(?:说的)?|之前(?:说的|提的|提到的)|那么|那里|这点)|\b(?:it|this|those|these)\b|\b(?:the above|what about that|that mean|this mean|how so|why so|then what|what next)\b/iu
 const SELF_FACT = /(?:我(?:不喜欢|喜欢|偏好|住在|工作在|从事|通常|习惯|的目标|的生日|会))|\bi (?:(?:do not|don't) )?(?:like|prefer|dislike|live|work|usually|tend to|use|avoid)\b/iu
 /** A self-disclosure that is not a preference: residence, routine, identity. */
 const SELF_DISCLOSURE = /(?:我(?:住在|在.{1,12}(?:工作|上班|学习)|通常|平时|一般|每天|叫|的生日是|今年\d{1,3}岁))|\bi\s+(?:live|work|study|usually|normally|drink|eat|use|am from|am a|am an)\b|\bmy\s+(?:name|job|birthday|routine)\b/iu
@@ -166,8 +194,21 @@ function normalize(value: string): string {
  */
 function collectSignals(content: string, hasPriorTurn: boolean, fact: FactSlot | null): RuleSignal[] {
   const signals: RuleSignal[] = []
-  const add = (label: IntentLabel, weight: number, reason: string): void => {
-    signals.push({ label, weight, reason })
+  const seen = new Map<string, RuleSignal>()
+  /** Collapses by (label, source); the first reason text wins, the higher weight stays. */
+  const add = (label: IntentLabel, weight: number, reason: string, source: string = reason): void => {
+    const key = `${label}|${source}`
+    const existing = seen.get(key)
+    if (existing) {
+      // Same evidence, second pattern: the weight stays single, the audit trail
+      // keeps both rule names.
+      existing.weight = Math.max(existing.weight, weight)
+      if (!existing.reasons.includes(reason)) existing.reasons.push(reason)
+      return
+    }
+    const signal: RuleSignal = { label, weight, reasons: [reason], source }
+    seen.set(key, signal)
+    signals.push(signal)
   }
 
   if (CORRECTION.test(content)) add('correction', 94, 'explicit_correction_marker')
@@ -176,8 +217,14 @@ function collectSignals(content: string, hasPriorTurn: boolean, fact: FactSlot |
   if (EMOTION.test(content)) add('emotion_expression', 86, 'affect_lexicon')
   // "我下周有哪些安排？" mentions 安排 but asks a question: the plan marker must
   // not outrank the question reading.
-  if ((GOAL_REQUEST.test(content) || EXPLICIT_GOAL.test(content)) && fact?.kind !== 'question') add('goal_or_plan', 88, 'goal_or_plan_marker')
-  if (EXPLICIT_GOAL.test(content)) add('goal_or_plan', 88, 'explicit_goal_statement')
+  const goalRequest = GOAL_REQUEST.test(content)
+  const explicitGoal = EXPLICIT_GOAL.test(content)
+  if ((goalRequest || explicitGoal) && fact?.kind !== 'question') {
+    add('goal_or_plan', 88, 'goal_or_plan_marker', 'goal_marker')
+  }
+  if (explicitGoal) add('goal_or_plan', 88, 'explicit_goal_statement', 'goal_marker')
+  // A save request is not a request to act: "请记住我喜欢" is a preference turn.
+  if (REQUEST_SHAPE.test(content) && !SAVE_REQUEST.test(content)) add('request', 86, 'imperative_request')
   if (EXPLANATION.test(content)) add('explanation', 88, 'explanation_marker')
   const explorationRequest = EXPLORATION.test(content)
   if (explorationRequest) add('exploration', 84, 'exploration_marker')
@@ -187,8 +234,13 @@ function collectSignals(content: string, hasPriorTurn: boolean, fact: FactSlot |
   // "我们一起想想还有哪些方案" contains a question word inside an exploration
   // request; that is not a fact query, and treating it as one would split the
   // turn into two equal-confidence readings.
-  if (INFORMATION.test(content) && !explorationRequest) add('information_query', 80, 'question_marker')
-  if (/[?？]/u.test(content)) add('information_query', 64, 'question_punctuation')
+  if (INFORMATION.test(content) && !explorationRequest) {
+    add('information_query', 80, 'question_marker', 'question_surface')
+  }
+  // The punctuation cue shares its source with the question word: both are the
+  // same observation ("this sentence asks something"), so it can corroborate
+  // nothing. It still fires on its own for turns with no wh-word.
+  if (/[?？]/u.test(content)) add('information_query', 64, 'question_punctuation', 'question_surface')
   // A hypothesis or reported speech is not a preference the user holds.
   const hypothetical = /(?:如果|假设|假如|要是|万一|听说|据说|有人说)/u.test(content)
   if (PREFERENCE.test(content) && !hypothetical) add('preference_expression', 80, 'preference_marker')
@@ -278,6 +330,13 @@ export function retrievalNeedOf(
     return personalReference || (input.fact?.kind === 'question')
   }
   if (label === 'continuation') return input.hasPriorTurn
+  if (label === 'request') {
+    // A request to perform something retrieves when it is about the user
+    // ("帮我看看我之前说的那个计划") or when it is a planning request, which needs
+    // the saved goals to answer. "帮我把这段代码删掉" needs neither.
+    const personalReference = /(?:我的|我之前|我上次|我(?:住在|叫|今年)|我自己)|\b(?:my|mine|about me)\b/iu.test(input.content)
+    return personalReference || GOAL_REQUEST.test(input.content)
+  }
   return RETRIEVAL[label]
 }
 
@@ -304,15 +363,18 @@ export function scoreIntentCandidates(input: IntentInput): IntentCandidateScore[
   // Strength is the *strongest* rule for a label, plus a small corroboration
   // bonus. Summing weights let three weak cues outvote one explicit marker,
   // which is how "为什么…" was once read as a plain question.
-  const scores = new Map<IntentLabel, { score: number; maxWeight: number; reasons: string[] }>()
+  const scores = new Map<IntentLabel, { score: number; maxWeight: number; reasons: string[]; sources: number }>()
   for (const signal of signals) {
-    const entry = scores.get(signal.label) ?? { score: 0, maxWeight: 0, reasons: [] }
+    const entry = scores.get(signal.label) ?? { score: 0, maxWeight: 0, reasons: [], sources: 0 }
     entry.maxWeight = Math.max(entry.maxWeight, signal.weight)
-    entry.reasons.push(signal.reason)
+    // One entry per (label, source), so the corroboration count is a count of
+    // independent observations rather than of pattern hits.
+    entry.sources += 1
+    for (const reason of signal.reasons) if (!entry.reasons.includes(reason)) entry.reasons.push(reason)
     scores.set(signal.label, entry)
   }
   for (const entry of scores.values()) {
-    entry.score = Math.min(100, entry.maxWeight + Math.min(8, 4 * Math.max(0, entry.reasons.length - 1)))
+    entry.score = Math.min(100, entry.maxWeight + Math.min(8, 4 * Math.max(0, entry.sources - 1)))
   }
   return [...scores.entries()]
     .map(([label, entry]) => ({ label, score: entry.score, maxWeight: entry.maxWeight, reasons: entry.reasons }))
@@ -324,8 +386,8 @@ export function decideIntent(input: IntentInput): IntentDecision {
   const fact = readFactSlot(input.content)
   const signals = collectSignals(content, input.hasPriorTurn, fact)
   const candidates = scoreIntentCandidates(input)
-  const scores = new Map<IntentLabel, { score: number; maxWeight: number; reasons: string[] }>(
-    candidates.map((candidate) => [candidate.label, { score: candidate.score, maxWeight: candidate.maxWeight, reasons: candidate.reasons }])
+  const scores = new Map<IntentLabel, { score: number; maxWeight: number; reasons: string[]; sources: number }>(
+    candidates.map((candidate) => [candidate.label, { score: candidate.score, maxWeight: candidate.maxWeight, reasons: candidate.reasons, sources: candidate.reasons.length }])
   )
 
   const ranked = [...scores.entries()].sort((left, right) =>
@@ -357,7 +419,7 @@ export function decideIntent(input: IntentInput): IntentDecision {
 
   // A reference the turn actually depends on is resolved against the previous
   // message even when another label (explanation, correction) wins the turn.
-  const dependsOnPriorTurn = (signals.some((signal) => signal.reason === 'reference_to_prior_turn') && input.hasPriorTurn) ||
+  const dependsOnPriorTurn = (signals.some((signal) => signal.reasons.includes('reference_to_prior_turn')) && input.hasPriorTurn) ||
     (label === 'ambiguous' && reasons.includes('reference_without_context'))
   // Emotion turns never trigger private-memory recall unless they explicitly
   // point back at the previous turn.

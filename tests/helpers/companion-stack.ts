@@ -22,6 +22,7 @@ import {
   SqlitePendingItemRepository
 } from '../../src/persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../../src/persistence/turn-state-repository'
+import { IntentReadingRepository } from '../../src/persistence/intent-reading-repository'
 import { InterestService, SqliteInterestRepository } from '../../src/self-model/interest-service'
 import { SelfModelService, SqliteSelfModelRepository } from '../../src/self-model/self-model-service'
 import { ReflectionService, SqliteReflectionRepository } from '../../src/self-model/reflection-service'
@@ -55,6 +56,7 @@ export class TestProvider implements ProviderPort {
 export interface Stack {
   companion: CompanionService
   database: SqliteDatabase
+  readings: IntentReadingRepository
   events: EventLogService
   memories: MemoryService
   interests: InterestService
@@ -135,7 +137,8 @@ export function buildTestStack(options: StackOptions = {}): Stack {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
       finalizations: new SqliteTurnFinalizationRepository(database),
-      states: new SqliteTurnStateRepository(database)
+      states: new SqliteTurnStateRepository(database),
+      readings: new IntentReadingRepository(database, clock)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })
@@ -144,6 +147,7 @@ export function buildTestStack(options: StackOptions = {}): Stack {
   return {
     companion,
     database,
+    readings: new IntentReadingRepository(database, clock),
     events,
     memories,
     interests,

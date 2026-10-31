@@ -1,5 +1,5 @@
 {
-  "datasetVersion": "stage-3-v2.1",
+  "datasetVersion": "stage-3-v2.2",
   "harnessVersion": "stage-3-runner-v6",
   "provider": "scripted-offline",
   "note": "Scripted provider. Every assertion is about wiring, persistence and the serialized payload. L5 and L12 were tightened on 2026-10-31: L5 requires model_attempted and actually_raised (a permission alone fails), L12 requires real evidence before the delete. Scripted results never stand in for model quality.",
@@ -119,6 +119,159 @@
         "L12: precondition changed from evidence>=0 to evidence>0, and the projection must shrink after deletion",
         "results carry datasetVersion, harnessVersion, paramsVersion, clock, provider model id and unmeasured claims"
       ]
+    },
+    {
+      "version": "stage-3-v2.2",
+      "at": "2026-10-31",
+      "changes": [
+        "新增 c1Intent 段：22 条语境/意图场景（A 上下文对照、B speech act 分离、C 引用/假设/否定、D 复合/延续/变更/撤回、E unknown、F 变异），由 evals/stage-3/intent-understanding 运行",
+        "既有 16 条场景与历史结果不变，不覆盖"
+      ]
     }
-  ]
+  ],
+  "c1Intent": {
+    "datasetVersion": "c1-intent-v1",
+    "harnessVersion": "c1-intent-runner-v1",
+    "paramsVersion": "c1-params-v1",
+    "runner": "evals/stage-3/intent-understanding/run.ts",
+    "command": "MORROW_EVAL_SHA=<sha> npm run eval:stage3:intent",
+    "provider": "scripted (not a model)",
+    "results": "evals/stage-3/intent-understanding/results/",
+    "traces": "evals/stage-3/intent-understanding/traces/",
+    "note": "断言只证明接线、持久化与决策差异；不证明真实模型的语言理解。manualReview 恒为 PENDING。",
+    "scenarios": [
+      {
+        "id": "C1-A1",
+        "family": "A",
+        "name": "同一句可以，继续。在三种承接下不同",
+        "requirement": "上下文决定承接对象：执行/讲解/讨论"
+      },
+      {
+        "id": "C1-A2",
+        "family": "A",
+        "name": "同一句那你觉得呢？：回抛问题 vs 新提问",
+        "requirement": "助手刚问过问题时是回抛；否则是新提问"
+      },
+      {
+        "id": "C1-A3",
+        "family": "A",
+        "name": "同一句帮我看看在四种语境下不同",
+        "requirement": "代码/图片/情绪/无上下文的目标槽位与决策不同"
+      },
+      {
+        "id": "C1-B1",
+        "family": "B",
+        "name": "疑问句不是请求",
+        "requirement": "speech act 与 intent 分离"
+      },
+      {
+        "id": "C1-B2",
+        "family": "B",
+        "name": "你能不能…是能力询问还是请求",
+        "requirement": "依上下文判定，不靠句形"
+      },
+      {
+        "id": "C1-B3",
+        "family": "B",
+        "name": "偏好表达不等于执行要求",
+        "requirement": "表达偏好但未要求立即执行"
+      },
+      {
+        "id": "C1-C1",
+        "family": "C",
+        "name": "引用他人的命令不归因为用户请求",
+        "requirement": "引用主体必须保留"
+      },
+      {
+        "id": "C1-C2",
+        "family": "C",
+        "name": "假设不是执行授权",
+        "requirement": "假设句单独表示"
+      },
+      {
+        "id": "C1-C3",
+        "family": "C",
+        "name": "否定范围：撤回一个待执行动作",
+        "requirement": "“不要删除刚才那条”必须阻止旧动作"
+      },
+      {
+        "id": "C1-C4",
+        "family": "C",
+        "name": "纠正理解而不是撤回动作",
+        "requirement": "“我不是说…”撤销错误推断"
+      },
+      {
+        "id": "C1-C5",
+        "family": "C",
+        "name": "引用助手先前的话不归因为用户立场",
+        "requirement": "被引用的方案不得变成用户请求"
+      },
+      {
+        "id": "C1-D1",
+        "family": "D",
+        "name": "复合请求拆分且保留次级意图",
+        "requirement": "一轮两个要求，按用户顺序处理"
+      },
+      {
+        "id": "C1-D2",
+        "family": "D",
+        "name": "多轮补充槽位",
+        "requirement": "对象与期限分轮补充，不编造本轮没说的对象"
+      },
+      {
+        "id": "C1-D3",
+        "family": "D",
+        "name": "改变目标后旧意图失效",
+        "requirement": "改变目标必须 supersede 旧分析"
+      },
+      {
+        "id": "C1-D4",
+        "family": "D",
+        "name": "撤回后下一轮不携带旧待办",
+        "requirement": "撤回必须关闭旧意图与未决项"
+      },
+      {
+        "id": "C1-D5",
+        "family": "D",
+        "name": "纠正实体后只使用新值并保留来源",
+        "requirement": "纠正优先，旧分析标记失效"
+      },
+      {
+        "id": "C1-E1",
+        "family": "E",
+        "name": "没有相关记忆时返回 unknown 而不是猜测",
+        "requirement": "未知是合法结果"
+      },
+      {
+        "id": "C1-E2",
+        "family": "E",
+        "name": "“这次例外”不被写成长期偏好",
+        "requirement": "例外表达不得改变稳定偏好"
+      },
+      {
+        "id": "C1-F1",
+        "family": "F",
+        "name": "变异：移除上下文",
+        "requirement": "去掉助手提议后决策必须改变"
+      },
+      {
+        "id": "C1-F2",
+        "family": "F",
+        "name": "变异：加入否定词",
+        "requirement": "同一句加否定后从请求变撤回"
+      },
+      {
+        "id": "C1-F3",
+        "family": "F",
+        "name": "变异：打乱话语主体",
+        "requirement": "去掉引用框架后变成用户请求"
+      },
+      {
+        "id": "C1-F4",
+        "family": "F",
+        "name": "变异：错误候选注入",
+        "requirement": "下游不得盲信被篡改的分析"
+      }
+    ]
+  }
 }

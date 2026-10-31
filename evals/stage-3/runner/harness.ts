@@ -23,6 +23,7 @@ import { SqliteConversationRepository } from '../../../src/persistence/conversat
 import { CompanionService } from '../../../src/app/companion-service'
 import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository, SqlitePendingItemRepository } from '../../../src/persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../../../src/persistence/turn-state-repository'
+import { IntentReadingRepository } from '../../../src/persistence/intent-reading-repository'
 import { InterestService, SqliteInterestRepository } from '../../../src/self-model/interest-service'
 import { SelfModelService, SqliteSelfModelRepository } from '../../../src/self-model/self-model-service'
 import { ReflectionService, SqliteReflectionRepository } from '../../../src/self-model/reflection-service'
@@ -85,6 +86,7 @@ export interface ScenarioOutcome {
 export interface Stack {
   companion: CompanionService
   memories: MemoryService
+  readings: IntentReadingRepository
   provider: ScriptedProvider
   database: SqliteDatabase
   interests: InterestService
@@ -188,7 +190,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
       finalizations: new SqliteTurnFinalizationRepository(database),
-      states: new SqliteTurnStateRepository(database)
+      states: new SqliteTurnStateRepository(database),
+      readings: new IntentReadingRepository(database)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })
@@ -197,6 +200,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     companion,
     memories,
     provider,
+    readings: new IntentReadingRepository(database),
     database,
     interests,
     reflection,

@@ -2105,6 +2105,58 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 38,
+    name: 'c1-intent-readings',
+    up(database) {
+      // C1: the analysis a turn actually used, stored once per user message.
+      //
+      // `cognitive_turn_observations` keeps the legacy observation for
+      // continuity; this table keeps the *reading* — speech act, intent
+      // candidates, slots, uncertainties and the response mode — because that is
+      // what the reply was built from. Two rows for one turn would be two
+      // sources of truth, so `message_id` is unique.
+      //
+      // Deletion propagation is a foreign key, not a trigger: deleting the
+      // message removes its reading in the same transaction, so a deleted turn
+      // cannot keep driving later turns.
+      //
+      // `superseded_by_message_id` records the revision chain. A correction or a
+      // change of mind retracts the previous reading instead of editing it, so
+      // the earlier reading stays auditable and stops being applied.
+      database.exec(`
+        CREATE TABLE intent_readings (
+          reading_id TEXT PRIMARY KEY NOT NULL CHECK (length(reading_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          message_id TEXT NOT NULL CHECK (length(message_id) = 36),
+          turn_id TEXT CHECK (turn_id IS NULL OR length(turn_id) = 36),
+          schema_version TEXT NOT NULL CHECK (length(schema_version) BETWEEN 1 AND 40),
+          algorithm_version TEXT NOT NULL CHECK (length(algorithm_version) BETWEEN 1 AND 40),
+          parameter_version TEXT NOT NULL CHECK (length(parameter_version) BETWEEN 1 AND 40),
+          primary_intent TEXT NOT NULL CHECK (length(primary_intent) BETWEEN 3 AND 40),
+          intent_status TEXT NOT NULL CHECK (intent_status IN ('explicit', 'inferred', 'continuing', 'changed', 'unknown', 'conflicting')),
+          speech_act TEXT NOT NULL CHECK (length(speech_act) BETWEEN 3 AND 40),
+          response_mode TEXT NOT NULL CHECK (response_mode IN ('answer', 'merge', 'split', 'clarify', 'acknowledge', 'stop_previous', 'execute_pending')),
+          score_kind TEXT NOT NULL CHECK (score_kind = 'heuristic_score'),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 0 AND 100),
+          may_execute INTEGER NOT NULL CHECK (may_execute IN (0, 1)),
+          clarification_required INTEGER NOT NULL CHECK (clarification_required IN (0, 1)),
+          supersedes_message_id TEXT,
+          superseded_by_message_id TEXT,
+          retracted_at TEXT,
+          payload_json TEXT NOT NULL CHECK (json_valid(payload_json) AND length(payload_json) <= 20000),
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (message_id, conversation_id)
+            REFERENCES messages(id, conversation_id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE UNIQUE INDEX intent_readings_message_uq ON intent_readings(message_id);
+        CREATE INDEX intent_readings_conversation_idx
+          ON intent_readings(conversation_id, created_at DESC);
+        CREATE INDEX intent_readings_active_idx
+          ON intent_readings(conversation_id, retracted_at);
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

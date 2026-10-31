@@ -76,6 +76,13 @@ const POLICIES: Readonly<Record<IntentLabel, Omit<RetrievalPolicy, 'intent'>>> =
     maxMemories: 5, predicateFilter: null, requireContentOverlap: true, requireSlotMatch: false,
     admitConflictingEvidence: true, reason: 'a new self-statement may contradict a stored one'
   },
+  request: {
+    // A request to act is answered from the conversation and the environment,
+    // not from a dump of the user's private facts. Only an explicitly personal
+    // request widens this, and the route is decided before the policy is read.
+    maxMemories: 8, predicateFilter: null, requireContentOverlap: true, requireSlotMatch: false,
+    admitConflictingEvidence: false, reason: 'a request needs its object and constraints, not private history'
+  },
   explanation: {
     maxMemories: 3, predicateFilter: null, requireContentOverlap: true, requireSlotMatch: false,
     admitConflictingEvidence: false, reason: 'a general explanation rarely needs saved personal facts'
