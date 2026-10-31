@@ -82,3 +82,14 @@ npx vitest run src/personalization src/self-model
 本轮修复的逐项复核、我如何避免再次自欺、以及仍然存在的 P0/P1，见 `docs/audit/stage-3-followup-audit.md`。
 
 摘要：F1–F6 已修且有回归证据；F7 只保留客观检查；§2A/2B/2C/2D/2F 未实现；整体仍为 PARTIAL。
+
+## 10. 第三轮复核（2026-10-31，最终纠偏）
+
+上一轮对 `b72c514` 的独立审查给出 8 项缺陷。本轮逐项复核它们在本轮代码里是否真的闭合。
+
+- 复核基准：`b0e719ad116db5607295da9f5ccddc6e2f4589b4`
+- 复核方式与结论：见 `docs/audit/stage-3-final-independent-audit.md`
+- 逐项根因/修复/提交/测试：见 `docs/reports/stage-3-final-correction-report.md`
+- 逐项 PASS/FAIL/BLOCKED 矩阵：见 `docs/reports/stage-3-final-acceptance-matrix.md`
+
+摘要：P0-1…P0-5、P1-6、P1-7 已闭合且各有回归与负向测试；P1-8 因真实凭据与 Actions runner 未启动而 BLOCKED；本轮另修复一处未申报泄漏（`user_interaction_signals` 缺少删除传播）。整体仍为 **PARTIAL**。

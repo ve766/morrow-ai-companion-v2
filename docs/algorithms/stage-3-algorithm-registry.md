@@ -300,3 +300,76 @@ label 在 ≥2 个独立会话的 knowledge_gap 中出现
 
 - 缺口来源：事实守卫把无依据个人断言改写（`guard.verdict='rewrite'`）；
 - 已知局限：只覆盖「守卫改写」这一种缺口，不是通用问题生成器。
+
+---
+
+## 附录 C：最终纠偏新增/修改、且真实运行的算法（2026-10-31）
+
+只登记**有生产输入**的算法。没有生产者的一律不登记。
+
+### C.1 兴趣证据的按来源 fold（P0-1）
+
+- 源码：`src/self-model/interest-service.ts` → `SqliteInterestRepository.fold`、`InterestService.evaluate`
+- 输入：`interest_evidence` 行，含 `evidence_origin ∈ {user, morrow}`、`match_score`、`created_at`、`conversation_id`
+
+```
+decay_i    = 2^(-age_i / 14)
+weight_i   = clip(match_score_i,0,1) · decay_i
+net_o      = Σ_{origin=o} ±weight_i          (support +, counter −)
+groups_o   = |{ conversation_id : origin=o, polarity=support }|
+support_o  = |{ i : origin=o, polarity=support }|
+effective  = max(0, support_owner − recentCounters)
+```
+
+- 参数：半衰期 14 天（`INTEREST_EVIDENCE_HALF_LIFE_DAYS`）；晋升门槛 `groups ≥ 2 ∧ effective ≥ 3`（`INTEREST_PROMOTION_MIN_*`）
+- 边界：`owner = shared` 时用 morrow 侧计数，且要求 user 侧 > 0；`support = 0` 时聚合被删除
+- 为什么按来源拆：探索门把 `shared` 当作 Morrow 可提起的话题，用总量晋升等于让用户提及给她凑门槛
+
+### C.2 知识缺口 → 独立证据的聚合（P0-1）
+
+- 源码：`src/self-model/reflection-service.ts` → `pickMorrowGapCandidate`、`KnowledgeGapService`
+- 输入：`knowledge_gap_evidence(label, conversation_id, event_id, occurred_at)`
+
+```
+for label in labels(batch):
+    if len(label) < 2 or 形如疑问词: skip
+    events ← gap_evidence(label)  where retracted_at is null
+    if |distinct conversation_id| ≥ 2: 选中，evidence = 全部 events（上限 8）
+```
+
+- 关键点：批次只决定「什么时候看」，台账决定「证据够不够」。两个批次里各一条缺口，仍然是两个独立会话
+- 一个 finding 引用 N 条事件，effect 就写 N 条证据行；不是一条
+
+### C.3 记忆重复提及 n 的生产者（P0-5）
+
+- 源码：`src/memory/memory-evidence-policy.ts` → `readMemoryUtterance`；`MemoryService.observeUtterance`
+- 判定顺序（先命中先返回 `none`）：角色扮演 → 假设 → 引用 → 疑问 → 否定 → 讨论 → 断言/确认
+- 匹配：`normalizeAssertion`（NFKC、去标点空白、小写）后完全相等，或短串包含且长度差 ≤ 6
+- 记入：`evidence_type ∈ {restatement, confirmation}`，`independence_group = conversation_id`
+- 公式接入：`R = 1 − e^(−n/3)`，其中 `n = |distinct independence_group|`；`actor='morrow'` 直接返回 `model_text`，不写行
+- 边界：`retraction` 写入后 `recompute` 把 `n` 置 0；模型复述、疑问、引用一律不增加
+
+### C.4 目标期限解析（P1-6）
+
+- 源码：`src/motivation/goal-time.ts` → `resolveDueAt`
+- 输入：`now`（注入时钟）、固定偏移 480 分钟
+- 顺序：显式 `YYYY年M月D日` → `YYYY年M月` → 明年[M]月 → 今年[M]月 → 下个月 → 本月/月底 → 下周 → 本周 → N 天后 → N 周后 → M月D日（今年或明年）
+- 输出：`dueAt`（UTC ISO，当地 23:59:59）、`expression`（用户原话）、`unresolved`
+- 边界：匹配不到但形如时间短语 → `unresolved = true`、`dueAt = null`，由候选保留原表达并要求澄清；绝不伪造日期
+- 标题：`stripHorizon` 移除时间短语后再切标题，避免把期限写进目标名
+
+### C.5 主动提出的判定（P1-7）
+
+- 源码：`src/self-model/exploration-policy.ts` → `evaluateRaise`、`topicTerms`
+- 输入：持久化回复 + 话题标签
+
+```
+terms ← 标签分词（含 CJK 3–4 字子串，上限 60）
+if 回复过短或 terms 为空        → uncertain
+if 回复不含任何 term            → not_raised
+if 含 term 但无「提问/第一人称关注」形态 → uncertain
+否则                            → raised
+```
+
+- 为什么这样：关键词命中只能证明"提到了"，不能证明"她主动提起"。形态检查是第二道门
+- `uncertain` 不消耗预算、不计入 raise 次数、不满足 L5 的通过条件

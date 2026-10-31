@@ -32,3 +32,10 @@ npm run eval:stage3:longitudinal
 
 - 跨真实日历日的打扰控制（需要可注入时钟的端到端跑批）。
 - 多用户/多设备并发。
+
+## 2026-10-31 最终纠偏轮
+
+- 结果：`results/20261031T064131Z-b0e719a.json`，7/7 断言通过
+- 压缩时钟：10 天 / 每天 3 轮；文件里 `clock: simulated`、`simulatedDays`、`realElapsedMs` 分别记录
+- 覆盖：漂移上限、打扰频次、冷却结束后恢复许可、半衰期衰减（`fresh=3 aged=1.5`）
+- 局限：压缩时钟不等于真实等待，跨周的真实行为没有证据

@@ -183,3 +183,85 @@ send → prepare（读：人格基线+交互偏移 / 分析 / 记忆 / 状态 / 
      → 提交 → drainCognition(turnId)（6 个 projector，各自幂等、各自失败）
      → 评估 → 返回
 ```
+
+---
+
+## 11. 最终纠偏后的运行时（2026-10-31）
+
+上一节的流程在**事务边界**和**重放语义**上是错的，本节取代它。
+
+### 11.1 一个回合的真实事务边界
+
+```
+send → prepare（读：人格基线+交互偏移 / 分析 / 记忆 / 状态 / 长期层 / 序列化）
+     → 授权 → 二次 prepare → hash 比对
+     → 事务[
+         assistant 消息
+         + 感受事件
+         + 待决项
+         + 回合上下文
+         + cognitive_outbox 7 行（interest/preference/growth/self_fact/reflection/goal/memory）
+         + 可选 cognition.knowledge_gap 事件（确定性 id）
+         + 可选 knowledge_gap_evidence 一行
+       ]                                   ← 任一失败整条消息回滚
+     → 提交
+     → markExplorationAttempted（provider 调用前）
+     → dispatchToProvider
+     → settleExploration（按回复判定 not_raised / uncertain / actually_raised）
+     → drainCognition(turnId)
+     → 评估 → 返回
+```
+
+关键变化：knowledge-gap 不再是 `tryRecord` 的尽力而为写入。它和消息在同一个事务里，写不进去就整条回滚——因为它是反思的正式输入，不是日志。
+
+### 11.2 Outbox 的重放协议
+
+```
+drain(row):
+  ledger.begin(turn, module, version, 'project')
+    ├─ 'applied'  → outbox 标记 done，计入 replayed，**不执行副作用**
+    └─ 'run'      → 执行 projector
+                    → ledger.complete(...)   ← 业务写入之后
+                    → outbox 标记 done
+                    失败 → ledger.fail(code) → outbox pending/failed
+```
+
+顺序是刻意的：先 ledger 再 outbox。反过来会在崩溃后重跑已经提交的副作用。
+
+投影副作用自身也必须有幂等键，ledger 只是"不重跑已完成的投影"：
+
+| 副作用 | 幂等键 | 约束 |
+|---|---|---|
+| 兴趣证据 | `interest_evidence(interest_id, evidence_ref)` + `evidence_ref` 唯一 | 同一消息/事件只记一次 |
+| 交互风格 | `user_interaction_signals(dimension, turn_id)` | 同一轮同维度一次 |
+| 目标 | `goal_creation_keys(idempotency_key)` | `goal:turn:<msg>:<hash>` 与 `goal:candidate:<id>` |
+| 记忆证据 | `memory_evidence(memory_id, source_ref)` | `source_ref` = 消息 id |
+| 反思 finding | `reflection_findings(dedupe_key)` | 重放走 ledger，不靠"行已存在"判断 |
+
+### 11.3 反思的增量消费
+
+```
+run():
+  cursor ← reflection_cursors(consumer='reflection')
+  batches ← while (seq > cursor) and batch < 5: listAfter(seq, 200)
+  事务[
+    createRun
+    for finding: createFinding / findByDedupeKey → applyEffect via ledger
+    recordDeterministic(reflection.completed)
+    setCursor(max(batchEnd, latestSeq))   ← 事务内读，持写锁
+  ]
+```
+
+游标只在整批提交后前进；失败则整批回滚，下次重读同一批。`backlog()` 给出 `lastSeq / latestSeq / pending`。
+
+### 11.4 证据归属
+
+`interest_evidence` 现在带 `evidence_origin`。fold 同时产出总量与按来源拆分的量，晋升判定只读**拥有方**那一侧：
+
+| 聚合 origin | 晋升用的支持数 | 晋升用的会话数 |
+|---|---|---|
+| `user` | user 侧 | user 侧 |
+| `morrow` | morrow 侧 | morrow 侧 |
+| `shared` | morrow 侧（且 user 侧 > 0） | morrow 侧 |
+
+原因很直接：探索门把 `shared` 也当作 Morrow 可以提起的话题，如果用户提及能给 shared 凑够门槛，用户证据就从后门进了她的探索池。

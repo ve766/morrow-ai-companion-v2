@@ -1,0 +1,56 @@
+{
+  "datasetVersion": "stage-3-v2.1",
+  "harnessVersion": "stage-3-long-conversation-v2",
+  "codeCommit": "b0e719ad116db5607295da9f5ccddc6e2f4589b4",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "clock": "system",
+  "startedAt": "2026-10-31T06:41:54.651Z",
+  "finishedAt": "2026-10-31T06:42:03.365Z",
+  "status": "PASS",
+  "assertions": [
+    {
+      "name": "第 1 轮就投递了过敏约束",
+      "ok": true,
+      "detail": "len=1528"
+    },
+    {
+      "name": "纠正写入成功",
+      "ok": true,
+      "detail": "revision=2"
+    },
+    {
+      "name": "第 30 轮仍带忌口证据",
+      "ok": true,
+      "detail": "text scan"
+    },
+    {
+      "name": "纠正后的旧值不再出现",
+      "ok": true,
+      "detail": "text scan"
+    },
+    {
+      "name": "跨 3 个会话仍可见同一记忆",
+      "ok": true,
+      "detail": "349c8a71"
+    },
+    {
+      "name": "上下文预算未把证据块挤掉",
+      "ok": true,
+      "detail": "len=1918"
+    },
+    {
+      "name": "轮次计数达到 30",
+      "ok": true,
+      "detail": "turns=30"
+    },
+    {
+      "name": "派生证据按轮去重（不重复累积）",
+      "ok": true,
+      "detail": "growth=0 exploration=0"
+    }
+  ]
+}

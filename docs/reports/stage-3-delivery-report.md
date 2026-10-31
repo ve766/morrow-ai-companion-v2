@@ -175,3 +175,29 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:longitudinal
 | 长期目标（§2D） | **已实现**：三类归属、优先级、到期即 expired、完成即退出 payload；L10 六条断言 |
 | 仍未实现 | §2B appraisal、§2C 反思质量、§2F 语音 |
 | 整体状态 | **PARTIAL** |
+
+---
+
+## 最终纠偏轮（2026-10-31）
+
+本轮**不是**新功能，是把上一轮被判定为「部分接线」的八项修到可验证。
+
+| 项 | 结果 |
+|---|---|
+| 代码基线 | `b0e719ad116db5607295da9f5ccddc6e2f4589b4` |
+| 迁移 | **v35** `effect-ledger-reflection-cursor-and-evidence-origin` |
+| 新增可靠性设施 | effect ledger、reflection cursor、knowledge-gap 台账、goal 幂等键 |
+| P0-1…P0-5 | 5/5 PASS |
+| P1-6、P1-7 | 2/2 PASS |
+| P1-8 | **BLOCKED**（无真实凭据、Actions runner 未启动） |
+| 主评测 | 16 场景：**15 PASS / 0 FAIL / 1 NOT_RUN**（L15 由纵向运行器负责） |
+| 消融 | 基线 15 PASS；`no_growth`→L4,L12；`no_exploration`→L5；`no_reflection`→L5,L9 |
+| 纵向（10 天压缩时钟） | **7/7** 断言 |
+| 重启 | **6/6** 断言 |
+| 长对话（30 轮） | **8/8** 断言 |
+| 全量测试 | **92 文件 / 820 测试**全通过 |
+| 类型检查 | `tsc --noEmit` 0 错误 |
+| 构建 | `electron-vite build` 成功（main/preload/renderer） |
+| 整体状态 | **PARTIAL** |
+
+仍未完成：真实 Provider 多轮陪伴、有效 CI、Electron 渲染层、Windows 安装升级、§2B appraisal、§2C 反思质量、§2F 语音。本轮没有新增其中任何一项，也不声称它们存在。

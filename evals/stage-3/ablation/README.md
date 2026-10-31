@@ -33,3 +33,13 @@ npm run eval:stage3:ablation
 
 - 脚本化 Provider 不产生语义输出，因此任何依赖模型行为的差异都不可见。
 - 消融臂共享同一套场景与同一临时库构造方式，差异只来自模块开关。
+
+## 2026-10-31 最终纠偏轮
+
+- 结果：`results/20261031T063933Z-b0e719a.json`（`codeCommit` = `b0e719ad116db5607295da9f5ccddc6e2f4589b4`）
+- 基线：16 场景 15 PASS / 1 NOT_RUN
+- `no_growth` → L4、L12 改变（交互画像被移除，风格证据与删除传播都不再成立）
+- `no_exploration` → L5 改变（没有探索门，`model_attempted` 与 `actually_raised` 都不产生）
+- `no_reflection` → L5、L9 改变（没有反思就没有 Morrow 兴趣，也没有 finding）
+
+每个臂都真的改变了执行路径；没有出现"关了模块但行为不变"的空消融。注意：这只是 scripted provider 下的接线差异，不证明真实模型质量。

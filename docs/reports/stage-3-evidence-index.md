@@ -132,3 +132,30 @@
 | 探索 uncertain/预算 | `exploration-policy.ts` | `exploration-policy.test.ts` | L5 |
 
 结果文件：`evals/stage-3/results/20261031T034*.json`（主评测、消融、纵向、重启、长对话），`codeCommit` = 本次生成提交。
+
+---
+
+## 最终纠偏轮证据（2026-10-31）
+
+`codeCommit` = `b0e719ad116db5607295da9f5ccddc6e2f4589b4`。
+
+| 项 | 源码 | 测试 | 机器结果 |
+|---|---|---|---|
+| P0-1 归属分离 | `src/self-model/interest-service.ts`、`reflection-service.ts`、`knowledge-gap-service.ts` | `src/self-model/morrow-attribution.test.ts`（6） | `results/20261031T063724Z-b0e719a.json` L5 |
+| P0-2 反思游标 | `src/self-model/reflection-service.ts`、`src/persistence/migrations.ts` v35 | `tests/correction-round.test.ts`（3） | 同上；500 事件 + 第 501 条 |
+| P0-3 effect ledger | `src/app/effect-ledger.ts`、`src/app/cognitive-outbox.ts` | `tests/correction-round.test.ts`（6） | 崩溃矩阵见纠偏报告 §2 |
+| P0-4 durable gap | `src/app/companion-service.ts`、`knowledge-gap-service.ts` | `tests/correction-round.test.ts`（2） | 回滚实测 |
+| P0-5 记忆证据 | `src/memory/memory-evidence-policy.ts`、`memory-service.ts`、`memory-importance.ts` | `src/memory/memory-evidence.test.ts`（10） | 主评测 L16 |
+| P1-6 目标生命周期 | `src/motivation/goal-time.ts`、`companion-goal.ts` | `src/motivation/goal-lifecycle.test.ts`（14） | 主评测 L10 |
+| P1-7 评测真实性 | `evals/stage-3/runner/harness.ts`（`runL5`/`runL12`） | `tests/eval-assertions.test.ts`（5） | L5/L12 正反例 |
+| 未申报泄漏 | `src/personalization/interaction-profile.ts` | L12 第三断言 | `restart`、主评测 L12 |
+
+原始结果（全部带 `datasetVersion=stage-3-v2.1`、`harnessVersion`、`paramsVersion`、`clock`、起止时间）：
+
+- 主评测：`evals/stage-3/results/20261031T063724Z-b0e719a.json`（+ summary）
+- 消融：`evals/stage-3/ablation/results/20261031T063933Z-b0e719a.json`
+- 纵向：`evals/stage-3/longitudinal/results/20261031T064131Z-b0e719a.json`
+- 重启：`evals/stage-3/restart/results/20261031T064150Z-b0e719a.json`
+- 长对话：`evals/stage-3/long-conversation/results/20261031T064154Z-b0e719a.json`
+
+历史结果一律保留，未覆盖。
