@@ -72,3 +72,57 @@
 - P1-6、P1-7：**PASS**
 - P1-8：**BLOCKED**（外部条件阻断，本地可执行项已全部完成）
 - **整体：PARTIAL**。任何 P0 未闭合都不得为 PASS；P1-8 的外部阻断也不得冒充 PASS。
+
+---
+
+# 第二轮（2026-10-31 最后一轮，基线 `a6923fc`）
+
+本轮针对新报告的六项缺陷。逐项状态见 `stage-3-final-acceptance-matrix.md`。
+
+## 1. P0-1 Effect Ledger 并发领取
+
+- **根因**：`begin()` 先 `INSERT ... ON CONFLICT DO NOTHING`，再 `SELECT`，再无事务地 `UPDATE ... SET state='running'`，UPDATE 不带状态谓词也不检查 `changes`。两个连接可以都读到可领取状态并都返回 `run`。
+- **修复**（`src/app/effect-ledger.ts`，迁移 v36）：
+  - 整个 claim 在一个 `transaction()`（`BEGIN IMMEDIATE`）内完成；
+  - `UPDATE ... WHERE state IN ('pending','failed_retryable')`，只有 `changes === 1` 才算领取成功；
+  - 新增 `claim_owner` 与 `lease_until`（60s），`complete()` / `fail()` 都以 `claim_owner = ?` 为条件；
+  - 活租约不可被抢，过期租约可被接管（`WHERE state='running' AND lease_until = <读到的值>`，乐观并发）；
+  - `drain()` 把 `busy` 作为独立结果，不推进 outbox 行。
+- **测试**：两条连接争抢只能一个 `run`；过期租约接管后原持有者 `complete` 返回 false；活租约抢不到。
+
+## 2. P0-2 期限边界语义
+
+- **根因**：解析只有「周期末端」一种结果，`之前` 被当成 `底前`，把真实用户的承诺推迟了一个月。
+- **修复**（`src/motivation/goal-time.ts`）：解析拆成两步——先定周期（日/月/周），再按边界词取值：
+  | 说法 | 边界 | 结果 |
+  |---|---|---|
+  | 三月之前 / 以前 / 前 | before | 周期开始前 1 秒 |
+  | 三月底前 / 之内 / 内 | end | 周期最后一秒 |
+  | 三月开始时 / 之初 | start | 周期第一秒 |
+  | 三月以后 / 之后 | after | 周期第一秒 |
+  | 三月（裸写） | end | 周期最后一秒 |
+- `boundary` 随 `DueResolution` 返回，`expression` 保留边界词，标题抽取仍剥离时间短语。
+- **测试**：11 条边界表 + 闰年 2028-02-29 + 表达式保留 + 无法解析仍 `unresolved`。
+
+## 3. P0-3 Morrow 兴趣闭环 — **未完成**
+
+- 现状：知识缺口只由事实守卫改写产生；真实对话 32 轮只产生 1 条，达不到 3 条门槛，兴趣评测 NOT_RUN。
+- 本轮**没有**新增「从模型自身提出的问题形成候选」的生产者。这一项保持 FAIL，因此总状态不能是 PASS。
+
+## 4. P0-4 记忆连续性
+
+- **根因**：模型在「本轮没有检索到」时说了「从未保存/用户从未告诉过」。检索本身是对的（同一事实在上一轮正确召回），错在提示词没有区分这两件事。
+- **修复**：`fixedPrinciples` 增加一条原则：缺失的已保存事实是「本轮没有检索到」，应说手上没有，绝不能说用户从未告诉过。
+- **测试**：断言最终 system prompt 含该原则。
+
+## 5. P0-5 风格请求识别
+
+- **根因**：意图分类器把「希望你能直接一点」「还是希望你直接一点」判成 `uncertain`（置信 30），`deriveGrowthSignals` 在 `intent === 'uncertain'` 时直接弃权——三次自然表达只留下 1 条证据。
+- **修复**：显式风格短语是词法证据，优先于路由标签；权重下限 0.6；仅保留「高不确定 + 置信 < 25」的弃权。
+- **测试**：5 种自然说法全部产出 directness 信号；高不确定 + 低置信仍弃权；无风格短语不产出。
+
+## 6. P0-6 共享 API 契约
+
+- 同步 PR #21 的 `docs/testing/shared-real-model-test-contract.md` 与 `.env.real-model.example`（不合并 PR #21）。
+- `SPARK_MAAS_BASE_URL` 由 `/v1` 改为 `/v2`；迁移 v37 重建 `provider_profiles`（endpoint 受 CHECK 约束，UPDATE 会被拒），并把已有 `/v1` 行改写为 `/v2`。
+- live runner 只读 `MORROW_TEST_API_KEY`，启动前校验产品 endpoint 与契约 URL 一致，结果写 `evals/real-provider/results/`，状态为 `REAL_PROVIDER_PASS` / `REAL_PROVIDER_FAIL` / `BLOCKED_NO_SECRET`；`.tmp` 文件回退已删除。

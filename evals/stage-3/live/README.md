@@ -24,6 +24,13 @@ DEEPSEEK_API_KEY=... MORROW_EVAL_SHA=<code sha> npm run eval:stage3:live
 - 写结果前做两道 scrub：全文包含原始 key → 拒绝写；出现 `sk-…` 形态字符串 → 拒绝写；
 - 结果文件里只有 provider id、model id、脱敏后的逐轮原文。
 
+## 状态
+
+结果写到 `evals/real-provider/results/<UTC timestamp>-<short sha>.json`，状态三选一：
+
+- `REAL_PROVIDER_PASS` / `REAL_PROVIDER_FAIL`：真的调用了 provider 并拿到响应；
+- `BLOCKED_NO_SECRET`：`MORROW_TEST_API_KEY` 未设置。这是一条记录，不是崩溃，也绝不用 scripted 顶替。
+
 ## 采集什么
 
 每个回合：`payloadSha256`、payload 字符数、system 字符数、实际投递的 memory id 列表、`includedMemoryCount`、`guard.verdict`、provider outcome、延迟、回复原文（截断 400 字）。

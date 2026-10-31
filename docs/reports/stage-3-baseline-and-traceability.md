@@ -92,3 +92,18 @@
 ## 7. 仍然存在的缺口（本轮未做）
 
 记忆巩固/重要度衰减（§2A）、内在状态 appraisal（§2B）、反思质量评测（§2C）、GoalService 主链（§2D，L10 仍 NOT_RUN）、语音闭环（§2F）。这些不计入任何通过率。
+
+---
+
+## 2026-10-31 最后一轮
+
+| 项 | 值 |
+|---|---|
+| 任务发布时核实的 PR #19 HEAD | `a6923fc95c20d6a47970468fd77a8fd63835e69f` |
+| 实际开工基线 | `a6923fc95c20d6a47970468fd77a8fd63835e69f`（一致，无漂移） |
+| 本轮代码基线 | `ee728fd95ddd3e3d1ad05cc96b00c90e7b66b409` |
+| PR #21 | `infra/shared-real-model-test-contract` @ `5bb221e`，OPEN / DRAFT，未合并 |
+| 契约同步方式 | 逐文件复制 `docs/testing/shared-real-model-test-contract.md` 与 `.env.real-model.example`，未合并 PR #21 |
+| 迁移 | v36（effect ledger claim）、v37（provider endpoint /v2） |
+| PR #19 状态 | OPEN / 未合并；base 仍为 `feat/stage-2-delivery-hardening` |
+| main | 未改动 |

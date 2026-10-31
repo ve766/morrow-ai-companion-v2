@@ -373,3 +373,26 @@ if 含 term 但无「提问/第一人称关注」形态 → uncertain
 
 - 为什么这样：关键词命中只能证明"提到了"，不能证明"她主动提起"。形态检查是第二道门
 - `uncertain` 不消耗预算、不计入 raise 次数、不满足 L5 的通过条件
+
+### C.6 期限边界（P0-2，2026-10-31 修正）
+
+- 源码：`src/motivation/goal-time.ts` → `resolveDueAt`
+- 两段式：`period = f(表达)`，`dueAt = boundary(period, 边界词)`
+
+```
+before: period.start − 1s        # 之前 / 以前 / 前
+end:    period.end               # 底前 / 之内 / 内 / 裸写
+start:  period.start             # 开始时 / 之初
+after:  period.start             # 以后 / 之后
+```
+
+- 参数：固定偏移 480 分钟；月末取 `new Date(Date.UTC(y, m, 0)).getUTCDate()`，闰年自动正确
+- 边界词从匹配结束位置向后 8 字符内识别，最长优先（`底前` 先于 `前`）
+- 输出 `boundary` 与 `expression`（含边界词），无法解析仍 `unresolved = true`
+
+### C.7 风格证据的词法优先（P0-5，2026-10-31 修正）
+
+- 源码：`src/personalization/personality-growth.ts` → `deriveGrowthSignals`
+- 规则：显式风格短语命中后，`intent` 标签不再是否决项；权重 `w = max(0.6, confidence/100)`
+- 仍弃权：引用/转述、假设、角色扮演、`uncertainty='high' ∧ confidence<25`
+- 理由：意图分类器判断的是「这轮要做什么」，不是「这句话说了什么」；用前者否决后者会丢掉明确的请求

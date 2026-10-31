@@ -1,91 +1,78 @@
-# Stage 3 最终验收矩阵
+# Stage 3 最终验收矩阵（2026-10-31 最后一轮）
 
-- 代码基线（结果文件中的 `codeCommit`）：`b0e719ad116db5607295da9f5ccddc6e2f4589b4`
-- 审查基线（本轮开工前）：`b72c5141a591b193782d6358877b62306ecab984`
-- 分支：`feat/stage-3-long-term-companion`；PR [#19](https://github.com/ve766/morrow-ai-companion-v2/pull/19) OPEN / 未合并
+- 开工基线：`a6923fc95c20d6a47970468fd77a8fd63835e69f`（本任务发布时核实的 PR #19 HEAD）
+- 代码基线：`ee728fd95ddd3e3d1ad05cc96b00c90e7b66b409`
+- 分支：`feat/stage-3-long-term-companion`；PR [#19](https://github.com/ve766/morrow-ai-companion-v2/pull/19) OPEN / 未合并；base `feat/stage-2-delivery-hardening` 未改
+- 状态取值：PASS / FAIL / BLOCKED / NOT_RUN / SKIPPED。非 PASS 一律不计入通过率。
 
-状态取值只有 `PASS` / `FAIL` / `BLOCKED` / `NOT_RUN`。`BLOCKED` 与 `NOT_RUN` **不计入** PASS。
+## 1. 本轮新报告缺陷
 
-## 1. P0 / P1 逐项
+| 项 | 状态 | 根因 | 修复 | 测试 | 证据 |
+|---|---|---|---|---|---|
+| P0-1 Effect Ledger 并发领取非原子 | **PASS** | `begin()` 读行后无条件 `UPDATE ... running`，无事务、无状态谓词 | `src/app/effect-ledger.ts`：单事务内条件 UPDATE + changes=1 判定 + `claim_owner` + 60s `lease_until`；`complete/fail` 校验 owner；`drain` 遇 `busy` 不推进 | `tests/correction-round.test.ts`：两条连接争抢、过期租约接管、活租约不可抢 | 迁移 v36 |
+| P0-2 「三月之前」误解析为「三月底」 | **PASS** | 只有「周期末端」一条规则，没有边界语义 | `src/motivation/goal-time.ts`：先定周期，再按 之前/底前/内/开始时/以后/裸写 六种边界取值；`boundary` 随结果返回 | `src/motivation/goal-lifecycle.test.ts` 11 条边界表 + 闰年 + 表达式保留 | 「明年三月之前」→ `2027-02-28T15:59:59.000Z` |
+| P0-3 Morrow 兴趣缺真实模型闭环 | **FAIL** | 知识缺口只来自事实守卫改写，真实对话 32 轮仅 1 条，未达 3 条门槛 | 本轮**未新增**「从模型自身提问形成候选」的生产者 | — | live 结果 `knowledgeGaps=1 morrowInterests=0` |
+| P0-4 记忆跨会话自相矛盾 | **PASS**（提示层） | 未检索到 ≠ 从未保存，但提示词没有区分 | `src/app/companion-service.ts` `fixedPrinciples` 增加一条：缺失的记忆是「本轮没检索到」，不得说「用户从未告诉过」 | `tests/correction-round.test.ts`「the prompt separates 'not retrieved' from 'never told'」 | 系统提示词断言 |
+| P0-5 风格请求识别不稳定 | **PASS** | 意图分类器把「希望你能直接一点」判为 `uncertain`(30)，growth 门直接弃权 | `src/personalization/personality-growth.ts`：显式风格短语是词法证据，权重下限 0.6；仅在「高不确定 + 置信 <25」时弃权 | `personality-growth.test.ts` 新增 3 条；探针 5 种说法全部命中 | 3 次自然表达 → 3 条 signal |
+| P0-6 真实 Provider 未遵守共享契约 | **PASS** | endpoint 用 `/v1`，密钥从 `.tmp` 读 | 同步 PR #21 契约与模板；`SPARK_MAAS_BASE_URL` 改 `/v2`（迁移 v37 重建 `provider_profiles` 并改写旧行）；runner 只读 `MORROW_TEST_API_KEY`、校验 endpoint 一致性、写 `evals/real-provider/results/`、输出 `REAL_PROVIDER_PASS/FAIL/BLOCKED_NO_SECRET` | `src/providers/openai-compatible.test.ts`；BLOCKED 路径实测 | `docs/testing/shared-real-model-test-contract.md` |
 
-| 项 | 状态 | 证据 |
+## 2. 上一轮遗留项复核
+
+| 项 | 状态 | 说明 |
 |---|---|---|
-| P0-1 Morrow 独立兴趣 | PASS | `src/self-model/interest-service.ts`、`reflection-service.ts`；`src/self-model/morrow-attribution.test.ts`；L5 |
-| P0-2 反思增量游标 | PASS | `src/self-model/reflection-service.ts`、`src/persistence/migrations.ts` v35；`tests/correction-round.test.ts` |
-| P0-3 Outbox 幂等与崩溃恢复 | PASS | `src/app/effect-ledger.ts`、`src/app/cognitive-outbox.ts`；§2 崩溃矩阵 |
-| P0-4 knowledge-gap durable | PASS | `src/app/companion-service.ts`（`recordKnowledgeGap`）、`src/self-model/knowledge-gap-service.ts`；事务回滚测试 |
-| P0-5 记忆重复提及生产链 | PASS | `src/memory/memory-evidence-policy.ts`、`memory-service.ts`、`memory-importance.ts`；`src/memory/memory-evidence.test.ts` |
-| P1-6 目标生命周期 | PASS | `src/motivation/goal-time.ts`、`companion-goal.ts`；`src/motivation/goal-lifecycle.test.ts` |
-| P1-7 评测真实性 | PASS | `evals/stage-3/runner/harness.ts`（`runL5` / `runL12`）；`tests/eval-assertions.test.ts` |
-| P1-8 真实 Provider / CI | **PARTIAL** | 真实模型 32 轮已跑（8/9 断言 PASS）；CI 仍 BLOCKED；人工评价 NOT_RUN。见 §3 |
+| P0-7 Outbox 崩溃一致性 | PASS | effect ledger + 幂等键 + 崩溃矩阵；本轮补并发领取 |
+| P0-8 反思增量游标 | PASS | `reflection_cursors`，500 事件 + 第 501 条实测 |
+| P0-9 knowledge-gap durable | PASS | 消息事务内 `recordDeterministic`，失败回滚 |
+| P0-10 Memory Evidence 生产链 | PASS | `observeUtterance` 拒绝门 + `confirm()` 证据 + 排序变化测试 |
+| P1-11 目标完整生命周期 | PASS | 原子接受、幂等键、来源删除传播、跨会话读取 |
+| P1-12 评测有效性 | PASS | L5/L12 可失败；结果带 dataset/harness/params/clock/provider |
+| P1-13 内在状态 appraisal | **NOT_RUN** | 本轮未改 `src/affective-state/`；现有实现是信号驱动的计算状态，没有事件 appraisal 层 |
+| P1-14 反思质量与自我模型成长 | **NOT_RUN** | 未实现证据支持度/重复率/错误推断率等质量指标 |
+| P1-15 人格身份 / 交互适配 / 回滚入口 | **FAIL**（部分） | 身份与交互已分离、服务层有 rollback，但没有 UI 入口；身份演化生产者仍不存在 |
+| P1-16 语音输入输出闭环 | **NOT_RUN** | 未实现；无 ASR/TTS adapter、状态机或 UI |
+| P1-17 真实 Provider / 人工评审 / CI / Electron / Windows | **PARTIAL** | 真实 Provider 已跑；人工评审 NOT_RUN；CI BLOCKED；Electron BLOCKED；Windows NOT_RUN |
 
-## 2. 门槛逐条（对应任务 §6）
-
-| 门槛 | 状态 | 证据 |
-|---|---|---|
-| P0-1…P0-5 有真实代码修复与回归证据 | PASS | 见 §1 与 `stage-3-final-correction-report.md` |
-| P1-6…P1-8 有 PASS 或明确外部阻塞 | PASS（P1-8 PARTIAL） | §3 |
-| user / morrow / shared 严格分离，Morrow-only 有独立证据与后续行为 | PASS | L5：逐条事件证据、2 会话、`model_attempted`、`actually_raised` |
-| 反思持久化增量游标，500+ 事件后仍能处理 | PASS | `tests/correction-round.test.ts`「keeps consuming new events after the journal passes the batch size」 |
-| Outbox 幂等键 + effect ledger + 崩溃恢复 | PASS | §2 矩阵 |
-| knowledge-gap durable transaction | PASS | 回滚测试：journal 失败 → 0 条 assistant 消息、0 条 gap |
-| memory restatement/confirmation 真实生产链，模型复述不误算 | PASS | `readMemoryUtterance({actor:'morrow'})` → `model_text`；10 条测试 |
-| 目标期限/确认/幂等/来源删除/跨会话 | PASS | `goal-lifecycle.test.ts` 14 条 |
-| L5/L12 无假阳性；NOT_RUN/uncertain/缺证据不计 PASS | PASS | `eval-assertions.test.ts` 5 条（3 条要求 FAIL） |
-| restart / long-conversation / 跨会话 / 删除撤回有原始结果 | PASS | 见 §5 |
-| 全量测试、类型检查、构建、有效 CI 分别有证据 | PARTIAL | 前三项有；CI 见 §4 |
-| 真实 Provider 多轮行为 | PARTIAL | 32 轮已跑，8/9 断言 PASS；1 条失败（风格偏移）；人工评价 NOT_RUN。见 §3.1 |
-| 无未解决 P0/P1 隐私、一致性、撤回、重复 effect、授权缺陷 | PASS | 另修复一处未申报泄漏：`user_interaction_signals` 无删除传播 |
-| PR #19 OPEN / 未合并，main 未改 | PASS | PR 状态 OPEN，base `feat/stage-2-delivery-hardening` |
-
-## 3. 真实 Provider 与 CI
-
-### 3.1 真实模型（已执行）
+## 3. 真实 Provider（契约版）
 
 | 项 | 值 |
 |---|---|
 | Provider / Model | iFlytek Spark MaaS / `spark-x2.6` |
-| 规模 | 3 会话 / **32 轮**，0 失败，0 重试 |
-| 结果 | 9 条客观断言 **8 PASS / 1 FAIL**；Morrow 兴趣 **NOT_RUN**（1 个知识缺口 < 3） |
-| 代码 SHA | `876d263f687e704fb7f9df1e686ccf7ea7fd618d` |
-| 原始结果 | `evals/stage-3/live/results/20261031T073847Z-876d263.json` |
+| Endpoint | `https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions`（契约） |
+| 规模 | 3 会话 / 32 轮 |
+| 结果文件 | `evals/real-provider/results/<timestamp>-<sha>.json` |
 | 报告 | `docs/reports/stage-3-live-provider-report.md` |
 
-失败项是「风格请求达到证据门槛并产生偏移」：三次自然表达只写入 1 条 `user_interaction_signals`，偏移为 0。已确认至少一种自然说法（「还是希望你直接一点」）不被识别；第 2 条为何未写入尚未定位，列为开放问题。
+历史 `/v1` 运行结果保留在 `evals/stage-3/live/results/`，未覆盖。
 
-### 3.2 仍未闭合
+## 4. 平台与外部
 
-| 项 | 状态 | 说明 |
+| 项 | 状态 | 证据 |
 |---|---|---|
-| 人工评价 | NOT_RUN | `manualReview.status = "PENDING"`，未用同一模型自评冒充 |
-| 跨天/跨周真实时间跨度 | NOT_RUN | 32 轮是连续 12 分钟 |
-| CI | BLOCKED | 见 §4 |
+| CI | BLOCKED | run [41178081914](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41178081914)：三个 job `steps=[]`，注解 *"The job was not started because recent account payments have failed or your spending limit needs to be increased."* |
+| 人工互动质量评审 | NOT_RUN | `manualReview.status = "PENDING"`，逐轮原文留档；未用同一模型自评冒充 |
+| Electron renderer | BLOCKED | 本机沙箱初始化崩溃（0x80000003），空白页同样复现 |
+| Windows 安装升级 | NOT_RUN | 未执行 |
+| 语音 | NOT_RUN | 未实现 |
 
-## 4. 外部阻断
+## 5. 工程验证
 
-| 项 | 状态 | 可复核证据 |
-|---|---|---|
-| GitHub Actions 有效运行 | BLOCKED | run [41178081914](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41178081914)（HEAD `91f6173`）：三个 job 均 `conclusion=failure`、`steps=[]`、`runner_name` 为空。check-run 注解原文：*"The job was not started because recent account payments have failed or your spending limit needs to be increased."* —— 这是账号计费/额度问题，不是测试失败，也绝不是 CI 通过 |
-| 真实模型多轮陪伴 | BLOCKED | 无可用凭据；未读取/上传/打印任何凭据。scripted 结果只覆盖接线 |
-| Electron renderer | BLOCKED | 本机沙箱初始化崩溃（0x80000003），空白 `data:` 页同样复现，`--no-sandbox` 可绕过 → 环境问题 |
-| Windows 安装升级 | NOT_RUN | 本轮未执行 |
-
-## 5. 机器结果
-
-| 运行器 | 文件 | 结果 |
-|---|---|---|
-| 主评测 | `evals/stage-3/results/20261031T063724Z-b0e719a.json` | 16 场景：15 PASS / 0 FAIL / 1 NOT_RUN（L15 由纵向运行器执行） |
-| 消融 | `evals/stage-3/ablation/results/20261031T063933Z-b0e719a.json` | 基线 15 PASS；`no_growth`→L4,L12；`no_exploration`→L5；`no_reflection`→L5,L9 |
-| 纵向（10 天压缩时钟） | `evals/stage-3/longitudinal/results/20261031T064131Z-b0e719a.json` | 7/7 断言 |
-| 重启 | `evals/stage-3/restart/results/20261031T064150Z-b0e719a.json` | 6/6 断言 |
-| 长对话（30 轮） | `evals/stage-3/long-conversation/results/20261031T064154Z-b0e719a.json` | 8/8 断言 |
-
-全部结果均带 `datasetVersion=stage-3-v2.1`、`harnessVersion`、`paramsVersion`、`clock`、`provider`、起止时间；主评测另带 `providerModelId` 与 `unmeasured`。
+| 命令 | 结果 |
+|---|---|
+| `npx tsc --noEmit` | 0 错误 |
+| `npx vitest run` | 92 文件 / **835 测试**全通过 |
+| `npm run build` | 成功 |
+| `npm run eval:stage3` | 15 PASS / 0 FAIL / 1 NOT_RUN（16 场景） |
+| `eval:stage3:ablation` | `no_growth`→L4,L12；`no_exploration`→L5；`no_reflection`→L5,L9 |
+| `eval:stage3:longitudinal` | 7/7 |
+| `eval:stage3:restart` | 6/6 |
+| `eval:stage3:long-conversation` | 8/8 |
 
 ## 6. 总体判定
 
 **PARTIAL。**
 
-- 八项中七项 PASS，一项（P1-8）因外部条件 BLOCKED；
-- 没有任何 P0 未闭合；
-- CI 与真实模型质量没有有效证据，因此**不得**声称 Stage 3 完整完成，也**不得**据此进入 Stage 4。
+- 本轮 6 项新缺陷：5 PASS、1 FAIL（P0-3）。
+- 遗留 6 项：4 PASS、1 FAIL（P1-15 部分）、2 NOT_RUN。
+- **P0-3 未解决，因此总状态不得为 PASS。**
+- 真实 Provider、CI、Electron、Windows、语音的外部阻塞不冒充 PASS。
+- 不宣布 Stage 3 完成，不进入 Stage 4。

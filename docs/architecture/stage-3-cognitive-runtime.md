@@ -265,3 +265,22 @@ run():
 | `shared` | morrow 侧（且 user 侧 > 0） | morrow 侧 |
 
 原因很直接：探索门把 `shared` 也当作 Morrow 可以提起的话题，如果用户提及能给 shared 凑够门槛，用户证据就从后门进了她的探索池。
+
+### 11.5 Effect claim 协议（2026-10-31 修正）
+
+```
+begin(identity):
+  transaction:                        ← BEGIN IMMEDIATE
+    INSERT ... ON CONFLICT DO NOTHING  (pending, 无 owner)
+    UPDATE ... SET state='running', claim_owner=:worker, lease_until=:now+60s
+      WHERE state IN ('pending','failed_retryable')
+    changes === 1  → 'run'
+    否则读行：
+      applied            → 'applied'
+      running 且租约过期  → 条件 UPDATE 抢占（乐观并发，changes=1 才 'run'）
+      其他               → 'busy'
+```
+
+- `complete()` / `fail()` 都带 `claim_owner = :worker`，**只有持有者能收尾**。
+- `busy` 不是错误：outbox 行保持 pending，持有者完成或租约过期后自然可再领。
+- 租约让"进程崩溃留下的 running"变成"可恢复"，而不是"永远卡住"或"被误认为已完成"。

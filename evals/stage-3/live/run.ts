@@ -428,7 +428,9 @@ async function main(): Promise<void> {
     ).get() as { n: number }).n)
     const providerAttemptFailures = turns.reduce((total, turn) => total + turn.attemptFailures.length, 0)
 
-    const hedge = /(不知道|不了解|没(?:有)?(?:告诉|提过|说过|记录)|不记得|还没|无法|不清楚|不确定|没有这方面的)/u
+    // A refusal can be phrased many ways. The first version only knew a few and
+    // marked "手头没有，也没有保存。" as a fabrication, which it plainly is not.
+    const hedge = /(不知道|不了解|不记得|还没|无法|不清楚|不确定|没(?:有)?(?:告诉|提过|说过|记录|保存)|手头没有|未保存|没有这方面的)/u
     const fabricatedName = /(?:你妹妹(?:叫|的名字是)|叫[\u4e00-\u9fff]{1,3}[。，])/u
     const fabricatedPassport = /[A-Z]{1,2}\d{6,}/u
 

@@ -170,3 +170,16 @@
 | 报告 | `docs/reports/stage-3-live-provider-report.md` |
 
 规模：iFlytek Spark MaaS / `spark-x2.6`，3 会话 32 轮，0 失败；9 条客观断言 8 PASS / 1 FAIL；Morrow 兴趣 NOT_RUN。
+
+## 最后一轮（2026-10-31，代码基线 `ee728fd`）
+
+| 项 | 源码 | 测试 | 说明 |
+|---|---|---|---|
+| P0-1 原子领取 | `src/app/effect-ledger.ts`、迁移 v36 | `tests/correction-round.test.ts`（3 条并发/租约） | 条件 UPDATE + changes 判定 + owner + 租约 |
+| P0-2 期限边界 | `src/motivation/goal-time.ts` | `src/motivation/goal-lifecycle.test.ts`（11 条边界表 + 闰年） | 之前/底前/内/开始时/以后/裸写 |
+| P0-3 兴趣闭环 | — | — | **未实现**，FAIL |
+| P0-4 记忆措辞 | `src/app/companion-service.ts`（`fixedPrinciples`） | `tests/correction-round.test.ts` | 提示层区分「未检索」与「从未告诉」 |
+| P0-5 风格识别 | `src/personalization/personality-growth.ts` | `personality-growth.test.ts`（3 条新增） | 词法证据优先于 intent 标签 |
+| P0-6 共享契约 | `docs/testing/shared-real-model-test-contract.md`、`.env.real-model.example`、`src/shared/companion.ts`、迁移 v37、`evals/stage-3/live/run.ts` | `src/providers/openai-compatible.test.ts` | `/v2` endpoint、`MORROW_TEST_API_KEY`、`evals/real-provider/results/` |
+
+真实 Provider 结果目录：`evals/real-provider/results/`（契约版）；历史 `/v1` 结果保留在 `evals/stage-3/live/results/`。
