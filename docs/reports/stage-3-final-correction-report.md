@@ -29,7 +29,7 @@
 | P0-5 记忆重复提及没有生产输入 | 生产只写 `statement`/`correction`；`confirm()` 不写证据 | `memory_evidence` 词表扩到 restatement/confirmation/retraction/model_reference；`confirm()` 写 confirmation 证据、`retract()` 写 retraction 并抑制重复贡献；`MemoryService.observeUtterance` 经拒绝门（疑问/否定/引用/假设/角色扮演/讨论）后写入；新增 `memory` outbox 模块接入真实回合 | `f1f7a02` | `src/memory/memory-evidence.test.ts`（10） | 同主结果 L16；排序变化断言 | **PASS** |
 | P1-6 目标期限丢失、接受非原子 | `dueAt: null` 写死；标题含时间短语；`acceptCandidate` 读后写；无幂等键；来源删除不传播 | `goal-time.ts` 解析显式日期/明年三月/下个月/下周/N 天后（UTC+8），无法解析保留原表达并要求澄清；标题剥离时间；`acceptCandidate` 单事务 + 来源存在性 + `goal:candidate:<id>` 幂等；`goal_candidates` 增加 `due_at/due_expression/source_state`，删消息触发器使候选失效并取消目标 | `f1f7a02` | `src/motivation/goal-lifecycle.test.ts`（14） | 主结果 L10 | **PASS** |
 | P1-7 L5/L12 断言与证据不一致 | L5 只断言 `permitted/selected_for_prompt`；L12 断言 `evidenceCount >= 0`，detail 却是 `evidence=0` | L5 走完整链路并要求 `model_attempted` + `actually_raised`（关键词命中只算辅助，裸提及记 `uncertain` 且不计通过）；L12 前置条件改为 `>0`，并要求投影收缩；两者导出为 `runL5/runL12` 以便负向注入；结果文件补 `datasetVersion/harnessVersion/paramsVersion/clock/providerModelId/unmeasured` | `b0e719a` | `tests/eval-assertions.test.ts`（5） | L5/L12 正反例见 §3 | **PASS** |
-| P1-8 真实 Provider / CI 证据 | 无真实凭据；Actions runner 未启动 | 本地全部可执行项已执行；CI 与真实模型见 §4 | — | — | — | **BLOCKED** |
+| P1-8 真实 Provider / CI 证据 | 无真实凭据；Actions runner 未启动 | 凭据到位后跑通真实模型 32 轮（`spark-x2.6`），新增 live 运行器与报告；CI 仍为计费阻断 | `876d263` | `evals/stage-3/live/run.ts` | `evals/stage-3/live/results/20261031T073847Z-876d263.json` | **PARTIAL**（模型 PASS 8/9；CI BLOCKED；人工评价 NOT_RUN） |
 
 ## 2. Outbox 崩溃点故障注入矩阵
 

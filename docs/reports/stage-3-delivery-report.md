@@ -189,7 +189,7 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:longitudinal
 | 新增可靠性设施 | effect ledger、reflection cursor、knowledge-gap 台账、goal 幂等键 |
 | P0-1…P0-5 | 5/5 PASS |
 | P1-6、P1-7 | 2/2 PASS |
-| P1-8 | **BLOCKED**（无真实凭据、Actions runner 未启动） |
+| P1-8 | **PARTIAL**（真实模型 32 轮 8/9 PASS；CI 计费阻断；人工评价 NOT_RUN） |
 | 主评测 | 16 场景：**15 PASS / 0 FAIL / 1 NOT_RUN**（L15 由纵向运行器负责） |
 | 消融 | 基线 15 PASS；`no_growth`→L4,L12；`no_exploration`→L5；`no_reflection`→L5,L9 |
 | 纵向（10 天压缩时钟） | **7/7** 断言 |
@@ -198,6 +198,7 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:longitudinal
 | 全量测试 | **92 文件 / 820 测试**全通过 |
 | 类型检查 | `tsc --noEmit` 0 错误 |
 | 构建 | `electron-vite build` 成功（main/preload/renderer） |
+| 真实模型（`spark-x2.6`） | 3 会话 32 轮，0 失败；9 条断言 8 PASS / 1 FAIL |
 | 整体状态 | **PARTIAL** |
 
 仍未完成：真实 Provider 多轮陪伴、有效 CI、Electron 渲染层、Windows 安装升级、§2B appraisal、§2C 反思质量、§2F 语音。本轮没有新增其中任何一项，也不声称它们存在。

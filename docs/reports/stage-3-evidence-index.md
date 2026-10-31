@@ -159,3 +159,14 @@
 - 长对话：`evals/stage-3/long-conversation/results/20261031T064154Z-b0e719a.json`
 
 历史结果一律保留，未覆盖。
+
+## 真实 Provider 证据（2026-10-31）
+
+| 项 | 路径 |
+|---|---|
+| 运行器 | `evals/stage-3/live/run.ts`（`npm run eval:stage3:live`） |
+| 说明 | `evals/stage-3/live/README.md` |
+| 原始结果 | `evals/stage-3/live/results/20261031T073847Z-876d263.json`（`codeCommit=876d263`） |
+| 报告 | `docs/reports/stage-3-live-provider-report.md` |
+
+规模：iFlytek Spark MaaS / `spark-x2.6`，3 会话 32 轮，0 失败；9 条客观断言 8 PASS / 1 FAIL；Morrow 兴趣 NOT_RUN。
