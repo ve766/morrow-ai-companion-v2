@@ -36,11 +36,14 @@ export type ReflectionEffect =
   /** Adds one interest-evidence row, which the promotion gate then judges. */
   | { effect: 'interest_evidence'; memoryId: string }
   /**
-   * Adds one observation to a topic Morrow owns. The topic and the conversation
-   * travel in the finding's evidence because the effect layer must not re-derive
-   * them from prose.
+   * Adds one observation per cited knowledge gap to a topic Morrow owns.
+   *
+   * The topic and the event ids travel in the finding's evidence because the
+   * effect layer must not re-derive them from prose. One observation per event
+   * — not one per finding — is what lets two gaps in two conversations count as
+   * two independent supports instead of collapsing into one.
    */
-  | { effect: 'morrow_interest'; topic: string; conversationId: string }
+  | { effect: 'morrow_interest'; topic: string; conversationId: string; evidenceEventIds: string[] }
   /** A candidate correction of the assistant's reading; never overrides the user. */
   | { effect: 'intent_correction_candidate' }
   /** A bounded suggestion for the next turn; never executes anything. */
@@ -100,8 +103,18 @@ export function mapReflectionFinding(finding: ReflectionFinding, check: Evidence
     case 'morrow_interest_candidate': {
       const topic = finding.evidence.find((ref) => ref.kind === 'topic')
       const conversation = finding.evidence.find((ref) => ref.kind === 'conversation')
-      if (!topic || !conversation) return { effect: 'rejected', reason: 'no_evidence' }
-      return { effect: 'morrow_interest', topic: topic.id, conversationId: conversation.id }
+      const evidenceEventIds = finding.evidence.filter((ref) => ref.kind === 'event').map((ref) => ref.id)
+      if (!topic) return { effect: 'rejected', reason: 'no_evidence' }
+      // A conversation ref is no longer required: the gap ledger knows which
+      // conversation each cited event belongs to. It is still accepted when a
+      // producer supplies one, and used as the fallback.
+      if (!conversation && evidenceEventIds.length === 0) return { effect: 'rejected', reason: 'no_evidence' }
+      return {
+        effect: 'morrow_interest',
+        topic: topic.id,
+        conversationId: conversation?.id ?? '',
+        evidenceEventIds
+      }
     }
     case 'intent_correction':
       return { effect: 'intent_correction_candidate' }

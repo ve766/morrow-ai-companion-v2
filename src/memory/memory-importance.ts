@@ -135,7 +135,15 @@ export interface MemoryEvidenceInput {
   sourceKind: 'message' | 'turn' | 'user_explicit' | 'migration'
   actor: 'user' | 'morrow' | 'system'
   conversationId: string | null
-  evidenceType: 'statement' | 'restatement' | 'correction' | 'confirmation' | 'goal_link' | 'boundary'
+  evidenceType:
+    | 'statement'
+    | 'restatement'
+    | 'correction'
+    | 'confirmation'
+    | 'goal_link'
+    | 'boundary'
+    | 'retraction'
+    | 'model_reference'
   confidence: number
   /** Two rows in the same group are one context, not two independent mentions. */
   independenceGroup: string
@@ -182,10 +190,14 @@ export class MemoryImportanceService implements MemoryImportancePort {
     ).get(memoryId) as { n: number }).n) > 0
     // Independent restatements, from the ledger. Corrections are evidence of
     // importance, not of repetition: being corrected twice does not mean the
-    // fact was mentioned twice in the same sense.
-    const restatements = Number((this.database.connection.prepare(
-      "SELECT COUNT(DISTINCT independence_group) AS n FROM memory_evidence WHERE memory_id = ? AND evidence_type = 'restatement' AND retracted_at IS NULL"
-    ).get(memoryId) as { n: number }).n)
+    // fact was mentioned twice in the same sense. A memory that is no longer
+    // active has no repetition standing at all — a retraction suppresses the
+    // contributions rather than leaving them to keep the score up.
+    const restatements = row.status === 'active'
+      ? Number((this.database.connection.prepare(
+          "SELECT COUNT(DISTINCT independence_group) AS n FROM memory_evidence WHERE memory_id = ? AND evidence_type = 'restatement' AND retracted_at IS NULL"
+        ).get(memoryId) as { n: number }).n)
+      : 0
     const result = scoreMemory({
       record: { currentText: row.current_text, sourceCategory: row.source_category, updatedAt: row.updated_at, revision: row.revision },
       extraMentions: restatements,

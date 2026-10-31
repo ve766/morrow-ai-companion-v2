@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { SqliteDatabase } from './database.ts'
 
 export const EVENT_LOG_SCHEMA_VERSION = 1 as const
@@ -21,6 +22,14 @@ export interface MorrowEvent {
   subjectId: string | null
   correlationId: string | null
   payload: Record<string, unknown>
+  /**
+   * Monotonic journal position, assigned by SQLite.
+   *
+   * A reflection consumer pages by this value, not by `occurred_at`: two events
+   * can share a timestamp, and only `seq` gives a total order that never
+   * repeats or skips. Undefined for events that were never read back.
+   */
+  seq?: number
 }
 
 export interface EventQuery {
@@ -34,6 +43,7 @@ export interface EventQuery {
 }
 
 interface EventRow {
+  seq: number
   id: string
   schema_version: number
   occurred_at: string
@@ -88,8 +98,40 @@ export function deserializeEventPayload(text: string): Record<string, unknown> {
   return parsed as Record<string, unknown>
 }
 
-export class EventLogService {
-  constructor(
+/**
+ * A stable uuid derived from a caller-chosen key.
+ *
+ * Two properties matter here: the same key always yields the same id, so a
+ * retried turn writes one row instead of two; and the result is a valid
+ * lowercase uuid, so the journal's own validation still applies.
+ */
+export function deterministicEventId(key: string): string {
+  const digest = createHash('sha256').update(`morrow.event:${key}`).digest()
+  const bytes = Buffer.from(digest.subarray(0, 16))
+  // Version 5 (name-based) and the RFC 4122 variant bits.
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  const hex = bytes.toString('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+function mapEventRow(row: EventRow): MorrowEvent {
+  return {
+    seq: Number(row.seq),
+    id: row.id,
+    schemaVersion: row.schema_version as typeof EVENT_LOG_SCHEMA_VERSION,
+    occurredAt: row.occurred_at,
+    sourceModule: row.source_module as EventSourceModule,
+    eventType: row.event_type,
+    actor: row.actor as EventActor,
+    subjectType: row.subject_type,
+    subjectId: row.subject_id,
+    correlationId: row.correlation_id,
+    payload: deserializeEventPayload(row.payload_json)
+  }
+}
+
+export class EventLogService {  constructor(
     private readonly database: SqliteDatabase,
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => globalThis.crypto.randomUUID()
@@ -128,6 +170,78 @@ export class EventLogService {
     }
   }
 
+  /**
+   * Records an event whose identity is derived from `idempotencyKey`.
+   *
+   * Unlike `tryRecord`, this throws on every failure except a duplicate: a
+   * caller that needs the event to be durable (the knowledge-gap path) gets a
+   * rollback instead of a silent gap. A duplicate means a retried turn already
+   * wrote it, which is the desired outcome, so it returns `inserted: false`
+   * rather than failing.
+   */
+  recordDeterministic(
+    idempotencyKey: string,
+    event: Omit<MorrowEvent, 'schemaVersion' | 'id' | 'occurredAt'> & { occurredAt?: string }
+  ): { event: MorrowEvent; inserted: boolean } {
+    const full: MorrowEvent = {
+      id: deterministicEventId(idempotencyKey),
+      schemaVersion: EVENT_LOG_SCHEMA_VERSION,
+      occurredAt: event.occurredAt ?? this.clock(),
+      sourceModule: event.sourceModule,
+      eventType: event.eventType,
+      actor: event.actor,
+      subjectType: event.subjectType,
+      subjectId: event.subjectId ?? null,
+      correlationId: event.correlationId ?? null,
+      payload: event.payload
+    }
+    validateMorrowEvent(full)
+    const result = this.database.connection.prepare(`
+      INSERT INTO event_journal(id, schema_version, occurred_at, source_module, event_type, actor, subject_type, subject_id, correlation_id, payload_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO NOTHING
+    `).run(
+      full.id, full.schemaVersion, full.occurredAt, full.sourceModule, full.eventType, full.actor,
+      full.subjectType, full.subjectId, full.correlationId, serializeEventPayload(full.payload)
+    )
+    return { event: full, inserted: Number(result.changes) > 0 }
+  }
+
+  /**
+   * Reads events strictly after a journal position.
+   *
+   * This is the paging primitive reflection needs: `seq > cursor ORDER BY seq
+   * ASC LIMIT n`. Ordering by `occurred_at` cannot express "after what I last
+   * processed", and the old `ascending: true` read always returned the oldest
+   * rows, so a long-lived install stopped seeing new evidence entirely.
+   */
+  listAfter(afterSeq: number, limit = 200): MorrowEvent[] {
+    const bounded = Math.min(Math.max(1, Math.floor(limit)), 500)
+    const rows = this.database.connection.prepare(
+      `SELECT seq, id, schema_version, occurred_at, source_module, event_type, actor, subject_type, subject_id, correlation_id, payload_json
+       FROM event_journal WHERE seq > ? ORDER BY seq ASC LIMIT ${bounded}`
+    ).all(Math.max(0, Math.floor(afterSeq))) as unknown as EventRow[]
+    return rows.map(mapEventRow)
+  }
+
+  /** Whether an event with this id is still in the journal. */
+  exists(eventId: string): boolean {
+    const row = this.database.connection.prepare('SELECT 1 AS ok FROM event_journal WHERE id = ?').get(eventId)
+    return row !== undefined
+  }
+
+  /** Highest journal position, or 0 when the journal is empty. */
+  latestSeq(): number {
+    const row = this.database.connection.prepare('SELECT MAX(seq) AS seq FROM event_journal').get() as { seq: number | null } | undefined
+    return row?.seq === null || row?.seq === undefined ? 0 : Number(row.seq)
+  }
+
+  /** How many events a consumer at `afterSeq` has not examined yet. */
+  backlogAfter(afterSeq: number): number {
+    const row = this.database.connection.prepare('SELECT COUNT(*) AS n FROM event_journal WHERE seq > ?').get(Math.max(0, Math.floor(afterSeq))) as { n: number }
+    return Number(row.n)
+  }
+
   list(query: EventQuery = {}): MorrowEvent[] {
     const conditions: string[] = []
     const parameters: Array<string | number> = []
@@ -143,21 +257,10 @@ export class EventLogService {
     const order = query.ascending ? 'ASC' : 'DESC'
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
     const rows = this.database.connection.prepare(
-      `SELECT id, schema_version, occurred_at, source_module, event_type, actor, subject_type, subject_id, correlation_id, payload_json
+      `SELECT seq, id, schema_version, occurred_at, source_module, event_type, actor, subject_type, subject_id, correlation_id, payload_json
        FROM event_journal ${where} ORDER BY seq ${order} LIMIT ${limit}`
     ).all(...parameters) as unknown as EventRow[]
-    return rows.map((row) => ({
-      id: row.id,
-      schemaVersion: row.schema_version as typeof EVENT_LOG_SCHEMA_VERSION,
-      occurredAt: row.occurred_at,
-      sourceModule: row.source_module as EventSourceModule,
-      eventType: row.event_type,
-      actor: row.actor as EventActor,
-      subjectType: row.subject_type,
-      subjectId: row.subject_id,
-      correlationId: row.correlation_id,
-      payload: deserializeEventPayload(row.payload_json)
-    }))
+    return rows.map(mapEventRow)
   }
 
   count(eventType?: string): number {

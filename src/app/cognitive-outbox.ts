@@ -1,5 +1,6 @@
 import type { SqliteDatabase } from '../persistence/database'
 import type { CognitiveTurnAnalysis } from '../cognition/cognition'
+import { CognitiveEffectLedger, EFFECT_MAX_ATTEMPTS } from './effect-ledger'
 
 /**
  * The part of a turn reading the projectors actually consume.
@@ -30,7 +31,7 @@ export type ProjectedAnalysis = Pick<
  * one module at a time. `(turn_id, module, handler_version)` is the idempotency
  * key, so replaying a turn ten times produces the same state.
  */
-export const COGNITIVE_MODULES = ['interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal'] as const
+export const COGNITIVE_MODULES = ['interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal', 'memory'] as const
 export type CognitiveModule = (typeof COGNITIVE_MODULES)[number]
 
 /** Bumped when a projector's semantics change; old rows keep their own version. */
@@ -38,6 +39,17 @@ export const COGNITIVE_HANDLER_VERSION = 1
 
 /** Attempts before a row is parked as failed instead of retried forever. */
 export const OUTBOX_MAX_ATTEMPTS = 5
+
+/**
+ * Effect identity for one outbox row.
+ *
+ * The row *is* the effect here: a projector owns exactly one logical projection
+ * per module per turn. The side effects inside it (one growth dimension, one
+ * goal, one evidence row) carry their own idempotency keys, because those are
+ * what actually prevent a duplicate write. This key is what prevents re-running
+ * a projection that already committed.
+ */
+const OUTBOX_EFFECT_KEY = 'project'
 
 export interface OutboxRow {
   turnId: string
@@ -77,6 +89,12 @@ export interface DrainResult {
   done: number
   failed: number
   skipped: number
+  /**
+   * Rows whose side effect had already been applied by an earlier attempt. They
+   * were completed here without running the projector again — the difference
+   * between "retried safely" and "duplicated".
+   */
+  replayed: number
 }
 
 /**
@@ -95,8 +113,7 @@ function serializableAnalysis(analysis: CognitiveTurnAnalysis | null): string | 
   })
 }
 
-function parseAnalysis(text: string | null): ProjectedAnalysis | null {
-  if (!text) return null
+function parseAnalysis(text: string | null): ProjectedAnalysis | null {  if (!text) return null
   try {
     const parsed = JSON.parse(text) as Partial<ProjectedAnalysis>
     if (!parsed || typeof parsed !== 'object' || typeof parsed.intent !== 'string') return null
@@ -107,8 +124,20 @@ function parseAnalysis(text: string | null): ProjectedAnalysis | null {
   }
 }
 
-interface OutboxSqlRow {
-  turn_id: string
+/**
+ * A stable, content-free code for a failed projection.
+ *
+ * The ledger is read by diagnostics, so it must not accumulate error messages:
+ * a thrown message can embed a fragment of the user's text or a provider body.
+ */
+function errorCodeOf(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error && typeof (error as { code: unknown }).code === 'string') {
+    return (error as { code: string }).code
+  }
+  return 'projection_failed'
+}
+
+interface OutboxSqlRow {  turn_id: string
   module: string
   handler_version: number
   conversation_id: string
@@ -120,10 +149,15 @@ interface OutboxSqlRow {
 }
 
 export class CognitionOutbox {
+  private readonly ledger: CognitiveEffectLedger
+
   constructor(
     private readonly database: SqliteDatabase,
-    private readonly clock: () => string = () => new Date().toISOString()
-  ) {}
+    private readonly clock: () => string = () => new Date().toISOString(),
+    ledger?: CognitiveEffectLedger
+  ) {
+    this.ledger = ledger ?? new CognitiveEffectLedger(database, clock)
+  }
 
   /**
    * Writes one pending row per module. Must be called inside the transaction
@@ -186,17 +220,33 @@ export class CognitionOutbox {
    * next module still runs. A row that keeps failing is parked as `failed` after
    * `OUTBOX_MAX_ATTEMPTS`, which is visible in `stats()` rather than retried
    * forever in the background.
+   *
+   * Every row is claimed through the effect ledger first. A row whose effect
+   * already committed — the process died after the write but before the outbox
+   * mark — is completed without running the projector again. That is the only
+   * way "at least once" delivery does not become "sometimes twice".
    */
   drain(projectors: readonly CognitiveProjector[], options: { turnId?: string; limit?: number } = {}): DrainResult {
     const rows = this.pending(options.turnId, options.limit ?? 100)
-    const result: DrainResult = { done: 0, failed: 0, skipped: 0 }
+    const result: DrainResult = { done: 0, failed: 0, skipped: 0, replayed: 0 }
     for (const row of rows) {
       const projector = projectors.find((candidate) => candidate.module === row.module && candidate.version === row.handlerVersion)
       if (!projector) {
         result.skipped += 1
         continue
       }
+      const identity = {
+        turnId: row.turnId,
+        module: row.module,
+        handlerVersion: row.handlerVersion,
+        effectKey: OUTBOX_EFFECT_KEY
+      }
       try {
+        if (this.ledger.begin(identity) === 'applied') {
+          this.mark(row, 'done', null, row.attempts)
+          result.replayed += 1
+          continue
+        }
         projector.project({
           turnId: row.turnId,
           conversationId: row.conversationId,
@@ -205,16 +255,31 @@ export class CognitionOutbox {
           analysis: row.analysis,
           readUserMessage: () => this.readUserMessage(row.userMessageId)
         })
+        // Ledger first, outbox second. If the process dies between them the
+        // effect is recorded as applied and the row is completed on replay; the
+        // other order would re-run a committed effect.
+        this.ledger.complete(identity)
         this.mark(row, 'done', null, row.attempts)
         result.done += 1
       } catch (error) {
         const attempts = row.attempts + 1
         const message = error instanceof Error ? error.message.slice(0, 200) : 'unknown'
-        this.mark(row, attempts >= OUTBOX_MAX_ATTEMPTS ? 'failed' : 'pending', message, attempts)
+        const ledgerState = this.ledger.fail(identity, errorCodeOf(error))
+        const terminal = ledgerState === 'terminal_failed' || attempts >= Math.min(OUTBOX_MAX_ATTEMPTS, EFFECT_MAX_ATTEMPTS)
+        this.mark(row, terminal ? 'failed' : 'pending', message, attempts)
         result.failed += 1
       }
     }
     return result
+  }
+
+  /** Effect ledger for one turn, for audits and crash-recovery tests. */
+  effectsForTurn(turnId: string) {
+    return this.ledger.forTurn(turnId.toLowerCase())
+  }
+
+  effectStats() {
+    return this.ledger.stats()
   }
 
   /** Reads the user's own words from the source record, never from a copy. */

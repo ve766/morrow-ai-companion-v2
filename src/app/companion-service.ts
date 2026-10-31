@@ -63,6 +63,7 @@ import type { MemoryRecord } from '../memory/memory-domain'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
+import { KnowledgeGapService } from '../self-model/knowledge-gap-service'
 
 const fixedPrinciples = [
   'Be truthful, useful, and direct; express uncertainty when evidence is incomplete.',
@@ -643,6 +644,11 @@ export interface SelfModelLoopServices {
   exploration?: ExplorationService
   /** Stage 3 §2D: companionship goals, kept separate by ownership. */
   goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext' | 'detectFromTurn'>
+  /**
+   * Stage 3 P0-5: the memory evidence producer. Without it the repetition term
+   * in the importance formula has no input, which is how it read zero forever.
+   */
+  memories?: Pick<import('../memory/memory-service').MemoryService, 'observeUtterance'>
 }
 
 /** What the long-term layer needs to know about the turn it is describing. */
@@ -798,6 +804,23 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       }
     },
     {
+      module: 'memory',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        // The user restating a stored fact is the only input the repetition
+        // term is allowed to see. The policy module refuses questions,
+        // negations, quotes, hypotheticals and role-play before anything is
+        // written, and the message id makes a retried turn contribute once.
+        if (!services.memories) return
+        services.memories.observeUtterance({
+          text: input.readUserMessage(),
+          messageId: input.userMessageId,
+          conversationId: input.conversationId,
+          occurredAt: input.occurredAt
+        })
+      }
+    },
+    {
       module: 'reflection',
       version: COGNITIVE_HANDLER_VERSION,
       project: () => {
@@ -853,6 +876,9 @@ export class CompanionService {
     this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
     const selfModelLoop = options.selfModelLoop
+    // The gap ledger is written in the same transaction as the assistant
+    // message, so it shares the connection rather than opening its own.
+    const knowledgeGaps = selfModelLoop ? new KnowledgeGapService(options.database) : undefined
     const recordCognitiveDegradation = (component: string, correlationId: string | null = null): void => {
       try {
         selfModelLoop?.events.tryRecord({
@@ -916,6 +942,15 @@ export class CompanionService {
                     return { line: '', interestId: null, label: null }
                   }
                 },
+                markExplorationAttempted: (turnId: string) => {
+                  try {
+                    const selected = selfModelLoop.exploration!.history(turnId).find((entry) => entry.state === 'selected_for_prompt')
+                    if (!selected) return
+                    selfModelLoop.exploration!.markModelAttempted({ turnId, interestId: selected.interestId })
+                  } catch {
+                    recordCognitiveDegradation('exploration_attempt', turnId)
+                  }
+                },
                 settleExploration: (input: { turnId: string; outcome: 'succeeded' | 'failed' | 'cancelled'; reply: string | null }) => {
                   try {
                     // The permitted interest is read back from the ledger, not
@@ -959,21 +994,33 @@ export class CompanionService {
               }
             : {}),
           recordKnowledgeGap: (input) => {
-            try {
-              selfModelLoop.events.tryRecord({
-                sourceModule: 'cognition',
-                eventType: 'cognition.knowledge_gap',
-                // `system` is the only actor the journal allows for something
-                // Morrow derived; the payload names the owner explicitly.
-                actor: 'system',
-                subjectType: 'interest',
-                subjectId: input.label.slice(0, 64),
-                correlationId: input.conversationId,
-                payload: { label: input.label.slice(0, 64), owner: 'morrow' }
-              })
-            } catch {
-              // A gap record is a secondary signal; losing it never changes the turn.
-            }
+            // Durable on purpose. This event is the input to reflection — the
+            // evidence that Morrow failed to ground something — not telemetry.
+            // It runs inside the assistant-message transaction, so a failure
+            // here rolls the message back instead of committing a reply whose
+            // cognitive record silently vanished. The deterministic id makes a
+            // retried turn write one row, not two.
+            const recorded = selfModelLoop.events.recordDeterministic(`knowledge-gap:${input.turnId}:${input.label}`, {
+              sourceModule: 'cognition',
+              eventType: 'cognition.knowledge_gap',
+              // `system` is the only actor the journal allows for something
+              // Morrow derived; the payload names the owner explicitly.
+              actor: 'system',
+              subjectType: 'interest',
+              subjectId: input.label.slice(0, 64),
+              correlationId: input.conversationId,
+              payload: { label: input.label.slice(0, 64), owner: 'morrow', turnId: input.turnId }
+            })
+            // Same transaction, same failure semantics: the event and its
+            // evidence row are one fact. The row is what reflection counts when
+            // it asks "how many independent conversations raised this?".
+            knowledgeGaps?.record({
+              eventId: recorded.event.id,
+              conversationId: input.conversationId,
+              turnId: input.turnId,
+              label: input.label,
+              occurredAt: recorded.event.occurredAt
+            })
           },
           onTurnCompleted: (input) => {
             try {
@@ -1155,6 +1202,13 @@ export interface SelfModelLoopHooks {
    * exists instead of recording it as if it had already happened.
    */
   explorationLine?(turn: SelfModelContextTurn): { line: string; interestId: string | null; label: string | null }
+  /**
+   * The provider was called with the permission in its payload. Separate from
+   * `explorationLine` because "the prompt contained it" and "the model was
+   * asked" are different facts, and only the second can support a behaviour
+   * claim.
+   */
+  markExplorationAttempted?(turnId: string): void
   /** Settles the permission once the turn has an outcome. Never throws into chat. */
   settleExploration?(input: { turnId: string; outcome: 'succeeded' | 'failed' | 'cancelled'; reply: string | null }): void
   /**
@@ -1163,7 +1217,7 @@ export interface SelfModelLoopHooks {
    * This is the only producer of Morrow's own interest: a knowledge gap she
    * failed to close. It is deliberately not "the user mentioned X often".
    */
-  recordKnowledgeGap?(input: { label: string; conversationId: string }): void
+  recordKnowledgeGap?(input: { label: string; conversationId: string; turnId: string }): void
   /** Called once per completed turn; must never throw into the chat path. */
   onTurnCompleted(input: {
     conversationId: string
@@ -1419,6 +1473,9 @@ export class ChatService {
       let output: Awaited<ReturnType<typeof dispatchToProvider>>
       try {
         this.recordTurnState(conversationId, requestId, 'requesting')
+        // The permission is in the payload and the call is about to happen.
+        // Recorded before dispatch so a thrown call still counts as attempted.
+        this.selfModel?.markExplorationAttempted?.(requestId)
         output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => onDelta?.(delta))
         this.recordTurnState(conversationId, requestId, 'response_received')
       } catch (error) {
@@ -1554,7 +1611,7 @@ export class ChatService {
           // question about it. Only the derived topic label is stored.
           if (guard.verdict === 'rewrite') {
             const label = deriveInterestLabel(request.content)
-            if (label) this.selfModel?.recordKnowledgeGap?.({ label, conversationId })
+            if (label) this.selfModel?.recordKnowledgeGap?.({ label, conversationId, turnId: requestId })
           }
         }
         try {

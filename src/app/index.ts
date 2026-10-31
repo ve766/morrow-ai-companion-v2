@@ -248,7 +248,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories },
       continuity: { contexts: turnContexts, pending: pendingItems, finalizations, states: new SqliteTurnStateRepository(database) }
     })
     // Settle any turn that was interrupted between its finalization intent and

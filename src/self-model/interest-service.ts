@@ -33,7 +33,7 @@ export const INTEREST_EVIDENCE_HALF_LIFE_DAYS = 14
 
 export interface InterestEvidenceRow {
   interestId: string
-  /** Message id, memory id, or a synthetic id for rows migrated from the old aggregate. */
+  /** Message id, memory id, event id, or a synthetic id for rows migrated from the old aggregate. */
   ref: string
   kind: 'message' | 'memory' | 'legacy' | 'reflection'
   conversationId: string
@@ -47,6 +47,20 @@ export interface InterestEvidenceRow {
    * row could not be told apart from one recorded against the new wording.
    */
   evidenceRevision?: number | null
+  /**
+   * Whose observation this is.
+   *
+   * The aggregate carries an origin too, but an aggregate can be edited by a
+   * later observation; this column is what makes "Morrow's interest was formed
+   * from Morrow's own evidence" checkable after the fact.
+   */
+  origin?: 'user' | 'morrow'
+  /** The reflection finding that cited this row, for `kind: 'reflection'`. */
+  sourceFindingId?: string | null
+  /** The journal event the observation came from, when it has one. */
+  eventRef?: string | null
+  /** The topic label as it was derived, so an audit does not have to re-derive it. */
+  topicLabel?: string | null
 }
 
 export interface InterestEvidenceCounts {
@@ -76,6 +90,19 @@ export interface InterestEvidenceCounts {
    */
   recentCounters: number
   lastSupportAt: string | null
+  /**
+   * The same numbers split by whose observation they are.
+   *
+   * This split is the whole point of P0-1: a topic the user mentions three times
+   * must not be promotable as Morrow's own interest, and the aggregate origin
+   * alone cannot prove that because it is rewritten on every observation.
+   */
+  userSupport: number
+  morrowSupport: number
+  userGroups: number
+  morrowGroups: number
+  userNet: number
+  morrowNet: number
 }
 
 export interface InterestRepositoryPort {
@@ -93,7 +120,7 @@ export interface InterestRepositoryPort {
 
 export interface InterestObservation {
   conversationId: string
-  /** Idempotency key. A message id for chat turns, a memory id for reflection. */
+  /** Idempotency key. A message id for chat turns, an event id for reflection. */
   messageId: string
   occurredAt: string
   topicText: string
@@ -109,6 +136,12 @@ export interface InterestObservation {
    * interested in X".
    */
   origin?: 'user' | 'morrow'
+  /** The finding that cited this observation, when it came from reflection. */
+  sourceFindingId?: string
+  /** The journal event behind it, when there is one. */
+  eventRef?: string
+  /** Label as derived at observation time, stored for auditability. */
+  topicLabel?: string
 }
 
 interface InterestRow {
@@ -140,6 +173,10 @@ interface EvidenceSqlRow {
   match_reason: string
   created_at: string
   evidence_revision: number | null
+  evidence_origin: string
+  source_finding_id: string | null
+  event_ref: string | null
+  topic_label: string | null
 }
 
 export class SqliteInterestRepository implements InterestRepositoryPort {
@@ -172,9 +209,12 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
 
   insertEvidence(row: InterestEvidenceRow): boolean {
     const result = this.database.connection.prepare(`
-      INSERT OR IGNORE INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(row.interestId, row.ref, row.kind, row.conversationId, row.polarity, row.score, row.reason, row.createdAt, row.evidenceRevision ?? null)
+      INSERT OR IGNORE INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision, evidence_origin, source_finding_id, event_ref, topic_label)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      row.interestId, row.ref, row.kind, row.conversationId, row.polarity, row.score, row.reason, row.createdAt,
+      row.evidenceRevision ?? null, row.origin ?? 'user', row.sourceFindingId ?? null, row.eventRef ?? null, row.topicLabel ?? null
+    )
     return Number(result.changes) > 0
   }
 
@@ -198,9 +238,15 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
     const rows = this.evidenceFor(interestId)
     const nowMs = Date.parse(now ?? new Date().toISOString())
     const conversations = new Set<string>()
+    const userConversations = new Set<string>()
+    const morrowConversations = new Set<string>()
     let support = 0
     let counter = 0
     let net = 0
+    let userSupport = 0
+    let morrowSupport = 0
+    let userNet = 0
+    let morrowNet = 0
     let lastSupportIndex = -1
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index]!
@@ -209,14 +255,26 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
       // `match_score` is the topic-identity confidence, used here as the
       // reliability of this observation. A weak match counts weakly.
       const weight = Math.max(0, Math.min(1, row.score)) * decay
+      const origin = row.origin ?? (row.kind === 'reflection' ? 'morrow' : 'user')
       if (row.polarity === 'support') {
         support += 1
         net += weight
         conversations.add(row.conversationId)
+        if (origin === 'morrow') {
+          morrowSupport += 1
+          morrowNet += weight
+          morrowConversations.add(row.conversationId)
+        } else {
+          userSupport += 1
+          userNet += weight
+          userConversations.add(row.conversationId)
+        }
         lastSupportIndex = index
       } else {
         counter += 1
         net -= weight
+        if (origin === 'morrow') morrowNet -= weight
+        else userNet -= weight
       }
     }
     const recentCounters = rows.slice(lastSupportIndex + 1).filter((row) => row.polarity === 'counter').length
@@ -228,7 +286,13 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
       netSupport: Math.round(net * 1000) / 1000,
       latestPolarity: rows.at(-1)?.polarity ?? null,
       recentCounters,
-      lastSupportAt: lastSupportIndex >= 0 ? rows[lastSupportIndex]!.createdAt : null
+      lastSupportAt: lastSupportIndex >= 0 ? rows[lastSupportIndex]!.createdAt : null,
+      userSupport,
+      morrowSupport,
+      userGroups: userConversations.size,
+      morrowGroups: morrowConversations.size,
+      userNet: Math.round(userNet * 1000) / 1000,
+      morrowNet: Math.round(morrowNet * 1000) / 1000
     }
   }
 
@@ -269,7 +333,11 @@ function mapEvidence(row: EvidenceSqlRow): InterestEvidenceRow {
     score: row.match_score,
     reason: row.match_reason,
     createdAt: row.created_at,
-    evidenceRevision: row.evidence_revision ?? null
+    evidenceRevision: row.evidence_revision ?? null,
+    origin: row.evidence_origin === 'morrow' ? 'morrow' : 'user',
+    sourceFindingId: row.source_finding_id ?? null,
+    eventRef: row.event_ref ?? null,
+    topicLabel: row.topic_label ?? null
   }
 }
 
@@ -365,7 +433,49 @@ export class InterestService {
       occurredAt: input.occurredAt,
       topicText: input.topicText,
       evidenceKind: 'reflection',
-      origin: 'morrow'
+      origin: 'morrow',
+      sourceFindingId: input.findingId
+    })
+  }
+
+  /**
+   * Records Morrow's own topic from N independent knowledge gaps.
+   *
+   * Each gap is its own evidence row, keyed by its journal event id. A finding
+   * that aggregated three gaps used to produce exactly one observation, which
+   * meant Morrow could never accumulate the independent support her own
+   * promotion gate requires — she was structurally unable to form an interest.
+   * Collapsing them also made "three repeats in one conversation" and "three
+   * separate conversations" indistinguishable, which is the opposite of what
+   * the independence count is for.
+   */
+  observeMorrowEvidence(input: {
+    findingId: string
+    topicText: string
+    evidence: ReadonlyArray<{ eventId: string; conversationId: string; occurredAt: string }>
+  }): InterestRecord | null {
+    if (input.evidence.length === 0) return null
+    const label = deriveInterestLabel(input.topicText)
+    if (!label) return null
+    const run = this.repository.transaction
+      ? this.repository.transaction.bind(this.repository)
+      : <T>(operation: () => T): T => operation()
+    return run(() => {
+      let last: InterestRecord | null = null
+      for (const item of input.evidence) {
+        last = this.observeInner({
+          conversationId: item.conversationId,
+          messageId: item.eventId,
+          occurredAt: item.occurredAt,
+          topicText: input.topicText,
+          evidenceKind: 'reflection',
+          origin: 'morrow',
+          sourceFindingId: input.findingId,
+          eventRef: item.eventId,
+          topicLabel: label
+        }) ?? last
+      }
+      return last
     })
   }
 
@@ -432,7 +542,11 @@ export class InterestService {
         score: best.match.score,
         reason: 'polarity_conflict',
         createdAt: now,
-        evidenceRevision
+        evidenceRevision,
+        origin: observation.origin === 'morrow' ? 'morrow' : 'user',
+        sourceFindingId: observation.sourceFindingId ?? null,
+        eventRef: observation.eventRef ?? null,
+        topicLabel: label
       })
       if (!inserted) return this.reconcile(best.record)
       const next = this.reconcile(best.record)
@@ -483,7 +597,11 @@ export class InterestService {
       score: best ? best.match.score : 1,
       reason: best ? best.match.reason : 'new_topic',
       createdAt: now,
-      evidenceRevision
+      evidenceRevision,
+      origin: observation.origin === 'morrow' ? 'morrow' : 'user',
+      sourceFindingId: observation.sourceFindingId ?? null,
+      eventRef: observation.eventRef ?? null,
+      topicLabel: label
     })
     this.recordEvent('interest.observed', created, {
       newTopic: true,
@@ -515,16 +633,15 @@ export class InterestService {
       score: match.score,
       reason: match.reason,
       createdAt: now,
-      evidenceRevision: observation.evidenceRevision ?? null
+      evidenceRevision: observation.evidenceRevision ?? null,
+      origin: observation.origin === 'morrow' ? 'morrow' : 'user',
+      sourceFindingId: observation.sourceFindingId ?? null,
+      eventRef: observation.eventRef ?? null,
+      topicLabel: observation.topicLabel ?? deriveInterestLabel(observation.topicText)
     })
     // A replay of the same observation must not move anything.
     if (!inserted) return this.reconcile(existing) ?? existing
     const folded = this.repository.fold(existing.id, this.safeTimestamp(this.clock()))
-    const evaluation = this.evaluate(existing.status, folded)
-    // A returning topic that was archived becomes a candidate again, and a
-    // candidate only becomes active through the documented threshold.
-    let status = evaluation.status
-    if (existing.status === 'archived' && existing.conversationId !== observation.conversationId) status = 'candidate'
     // `shared` means both sides have independent evidence for the same topic —
     // in either order. What must never happen is one side silently becoming the
     // other: user evidence on a Morrow topic does not make it `user`, and Morrow
@@ -532,6 +649,14 @@ export class InterestService {
     const origin: InterestRecord['origin'] = observation.origin === 'morrow'
       ? (existing.origin === 'user' ? 'shared' : existing.origin)
       : (existing.origin === 'morrow' ? 'shared' : existing.origin)
+    // Evaluated against the origin *after* this observation, because promotion
+    // is an origin-specific question: a `morrow` topic needs Morrow-attributed
+    // evidence, and merging into `shared` needs both sides to be present.
+    const evaluation = this.evaluate(origin, existing.status, folded)
+    // A returning topic that was archived becomes a candidate again, and a
+    // candidate only becomes active through the documented threshold.
+    let status = evaluation.status
+    if (existing.status === 'archived' && existing.conversationId !== observation.conversationId) status = 'candidate'
     const updated: InterestRecord = {
       ...existing,
       origin,
@@ -576,7 +701,7 @@ export class InterestService {
       this.recordEvent('interest.retracted', record, { reason: 'no_supporting_evidence', counter: folded.counter })
       return null
     }
-    const evaluation = this.evaluate(record.status, folded)
+    const evaluation = this.evaluate(record.origin, record.status, folded)
 
     if (record.evidenceCount === evaluation.evidenceCount && record.conversationCount === evaluation.conversationCount &&
       record.status === evaluation.status && Math.abs(record.strength - evaluation.strength) < 0.0005 &&
@@ -624,7 +749,7 @@ export class InterestService {
    *
    * Both are emitted in the events, so the arithmetic is always recoverable.
    */
-  private evaluate(current: InterestStatus, folded: InterestEvidenceCounts): {
+  private evaluate(origin: InterestRecord['origin'], current: InterestStatus, folded: InterestEvidenceCounts): {
     status: InterestStatus
     evidenceCount: number
     effectiveSupport: number
@@ -639,12 +764,31 @@ export class InterestService {
     //   - strength is an *evidence weight* question, so it uses the signed,
     //     decayed and reliability-weighted net. An old observation counts less
     //     without changing whether the topic crossed the promotion gate.
-    const effectiveSupport = Math.max(0, folded.support - folded.recentCounters)
-    const netSupport = Math.max(0, folded.netSupport)
-    const conversationCount = Math.max(1, folded.independentGroups)
+    //
+    // Both are computed per owning side. Counting all evidence together is what
+    // let three user mentions promote a topic as Morrow's own interest: the
+    // numbers were right, the attribution was wrong.
+    //
+    // `shared` is judged on Morrow's side too. A shared topic is one she may
+    // raise as her own attention, and exploration admits `shared` — so if the
+    // user's mentions could carry the promotion, user evidence would end up in
+    // her exploration pool through the back door. The user side only has to be
+    // present, not to be large.
+    const morrowSided = origin === 'morrow' || origin === 'shared'
+    const ownSupport = morrowSided ? folded.morrowSupport : folded.userSupport
+    const ownGroups = morrowSided ? folded.morrowGroups : folded.userGroups
+    const ownNet = morrowSided ? folded.morrowNet : folded.userNet
+    const effectiveSupport = Math.max(0, ownSupport - folded.recentCounters)
+    const netSupport = Math.max(0, ownNet)
+    // `shared` is a claim about both sides. If the user's evidence is gone the
+    // topic is not shared any more, whatever the total says.
+    const bothSidesPresent = origin !== 'shared' || folded.userSupport > 0
+    const conversationCount = Math.max(1, ownGroups)
     return {
-      status: this.derivedStatus(current, conversationCount, effectiveSupport, folded.latestPolarity),
-      evidenceCount: folded.support,
+      status: bothSidesPresent
+        ? this.derivedStatus(current, conversationCount, effectiveSupport, folded.latestPolarity)
+        : 'candidate',
+      evidenceCount: ownSupport,
       effectiveSupport,
       conversationCount,
       strength: computeInterestStrength(netSupport, conversationCount, 0),

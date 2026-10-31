@@ -1785,6 +1785,267 @@ export const migrations: readonly Migration[] = [
         END;
       `)
     }
+  },
+  {
+    version: 35,
+    name: 'effect-ledger-reflection-cursor-and-evidence-origin',
+    up(database) {
+      // The 2026-10-31 final correction round. Every change here removes a way
+      // the previous schema could let "it ran once" stand in for "it happened
+      // exactly once":
+      //
+      // 1. `cognitive_effect_ledger` gives every projected side effect its own
+      //    row with an explicit terminal state. Before this, "done" on the
+      //    outbox row was the only record, so a crash after the side effect and
+      //    before the mark replayed it, and a finding that already existed
+      //    silently skipped its effect forever.
+      // 2. `reflection_cursors` replaces `LIMIT 200 ORDER BY seq ASC`. The old
+      //    read never advanced, so after 200 events reflection was permanently
+      //    blind to anything new.
+      // 3. `interest_evidence` learns *whose* observation a row is. Morrow's own
+      //    interest may only be promoted from Morrow-attributed evidence; the
+      //    origin used to live on the aggregate, which is exactly the place
+      //    that cannot prove it.
+      // 4. `goal_creation_keys` makes goal creation idempotent without touching
+      //    existing rows (a unique index on the legacy columns would fail on
+      //    databases that already hold duplicates).
+      // 5. `goal_candidates` keeps the due date it parsed and the state of its
+      //    source, so a deleted message cannot leave an acceptable orphan.
+      // 6. `exploration_events` gains `model_attempted`: "the model was asked"
+      //    and "the model raised it" are different facts, and the old schema
+      //    could not store the first one.
+      // 7. `cognitive_outbox` accepts a `memory` module, so restatement
+      //    evidence is produced by the same durable path as the other
+      //    projections instead of a second, ad-hoc one.
+      database.exec(`
+        DROP INDEX IF EXISTS cognitive_outbox_pending_idx;
+        DROP TRIGGER IF EXISTS cognitive_outbox_cancel_with_message;
+        ALTER TABLE cognitive_outbox RENAME TO cognitive_outbox_v34;
+        CREATE TABLE cognitive_outbox (
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          module TEXT NOT NULL CHECK (module IN ('interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal', 'memory')),
+          handler_version INTEGER NOT NULL CHECK (handler_version > 0),
+          conversation_id TEXT NOT NULL,
+          user_message_id TEXT NOT NULL,
+          occurred_at TEXT NOT NULL,
+          analysis_json TEXT,
+          status TEXT NOT NULL CHECK (status IN ('pending', 'done', 'failed', 'cancelled')),
+          attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (turn_id, module, handler_version)
+        ) STRICT;
+        INSERT INTO cognitive_outbox (turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, last_error, created_at, updated_at)
+          SELECT turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, last_error, created_at, updated_at
+          FROM cognitive_outbox_v34;
+        DROP TABLE cognitive_outbox_v34;
+        CREATE INDEX cognitive_outbox_pending_idx ON cognitive_outbox(status, created_at);
+        CREATE TRIGGER cognitive_outbox_cancel_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          UPDATE cognitive_outbox SET status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE user_message_id = OLD.id AND status = 'pending';
+        END;
+
+        -- One row per logical side effect. (turn_id, module, handler_version,
+        -- effect_key) is the identity the projector must derive from its own
+        -- input, never from a random id, so a replay lands on the same row.
+        CREATE TABLE cognitive_effect_ledger (
+          effect_id TEXT PRIMARY KEY NOT NULL CHECK (length(effect_id) = 36),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          module TEXT NOT NULL CHECK (length(module) BETWEEN 1 AND 32),
+          handler_version INTEGER NOT NULL CHECK (handler_version > 0),
+          effect_key TEXT NOT NULL CHECK (length(effect_key) BETWEEN 1 AND 120),
+          state TEXT NOT NULL CHECK (state IN ('pending', 'running', 'applied', 'failed_retryable', 'terminal_failed')),
+          attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+          last_error_code TEXT,
+          applied_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX cognitive_effect_ledger_key_uq
+          ON cognitive_effect_ledger(turn_id, module, handler_version, effect_key);
+        CREATE INDEX cognitive_effect_ledger_state_idx ON cognitive_effect_ledger(state);
+
+        -- A consumer name is part of the key: two reflection triggers must not
+        -- advance each other's position, or one of them silently loses events.
+        CREATE TABLE reflection_cursors (
+          consumer TEXT PRIMARY KEY NOT NULL CHECK (length(consumer) BETWEEN 1 AND 64),
+          last_seq INTEGER NOT NULL DEFAULT 0 CHECK (last_seq >= 0),
+          cursor_version INTEGER NOT NULL DEFAULT 1 CHECK (cursor_version > 0),
+          updated_at TEXT NOT NULL
+        ) STRICT;
+
+        ALTER TABLE interest_evidence ADD COLUMN evidence_origin TEXT NOT NULL DEFAULT 'user'
+          CHECK (evidence_origin IN ('user', 'morrow', 'shared'));
+        ALTER TABLE interest_evidence ADD COLUMN source_finding_id TEXT;
+        ALTER TABLE interest_evidence ADD COLUMN event_ref TEXT;
+        ALTER TABLE interest_evidence ADD COLUMN topic_label TEXT;
+        -- Rows written before this migration cited a finding id and were the
+        -- only ones with kind 'reflection'. They are Morrow's evidence and must
+        -- be labelled as such, or the new promotion gate would read them as the
+        -- user's.
+        UPDATE interest_evidence SET evidence_origin = 'morrow' WHERE evidence_kind = 'reflection';
+        UPDATE interest_evidence SET source_finding_id = evidence_ref WHERE evidence_kind = 'reflection';
+        CREATE INDEX interest_evidence_origin_idx ON interest_evidence(interest_id, evidence_origin);
+
+        CREATE TABLE goal_creation_keys (
+          idempotency_key TEXT PRIMARY KEY NOT NULL CHECK (length(idempotency_key) BETWEEN 1 AND 160),
+          goal_id TEXT NOT NULL REFERENCES companion_goals(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX goal_creation_keys_goal_idx ON goal_creation_keys(goal_id);
+
+        ALTER TABLE companion_goals ADD COLUMN candidate_id TEXT;
+        CREATE UNIQUE INDEX companion_goals_candidate_uq
+          ON companion_goals(candidate_id) WHERE candidate_id IS NOT NULL;
+
+        ALTER TABLE goal_candidates ADD COLUMN due_at TEXT;
+        ALTER TABLE goal_candidates ADD COLUMN due_expression TEXT;
+        ALTER TABLE goal_candidates ADD COLUMN source_state TEXT NOT NULL DEFAULT 'live'
+          CHECK (source_state IN ('live', 'source_deleted', 'withdrawn'));
+
+        DROP INDEX IF EXISTS exploration_events_time_idx;
+        DROP INDEX IF EXISTS exploration_events_turn_idx;
+        DROP INDEX IF EXISTS exploration_events_turn_state_uq;
+        DROP TRIGGER IF EXISTS exploration_events_delete_with_turn;
+        ALTER TABLE exploration_events RENAME TO exploration_events_v34;
+        CREATE TABLE exploration_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          interest_id TEXT NOT NULL,
+          state TEXT NOT NULL CHECK (state IN (
+            'eligible', 'permitted', 'selected_for_prompt', 'model_attempted', 'actually_raised',
+            'not_raised', 'uncertain', 'provider_failed', 'user_rejected'
+          )),
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 120),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO exploration_events (id, turn_id, interest_id, state, reason, created_at)
+          SELECT id, turn_id, interest_id, state, reason, created_at FROM exploration_events_v34;
+        DROP TABLE exploration_events_v34;
+        CREATE INDEX exploration_events_time_idx ON exploration_events(created_at DESC);
+        CREATE INDEX exploration_events_turn_idx ON exploration_events(turn_id);
+        CREATE UNIQUE INDEX exploration_events_turn_state_uq ON exploration_events(turn_id, state);
+        CREATE TRIGGER exploration_events_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM exploration_events WHERE turn_id = OLD.turn_id;
+        END;
+
+        CREATE INDEX IF NOT EXISTS memory_evidence_type_idx ON memory_evidence(memory_id, evidence_type);
+
+        -- The evidence vocabulary was too narrow to say what actually happened.
+        -- "The user stated this again" (restatement), "the user confirmed it"
+        -- (confirmation), "the user withdrew it" (retraction) and "the model
+        -- repeated it" (model_reference) are four different claims, and only the
+        -- first is a repetition. Collapsing them was why the repetition term
+        -- read zero in production while the formula looked correct.
+        DROP INDEX IF EXISTS memory_evidence_memory_idx;
+        DROP INDEX IF EXISTS memory_evidence_type_idx;
+        DROP TRIGGER IF EXISTS memory_evidence_delete_with_message;
+        DROP TRIGGER IF EXISTS memory_evidence_delete_with_conversation;
+        ALTER TABLE memory_evidence RENAME TO memory_evidence_v34;
+        CREATE TABLE memory_evidence (
+          memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+          source_ref TEXT NOT NULL CHECK (length(source_ref) BETWEEN 1 AND 96),
+          source_kind TEXT NOT NULL CHECK (source_kind IN ('message', 'turn', 'user_explicit', 'migration')),
+          actor TEXT NOT NULL CHECK (actor IN ('user', 'morrow', 'system')),
+          conversation_id TEXT,
+          occurred_at TEXT NOT NULL,
+          evidence_type TEXT NOT NULL CHECK (evidence_type IN (
+            'statement', 'restatement', 'correction', 'confirmation', 'goal_link', 'boundary',
+            'retraction', 'model_reference'
+          )),
+          confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+          independence_group TEXT NOT NULL,
+          algorithm_version TEXT NOT NULL,
+          retracted_at TEXT,
+          PRIMARY KEY (memory_id, source_ref)
+        ) STRICT;
+        INSERT INTO memory_evidence (memory_id, source_ref, source_kind, actor, conversation_id, occurred_at, evidence_type, confidence, independence_group, algorithm_version, retracted_at)
+          SELECT memory_id, source_ref, source_kind, actor, conversation_id, occurred_at, evidence_type, confidence, independence_group, algorithm_version, retracted_at
+          FROM memory_evidence_v34;
+        DROP TABLE memory_evidence_v34;
+        CREATE INDEX memory_evidence_memory_idx ON memory_evidence(memory_id);
+        CREATE INDEX memory_evidence_type_idx ON memory_evidence(memory_id, evidence_type);
+        CREATE TRIGGER memory_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM memory_evidence WHERE source_kind = 'message' AND source_ref = OLD.id;
+        END;
+        CREATE TRIGGER memory_evidence_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM memory_evidence WHERE conversation_id = OLD.id;
+        END;
+
+        -- One row per knowledge gap: the raw independent evidence behind
+        -- Morrow's own interest. A finding cites these rows; it never replaces
+        -- them. Keeping them out of the event payload is what lets two gaps in
+        -- two conversations be counted as two, and one gap in one conversation
+        -- be counted as one, across reflection batches.
+        CREATE TABLE knowledge_gap_evidence (
+          event_id TEXT PRIMARY KEY NOT NULL CHECK (length(event_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) >= 8),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          label TEXT NOT NULL CHECK (length(trim(label)) BETWEEN 1 AND 64 AND instr(label, char(0)) = 0),
+          owner TEXT NOT NULL CHECK (owner IN ('morrow')),
+          confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+          occurred_at TEXT NOT NULL,
+          cited_by_finding_id TEXT,
+          retracted_at TEXT
+        ) STRICT;
+        CREATE INDEX knowledge_gap_evidence_label_idx ON knowledge_gap_evidence(label, occurred_at);
+        CREATE INDEX knowledge_gap_evidence_uncited_idx ON knowledge_gap_evidence(cited_by_finding_id) WHERE cited_by_finding_id IS NULL;
+
+        -- A deleted source message invalidates its candidates instead of
+        -- leaving them acceptable, and cancels goals that can no longer be
+        -- traced to what the user actually said.
+        DROP TRIGGER IF EXISTS goal_candidates_source_deleted;
+        CREATE TRIGGER goal_candidates_source_deleted
+        AFTER DELETE ON messages
+        BEGIN
+          UPDATE goal_candidates
+            SET status = 'expired', source_state = 'source_deleted',
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE source_message_id = OLD.id AND status = 'pending';
+          UPDATE companion_goals
+            SET status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), revision = revision + 1
+            WHERE source_message_id = OLD.id AND status IN ('active', 'paused');
+        END;
+
+        -- Deleting the turn that produced a knowledge gap removes the gap, the
+        -- interest evidence it supported, and any aggregate left with nothing.
+        CREATE TRIGGER knowledge_gap_evidence_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE id IN (
+              SELECT interest_id FROM interest_evidence
+              WHERE event_ref IN (SELECT event_id FROM knowledge_gap_evidence WHERE turn_id = OLD.turn_id)
+            );
+          DELETE FROM interest_evidence
+            WHERE event_ref IN (SELECT event_id FROM knowledge_gap_evidence WHERE turn_id = OLD.turn_id);
+          DELETE FROM knowledge_gap_evidence WHERE turn_id = OLD.turn_id;
+          DELETE FROM interests
+            WHERE stale_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM interest_evidence WHERE interest_id = interests.id);
+        END;
+
+        -- Interaction signals were the one derived table with no deletion
+        -- propagation at all: deleting a message left the style signal behind,
+        -- so the adapted offset survived the turn that produced it. The service
+        -- reconciles on read (see its list()), which is why the trigger only
+        -- has to remove the rows.
+        CREATE TRIGGER interaction_signals_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM user_interaction_signals WHERE turn_id = OLD.turn_id;
+        END;
+      `)
+    }
   }
 ]
 

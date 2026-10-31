@@ -69,6 +69,17 @@ export class UserInteractionProfileService {
     for (const dimension of GROWTH_DIMENSIONS) {
       const row = byDimension.get(dimension)
       if (row) {
+        // The stored offset is a projection over the signal ledger, and the
+        // ledger can shrink: deleting a message removes its signals through a
+        // trigger. A stale projection would keep adapting to a sentence the
+        // user deleted, so a count mismatch rebuilds it before it is read.
+        const ledgerCount = Number((this.database.connection.prepare(
+          'SELECT COUNT(*) AS n FROM user_interaction_signals WHERE dimension = ?'
+        ).get(dimension) as { n: number }).n)
+        if (ledgerCount !== row.evidence_count) {
+          entries.push(this.recompute(dimension))
+          continue
+        }
         entries.push({
           dimension,
           baseline: row.baseline,

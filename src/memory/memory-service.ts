@@ -23,6 +23,7 @@ import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
 import type { MorrowEvent } from '../persistence/event-log'
+import { normalizeAssertion, readMemoryUtterance, sameAssertion } from './memory-evidence-policy'
 
 // Minimal event sink so the memory module never depends on the persistence
 // module's concrete service; tests inject nothing.
@@ -241,6 +242,54 @@ export class MemoryService {
     return this.transition(id, { type: 'confirm' }, 'confirmed', options.correlationId)
   }
 
+  /**
+   * Reads one user turn for memory evidence (P0-5).
+   *
+   * This is the production producer the repetition term never had. It records
+   * a row only when the turn is an *assertion* that matches a stored fact, and
+   * it records it once per message (`source_ref` is the message id, and that is
+   * the ledger's primary key), so a retried turn cannot inflate the count.
+   *
+   * The gates live in `memory-evidence-policy`: a question, a negation, a
+   * quote, a hypothetical, a role-play or a discussion is not a restatement,
+   * however similar it looks. Being conservative here is the point — a wrong
+   * repetition count is worse than a missing one, because it silently promotes
+   * a passing mention above a fact the user actually cares about.
+   */
+  observeUtterance(input: {
+    text: string
+    messageId: string
+    conversationId: string
+    occurredAt: string
+    actor?: 'user' | 'morrow' | 'system'
+  }): Array<{ memoryId: string; signal: 'restatement' | 'confirmation' }> {
+    const reading = readMemoryUtterance({ text: input.text, ...(input.actor ? { actor: input.actor } : {}) })
+    if (reading.signal === 'none' || !reading.assertion) return []
+    const matched = this.repository.listActiveForContext(1000)
+      .filter((record) => sameAssertion(normalizeAssertion(record.currentText), reading.assertion!))
+    const recorded: Array<{ memoryId: string; signal: 'restatement' | 'confirmation' }> = []
+    for (const record of matched) {
+      this.importance?.recordEvidence?.({
+        memoryId: record.id,
+        // The message is the identity: one turn contributes once, and a replay
+        // of the same turn is a no-op rather than a second mention.
+        sourceRef: input.messageId,
+        sourceKind: 'message',
+        actor: 'user',
+        conversationId: input.conversationId,
+        evidenceType: reading.signal === 'confirmation' ? 'confirmation' : 'restatement',
+        confidence: 0.9,
+        // Same conversation, same group: three repeats in one conversation are
+        // one context, not three independent mentions.
+        independenceGroup: input.conversationId
+      })
+      this.importance?.onMemoryChanged(record.id)
+      this.recordEvent('memory.restated', record, input.conversationId, { signal: reading.signal })
+      recorded.push({ memoryId: record.id, signal: reading.signal })
+    }
+    return recorded
+  }
+
   delete(id: string): void {
     if (!this.repository.delete(id)) throw new ApplicationError('NOT_FOUND')
   }
@@ -271,6 +320,37 @@ export class MemoryService {
         evidenceType: 'correction',
         confidence: 1,
         independenceGroup: `correction:${updated.id}`
+      })
+    }
+    // A confirmation is evidence that the fact still holds and still matters.
+    // It is deliberately *not* a repetition: agreeing that something is true is
+    // not the same as saying it again, and counting it as one inflated `n`
+    // every time the user accepted a suggestion.
+    if (changeType === 'confirmed') {
+      this.importance?.recordEvidence?.({
+        memoryId: updated.id,
+        sourceRef: `confirm:${updated.id}:${updated.revision}`,
+        sourceKind: 'user_explicit',
+        actor: 'user',
+        conversationId: null,
+        evidenceType: 'confirmation',
+        confidence: 1,
+        independenceGroup: `confirmation:${updated.id}`
+      })
+    }
+    // A retraction suppresses the fact's standing: the ledger keeps the row for
+    // the audit, the score stops counting repetitions, and retrieval drops the
+    // memory. Nothing is deleted, so `restore()` can bring it back intact.
+    if (changeType === 'retracted') {
+      this.importance?.recordEvidence?.({
+        memoryId: updated.id,
+        sourceRef: `retract:${updated.id}:${updated.revision}`,
+        sourceKind: 'user_explicit',
+        actor: 'user',
+        conversationId: null,
+        evidenceType: 'retraction',
+        confidence: 1,
+        independenceGroup: `retraction:${updated.id}`
       })
     }
     // Importance is recomputed from the new revision set, never incremented, so

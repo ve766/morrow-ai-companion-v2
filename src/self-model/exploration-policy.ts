@@ -124,8 +124,15 @@ export function describeExploration(decision: ExplorationDecision): string {
 }
 
 export type ExplorationState =
+  | 'eligible'
   | 'permitted'
   | 'selected_for_prompt'
+  /**
+   * The provider was actually called with the permission in its payload. This
+   * is a separate fact from "the permission was in the payload": a cancelled or
+   * failed turn never asked the model anything.
+   */
+  | 'model_attempted'
   | 'actually_raised'
   | 'not_raised'
   // The detector could not tell. Kept separate so it is never reported as a
@@ -134,24 +141,75 @@ export type ExplorationState =
   | 'provider_failed'
   | 'user_rejected'
 
+export type RaiseVerdict = 'raised' | 'not_raised' | 'uncertain'
+
+/**
+ * Judge of whether a reply raised the topic.
+ *
+ * A port, not a function, so the production path can plug in a semantic
+ * evaluation and the tests can use a deterministic one. The default is the
+ * conservative keyword-plus-shape detector below.
+ */
+export interface RaiseEvaluator {
+  evaluate(input: { reply: string; label: string }): RaiseVerdict
+}
+
+/**
+ * Default judge.
+ *
+ * A keyword hit alone is *not* enough: a reply that lists the topic among other
+ * things, or answers a question about it, has not raised it as her own
+ * attention. The verdict is `raised` only when the topic appears inside a
+ * question or a first-person attention statement; a bare mention is
+ * `uncertain`, which is recorded honestly and does not consume the budget.
+ */
+/**
+ * Search terms for a topic label.
+ *
+ * A label is a derived phrase ("研究蛋白质折叠"), and a reply naturally says
+ * "蛋白质折叠". Requiring the whole phrase would call an obvious raise
+ * `not_raised`, so CJK labels also contribute their 3- and 4-character
+ * substrings. Bounded, and only used to decide whether the topic is present at
+ * all — the raise verdict still needs the shape check below.
+ */
+export function topicTerms(label: string): string[] {
+  const terms = new Set<string>()
+  for (const token of label.normalize('NFKC').toLocaleLowerCase().split(/[\s，。！？、；：,.!?;:()（）[\]"'“”‘’]+/u)) {
+    if (token.length < 2) continue
+    terms.add(token)
+    if (/[\u4e00-\u9fff]/u.test(token)) {
+      for (let size = 3; size <= Math.min(4, token.length); size += 1) {
+        for (let start = 0; start + size <= token.length; start += 1) {
+          terms.add(token.slice(start, start + size))
+        }
+      }
+    }
+  }
+  return [...terms].slice(0, 60)
+}
+
+export function evaluateRaise(reply: string, label: string): RaiseVerdict {
+  const text = reply.normalize('NFKC').toLocaleLowerCase()
+  const terms = topicTerms(label)
+  if (terms.length === 0) return 'uncertain'
+  if (text.trim().length < 4) return 'uncertain'
+  if (!terms.some((term) => text.includes(term))) return 'not_raised'
+  const raiseShape = /(?:我[^，。！？]{0,8}(?:在想|好奇|想弄明白|想知道|在琢磨)|想问你|问一下|有个问题|你(?:知道|了解|听说过)[^。]{0,16}吗|是不是[^。]{0,20}[?？])/u.test(text)
+  return raiseShape ? 'raised' : 'uncertain'
+}
+
+export const KEYWORD_RAISE_EVALUATOR: RaiseEvaluator = {
+  evaluate: ({ reply, label }) => evaluateRaise(reply, label)
+}
+
 /**
  * Decides whether a persisted reply actually raised the topic.
  *
- * This is a *detector*, not a judge. It only reports `raised` when the reply
- * contains the topic's own terms; a reply that says nothing about it is
- * `not_raised`, and a reply too short to judge is `uncertain` — which is
- * recorded as `not_raised` and never counted as a success. Pretending a
- * heuristic can recognise a natural topic change would be worse than admitting
- * it cannot.
+ * Retained for callers that only have a string. New code should use the
+ * evaluator port so a semantic judge can replace the heuristic.
  */
-export function detectRaised(reply: string, label: string): 'raised' | 'not_raised' | 'uncertain' {
-  const text = reply.normalize('NFKC').toLocaleLowerCase()
-  const terms = label.normalize('NFKC').toLocaleLowerCase()
-    .split(/[\s，。！？、；：,.!?;:()（）\[\]"'“”‘’]+/u)
-    .filter((term) => term.length >= 2)
-  if (terms.length === 0) return 'uncertain'
-  if (text.trim().length < 4) return 'uncertain'
-  return terms.some((term) => text.includes(term)) ? 'raised' : 'not_raised'
+export function detectRaised(reply: string, label: string): RaiseVerdict {
+  return evaluateRaise(reply, label)
 }
 
 export class ExplorationService {
@@ -250,6 +308,18 @@ export class ExplorationService {
   }
 
   /**
+   * The provider was actually called with the permission in its payload.
+   *
+   * Recorded at dispatch time, not inferred from the reply: a turn whose call
+   * threw still attempted the model, and a turn cancelled before dispatch did
+   * not. Collapsing the two is how "selected for prompt" got reported as if the
+   * model had seen it.
+   */
+  markModelAttempted(input: { turnId: string; interestId: string; reason?: string }): void {
+    this.transition({ turnId: input.turnId, interestId: input.interestId, state: 'model_attempted', reason: input.reason ?? 'provider_called' })
+  }
+
+  /**
    * Settles a turn after the provider call.
    *
    * Only `actually_raised` keeps the budget slot. A failed call, a cancelled one,
@@ -262,13 +332,15 @@ export class ExplorationService {
     label: string
     outcome: 'succeeded' | 'failed' | 'cancelled'
     reply: string | null
+    evaluator?: RaiseEvaluator
   }): 'actually_raised' | 'not_raised' | 'uncertain' | 'provider_failed' {
     if (input.outcome !== 'succeeded' || input.reply === null) {
       this.transition({ turnId: input.turnId, interestId: input.interestId, state: 'provider_failed', reason: input.outcome })
       this.release(input.turnId)
       return 'provider_failed'
     }
-    const detected = detectRaised(input.reply, input.label)
+    const evaluator = input.evaluator ?? KEYWORD_RAISE_EVALUATOR
+    const detected = evaluator.evaluate({ reply: input.reply, label: input.label })
     // `uncertain` is its own state now. Collapsing it into `not_raised` claimed
     // a certainty the detector does not have; it still does not consume budget.
     const state: 'actually_raised' | 'not_raised' | 'uncertain' =
@@ -333,6 +405,11 @@ export class ExplorationService {
       recentlyUsed: recent.raisedInterestIds
     })
     if (!decision.allowed) return decision
+
+    // The topic cleared the evidence bar. Recorded separately from the
+    // permission: "eligible" is a property of the interest, "permitted" is a
+    // property of this turn.
+    this.transition({ turnId: input.turnId, interestId: decision.interestId!, state: 'eligible', reason: decision.reason })
 
     const reservation = this.reserve(input.turnId)
     if (reservation === 'denied') {
