@@ -38,9 +38,14 @@
 |---|---|
 | Provider / Model | iFlytek Spark MaaS / `spark-x2.6` |
 | Endpoint | `https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions`（契约） |
-| 规模 | 3 会话 / 32 轮 |
-| 结果文件 | `evals/real-provider/results/<timestamp>-<sha>.json` |
+| 规模 | 3 会话 / **32 轮，0 失败** |
+| 结果 | **9 PASS / 1 FAIL**；Morrow 兴趣 NOT_RUN（1 个知识缺口 < 3） |
+| 重试 | 3 次 provider 超时后重发成功 |
+| 延迟 | 4.5s / 20.0s / 67.6s / 74.8s（min/median/p90/max） |
+| 结果文件 | `evals/real-provider/results/20261031T085512Z-6a885fa.json` |
 | 报告 | `docs/reports/stage-3-live-provider-report.md` |
+
+唯一失败项仍是风格偏移：三次自然表达产生 **2** 条 signal（修复前 1 条），仍低于 3 条门槛，offset=0。
 
 历史 `/v1` 运行结果保留在 `evals/stage-3/live/results/`，未覆盖。
 

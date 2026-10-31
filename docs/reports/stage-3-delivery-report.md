@@ -198,7 +198,7 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:longitudinal
 | 全量测试 | **92 文件 / 820 测试**全通过 |
 | 类型检查 | `tsc --noEmit` 0 错误 |
 | 构建 | `electron-vite build` 成功（main/preload/renderer） |
-| 真实模型（`spark-x2.6`） | 3 会话 32 轮，0 失败；9 条断言 8 PASS / 1 FAIL |
+| 真实模型（`spark-x2.6`，契约 `/v2`） | 3 会话 32 轮，0 失败；10 条断言 **9 PASS / 1 FAIL**；Morrow 兴趣 NOT_RUN |
 | 整体状态 | **PARTIAL** |
 
 仍未完成：真实 Provider 多轮陪伴、有效 CI、Electron 渲染层、Windows 安装升级、§2B appraisal、§2C 反思质量、§2F 语音。本轮没有新增其中任何一项，也不声称它们存在。
