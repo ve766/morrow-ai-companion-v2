@@ -52,7 +52,7 @@ import { PersonalityGrowthService } from '../../../src/personalization/personali
 import { UserInteractionProfileService } from '../../../src/personalization/interaction-profile'
 import { CompanionGoalService } from '../../../src/motivation/companion-goal'
 import { ExplorationService } from '../../../src/self-model/exploration-policy'
-import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../../src/shared/companion'
+import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, SPARK_PROVIDER_ID } from '../../../src/shared/companion'
 import { MemorySecretStore } from '../../../src/security/secrets'
 import type { ProviderInput, ProviderOutput, ProviderPort } from '../../../src/providers/provider-policy'
 
@@ -79,10 +79,28 @@ interface TurnRecord {
   error: string | null
 }
 
-function readKey(): string {
+/**
+ * Which provider this run targets.
+ *
+ * `spark` exists because the product ships two remote providers and only one of
+ * them is OpenAI's shape by name; an evaluation that can only drive DeepSeek
+ * would silently skip the other one.
+ */
+type LiveProvider = 'deepseek' | 'spark'
+
+function providerOf(): { id: string; model: string; label: LiveProvider } {
+  const label = (process.env.MORROW_LIVE_PROVIDER ?? 'deepseek').toLowerCase()
+  if (label === 'spark') {
+    return { id: SPARK_PROVIDER_ID, model: process.env.MORROW_LIVE_MODEL ?? 'spark-x2.6', label }
+  }
+  if (label !== 'deepseek') throw new Error(`Unknown MORROW_LIVE_PROVIDER: ${label}`)
+  return { id: DEEPSEEK_PROVIDER_ID, model: process.env.MORROW_LIVE_MODEL ?? DEEPSEEK_MODEL, label: 'deepseek' }
+}
+
+function readKey(provider: LiveProvider): string {
   const fromEnv = process.env.DEEPSEEK_API_KEY
   if (fromEnv && fromEnv.trim().length >= 16) return fromEnv.trim()
-  const file = process.env.MORROW_LIVE_KEY_FILE ?? join(resolve(process.cwd()), '.tmp', 'deepseek.key')
+  const file = process.env.MORROW_LIVE_KEY_FILE ?? join(resolve(process.cwd()), '.tmp', `${provider}.key`)
   const raw = readFileSync(file, 'utf8').trim()
   if (raw.length < 16) throw new Error('The key file is empty or too short.')
   return raw
@@ -197,9 +215,10 @@ function systemText(payload: string): string {
 
 async function main(): Promise<void> {
   const startedAt = new Date().toISOString()
-  const key = readKey()
+  const target = providerOf()
+  const key = readKey(target.label)
   const stack = buildStack()
-  stack.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: key })
+  stack.companion.saveProvider({ providerId: target.id as typeof DEEPSEEK_PROVIDER_ID, model: target.model, enabled: true, apiKey: key })
 
   const turns: TurnRecord[] = []
   const sessions: Record<string, string> = {
@@ -423,8 +442,9 @@ async function main(): Promise<void> {
       codeCommit: head(),
       environment: { platform: process.platform, node: process.version },
       clock: 'real',
-      provider: 'deepseek (live)',
-      providerModelId: DEEPSEEK_MODEL,
+      provider: `${target.label} (live)`,
+      providerId: target.id,
+      providerModelId: target.model,
       startedAt,
       finishedAt,
       turns: turns.length,
@@ -457,7 +477,7 @@ async function main(): Promise<void> {
     // Scrub: the credential must not appear anywhere in the artefact.
     const serialized = JSON.stringify(payload, null, 2)
     if (serialized.includes(key)) throw new Error('Refusing to write: the credential leaked into the result payload.')
-    if (/sk-[A-Za-z0-9_-]{16,}/u.test(serialized)) throw new Error('Refusing to write: a key-shaped string is present in the result payload.')
+    if (/(?:sk|ak)-[A-Za-z0-9_-]{16,}/u.test(serialized)) throw new Error('Refusing to write: a key-shaped string is present in the result payload.')
 
     const stamp = startedAt.replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
     const outDir = join(resolve(process.cwd()), 'evals', 'stage-3', 'live', 'results')
