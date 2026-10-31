@@ -54,6 +54,7 @@ import { CompanionGoalService } from '../../../src/motivation/companion-goal'
 import { ExplorationService } from '../../../src/self-model/exploration-policy'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, SPARK_PROVIDER_ID } from '../../../src/shared/companion'
 import { MemorySecretStore } from '../../../src/security/secrets'
+import { OpenAICompatibleProvider } from '../../../src/providers/openai-compatible'
 import type { ProviderInput, ProviderOutput, ProviderPort } from '../../../src/providers/provider-policy'
 
 export const DATASET_VERSION = 'stage-3-live-v1'
@@ -76,6 +77,8 @@ interface TurnRecord {
   includedMemoryCount: number
   guardVerdict: string | null
   providerOutcome: string | null
+  /** Failures that were retried before this turn completed. */
+  attemptFailures: string[]
   error: string | null
 }
 
@@ -143,11 +146,12 @@ function buildStack(): Stack {
   const exploration = new ExplorationService(database)
   const goals = new CompanionGoalService(database)
 
-  // The real adapter is created by the app itself; this wrapper only observes
-  // the exact serialized request so the evidence can quote it, and delegates
-  // every byte of the call to the production implementation.
+  // The adapter is the production class, constructed here rather than fetched
+  // from `companion.providers`: the config service is built with this very
+  // factory, so asking it for an adapter calls back into this function and
+  // recurses until the stack dies. The wrapper only observes the serialized
+  // request; every byte of the call goes to the real implementation.
   let observedPayload = ''
-  let companionRef: CompanionService | undefined
   const secrets = new MemorySecretStore()
 
   const companion = new CompanionService({
@@ -166,7 +170,7 @@ function buildStack(): Stack {
       }
     },
     providerFactory: (config): ProviderPort => {
-      const real = companionRef!.providers.createAdapter(config)
+      const real = new OpenAICompatibleProvider(config, secrets)
       return {
         profile: real.profile,
         generate: async (input: ProviderInput, onDelta?: (delta: string) => void): Promise<ProviderOutput> => {
@@ -183,7 +187,6 @@ function buildStack(): Stack {
       states: new SqliteTurnStateRepository(database)
     }
   })
-  companionRef = companion
   companion.saveCognitiveSettings({ enabled: true })
 
   return {
@@ -245,13 +248,28 @@ async function main(): Promise<void> {
       includedMemoryCount: 0,
       guardVerdict: null,
       providerOutcome: null,
+      attemptFailures: [],
       error: null
     }
     try {
-      const result = await stack.companion.sendChat(
-        { conversationId: sessions[session]!, requestId: randomUUID(), content: text, includeSensitive: false },
-        () => undefined
-      )
+      // A real user retypes the message when the provider times out. Doing the
+      // same keeps the scenario honest about the product's behaviour while
+      // still recording the failure: `attemptFailures` is what the failure
+      // rate is computed from, and it is never cleared by a later success.
+      let result: Awaited<ReturnType<typeof stack.companion.sendChat>> | undefined
+      for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
+        try {
+          result = await stack.companion.sendChat(
+            { conversationId: sessions[session]!, requestId: randomUUID(), content: text, includeSensitive: false },
+            () => undefined
+          )
+        } catch (error) {
+          const code = error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 120) : 'unknown'
+          record.attemptFailures.push(code)
+          if (attempt === 2) throw error
+        }
+      }
+      if (!result) throw new Error('no result')
       const payload = stack.lastPayload()
       record.reply = result.assistantMessage.body.slice(0, 400)
       record.payloadSha256 = createHash('sha256').update(payload).digest('hex')
@@ -300,6 +318,10 @@ async function main(): Promise<void> {
 
     // ---- Session C: interest, a raise opportunity, no-fabrication, deletion ----
     await say('C', '我最近在读神经科学，特别是记忆形成。')
+    // Third explicit style request: the interaction gate needs three
+    // independent observations before it moves, and a live user who repeats a
+    // preference is the realistic way to produce them.
+    await say('C', '对了，还是希望你直接一点，别绕弯子。')
     await say('C', '你呢，你最近在想什么？')
     await say('C', '我最近在读神经科学，特别是记忆形成。')
     await say('C', '随便聊聊吧，你有没有什么特别想弄明白的？')
@@ -350,6 +372,10 @@ async function main(): Promise<void> {
       'SELECT COUNT(*) AS n FROM reflection_runs'
     ).get() as { n: number }).n)
     const offsets = stack.interaction.offsets()
+    const directnessSignals = Number((stack.database.connection.prepare(
+      "SELECT COUNT(*) AS n FROM user_interaction_signals WHERE dimension = 'directness'"
+    ).get() as { n: number }).n)
+    const providerAttemptFailures = turns.reduce((total, turn) => total + turn.attemptFailures.length, 0)
 
     const hedge = /(不知道|不了解|没(?:有)?(?:告诉|提过|说过|记录)|不记得|还没|无法|不清楚|不确定|没有这方面的)/u
     const fabricatedName = /(?:你妹妹(?:叫|的名字是)|叫[\u4e00-\u9fff]{1,3}[。，])/u
@@ -382,9 +408,9 @@ async function main(): Promise<void> {
         detail: goalPayload ? `${goalPayload.title.slice(0, 24)} due=${goalPayload.due_at} owner=${goalPayload.owner}` : 'none'
       },
       {
-        name: '风格请求产生交互偏移（且身份基线未变）',
-        ok: Object.values(offsets).some((value) => Math.abs(value) > 0),
-        detail: JSON.stringify(offsets)
+        name: '风格请求达到证据门槛并产生交互偏移',
+        ok: directnessSignals >= 3 && offsets.directness > 0,
+        detail: `directness_signals=${directnessSignals} offsets=${JSON.stringify(offsets)}`
       },
       {
         name: '撤回的记忆不再进入 payload',
@@ -464,7 +490,9 @@ async function main(): Promise<void> {
         morrowInterests: morrowInterests.length,
         explorationAttempted: anyAttempted,
         explorationRaised: anyRaised,
-        interactionOffsets: offsets
+        interactionOffsets: offsets,
+        directnessSignals,
+        providerAttemptFailures
       },
       manualReview: {
         status: 'PENDING',
