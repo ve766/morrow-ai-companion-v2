@@ -438,8 +438,6 @@ export function readTurn(input: BuildIntentReadingInput): TurnReading {
   // A continuation inherits its object from the assistant's offer, so a missing
   // target is not missing at all: "继续" after "要我继续写完这个模块吗" has one.
   const targetMissing = needsTargetBeforeActing && missing !== null && context.continuationTarget === 'none'
-  const clarificationRequired = targetMissing
-  const clarificationReason = clarificationRequired ? `missing_${missing?.name ?? 'target'}` : null
 
   const intentStatus = statusOf({
     speechAct,
@@ -457,10 +455,22 @@ export function readTurn(input: BuildIntentReadingInput): TurnReading {
     context,
     intentStatus,
     assessment,
-    clarificationRequired,
+    clarificationRequired: targetMissing,
     compound,
     primary
   })
+  // `clarify` and `clarificationRequired` are one decision, not two. They used to
+  // be computed separately, so a turn could enter the clarify route without the
+  // prompt being told to ask a question — the reply then improvised instead of
+  // asking the one thing that was missing.
+  const clarificationRequired = responseMode === 'clarify'
+  const clarificationReason = clarificationRequired
+    ? missing !== null
+      ? `missing_${missing.name}`
+      : assessment.reasons.includes('unresolved_reference')
+        ? 'unresolved_reference'
+        : 'competing_execution_paths'
+    : null
 
   // Dedupe again at the reading level: two labels can be supported by the same
   // rule code, and a duplicated code in the audit trail looks like independent
