@@ -28,7 +28,10 @@ export const REFLECTION_FINDING_KINDS = [
   // a stored fact.
   'intent_correction',
   // A bounded suggestion for the next turn, derived from repeated feedback.
-  'next_turn_suggestion'
+  'next_turn_suggestion',
+  // A question Morrow formed herself, from her own repeated failure to ground
+  // an answer. Not "the user talks about this" — the evidence is her own gaps.
+  'morrow_interest_candidate'
 ] as const
 export type ReflectionFindingKind = (typeof REFLECTION_FINDING_KINDS)[number]
 
@@ -50,6 +53,13 @@ export interface InterestRecord {
   firstSeenAt: string
   lastSeenAt: string
   updatedAt: string
+  /**
+   * Set by a trigger when the evidence ledger changed under this aggregate
+   * (message deleted, memory retracted, conversation removed). A stale row must
+   * be recomputed before it may reach a prompt: the cached counters are a
+   * projection, the ledger is the fact.
+   */
+  staleAt?: string | null
   /** Deterministic term set (CJK bigrams / latin tokens) from observed texts; used for topic identity. */
   terms: string[]
   /**

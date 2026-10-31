@@ -35,6 +35,12 @@ export type ReflectionEffect =
   | { effect: 'descriptive' }
   /** Adds one interest-evidence row, which the promotion gate then judges. */
   | { effect: 'interest_evidence'; memoryId: string }
+  /**
+   * Adds one observation to a topic Morrow owns. The topic and the conversation
+   * travel in the finding's evidence because the effect layer must not re-derive
+   * them from prose.
+   */
+  | { effect: 'morrow_interest'; topic: string; conversationId: string }
   /** A candidate correction of the assistant's reading; never overrides the user. */
   | { effect: 'intent_correction_candidate' }
   /** A bounded suggestion for the next turn; never executes anything. */
@@ -77,7 +83,9 @@ export function mapReflectionFinding(finding: ReflectionFinding, check: Evidence
   if (finding.evidence.length === 0) return { effect: 'rejected', reason: 'no_evidence' }
   // A `dimension` ref is structural, not a stored source; everything else must
   // still resolve to a live record.
-  const stored = finding.evidence.filter((ref) => ref.kind !== 'dimension')
+  // `topic` and `conversation` are structural carriers, like `dimension`: they
+  // name where the claim belongs, they are not records that can be retracted.
+  const stored = finding.evidence.filter((ref) => ref.kind !== 'dimension' && ref.kind !== 'topic' && ref.kind !== 'conversation')
   if (stored.length === 0) return { effect: 'rejected', reason: 'no_evidence' }
   if (!stored.every((ref) => check.isValid(ref))) return { effect: 'rejected', reason: 'evidence_invalid' }
 
@@ -88,6 +96,12 @@ export function mapReflectionFinding(finding: ReflectionFinding, check: Evidence
       const memory = finding.evidence.find((ref) => ref.kind === 'memory')
       // An interest candidate is only meaningful with the memory it came from.
       return memory ? { effect: 'interest_evidence', memoryId: memory.id } : { effect: 'rejected', reason: 'no_evidence' }
+    }
+    case 'morrow_interest_candidate': {
+      const topic = finding.evidence.find((ref) => ref.kind === 'topic')
+      const conversation = finding.evidence.find((ref) => ref.kind === 'conversation')
+      if (!topic || !conversation) return { effect: 'rejected', reason: 'no_evidence' }
+      return { effect: 'morrow_interest', topic: topic.id, conversationId: conversation.id }
     }
     case 'intent_correction':
       return { effect: 'intent_correction_candidate' }

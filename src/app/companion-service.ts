@@ -54,9 +54,11 @@ import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/fee
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
-import { applyGrowth, describeGrowth, deriveGrowthSignals, type PersonalityGrowthService } from '../personalization/personality-growth'
+import { deriveGrowthSignals, type PersonalityGrowthService } from '../personalization/personality-growth'
 import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
 import { describeGoals } from '../motivation/companion-goal'
+import { deriveInterestLabel } from '../self-model/interest-service'
+import { CognitionOutbox, COGNITIVE_HANDLER_VERSION, type CognitiveProjector } from './cognitive-outbox'
 import type { MemoryRecord } from '../memory/memory-domain'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
@@ -630,12 +632,17 @@ export interface SelfModelLoopServices {
   reflection?: Pick<ReflectionService, 'run'>
   /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
   personalization?: PersonalizationService
+  /**
+   * How this user asked Morrow to speak. Separate from `growth` on purpose:
+   * a style request adapts presentation, it does not change identity.
+   */
+  interaction?: import('../personalization/interaction-profile').UserInteractionProfileService
   /** Stage 3 G1: bounded, reversible drift on top of the user-edited baseline. */
   growth?: PersonalityGrowthService
   /** Stage 3 X1: constrained self-initiated topics. */
   exploration?: ExplorationService
   /** Stage 3 §2D: companionship goals, kept separate by ownership. */
-  goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext'>
+  goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext' | 'detectFromTurn'>
 }
 
 /** What the long-term layer needs to know about the turn it is describing. */
@@ -684,7 +691,7 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
   // Stage 3 G1: the drift is described next to the baseline it modifies, and it
   // never replaces it. A user edit moves the baseline; this line only moves the
   // few points the evidence has earned.
-  const growth = services.growth ? describeGrowth(services.growth.list()) : ''
+  const growth = services.interaction ? services.interaction.describe() : ''
   if (growth) lines.push(growth)
   // Stage 3 §2D: goals are described by owner, never merged into one list.
   if (services.goals) {
@@ -700,6 +707,105 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
   // must be able to report the interest it permitted so the turn can settle it
   // after the reply exists. A string-only block cannot carry that.
   return lines.join('\n')
+}
+
+
+/**
+ * The five post-turn projections, one per outbox module.
+ *
+ * Each one is a pure function of (turn refs, analysis, the user's own words read
+ * from the source record). They are separate so that a failure in one is
+ * recorded against that module only: the outbox retries it and the others still
+ * run, which is the difference between "growth broke" and "the turn was lost".
+ */
+export function buildCognitiveProjectors(services: SelfModelLoopServices): CognitiveProjector[] {
+  const projectors: CognitiveProjector[] = [
+    {
+      module: 'interest',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        services.interests.observe({
+          conversationId: input.conversationId,
+          messageId: input.userMessageId,
+          occurredAt: input.occurredAt,
+          topicText: input.readUserMessage()
+        })
+        services.interests.archiveStale(input.occurredAt)
+      }
+    },
+    {
+      module: 'preference',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        if (!services.personalization || !input.analysis) return
+        const signals: PersonalizationSignal[] = []
+        const intent = input.analysis.intent
+        if (intent === 'planning' || intent === 'exploration') {
+          signals.push({ dimension: 'exploration', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
+        }
+        if (input.analysis.signals.explicitConstraint) {
+          signals.push({ dimension: 'pace', signal: -0.5, weight: 0.8, turnId: input.turnId, at: input.occurredAt })
+        }
+        if (input.analysis.signals.explicitMemoryRequest) {
+          signals.push({ dimension: 'depth', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
+        }
+        for (const signal of signals) services.personalization.apply(signal)
+      }
+    },
+    {
+      module: 'growth',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        // A style request lands in the interaction profile, not in identity.
+        if (!services.interaction) return
+        const signals = deriveGrowthSignals({
+          analysis: input.analysis ?? undefined,
+          content: input.readUserMessage(),
+          ...(services.personalization ? { personalization: services.personalization.list() } : {})
+        })
+        for (const signal of signals) {
+          services.interaction.apply({ ...signal, turnId: input.turnId, at: input.occurredAt })
+        }
+      }
+    },
+    {
+      module: 'self_fact',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        if (!input.analysis?.signals.explicitSelfFact) return
+        const statement = deriveSelfFactStatement(input.readUserMessage())
+        if (!statement) return
+        services.selfModel.record({
+          kind: 'fact',
+          statement,
+          confidence: 55,
+          sourceMessageId: input.userMessageId,
+          conversationId: input.conversationId,
+          correlationId: input.userMessageId
+        })
+      }
+    },
+    {
+      module: 'goal',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        if (!services.goals) return
+        services.goals.detectFromTurn({
+          conversationId: input.conversationId,
+          sourceMessageId: input.userMessageId,
+          text: input.readUserMessage()
+        })
+      }
+    },
+    {
+      module: 'reflection',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: () => {
+        services.reflection?.run('post_conversation')
+      }
+    }
+  ]
+  return projectors
 }
 
 export class CompanionService {
@@ -833,18 +939,42 @@ export class CompanionService {
           ...(selfModelLoop.growth
             ? {
                 effectiveProfile: (profile: PersonalityProfile): PersonalityProfile => {
+                  // Only the interaction profile moves the three presentation
+                  // numbers. Morrow's identity — values, disagreement style,
+                  // system rules — is exactly what the user edited.
                   try {
-                    const effective = applyGrowth(profile, selfModelLoop.growth!.list())
-                    return { ...profile, warmth: effective.warmth, directness: effective.directness, humor: effective.humor }
+                    const offsets = selfModelLoop.interaction!.offsets()
+                    const clamp = (value: number): number => Math.min(100, Math.max(0, value))
+                    return {
+                      ...profile,
+                      warmth: clamp(profile.warmth + offsets.warmth),
+                      directness: clamp(profile.directness + offsets.directness),
+                      humor: clamp(profile.humor + offsets.humor)
+                    }
                   } catch {
-                    // A growth read failure must never invent a personality: the
-                    // baseline the user set is the safe answer.
-                    recordCognitiveDegradation('personality_growth_read')
+                    recordCognitiveDegradation('interaction_profile_read')
                     return profile
                   }
                 }
               }
             : {}),
+          recordKnowledgeGap: (input) => {
+            try {
+              selfModelLoop.events.tryRecord({
+                sourceModule: 'cognition',
+                eventType: 'cognition.knowledge_gap',
+                // `system` is the only actor the journal allows for something
+                // Morrow derived; the payload names the owner explicitly.
+                actor: 'system',
+                subjectType: 'interest',
+                subjectId: input.label.slice(0, 64),
+                correlationId: input.conversationId,
+                payload: { label: input.label.slice(0, 64), owner: 'morrow' }
+              })
+            } catch {
+              // A gap record is a secondary signal; losing it never changes the turn.
+            }
+          },
           onTurnCompleted: (input) => {
             try {
               selfModelLoop.interests.observe({
@@ -929,8 +1059,25 @@ export class CompanionService {
       : undefined
     const ledger = options.ledger ?? journal
     this.continuity = options.continuity
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation)
+    // Durable post-turn cognition is only meaningful when the loop is wired and
+    // the database can hold the outbox; offline callers keep the direct path.
+    const outbox = selfModelLoop ? new CognitionOutbox(options.database, clock) : undefined
+    const projectors = selfModelLoop ? buildCognitiveProjectors(selfModelLoop) : []
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
+  }
+
+  /**
+   * Replays cognition that was committed but never applied — a crash between the
+   * assistant-message commit and the projections. Idempotent.
+   */
+  drainCognition(): { done: number; failed: number; skipped: number } {
+    return this.chat.drainCognition()
+  }
+
+  /** How much post-turn cognition is still queued or parked. */
+  cognitionOutboxStats(): { pending: number; failed: number; cancelled: number } {
+    return this.chat.outboxStats()
   }
 
   getProvider(request?: { providerId?: ProviderId }): ProviderConfigRecord | null {
@@ -1010,6 +1157,13 @@ export interface SelfModelLoopHooks {
   explorationLine?(turn: SelfModelContextTurn): { line: string; interestId: string | null; label: string | null }
   /** Settles the permission once the turn has an outcome. Never throws into chat. */
   settleExploration?(input: { turnId: string; outcome: 'succeeded' | 'failed' | 'cancelled'; reply: string | null }): void
+  /**
+   * Records that the assistant could not ground an answer about a topic.
+   *
+   * This is the only producer of Morrow's own interest: a knowledge gap she
+   * failed to close. It is deliberately not "the user mentioned X often".
+   */
+  recordKnowledgeGap?(input: { label: string; conversationId: string }): void
   /** Called once per completed turn; must never throw into the chat path. */
   onTurnCompleted(input: {
     conversationId: string
@@ -1082,8 +1236,30 @@ export class ChatService {
     private readonly evidencePresentation: EvidencePresentation = 'json',
     /** Phase 2.4 turn context and pending-item stores. */
     private readonly continuity?: ContinuityPorts,
-    private readonly onDegradation?: (component: string, correlationId?: string | null) => void
+    private readonly onDegradation?: (component: string, correlationId?: string | null) => void,
+    /**
+     * Durable post-turn cognition. When present, the obligations are written in
+     * the assistant-message transaction and consumed after commit, so a crash
+     * cannot lose them and one failing module cannot cost the others.
+     */
+    private readonly outbox?: CognitionOutbox,
+    private readonly projectors: readonly CognitiveProjector[] = []
   ) {}
+
+  /**
+   * Consumes pending post-turn cognition.
+   *
+   * Also called at startup, which is what makes the crash window recoverable:
+   * the rows survived the crash because they were committed with the message.
+   */
+  drainCognition(turnId?: string): { done: number; failed: number; skipped: number } {
+    if (!this.outbox) return { done: 0, failed: 0, skipped: 0 }
+    return this.outbox.drain(this.projectors, turnId ? { turnId } : {})
+  }
+
+  outboxStats(): { pending: number; failed: number; cancelled: number } {
+    return this.outbox?.stats() ?? { pending: 0, failed: 0, cancelled: 0 }
+  }
 
   /**
    * Settles the turn's exploration permission.
@@ -1359,14 +1535,35 @@ export class ChatService {
               complete = false
             }
           }
+          // The cognition obligations are committed with the message. If the
+          // process dies before they run, the next start replays them instead of
+          // losing the turn (a retried turn returns the stored reply and would
+          // never reach the hooks again).
+          if (this.outbox && this.projectors.length > 0) {
+            this.outbox.enqueue({
+              turnId: requestId,
+              conversationId,
+              userMessageId: userMessage.id,
+              occurredAt: this.now(),
+              analysis: verified.analysis ?? null
+            })
+          }
+          // A rewritten answer means the assistant could not ground a claim
+          // about this topic. Recording the gap here — in the same transaction
+          // as the message — is what later lets reflection form Morrow's own
+          // question about it. Only the derived topic label is stored.
+          if (guard.verdict === 'rewrite') {
+            const label = deriveInterestLabel(request.content)
+            if (label) this.selfModel?.recordKnowledgeGap?.({ label, conversationId })
+          }
         }
         try {
           const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, { messageId: assistantMessageId, afterPersist })
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
-        } catch {
+        } catch (error) {
           // The transaction rolled back, so nothing of this turn is stored and
           // the intent stays behind for recovery to settle honestly.
-          console.warn('The completed assistant response could not be stored; the turn will be recovered as interrupted.')
+          console.warn('The completed assistant response could not be stored; the turn will be recovered as interrupted.', error)
           throw new ApplicationError('STORAGE_ERROR')
         }
       }
@@ -1376,7 +1573,16 @@ export class ChatService {
       // delivered.
       this.settleExploration(requestId, 'succeeded', deliveredText)
       this.recordTurnState(conversationId, requestId, 'committed')
-      if (this.selfModel) {
+      if (this.outbox && this.projectors.length > 0) {
+        const drained = this.drainCognition(requestId)
+        if (drained.failed > 0) {
+          // Isolated by module: the rows that failed stay pending for the next
+          // start, and the ones that succeeded are not repeated.
+          this.recordDegradation('cognitive_outbox_drain', requestId)
+          console.warn('Some post-turn cognition could not be applied; it stays queued and will be retried.')
+        }
+      } else if (this.selfModel) {
+        // Offline callers without an outbox keep the old direct path.
         try {
           this.selfModel.onTurnCompleted({
             conversationId,

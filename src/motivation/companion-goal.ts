@@ -77,12 +77,97 @@ function mapGoal(row: Record<string, unknown>): CompanionGoal {
   }
 }
 
+/** A stated long-term intention, not a one-off wish. */
+const GOAL_COMMITMENT = /(?:我(?:打算|计划|准备|想要|决定)|我的(?:目标|计划)是|从(?:现在|今天)开始|长期(?:目标|计划)|\bI (?:plan|intend|decided) to\b|\bmy goal is\b)/iu
+/** A horizon makes the intention checkable; without one it is only a candidate. */
+const GOAL_HORIZON = /(?:今年|明年|下(?:个)?月|这(?:个)?月|本(?:周|月|季度)|\d{4}\s*年|\d{1,2}\s*月|之前|以前|底前|\bby (?:the end of )?(?:next )?(?:month|year|week)\b)/iu
+/** The clause after the intention marker, trimmed to a title-sized phrase. */
+function extractGoalTitle(text: string): string | null {
+  const match = /(?:我(?:打算|计划|准备|想要|决定)|我的(?:目标|计划)是|长期(?:目标|计划))\s*([^。！？.!?]{4,120})/u.exec(text)
+  const raw = (match?.[1] ?? '').replace(/^(?:在|要|把)/u, '').trim()
+  if (raw.length < 4) return null
+  return raw.slice(0, 120)
+}
+
 export class CompanionGoalService {
   constructor(
     private readonly database: SqliteDatabase,
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID()
   ) {}
+
+  /**
+   * Derives a goal from what the user actually said.
+   *
+   * Two outcomes, deliberately different:
+   *   - an explicit commitment with a horizon ("我打算明年三月前完成 X") creates
+   *     the goal directly, because the user stated it as their own plan;
+   *   - anything vaguer becomes a *pending candidate* and is never presented as
+   *     an agreed goal until the user confirms it.
+   *
+   * A goal is never derived from Morrow's own text, and never from a topic the
+   * user merely mentioned: `owner` stays `user` for both outcomes.
+   */
+  detectFromTurn(input: { conversationId: string; sourceMessageId: string; text: string }): { goalId: string | null; candidateId: string | null } {
+    const text = input.text.replace(/\s+/gu, ' ').trim()
+    if (text.length < 4) return { goalId: null, candidateId: null }
+
+    const commitment = GOAL_COMMITMENT.test(text)
+    if (!commitment) return { goalId: null, candidateId: null }
+
+    const horizon = GOAL_HORIZON.exec(text)
+    const title = extractGoalTitle(text)
+    if (!title) return { goalId: null, candidateId: null }
+
+    // Explicit plan + a horizon is a stated commitment: it can be stored as the
+    // user's own goal. Without a horizon it stays a candidate for confirmation.
+    if (horizon) {
+      const goal = this.create({
+        title,
+        owner: 'user',
+        priority: 2,
+        dueAt: null,
+        sourceMessageId: input.sourceMessageId
+      })
+      return { goalId: goal.id, candidateId: null }
+    }
+
+    const existing = this.database.connection.prepare(
+      'SELECT id FROM goal_candidates WHERE source_message_id = ? AND title = ?'
+    ).get(input.sourceMessageId, title) as { id: string } | undefined
+    if (existing) return { goalId: null, candidateId: existing.id }
+
+    const candidateId = this.makeId().toLowerCase()
+    const now = this.clock()
+    this.database.connection.prepare(`
+      INSERT INTO goal_candidates(id, conversation_id, source_message_id, title, detail, owner, status, confidence, evidence_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, '', 'user', 'pending', 0.5, ?, ?, ?)
+    `).run(candidateId, input.conversationId, input.sourceMessageId, title, JSON.stringify([{ kind: 'message', id: input.sourceMessageId }]), now, now)
+    return { goalId: null, candidateId }
+  }
+
+  /** Candidates awaiting confirmation, oldest first. */
+  listCandidates(): Array<{ id: string; title: string; conversationId: string; createdAt: string }> {
+    const rows = this.database.connection.prepare(
+      "SELECT id, title, conversation_id, created_at FROM goal_candidates WHERE status = 'pending' ORDER BY created_at, id"
+    ).all() as Array<{ id: string; title: string; conversation_id: string; created_at: string }>
+    return rows.map((row) => ({ id: row.id, title: row.title, conversationId: row.conversation_id, createdAt: row.created_at }))
+  }
+
+  /** Accepts a candidate: the only path from a proposal to a stored goal. */
+  acceptCandidate(candidateId: string): CompanionGoal {
+    const row = this.database.connection.prepare(
+      "SELECT id, title, conversation_id, source_message_id, status FROM goal_candidates WHERE id = ?"
+    ).get(candidateId) as { id: string; title: string; conversation_id: string; source_message_id: string; status: string } | undefined
+    if (!row || row.status !== 'pending') throw new TypeError('Goal candidate is not pending.')
+    const goal = this.create({ title: row.title, owner: 'user', sourceMessageId: row.source_message_id })
+    this.database.connection.prepare("UPDATE goal_candidates SET status = 'accepted', updated_at = ? WHERE id = ?").run(this.clock(), candidateId)
+    return goal
+  }
+
+  rejectCandidate(candidateId: string): void {
+    this.database.connection.prepare("UPDATE goal_candidates SET status = 'rejected', updated_at = ? WHERE id = ? AND status = 'pending'").run(this.clock(), candidateId)
+  }
 
   create(input: {
     title: string
@@ -238,5 +323,7 @@ export function describeGoals(goals: readonly CompanionGoalContext[]): string {
   if (user.length > 0) lines.push(`Goals the user stated (their plan, not yours): ${user.map(render).join('; ')}. Use them to stay coherent; do not claim them as your own ambition.`)
   if (shared.length > 0) lines.push(`Plans both sides agreed on: ${shared.map(render).join('; ')}. Treat them as joint commitments.`)
   if (morrow.length > 0) lines.push(`Questions Morrow is pursuing for herself: ${morrow.map(render).join('; ')}. They are yours and may be wrong; never present them as the user's goals.`)
-  return lines.join('\\n')
+  // Real newlines: this used to be a literal backslash-n, which put the text
+  // "\n" into the prompt between ownership classes.
+  return lines.join('\n')
 }

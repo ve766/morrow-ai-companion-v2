@@ -125,14 +125,15 @@ function rankScore(
   item: { record: MemoryRecord; score: number },
   now: string,
   conflictedIds?: ReadonlySet<string>,
-  preferenceFor?: (record: MemoryRecord) => number
+  preferenceFor?: (record: MemoryRecord) => number,
+  importance = 0
 ): number {
   const reference = item.record.lastConfirmedAt ?? item.record.updatedAt
   const ageDays = (Date.parse(now) - Date.parse(reference)) / 86_400_000
   const stale = item.record.lastConfirmedAt === null && Number.isFinite(ageDays) && ageDays > STALE_UNCONFIRMED_DAYS
     ? Math.min(1, (ageDays - STALE_UNCONFIRMED_DAYS) / STALE_UNCONFIRMED_DAYS)
     : 0
-  return contextUtility({
+  const base = contextUtility({
     relevance: item.score,
     freshness: freshnessOf(reference, now),
     quality: (item.record.confidence / 100) * (item.record.sourceCategory === 'user_explicit_input' ? 1 : 0.5),
@@ -140,7 +141,20 @@ function rankScore(
     conflict: conflictedIds?.has(item.record.id) ? 1 : 0,
     stale
   }).score
+  // Importance is added, not multiplied: it is a tie-breaker that can lift a
+  // clearly important memory over a marginally more relevant one, and it can
+  // never rescue a memory that failed the relevance gate above.
+  return base + IMPORTANCE_WEIGHT * Math.max(0, Math.min(1, importance))
 }
+
+/**
+ * Weight of the importance term.
+ *
+ * 0.2 is enough to change the order of near-ties (the other terms sum to ~1) and
+ * small enough that a highly important but irrelevant memory still does not get
+ * retrieved, because admission is decided before ranking.
+ */
+export const IMPORTANCE_WEIGHT = 0.2
 
 export class MemoryContextAssembler {
   /**
@@ -148,7 +162,11 @@ export class MemoryContextAssembler {
    * injection point, not a test-only patch: the `no_context_utility` arm builds
    * a service with it off and compares the serialized payloads.
    */
-  constructor(private readonly options: { useContextUtility?: boolean } = {}) {}
+  constructor(private readonly options: {
+    useContextUtility?: boolean
+    /** Cached importance score, 0..1. Ranking only; never gates admission. */
+    importanceOf?: (memoryId: string) => number
+  } = {}) {}
 
   assemble(
     query: string,
@@ -164,6 +182,16 @@ export class MemoryContextAssembler {
     /** Preference fit for the P term; 0 when absent. */
     preferenceFor?: (record: MemoryRecord) => number
   ): AssembledMemoryContext {
+    // One lookup per memory, memoised: the comparator runs O(n log n) times and
+    // must not turn into a database call each time.
+    const importanceCache = new Map<string, number>()
+    const importanceOf = (memoryId: string): number => {
+      const cached = importanceCache.get(memoryId)
+      if (cached !== undefined) return cached
+      const value = this.options.importanceOf?.(memoryId) ?? 0
+      importanceCache.set(memoryId, value)
+      return value
+    }
     const queryTerms = queryTermsOf(query)
     const phrase = normalize(query).trim()
     const querySlot = readFactSlot(query)
@@ -203,6 +231,8 @@ export class MemoryContextAssembler {
           WEIGHTS.source * sourceReliability
         return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot }
       })
+      // Resolved once, outside the comparator: a score lookup per comparison
+      // would be O(n log n) database reads for no extra information.
       // Eligibility is not a matter of degree: a phrase, a content word or a
       // proven slot. Frame-only overlap stays out of the request. A policy may
       // narrow this further, never widen it.
@@ -219,7 +249,7 @@ export class MemoryContextAssembler {
         ? right.score - left.score ||
           right.record.updatedAt.localeCompare(left.record.updatedAt) ||
           left.record.id.localeCompare(right.record.id)
-        : rankScore(right, now, conflictedIds, preferenceFor) - rankScore(left, now, conflictedIds, preferenceFor) ||
+        : rankScore(right, now, conflictedIds, preferenceFor, importanceOf(right.record.id)) - rankScore(left, now, conflictedIds, preferenceFor, importanceOf(left.record.id)) ||
           right.record.updatedAt.localeCompare(left.record.updatedAt) ||
           left.record.id.localeCompare(right.record.id))
 

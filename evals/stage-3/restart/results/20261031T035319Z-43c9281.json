@@ -1,0 +1,46 @@
+{
+  "datasetVersion": "stage-3-v1",
+  "harnessVersion": "stage-3-restart-v1",
+  "codeCommit": "43c92813763d9ca3b524d112c231af7f75843a5e",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "clock": "system",
+  "startedAt": "2026-10-31T03:53:19.333Z",
+  "finishedAt": "2026-10-31T03:53:20.917Z",
+  "status": "PASS",
+  "assertions": [
+    {
+      "name": "重启前写入记忆与漂移",
+      "ok": true,
+      "detail": "{\"warmth\":0,\"directness\":2.016,\"humor\":0}"
+    },
+    {
+      "name": "重启后记忆进入最终 payload",
+      "ok": true,
+      "detail": "text scan"
+    },
+    {
+      "name": "重启后人格漂移连续",
+      "ok": true,
+      "detail": "{\"warmth\":0,\"directness\":2.016,\"humor\":0}"
+    },
+    {
+      "name": "重启后自身兴趣仍带独立来源",
+      "ok": true,
+      "detail": "长期记忆里证据:morrow"
+    },
+    {
+      "name": "重启后基线未被改写",
+      "ok": true,
+      "detail": "v1"
+    },
+    {
+      "name": "重启后撤回仍使内容退出 payload",
+      "ok": true,
+      "detail": "text scan"
+    }
+  ]
+}

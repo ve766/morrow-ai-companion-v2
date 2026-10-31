@@ -115,3 +115,20 @@
 | S3-05 | — | — | `docs/algorithms/stage-3-algorithm-registry.md` |
 
 整改矩阵：`docs/reports/stage-3-followup-gap-closure.md`。
+
+
+---
+
+## 10. 2026-10-31 纠偏证据
+
+| 项 | 源码 | 测试 | 评测 |
+|---|---|---|---|
+| Outbox | `src/app/cognitive-outbox.ts` | `cognitive-outbox.test.ts`（7） | restart |
+| 兴趣投影/外键/stale | `src/self-model/interest-service.ts`、`migrations.ts` v34 | `interest-evidence.test.ts`、`migrations.test.ts` | L5、L12 |
+| Morrow 兴趣生产链 | `reflection-service.ts`、`reflection-mapping.ts`、`companion-service.ts` | — | L5（含变异） |
+| 交互画像 | `src/personalization/interaction-profile.ts` | `interaction-profile.test.ts`（6） | L4、L11 |
+| 重要度排序 | `memory-importance.ts`、`memory-context-assembler.ts` | `memory-importance-ranking.test.ts`（2） | — |
+| 目标生产链 | `motivation/companion-goal.ts` | `companion-goal.test.ts` | L10 |
+| 探索 uncertain/预算 | `exploration-policy.ts` | `exploration-policy.test.ts` | L5 |
+
+结果文件：`evals/stage-3/results/20261031T034*.json`（主评测、消融、纵向、重启、长对话），`codeCommit` = 本次生成提交。

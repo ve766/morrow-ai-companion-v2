@@ -49,6 +49,9 @@ const SOURCE_RELIABILITY: Readonly<Record<MemorySourceCategory, number>> = Objec
 
 const EXPLICIT_MARKERS = /(?:记住|重要|务必|一定|关键|别忘了|must remember|important|critical)/iu
 const GOAL_MARKERS = /(?:目标|计划|打算|准备|想完成|goal|plan|intend to)/iu
+// Boundaries and identity facts are the memories that must survive time. They
+// get a one-year half-life instead of the default ninety days.
+const BOUNDARY_MARKERS = /(?:过敏|忌口|不能吃|禁止|边界|底线|信仰|原则|allerg|intoleran|never tell|boundary|my values)/iu
 
 export interface ImportanceComponents {
   source: number
@@ -78,20 +81,29 @@ function round(value: number): number {
 /** Pure scoring function; no database, so it can be tested and replayed. */
 export function scoreMemory(input: {
   record: Pick<MemoryRecord, 'currentText' | 'sourceCategory' | 'updatedAt' | 'revision'>
-  /** Independent mentions, i.e. revisions after the first. */
+  /**
+   * Independent mentions, from the evidence ledger.
+   *
+   * Deliberately NOT `revision - 1`: a revision is an edit, and an edited memory
+   * has not been mentioned more often. When the caller has no ledger rows this
+   * is 0 rather than a guess.
+   */
   extraMentions?: number
   corrected?: boolean
   now: string
+  /** Overrides the default half-life; see `halfLifeDaysFor`. */
+  halfLifeDays?: number
 }): ImportanceResult {
   const text = input.record.currentText
   const source = SOURCE_RELIABILITY[input.record.sourceCategory] ?? 0.5
   const explicit = EXPLICIT_MARKERS.test(text) ? 1 : 0
   const goal = GOAL_MARKERS.test(text) ? 1 : 0
   const correction = input.corrected ? 1 : 0
-  const mentions = Math.max(0, input.extraMentions ?? Math.max(0, input.record.revision - 1))
+  const mentions = Math.max(0, input.extraMentions ?? 0)
   const repetition = 1 - Math.exp(-mentions / 3)
   const ageDays = Math.max(0, (Date.parse(input.now) - Date.parse(input.record.updatedAt)) / 86_400_000)
-  const recency = Number.isFinite(ageDays) ? 0.5 ** (ageDays / RECENCY_HALF_LIFE_DAYS) : 0
+  const halfLife = input.halfLifeDays ?? halfLifeDaysFor(text, input.record.sourceCategory)
+  const recency = Number.isFinite(ageDays) && halfLife > 0 ? 0.5 ** (ageDays / halfLife) : 0
 
   const score = clamp01(
     IMPORTANCE_WEIGHTS.source * source +
@@ -117,9 +129,39 @@ export function scoreMemory(input: {
   }
 }
 
+export interface MemoryEvidenceInput {
+  memoryId: string
+  sourceRef: string
+  sourceKind: 'message' | 'turn' | 'user_explicit' | 'migration'
+  actor: 'user' | 'morrow' | 'system'
+  conversationId: string | null
+  evidenceType: 'statement' | 'restatement' | 'correction' | 'confirmation' | 'goal_link' | 'boundary'
+  confidence: number
+  /** Two rows in the same group are one context, not two independent mentions. */
+  independenceGroup: string
+}
+
 export interface MemoryImportancePort {
   onMemoryChanged(memoryId: string): void
   onMemoryRemoved(memoryId: string): void
+  /** Appends to the evidence ledger; the score is derived from it, not incremented. */
+  recordEvidence?(input: MemoryEvidenceInput): void
+  /** Cached importance for ranking. Absent implementations rank without it. */
+  scoreOf?(memoryId: string): number
+}
+
+/**
+ * Half-life by memory kind.
+ *
+ * One 90-day half-life for everything was the bug: it let "I am allergic to
+ * peanuts" fade exactly as fast as "I had a sandwich on Tuesday". Boundaries and
+ * identity facts decay slowly; incidental events decay quickly.
+ */
+export function halfLifeDaysFor(text: string, sourceCategory: string): number {
+  if (BOUNDARY_MARKERS.test(text)) return 365
+  if (GOAL_MARKERS.test(text)) return 180
+  if (sourceCategory === 'user_explicit_input') return 180
+  return RECENCY_HALF_LIFE_DAYS
 }
 
 export class MemoryImportanceService implements MemoryImportancePort {
@@ -138,8 +180,15 @@ export class MemoryImportanceService implements MemoryImportancePort {
     const corrected = Number((this.database.connection.prepare(
       "SELECT COUNT(*) AS n FROM memory_revisions WHERE memory_id = ? AND change_type = 'corrected'"
     ).get(memoryId) as { n: number }).n) > 0
+    // Independent restatements, from the ledger. Corrections are evidence of
+    // importance, not of repetition: being corrected twice does not mean the
+    // fact was mentioned twice in the same sense.
+    const restatements = Number((this.database.connection.prepare(
+      "SELECT COUNT(DISTINCT independence_group) AS n FROM memory_evidence WHERE memory_id = ? AND evidence_type = 'restatement' AND retracted_at IS NULL"
+    ).get(memoryId) as { n: number }).n)
     const result = scoreMemory({
       record: { currentText: row.current_text, sourceCategory: row.source_category, updatedAt: row.updated_at, revision: row.revision },
+      extraMentions: restatements,
       corrected,
       now: this.clock()
     })
@@ -153,6 +202,30 @@ export class MemoryImportanceService implements MemoryImportancePort {
         computed_at = excluded.computed_at
     `).run(memoryId, result.score, JSON.stringify(result.components), IMPORTANCE_VERSION, this.clock())
     return result
+  }
+
+  /**
+   * Appends one row to the evidence ledger.
+   *
+   * Idempotent on `(memory_id, source_ref)`, so a retried turn or a repeated
+   * correction contributes once.
+   */
+  recordEvidence(input: MemoryEvidenceInput): void {
+    this.database.connection.prepare(`
+      INSERT INTO memory_evidence(memory_id, source_ref, source_kind, actor, conversation_id, occurred_at, evidence_type, confidence, independence_group, algorithm_version, retracted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      ON CONFLICT(memory_id, source_ref) DO NOTHING
+    `).run(
+      input.memoryId, input.sourceRef, input.sourceKind, input.actor, input.conversationId,
+      this.clock(), input.evidenceType, Math.max(0, Math.min(1, input.confidence)), input.independenceGroup,
+      IMPORTANCE_VERSION
+    )
+  }
+
+  /** Cached score for ranking; 0 when it was never computed. */
+  scoreOf(memoryId: string): number {
+    const row = this.database.connection.prepare('SELECT score FROM memory_importance WHERE memory_id = ?').get(memoryId) as { score: number } | undefined
+    return typeof row?.score === 'number' ? row.score : 0
   }
 
   recomputeAll(): number {

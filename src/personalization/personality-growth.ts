@@ -194,7 +194,12 @@ export interface DerivedGrowthSignal {
  * claim more certainty than the reading it came from.
  */
 export function deriveGrowthSignals(input: {
-  analysis: CognitiveTurnAnalysis | undefined
+  /**
+   * Only the reading itself is needed. Narrowing the type is what lets the
+   * durable outbox pass the stored projection instead of a full analysis object
+   * it deliberately does not keep.
+   */
+  analysis: Pick<CognitiveTurnAnalysis, 'intent' | 'confidenceScore' | 'uncertainty' | 'signals'> | undefined
   /** The user's own words for this turn. Required: style is stated, not inferred. */
   content?: string
   personalization?: readonly PersonalizationEntry[]

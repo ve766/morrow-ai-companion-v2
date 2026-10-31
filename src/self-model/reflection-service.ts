@@ -290,6 +290,46 @@ export class ReflectionService {
       }
     }
 
+    // 5. Morrow's own questions. A gap she failed to ground in two separate
+    //    conversations is a topic she has reason to want to understand — and
+    //    the evidence is her own failure, not how often the user mentions it.
+    //    At most one per run, and only from independent conversations.
+    if (findings.length < MAX_FINDINGS_PER_RUN) {
+      const gaps = examinedEvents.filter((event) => event.eventType === 'cognition.knowledge_gap')
+      const byLabel = new Map<string, { label: string; conversations: Set<string>; eventIds: string[] }>()
+      for (const event of gaps) {
+        const label = typeof event.payload.label === 'string' ? event.payload.label.trim() : ''
+        const conversationId = event.correlationId
+        if (!label || !conversationId) continue
+        const key = label.toLocaleLowerCase()
+        const entry = byLabel.get(key) ?? { label, conversations: new Set<string>(), eventIds: [] }
+        entry.conversations.add(conversationId)
+        entry.eventIds.push(event.id)
+        byLabel.set(key, entry)
+      }
+      // A question artefact ("哪里", "到哪") is not a topic. Without this filter
+      // the producer would turn every unanswerable question into a nonsense
+      // interest, which is worse than staying silent.
+      const recurring = [...byLabel.values()].filter((entry) =>
+        entry.conversations.size >= 2 &&
+        entry.label.length >= 2 &&
+        !/(?:哪里|哪儿|什么|哪个|怎么|多少|来着|到哪|上次说|记不记得)/u.test(entry.label)
+      )
+      const chosen = recurring[0]
+      if (chosen) {
+        findings.push({
+          kind: 'morrow_interest_candidate',
+          statement: `我对「${chosen.label}」一直没有可靠的理解；这是我自己想弄明白的问题，不是用户反复提到的偏好。`,
+          confidence: 45,
+          evidence: [
+            { kind: 'topic', id: chosen.label },
+            { kind: 'conversation', id: [...chosen.conversations][0]! },
+            ...chosen.eventIds.slice(-3).map((id) => ({ kind: 'event', id }))
+          ]
+        })
+      }
+    }
+
     const finishedAt = this.clock()
     const summary: ReflectionRunSummary = {
       id: runId,
@@ -407,6 +447,18 @@ export class ReflectionService {
           evidenceRevision: memory.revision,
           occurredAt: origin?.occurredAt ?? at,
           topicText: memory.currentText
+        })
+        return
+      }
+      case 'morrow_interest': {
+        // Morrow's own question, cited by the finding that raised it. The
+        // conversation comes from the finding's evidence so the independence
+        // count is real: two separate conversations, not two rows in one.
+        this.dependencies.interests.observeMorrow({
+          conversationId: effect.conversationId,
+          findingId: finding.id,
+          occurredAt: at,
+          topicText: effect.topic
         })
         return
       }

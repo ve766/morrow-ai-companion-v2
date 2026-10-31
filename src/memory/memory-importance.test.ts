@@ -52,17 +52,42 @@ describe('importance scoring', () => {
     })
     expect(corrected.protected).toBe(true)
     expect(goal.protected).toBe(true)
-    // Recency is nearly zero for a two-year-old memory, so the protection is
-    // what keeps these alive, not the score.
-    expect(corrected.components.recency).toBeLessThan(0.01)
+    // Decay is typed now: an explicit user fact keeps a 180-day half-life, so a
+    // two-year-old one still retains some recency instead of being treated like
+    // incidental chatter. Protection is still what keeps it out of archival.
+    const chatter = scoreMemory({
+      record: { currentText: '今天随便聊聊。', sourceCategory: 'turn_derived_confirmed', updatedAt: '2025-01-01T00:00:00.000Z', revision: 1 },
+      now: NOW
+    })
+    expect(corrected.components.recency).toBeGreaterThan(chatter.components.recency)
+  })
+
+  it('gives a boundary memory a longer half-life than an incidental one', () => {
+    const boundary = scoreMemory({
+      record: { currentText: '我对花生过敏。', sourceCategory: 'user_explicit_input', updatedAt: '2025-10-30T00:00:00.000Z', revision: 1 },
+      now: NOW
+    })
+    const chatter = scoreMemory({
+      record: { currentText: '今天路过一家咖啡店。', sourceCategory: 'turn_derived_confirmed', updatedAt: '2025-10-30T00:00:00.000Z', revision: 1 },
+      now: NOW
+    })
+    expect(boundary.components.recency).toBeGreaterThan(chatter.components.recency)
   })
 
   it('lets repetition raise a score without ever reaching 1 on its own', () => {
     const base = { currentText: '我在做一个项目。', sourceCategory: 'turn_derived_confirmed' as const, updatedAt: NOW, revision: 1 }
     const once = scoreMemory({ record: base, now: NOW })
-    const many = scoreMemory({ record: { ...base, revision: 9 }, now: NOW })
+    const many = scoreMemory({ record: base, extraMentions: 6, now: NOW })
     expect(many.components.repetition).toBeGreaterThan(once.components.repetition)
     expect(many.components.repetition).toBeLessThanOrEqual(1)
+  })
+
+  it('does not treat an edit as a repetition', () => {
+    const base = { currentText: '我在做一个项目。', sourceCategory: 'turn_derived_confirmed' as const, updatedAt: NOW, revision: 1 }
+    const edited = scoreMemory({ record: { ...base, revision: 9 }, now: NOW })
+    // Nine revisions mean the row was edited eight times, not that the user said
+    // it eight more times. Repetition comes from the evidence ledger.
+    expect(edited.components.repetition).toBe(0)
   })
 
   it('decays with age', () => {

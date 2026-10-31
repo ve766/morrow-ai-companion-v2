@@ -128,6 +128,9 @@ export type ExplorationState =
   | 'selected_for_prompt'
   | 'actually_raised'
   | 'not_raised'
+  // The detector could not tell. Kept separate so it is never reported as a
+  // confident "did not raise", and it does not consume the budget.
+  | 'uncertain'
   | 'provider_failed'
   | 'user_rejected'
 
@@ -180,19 +183,19 @@ export class ExplorationService {
     this.database.connection.exec('BEGIN IMMEDIATE')
     try {
       const existing = this.database.connection.prepare(
-        'SELECT state FROM exploration_budget WHERE scope = ? AND day = ? AND turn_id = ?'
-      ).get(this.scope, day, id) as { state: string } | undefined
+        'SELECT state FROM exploration_budget WHERE scope = ? AND turn_id = ?'
+      ).get(this.scope, id) as { state: string } | undefined
       if (existing) {
         this.database.connection.exec('COMMIT')
         return existing.state === 'consumed' ? 'consumed' : existing.state === 'denied' ? 'denied' : 'reserved'
       }
       const used = Number((this.database.connection.prepare(
-        "SELECT COUNT(*) AS n FROM exploration_budget WHERE scope = ? AND day = ? AND state IN ('reserved', 'consumed')"
+        "SELECT COUNT(*) AS n FROM exploration_budget WHERE scope = ? AND reservation_day = ? AND state IN ('reserved', 'consumed')"
       ).get(this.scope, day) as { n: number }).n)
       const state = used >= EXPLORATION_MAX_PER_DAY ? 'denied' : 'reserved'
       this.database.connection.prepare(
-        'INSERT INTO exploration_budget(scope, day, turn_id, state, created_at) VALUES (?, ?, ?, ?, ?)'
-      ).run(this.scope, day, id, state, this.clock())
+        'INSERT INTO exploration_budget(scope, turn_id, reservation_day, state, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run(this.scope, id, day, state, this.clock())
       this.database.connection.exec('COMMIT')
       return state
     } catch (error) {
@@ -203,24 +206,26 @@ export class ExplorationService {
 
   /** Turns a reservation into a real raise. Idempotent. */
   consume(turnId: string): boolean {
+    // Keyed by turn only: a turn that reserved before UTC midnight must still be
+    // settleable after it.
     const result = this.database.connection.prepare(
-      "UPDATE exploration_budget SET state = 'consumed' WHERE scope = ? AND day = ? AND turn_id = ? AND state IN ('reserved', 'consumed')"
-    ).run(this.scope, this.day(), turnId.toLowerCase())
+      "UPDATE exploration_budget SET state = 'consumed' WHERE scope = ? AND turn_id = ? AND state IN ('reserved', 'consumed')"
+    ).run(this.scope, turnId.toLowerCase())
     return Number(result.changes) > 0
   }
 
   /** Gives the slot back when the turn never actually raised the topic. */
   release(turnId: string): boolean {
     const result = this.database.connection.prepare(
-      "UPDATE exploration_budget SET state = 'released' WHERE scope = ? AND day = ? AND turn_id = ? AND state = 'reserved'"
-    ).run(this.scope, this.day(), turnId.toLowerCase())
+      "UPDATE exploration_budget SET state = 'released' WHERE scope = ? AND turn_id = ? AND state = 'reserved'"
+    ).run(this.scope, turnId.toLowerCase())
     return Number(result.changes) > 0
   }
 
   /** How many slots today have been reserved or consumed. */
   usedToday(): number {
     return Number((this.database.connection.prepare(
-      "SELECT COUNT(*) AS n FROM exploration_budget WHERE scope = ? AND day = ? AND state IN ('reserved', 'consumed')"
+      "SELECT COUNT(*) AS n FROM exploration_budget WHERE scope = ? AND reservation_day = ? AND state IN ('reserved', 'consumed')"
     ).get(this.scope, this.day()) as { n: number }).n)
   }
 
@@ -257,14 +262,17 @@ export class ExplorationService {
     label: string
     outcome: 'succeeded' | 'failed' | 'cancelled'
     reply: string | null
-  }): 'actually_raised' | 'not_raised' | 'provider_failed' {
+  }): 'actually_raised' | 'not_raised' | 'uncertain' | 'provider_failed' {
     if (input.outcome !== 'succeeded' || input.reply === null) {
       this.transition({ turnId: input.turnId, interestId: input.interestId, state: 'provider_failed', reason: input.outcome })
       this.release(input.turnId)
       return 'provider_failed'
     }
     const detected = detectRaised(input.reply, input.label)
-    const state: 'actually_raised' | 'not_raised' = detected === 'raised' ? 'actually_raised' : 'not_raised'
+    // `uncertain` is its own state now. Collapsing it into `not_raised` claimed
+    // a certainty the detector does not have; it still does not consume budget.
+    const state: 'actually_raised' | 'not_raised' | 'uncertain' =
+      detected === 'raised' ? 'actually_raised' : detected === 'uncertain' ? 'uncertain' : 'not_raised'
     this.transition({ turnId: input.turnId, interestId: input.interestId, state, reason: detected })
     if (state === 'actually_raised') this.consume(input.turnId)
     else this.release(input.turnId)

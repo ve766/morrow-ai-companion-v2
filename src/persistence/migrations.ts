@@ -1464,6 +1464,327 @@ export const migrations: readonly Migration[] = [
         CREATE INDEX exploration_budget_day_idx ON exploration_budget(scope, day, state);
       `)
     }
+  },
+  {
+    version: 34,
+    name: 'evidence-ledgers-outbox-and-source-separation',
+    up(database) {
+      // Gate A/B/C/D/F of the 2026-10-31 correction task. Four things change at
+      // the storage layer, and each of them removes a way the old schema could
+      // let a claim outlive its evidence:
+      //
+      // 1. `interest_evidence` gets a real foreign key to `interests` and
+      //    cascades. Before this, deleting an interest left its evidence behind
+      //    forever, and deleting a message deleted the whole interest row even
+      //    when five other messages still supported it.
+      // 2. `interests.stale_at` marks an aggregate whose evidence changed under
+      //    it. Reads must recompute before the row may reach a prompt.
+      // 3. `cognitive_outbox` makes post-turn cognition durable: the row is
+      //    written in the same transaction as the assistant message, so a crash
+      //    between commit and the cognitive hooks can no longer lose a turn.
+      // 4. `memory_evidence` separates "how often this was independently
+      //    stated" from "how often the row was edited". `revision` was never a
+      //    repetition count, and using it as one inflated importance.
+      //
+      // Plus the two source-separation tables (`user_interaction_profile`,
+      // `goal_candidates`) and the budget key fix.
+      database.exec(`
+        -- Every trigger that mentions a table being rebuilt has to go first:
+        -- SQLite rewrites trigger bodies on RENAME, so a trigger left behind
+        -- would keep pointing at the dropped copy.
+        DROP TRIGGER IF EXISTS interest_evidence_delete_with_message;
+        DROP TRIGGER IF EXISTS interest_evidence_delete_with_conversation;
+        DROP TRIGGER IF EXISTS interest_evidence_delete_with_memory;
+        DROP TRIGGER IF EXISTS interest_evidence_invalidate_on_memory_retract;
+        DROP TRIGGER IF EXISTS interest_evidence_invalidate_on_memory_revision;
+        DROP TRIGGER IF EXISTS exploration_events_delete_with_turn;
+        DROP TRIGGER IF EXISTS self_model_entries_delete_with_source_message;
+
+        DROP INDEX IF EXISTS interest_evidence_ref_idx;
+        DROP INDEX IF EXISTS interest_evidence_conversation_idx;
+        DROP INDEX IF EXISTS interest_evidence_ref_uq;
+        DROP INDEX IF EXISTS exploration_budget_day_idx;
+
+        ALTER TABLE interest_evidence RENAME TO interest_evidence_v33;
+        CREATE TABLE interest_evidence (
+          interest_id TEXT NOT NULL REFERENCES interests(id) ON DELETE CASCADE,
+          evidence_ref TEXT NOT NULL CHECK (length(evidence_ref) BETWEEN 1 AND 96),
+          evidence_kind TEXT NOT NULL CHECK (evidence_kind IN ('message', 'memory', 'legacy', 'reflection')),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) BETWEEN 8 AND 96),
+          polarity TEXT NOT NULL CHECK (polarity IN ('support', 'counter')),
+          match_score REAL NOT NULL CHECK (match_score >= 0 AND match_score <= 1),
+          match_reason TEXT NOT NULL CHECK (length(match_reason) BETWEEN 1 AND 64),
+          created_at TEXT NOT NULL,
+          evidence_revision INTEGER CHECK (evidence_revision IS NULL OR evidence_revision > 0),
+          PRIMARY KEY (interest_id, evidence_ref)
+        ) STRICT;
+        INSERT INTO interest_evidence (interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision)
+          SELECT interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at, evidence_revision
+          FROM interest_evidence_v33
+          WHERE interest_id IN (SELECT id FROM interests);
+        DROP TABLE interest_evidence_v33;
+        CREATE INDEX interest_evidence_ref_idx ON interest_evidence(evidence_ref);
+        CREATE INDEX interest_evidence_conversation_idx ON interest_evidence(conversation_id);
+        -- One observation attributes to one topic. This is what makes a retried
+        -- turn or a repeated reflection contribute exactly once.
+        CREATE UNIQUE INDEX interest_evidence_ref_uq ON interest_evidence(evidence_ref);
+
+        ALTER TABLE interests ADD COLUMN stale_at TEXT;
+
+        -- A reflection finding may now say "this is a question Morrow formed
+        -- herself", which is a different claim from "the user talked about
+        -- this". The kind CHECK has to be widened or the row cannot be stored.
+        DROP INDEX IF EXISTS reflection_findings_run_idx;
+        DROP INDEX IF EXISTS reflection_findings_dedupe_uq;
+        -- Built under a temporary name and swapped in *after* the old table is
+        -- dropped. The other direction (rename the old table away) rewrites
+        -- the pending_personality_candidates foreign key to point at the renamed
+        -- copy, which then disappears.
+        CREATE TABLE reflection_findings_v34 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          run_id TEXT NOT NULL REFERENCES reflection_runs(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN (
+            'memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note',
+            'intent_correction', 'next_turn_suggestion', 'morrow_interest_candidate'
+          )),
+          statement TEXT NOT NULL CHECK (length(trim(statement)) BETWEEN 1 AND 1000 AND instr(statement, char(0)) = 0),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          dedupe_key TEXT
+        ) STRICT;
+        INSERT INTO reflection_findings_v34 (id, run_id, kind, statement, confidence, evidence_json, created_at, dedupe_key)
+          SELECT id, run_id, kind, statement, confidence, evidence_json, created_at, dedupe_key
+          FROM reflection_findings;
+        DROP TABLE reflection_findings;
+        ALTER TABLE reflection_findings_v34 RENAME TO reflection_findings;
+        CREATE INDEX reflection_findings_run_idx ON reflection_findings(run_id, created_at);
+        CREATE UNIQUE INDEX reflection_findings_dedupe_uq
+          ON reflection_findings(dedupe_key) WHERE dedupe_key IS NOT NULL;
+
+        ALTER TABLE exploration_events RENAME TO exploration_events_v33;
+        CREATE TABLE exploration_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          interest_id TEXT NOT NULL,
+          state TEXT NOT NULL CHECK (state IN (
+            'permitted', 'selected_for_prompt', 'actually_raised',
+            'not_raised', 'uncertain', 'provider_failed', 'user_rejected'
+          )),
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 120),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO exploration_events (id, turn_id, interest_id, state, reason, created_at)
+          SELECT id, turn_id, interest_id, state, reason, created_at FROM exploration_events_v33;
+        DROP TABLE exploration_events_v33;
+        CREATE INDEX exploration_events_time_idx ON exploration_events(created_at DESC);
+        CREATE INDEX exploration_events_turn_idx ON exploration_events(turn_id);
+        CREATE UNIQUE INDEX exploration_events_turn_state_uq ON exploration_events(turn_id, state);
+
+        -- The reservation is keyed by turn, not by day. consume/release
+        -- used to look the row up with "today", so a turn that crossed UTC
+        -- midnight reserved on one day and could never settle on the next.
+        ALTER TABLE exploration_budget RENAME TO exploration_budget_v33;
+        CREATE TABLE exploration_budget (
+          scope TEXT NOT NULL DEFAULT 'install',
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          reservation_day TEXT NOT NULL CHECK (length(reservation_day) = 10),
+          state TEXT NOT NULL CHECK (state IN ('reserved', 'consumed', 'released', 'denied')),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (scope, turn_id)
+        ) STRICT;
+        INSERT INTO exploration_budget (scope, turn_id, reservation_day, state, created_at)
+          SELECT scope, turn_id, day, state, created_at FROM exploration_budget_v33;
+        DROP TABLE exploration_budget_v33;
+        CREATE INDEX exploration_budget_day_idx ON exploration_budget(scope, reservation_day, state);
+
+        CREATE TABLE cognitive_outbox (
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          module TEXT NOT NULL CHECK (module IN ('interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal')),
+          handler_version INTEGER NOT NULL CHECK (handler_version > 0),
+          conversation_id TEXT NOT NULL,
+          user_message_id TEXT NOT NULL,
+          occurred_at TEXT NOT NULL,
+          analysis_json TEXT,
+          status TEXT NOT NULL CHECK (status IN ('pending', 'done', 'failed', 'cancelled')),
+          attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (turn_id, module, handler_version)
+        ) STRICT;
+        CREATE INDEX cognitive_outbox_pending_idx ON cognitive_outbox(status, created_at);
+
+        CREATE TABLE memory_evidence (
+          memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+          source_ref TEXT NOT NULL CHECK (length(source_ref) BETWEEN 1 AND 96),
+          source_kind TEXT NOT NULL CHECK (source_kind IN ('message', 'turn', 'user_explicit', 'migration')),
+          actor TEXT NOT NULL CHECK (actor IN ('user', 'morrow', 'system')),
+          conversation_id TEXT,
+          occurred_at TEXT NOT NULL,
+          evidence_type TEXT NOT NULL CHECK (evidence_type IN ('statement', 'restatement', 'correction', 'confirmation', 'goal_link', 'boundary')),
+          confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+          independence_group TEXT NOT NULL,
+          algorithm_version TEXT NOT NULL,
+          retracted_at TEXT,
+          PRIMARY KEY (memory_id, source_ref)
+        ) STRICT;
+        CREATE INDEX memory_evidence_memory_idx ON memory_evidence(memory_id);
+
+        CREATE TABLE user_interaction_profile (
+          dimension TEXT PRIMARY KEY NOT NULL CHECK (dimension IN ('warmth', 'directness', 'humor')),
+          baseline REAL NOT NULL CHECK (baseline >= 0 AND baseline <= 100),
+          offset REAL NOT NULL DEFAULT 0,
+          evidence_count INTEGER NOT NULL DEFAULT 0,
+          algorithm_version TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+
+        CREATE TABLE user_interaction_signals (
+          dimension TEXT NOT NULL CHECK (dimension IN ('warmth', 'directness', 'humor')),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          signal REAL NOT NULL,
+          weight REAL NOT NULL,
+          source TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (dimension, turn_id)
+        ) STRICT;
+
+        CREATE TABLE goal_candidates (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          conversation_id TEXT NOT NULL,
+          source_message_id TEXT NOT NULL,
+          title TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 200),
+          detail TEXT NOT NULL DEFAULT '',
+          owner TEXT NOT NULL CHECK (owner IN ('user', 'shared', 'morrow')),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
+          confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+          evidence_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX goal_candidates_source_uq ON goal_candidates(source_message_id, title);
+
+        -- Aggregates are now marked, not deleted, when their evidence changes.
+        CREATE TRIGGER self_model_entries_delete_with_source_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM self_model_entries WHERE source_message_id = OLD.id;
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE source_message_id = OLD.id;
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE id IN (SELECT interest_id FROM interest_evidence WHERE evidence_ref = OLD.id);
+          DELETE FROM interest_evidence WHERE evidence_kind = 'message' AND evidence_ref = OLD.id;
+          -- An aggregate whose last evidence just disappeared has no standing.
+          -- Deleting it here (rather than waiting for the next read) keeps the
+          -- "no derived row outlives its source" guarantee true at rest, while
+          -- an interest with other surviving evidence is only marked stale.
+          DELETE FROM interests
+            WHERE stale_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM interest_evidence WHERE interest_id = interests.id);
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE id IN (SELECT interest_id FROM interest_evidence WHERE conversation_id = OLD.id);
+          DELETE FROM interest_evidence WHERE conversation_id = OLD.id;
+          -- An aggregate whose last evidence just disappeared has no standing.
+          -- Deleting it here (rather than waiting for the next read) keeps the
+          -- "no derived row outlives its source" guarantee true at rest, while
+          -- an interest with other surviving evidence is only marked stale.
+          DELETE FROM interests
+            WHERE stale_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM interest_evidence WHERE interest_id = interests.id);
+        END;
+
+        CREATE TRIGGER interest_evidence_delete_with_memory
+        AFTER DELETE ON memories
+        BEGIN
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE id IN (SELECT interest_id FROM interest_evidence WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id);
+          DELETE FROM interest_evidence WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+          -- An aggregate whose last evidence just disappeared has no standing.
+          -- Deleting it here (rather than waiting for the next read) keeps the
+          -- "no derived row outlives its source" guarantee true at rest, while
+          -- an interest with other surviving evidence is only marked stale.
+          DELETE FROM interests
+            WHERE stale_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM interest_evidence WHERE interest_id = interests.id);
+        END;
+
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_retract
+        AFTER UPDATE OF status ON memories
+        WHEN NEW.status <> 'active'
+        BEGIN
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE id IN (SELECT interest_id FROM interest_evidence WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id);
+          DELETE FROM interest_evidence WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+          -- An aggregate whose last evidence just disappeared has no standing.
+          -- Deleting it here (rather than waiting for the next read) keeps the
+          -- "no derived row outlives its source" guarantee true at rest, while
+          -- an interest with other surviving evidence is only marked stale.
+          DELETE FROM interests
+            WHERE stale_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM interest_evidence WHERE interest_id = interests.id);
+        END;
+
+        CREATE TRIGGER interest_evidence_invalidate_on_memory_revision
+        AFTER UPDATE OF revision ON memories
+        WHEN NEW.revision > OLD.revision AND NEW.current_text <> OLD.current_text
+        BEGIN
+          UPDATE interests SET stale_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE id IN (SELECT interest_id FROM interest_evidence WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id);
+          DELETE FROM interest_evidence WHERE evidence_kind = 'memory' AND evidence_ref = OLD.id;
+          -- An aggregate whose last evidence just disappeared has no standing.
+          -- Deleting it here (rather than waiting for the next read) keeps the
+          -- "no derived row outlives its source" guarantee true at rest, while
+          -- an interest with other surviving evidence is only marked stale.
+          DELETE FROM interests
+            WHERE stale_at IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM interest_evidence WHERE interest_id = interests.id);
+        END;
+
+        CREATE TRIGGER exploration_events_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM exploration_events WHERE turn_id = OLD.turn_id;
+        END;
+
+        CREATE TRIGGER memory_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM memory_evidence WHERE source_kind = 'message' AND source_ref = OLD.id;
+        END;
+
+        CREATE TRIGGER memory_evidence_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM memory_evidence WHERE conversation_id = OLD.id;
+        END;
+
+        -- A deleted turn cannot be replayed, so its pending cognition is
+        -- cancelled rather than retried forever.
+        CREATE TRIGGER cognitive_outbox_cancel_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          UPDATE cognitive_outbox SET status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE user_message_id = OLD.id AND status = 'pending';
+        END;
+
+        CREATE TRIGGER goal_candidates_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM goal_candidates WHERE conversation_id = OLD.id;
+        END;
+      `)
+    }
   }
 ]
 

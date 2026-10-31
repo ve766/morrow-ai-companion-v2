@@ -24,8 +24,10 @@ import { SqliteInterestRepository, InterestService } from '../self-model/interes
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { PersonalizationService } from '../personalization/personalization-service'
 import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
 import { CompanionGoalService } from '../motivation/companion-goal'
+import { UserInteractionProfileService } from '../personalization/interaction-profile'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
 import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
@@ -216,6 +218,17 @@ if (hasSingleInstanceLock) {
     // user edited, and neither can contact the user outside a turn.
     const growth = new PersonalityGrowthService(database)
     const exploration = new ExplorationService(database)
+    // How this user asked Morrow to speak, kept apart from her identity: the
+    // baseline comes from the profile the user edited, and only presentation
+    // dimensions move.
+    const interactionDatabase = database
+    const interaction = new UserInteractionProfileService(
+      interactionDatabase,
+      () => {
+        const profile = new PersonalityService(interactionDatabase).get()
+        return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
+      }
+    )
     // §2D: companionship goals live beside the task-execution GoalService, not
     // inside it; see the migration comment for why the two are not merged.
     const companionGoals = new CompanionGoalService(database)
@@ -235,7 +248,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, goals: companionGoals },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals },
       continuity: { contexts: turnContexts, pending: pendingItems, finalizations, states: new SqliteTurnStateRepository(database) }
     })
     // Settle any turn that was interrupted between its finalization intent and
@@ -255,6 +268,26 @@ if (hasSingleInstanceLock) {
       }
     } catch {
       console.warn('Interrupted turns could not be recovered at startup; the conversation data is unaffected.')
+    }
+    // Post-turn cognition that was committed but never applied (a crash between
+    // the assistant-message commit and the projections). Idempotent, and it runs
+    // after the interrupted-turn recovery so the same turn is not processed by
+    // two paths at once.
+    try {
+      const drained = companion.drainCognition()
+      if (drained.done > 0 || drained.failed > 0) {
+        eventLog.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'cognition.outbox_replayed',
+          actor: 'system',
+          subjectType: 'application',
+          subjectId: null,
+          correlationId: null,
+          payload: drained
+        })
+      }
+    } catch {
+      console.warn('Queued post-turn cognition could not be replayed; it stays queued for the next start.')
     }
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)

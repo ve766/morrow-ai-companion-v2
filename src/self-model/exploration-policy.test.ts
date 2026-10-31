@@ -162,8 +162,21 @@ describe('ExplorationService', () => {
     const candidate = interest({ label: '神经科学' })
     const turnId = randomUUID()
     service.decide({ turnId, interests: [candidate], turn: null })
-    expect(service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '好的。' })).toBe('not_raised')
+    // '好的。' is too short to judge, so the honest answer is `uncertain`, not a
+    // confident "did not raise". It still must not consume the budget.
+    expect(service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '好的。' })).toBe('uncertain')
     expect(service.recent().raisedLastDay).toBe(0)
+    expect(service.usedToday()).toBe(0)
+  })
+
+  it('distinguishes a reply that clearly ignores the topic', () => {
+    const database = openDatabase()
+    const service = new ExplorationService(database, () => NOW)
+    const candidate = interest({ label: '神经科学' })
+    const turnId = randomUUID()
+    service.decide({ turnId, interests: [candidate], turn: null })
+    expect(service.settle({ turnId, interestId: candidate.id, label: candidate.label, outcome: 'succeeded', reply: '我们换个话题吧，聊聊今天的天气怎么样。' })).toBe('not_raised')
+    expect(service.usedToday()).toBe(0)
   })
 
   it('never counts a failed or cancelled turn as a raise', () => {

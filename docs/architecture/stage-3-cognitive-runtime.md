@@ -160,3 +160,26 @@ buildSelfModelContextBlock
 完成、取消、过期的目标在下一轮直接消失；`resume()` 可恢复（`cancelled` 除外）。
 
 **与既有 `GoalService` 的关系**：后者是审批 + 工具执行的任务演示，留在 Agent 侧，不进入陪伴主链。
+
+
+---
+
+## 2026-10-31 纠偏：运行时变化
+
+> 上文引用的行号已过时。以 `docs/architecture/stage-3-target-architecture-v2.md` 为准。
+
+1. **回合后认知改为事务 outbox**：`cognitive_outbox` 行在 assistant 消息事务内写入，提交后逐模块消费；启动期重放。`onTurnCompleted` 的串行 try/catch 已从生产路径移除（离线调用方保留）。
+2. **兴趣聚合改为可重算投影**：`interests.stale_at` 由触发器标记，`list()`/`activeForContext()` 重算并拒绝 stale 行。
+3. **表达适配与身份分离**：`user_interaction_profile` 独立建表；`effectiveProfile` 只叠加表达偏移。
+4. **目标有生产写入**：outbox `goal` 模块调用 `detectFromTurn`，显式承诺直接建目标、含糊意愿建候选。
+5. **探索多一个 `uncertain` 状态**，预算按 turn 键。
+
+调用链（修正后）：
+
+```
+send → prepare（读：人格基线+交互偏移 / 分析 / 记忆 / 状态 / 长期层 / 序列化）
+     → 授权 → 二次 prepare → hash 比对
+     → 事务[assistant 消息 + 感受事件 + 待决项 + 回合上下文 + outbox 6 行 + 可选 knowledge_gap]
+     → 提交 → drainCognition(turnId)（6 个 projector，各自幂等、各自失败）
+     → 评估 → 返回
+```

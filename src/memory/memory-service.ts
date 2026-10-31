@@ -75,9 +75,12 @@ export class MemoryService {
     options: { useContextUtility?: boolean; importance?: import('./memory-importance').MemoryImportancePort } = {}
   ) {
     this.importance = options.importance
-    this.contextAssembler = new MemoryContextAssembler(
-      options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }
-    )
+    this.contextAssembler = new MemoryContextAssembler({
+      ...(options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }),
+      // Ranking reads the cached importance score. Admission does not: a memory
+      // still has to be relevant before importance can order it.
+      importanceOf: (memoryId) => this.importance?.scoreOf?.(memoryId) ?? 0
+    })
   }
 
   private readonly importance: import('./memory-importance').MemoryImportancePort | undefined
@@ -119,6 +122,18 @@ export class MemoryService {
       lastConfirmedAt: timestamp
     }
     this.repository.create(record, this.revision(record, 'created', null))
+    // The ledger records where this memory came from; the score is derived from
+    // it, never incremented, so a replay cannot inflate importance.
+    this.importance?.recordEvidence?.({
+      memoryId: record.id,
+      sourceRef: `create:${record.id}`,
+      sourceKind: 'user_explicit',
+      actor: 'user',
+      conversationId: null,
+      evidenceType: 'statement',
+      confidence: 1,
+      independenceGroup: `memory:${record.id}`
+    })
     this.importance?.onMemoryChanged(record.id)
     this.recordEvent(sourceCategory === MEMORY_SOURCE_CATEGORY ? 'memory.created' : 'memory.created_inferred', record, options.correlationId, { confidence, sensitivity })
     return record
@@ -243,6 +258,21 @@ export class MemoryService {
     const revision = this.revision(updated, changeType, current.revision)
     this.repository.transition(current.revision, updated, revision)
     this.recordEvent(`memory.${changeType}`, updated, correlationId, { revision: updated.revision })
+    // A correction is evidence that this memory matters, and it is recorded as
+    // such — but it is not a repetition: being corrected twice does not mean the
+    // user stated it twice.
+    if (changeType === 'corrected') {
+      this.importance?.recordEvidence?.({
+        memoryId: updated.id,
+        sourceRef: `correct:${updated.id}:${updated.revision}`,
+        sourceKind: 'user_explicit',
+        actor: 'user',
+        conversationId: null,
+        evidenceType: 'correction',
+        confidence: 1,
+        independenceGroup: `correction:${updated.id}`
+      })
+    }
     // Importance is recomputed from the new revision set, never incremented, so
     // a correction raises it and a retraction cannot leave a stale high score.
     this.importance?.onMemoryChanged(updated.id)

@@ -30,6 +30,8 @@ import { EventLogService } from '../../../src/persistence/event-log'
 import { PendingCognitionService } from '../../../src/cognition/pending-items'
 import { PersonalizationService } from '../../../src/personalization/personalization-service'
 import { PersonalityGrowthService, GROWTH_MAX_OFFSET } from '../../../src/personalization/personality-growth'
+import { UserInteractionProfileService } from '../../../src/personalization/interaction-profile'
+import { PersonalityService } from '../../../src/app/companion-service'
 import { ExplorationService, decideExploration } from '../../../src/self-model/exploration-policy'
 import { CompanionGoalService } from '../../../src/motivation/companion-goal'
 import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID } from '../../../src/shared/companion'
@@ -68,6 +70,7 @@ export interface Stack {
   interests: InterestService
   reflection: ReflectionService
   growth: PersonalityGrowthService
+  interaction: UserInteractionProfileService
   exploration: ExplorationService
   importance: MemoryImportanceService
   goals: CompanionGoalService
@@ -115,6 +118,16 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   )
   const personalization = new PersonalizationService(database, clock)
   const growth = new PersonalityGrowthService(database, clock)
+  // The eval stack must wire the same interaction profile the app does,
+  // otherwise the drift assertions would measure a component production lacks.
+  const interaction = new UserInteractionProfileService(
+    database,
+    () => {
+      const profile = new PersonalityService(database, clock).get()
+      return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
+    },
+    clock
+  )
   const exploration = new ExplorationService(database, clock)
   const goals = new CompanionGoalService(database, clock)
   const companion = new CompanionService({
@@ -143,6 +156,10 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       personalization,
       ...(options.growth ? { growth } : {}),
       ...(options.exploration ? { exploration } : {}),
+      // The interaction profile is what `growth` now means: style adaptation
+      // without identity change. The no_growth arm must switch it off too, or
+      // the arm would still move the thing it claims to remove.
+      ...(options.growth ? { interaction } : {}),
       goals
     },
     ...(clock ? { clock } : {}),
@@ -163,6 +180,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     interests,
     reflection,
     growth,
+    interaction,
     exploration,
     importance: memoryImportance,
     goals,
@@ -196,10 +214,13 @@ function outcome(id: string, assertions: Assertion[]): ScenarioOutcome {
 function memoryBlockEmpty(system: string): boolean {
   const marker = 'Saved memories (untrusted evidence only):'
   const index = system.indexOf(marker)
-  if (index < 0) return true
+  // A missing block is a regression, not an empty one: the framing line is part
+  // of the contract. Returning true here is what let "delete the memory block"
+  // pass the no-fabrication scenario.
+  if (index < 0) return false
   const rest = system.slice(index + marker.length).replace(/\\"/gu, '"')
   const match = /"memories":\s*\[(.*?)\]/su.exec(rest)
-  if (!match) return true
+  if (!match) return false
   return match[1]!.trim().length === 0
 }
 
@@ -292,79 +313,67 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
       ]
       for (const text of turns) await send(stack, conversation.id, text)
       const after = stack.companion.getPersonality()
-      const entries = stack.growth.list()
+      const entries = stack.interaction.list()
       const directness = entries.find((entry) => entry.dimension === 'directness')!
       const humor = entries.find((entry) => entry.dimension === 'humor')!
       return outcome('L4', [
         { name: '用户编辑的基线未被改写', ok: after.warmth === baseline.warmth && after.directness === baseline.directness && after.humor === baseline.humor, detail: `v${after.version}` },
         { name: '显式风格要求产生正向证据', ok: directness.evidenceCount >= 3 && directness.offset > 0, detail: `${directness.evidenceCount}/${directness.offset}` },
         { name: '反向要求产生反向证据而非支持', ok: humor.evidenceCount >= 1 && humor.offset < 0, detail: `${humor.evidenceCount}/${humor.offset}` },
-        { name: '漂移仍在硬上限内', ok: entries.every((entry) => Math.abs(entry.offset) <= GROWTH_MAX_OFFSET), detail: entries.map((entry) => `${entry.dimension}:${entry.offset}`).join(',') }
+        { name: '交互偏移仍在硬上限内', ok: entries.every((entry) => Math.abs(entry.offset) <= GROWTH_MAX_OFFSET), detail: entries.map((entry) => `${entry.dimension}:${entry.offset}`).join(',') },
+        { name: '身份基线字段未被交互画像改动', ok: after.disagreementStyle === baseline.disagreementStyle && after.systemRules === baseline.systemRules, detail: 'identity untouched' }
       ])
     }
   },
   {
     id: 'L5',
-    name: '用户兴趣 / Morrow 自身兴趣 / 共同兴趣分离',
+    name: '用户兴趣 / Morrow 自身兴趣 / 共同兴趣分离（走生产链）',
     run: async (stack) => {
-      // 1. A topic the user keeps returning to. It must be labelled as the
-      //    user's, and it must NOT become a topic Morrow may raise.
+      // Order matters: reflection has an hourly budget, and the user-topic turns
+      // below consume it. The gap turns run first so the post-turn reflection
+      // that observes them is the production trigger, not a forced second run.
+      stack.provider.reply = '你住在北京。'
+      for (let round = 0; round < 2; round += 1) {
+        const conversation = stack.companion.createConversation()
+        await send(stack, conversation.id, '我在研究蛋白质折叠的分子动力学，你还记得我住在哪吗？')
+      }
+      const gaps = stack.database.connection.prepare(
+        "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'cognition.knowledge_gap'"
+      ).get() as { n: number }
+      const latestRun = stack.database.connection.prepare(
+        'SELECT id FROM reflection_runs ORDER BY started_at DESC, rowid DESC LIMIT 1'
+      ).get() as { id: string } | undefined
+      const findings = latestRun ? stack.reflection.findings(latestRun.id) : []
+      // `shared` is the correct outcome when Morrow forms her own question about
+      // a topic the user also raised: both sides have independent evidence.
+      const morrowTopic = stack.interests.activeForContext(10).find((interest) => interest.origin !== 'user')
+
+      // A topic the user keeps returning to must stay on the user side.
+      stack.provider.reply = '好的。'
       const userConversations = [stack.companion.createConversation(), stack.companion.createConversation()]
       for (const conversation of userConversations) {
         for (let index = 0; index < 3; index += 1) {
           await send(stack, conversation.id, '我最近一直在研究分布式系统的共识算法。')
         }
       }
-      const afterUserOnly = stack.interests.activeForContext(10)
-      const userTopic = afterUserOnly.find((interest) => interest.origin === 'user')
-      const userOnlyTurn = randomUUID()
-      await stack.companion.sendChat({ conversationId: userConversations[0]!.id, requestId: userOnlyTurn, content: '分布式系统的共识算法里，Paxos 和 Raft 有什么区别？', includeSensitive: false }, () => undefined)
-      const userOnlyPayload = systemText(stack.provider.lastPayload)
-      const userOnlyStates = stack.exploration.history(userOnlyTurn).map((entry) => entry.state)
-
-      // 2. A topic Morrow chose herself. Independent evidence, cited by finding.
-      const morrowConversation = stack.companion.createConversation()
-      const morrowObservations = 3
-      for (let index = 0; index < morrowObservations; index += 1) {
-        stack.interests.observeMorrow({
-          conversationId: index === 2 ? userConversations[1]!.id : morrowConversation.id,
-          findingId: randomUUID(),
-          occurredAt: new Date(Date.now() + index * 1000).toISOString(),
-          // Deliberately a different subject from the user's: a topic the user
-          // already owns must not be re-attributed to Morrow just because she
-          // thought about it.
-          topicText: '长期记忆里证据与遗忘的边界'
-        })
-      }
-      const owned = stack.interests.activeForContext(10).filter((interest) => interest.origin === 'morrow' || interest.origin === 'shared')
-
-      // 3. The next suitable turn may raise it, but the scripted reply says
-      //    nothing about it, so it must settle as not_raised and not consume the
-      //    budget.
-      const raiseTurn = randomUUID()
-      await stack.companion.sendChat({ conversationId: morrowConversation.id, requestId: raiseTurn, content: '今天想聊点什么？', includeSensitive: false }, () => undefined)
-      const raisePayload = systemText(stack.provider.lastPayload)
-      const raiseStates = stack.exploration.history(raiseTurn).map((entry) => entry.state)
-
-      // 4. A failed provider call on a permitted turn must not count as a raise.
-      const failedTurn = randomUUID()
-      stack.provider.failure = 'upstream timeout'
-      try {
-        await stack.companion.sendChat({ conversationId: morrowConversation.id, requestId: failedTurn, content: '继续吧。', includeSensitive: false }, () => undefined)
-      } catch {
-        // expected
-      } finally {
-        stack.provider.failure = null
-      }
-      const failedStates = stack.exploration.history(failedTurn).map((entry) => entry.state)
+      const userTopic = stack.interests.activeForContext(10).find((interest) => interest.origin === 'user' && interest.label.includes('分布式'))
+      const userTurn = randomUUID()
+      await stack.companion.sendChat({ conversationId: userConversations[0]!.id, requestId: userTurn, content: '分布式系统的共识算法里，Paxos 和 Raft 有什么区别？', includeSensitive: false }, () => undefined)
+      const userHistory = stack.exploration.history(userTurn)
+      const userStates = userHistory.map((entry) => entry.state)
+      // The gate may permit a topic Morrow owns; it must never permit one that is
+      // only the user's. Checking the state alone would confuse the two.
+      const permittedForUserTopic = userHistory.some((entry) => entry.state === 'permitted' && entry.interestId === userTopic?.id)
+      const permittedForMorrowTopic = Boolean(morrowTopic) && userHistory.some((entry) => entry.state === 'permitted' && entry.interestId === morrowTopic!.id)
 
       return outcome('L5', [
-        { name: '用户重复话题被标注为用户侧', ok: Boolean(userTopic) && userOnlyPayload.includes('Topics the user returned to'), detail: userTopic ? userTopic.origin : 'none' },
-        { name: '用户兴趣不得被当作 Morrow 自身话题提出', ok: !userOnlyStates.includes('permitted') && !userOnlyStates.includes('actually_raised'), detail: userOnlyStates.join(',') || 'no events' },
-        { name: 'Morrow 自身兴趣有独立证据来源', ok: owned.length > 0 && owned.every((interest) => interest.origin !== 'user'), detail: owned.map((interest) => `${interest.label}:${interest.origin}`).join(',') || 'none' },
-        { name: '自身话题获得许可并进入 payload', ok: raiseStates.includes('permitted') && raisePayload.includes('your own attention'), detail: raiseStates.join(',') || 'no permission' },
-        { name: '回复未提及则不计为已提出', ok: raiseStates.includes('permitted') && !raiseStates.includes('actually_raised') && stack.exploration.recent().raisedLastDay === 0, detail: raiseStates.join(',') },
-        { name: 'Provider 失败不计为成功探索', ok: failedStates.includes('provider_failed') || failedStates.length === 0, detail: failedStates.join(',') || 'no permission this turn' }
+        { name: '知识缺口由事实守卫真实产生', ok: Number(gaps.n) >= 2, detail: `gaps=${gaps.n}` },
+        { name: '反思产出 Morrow 自己的候选', ok: findings.some((finding) => finding.kind === 'morrow_interest_candidate'), detail: findings.map((finding) => finding.kind).join(',') || 'none' },
+        { name: 'Morrow 兴趣归属非用户侧', ok: Boolean(morrowTopic) && morrowTopic!.origin !== 'user', detail: morrowTopic ? `${morrowTopic.label}:${morrowTopic.origin}` : 'none' },
+        { name: 'Morrow 兴趣带反思证据而非消息证据', ok: Boolean(morrowTopic) && stack.interests.evidenceLedger(morrowTopic!.id).some((row) => row.kind === 'reflection'), detail: morrowTopic ? stack.interests.evidenceLedger(morrowTopic!.id).map((row) => row.kind).join(',') : 'none' },
+        { name: '用户重复话题被标注为用户侧', ok: Boolean(userTopic), detail: userTopic ? `${userTopic.label}:${userTopic.origin}` : 'none' },
+        { name: '自身话题在合适回合获得许可', ok: permittedForMorrowTopic, detail: userStates.join(',') || 'no events' },
+        { name: '用户兴趣不得被当作 Morrow 自身话题提出', ok: Boolean(userTopic) && !permittedForUserTopic, detail: `${userStates.join(',') || 'no events'} userTopic=${userTopic?.id.slice(0, 8) ?? 'none'}` }
       ])
     }
   },
@@ -446,30 +455,35 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
   },
   {
     id: 'L10',
-    name: '长期目标跨会话连续性',
+    name: '长期目标由真实对话创建并跨会话连续',
     run: async (stack) => {
-      // Three ownership classes, deliberately different titles so a merged list
-      // would be visible in the payload.
-      const userGoal = stack.goals.create({ title: '在春天前完成 Morrow 第一阶段', owner: 'user', priority: 2 })
-      const sharedGoal = stack.goals.create({ title: '每周一起复盘一次进展', owner: 'shared', priority: 3 })
-      const morrowGoal = stack.goals.create({ title: '搞清楚长期记忆该保留多久', owner: 'morrow', priority: 4 })
-      const overdue = stack.goals.create({ title: '已经过期的旧计划', owner: 'user', priority: 1, dueAt: '2026-01-01T00:00:00.000Z' })
-
       const conversation = stack.companion.createConversation()
-      await send(stack, conversation.id, '我们继续推进之前说的那件事。')
+      // Explicit commitment with a horizon: the user stated it as their plan, so
+      // it may be stored directly. The test never calls `goals.create`.
+      await send(stack, conversation.id, '我打算在明年三月之前完成 Morrow 的第一阶段，这是我的长期目标。')
+      const created = stack.goals.activeForContext(5)
+      const goal = created[0]
+
+      const nextTurn = stack.companion.createConversation()
+      await send(stack, nextTurn.id, '我们继续推进之前说的那件事。')
       const payload = systemText(stack.provider.lastPayload)
 
-      stack.goals.complete(userGoal.id)
-      await send(stack, conversation.id, '再说说现在的计划。')
+      if (goal) stack.goals.complete(goal.id)
+      await send(stack, nextTurn.id, '再说说现在的计划。')
       const afterComplete = systemText(stack.provider.lastPayload)
 
+      // A vague intention must not become a goal; it becomes a candidate.
+      const vague = stack.companion.createConversation()
+      await send(stack, vague.id, '我打算以后多读点书。')
+      const candidates = stack.goals.listCandidates()
+
       return outcome('L10', [
-        { name: '用户目标以用户归属进入 payload', ok: payload.includes(userGoal.title) && payload.includes('Goals the user stated'), detail: 'marker' },
-        { name: '共同计划单独成句', ok: payload.includes(sharedGoal.title) && payload.includes('Plans both sides agreed on'), detail: 'marker' },
-        { name: 'Morrow 自己的问题不冒充用户目标', ok: payload.includes(morrowGoal.title) && payload.includes('Questions Morrow is pursuing'), detail: 'marker' },
-        { name: '过期目标不再出现在请求里', ok: !payload.includes(overdue.title), detail: stack.goals.get(overdue.id)?.status ?? 'missing' },
-        { name: '完成的目标下一轮消失', ok: !afterComplete.includes(userGoal.title), detail: 'text scan' },
-        { name: '目标状态可查询且可恢复', ok: stack.goals.get(userGoal.id)?.status === 'completed', detail: stack.goals.get(userGoal.id)?.status ?? 'missing' }
+        { name: '目标由对话创建而非服务直调', ok: Boolean(goal), detail: goal ? goal.title : 'none' },
+        { name: '目标归属用户', ok: goal?.owner === 'user', detail: goal?.owner ?? 'none' },
+        { name: '目标进入下一轮 payload', ok: Boolean(goal) && payload.includes('Goals the user stated') && payload.includes(goal!.title.slice(0, 8)), detail: 'marker' },
+        { name: '完成的目标下一轮消失', ok: Boolean(goal) && !afterComplete.includes(goal!.title.slice(0, 8)), detail: 'text scan' },
+        { name: '目标状态可查询', ok: Boolean(goal) && stack.goals.get(goal!.id)?.status === 'completed', detail: goal ? stack.goals.get(goal.id)?.status ?? 'missing' : 'none' },
+        { name: '含糊意愿只生成待确认候选', ok: candidates.length >= 1 && stack.goals.activeForContext(5).every((entry) => !entry.title.includes('多读点书')), detail: `${candidates.length} candidates` }
       ])
     }
   },
@@ -489,9 +503,9 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
         memoryId = memory.id
         const conversation = firstStack.companion.createConversation()
         for (let index = 0; index < 3; index += 1) {
-          await firstStack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '以后直接说重点，别铺垫。', includeSensitive: false }, () => undefined)
+          await firstStack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '我更喜欢你直接一点，说重点就行，别绕弯子。', includeSensitive: false }, () => undefined)
         }
-        firstOffsets = Object.fromEntries(firstStack.growth.list().map((entry) => [entry.dimension, entry.offset]))
+        firstOffsets = firstStack.interaction.offsets() as unknown as Record<string, number>
       } finally {
         firstStack.close()
       }
@@ -501,11 +515,15 @@ export const scenarios: Array<{ id: string; name: string; run: (stack: Stack) =>
         const conversation = secondStack.companion.createConversation()
         await secondStack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: '我们继续之前那个长期陪伴项目吧。', includeSensitive: false }, () => undefined)
         const payload = systemText(secondStack.provider.lastPayload)
-        const secondOffsets = Object.fromEntries(secondStack.growth.list().map((entry) => [entry.dimension, entry.offset]))
+        const secondOffsets = secondStack.interaction.offsets() as unknown as Record<string, number>
+        const firstNonZero = Object.values(firstOffsets).some((value) => Math.abs(value) > 0)
         return outcome('L11', [
           { name: '重启后记忆仍进入最终 payload', ok: payload.includes('Morrow'), detail: `memory ${memoryId.slice(0, 8)}` },
-          { name: '重启后人格漂移连续', ok: JSON.stringify(firstOffsets) === JSON.stringify(secondOffsets), detail: JSON.stringify(secondOffsets) },
-          { name: '重启后基线未被改写', ok: secondStack.companion.getPersonality().version >= 1, detail: `v${secondStack.companion.getPersonality().version}` }
+          // Two all-zero objects are equal, so this used to pass without ever
+          // producing a drift. The pre-restart state must be non-default first.
+          { name: '重启前确有非零漂移', ok: firstNonZero, detail: JSON.stringify(firstOffsets) },
+          { name: '重启后交互偏移连续', ok: firstNonZero && JSON.stringify(firstOffsets) === JSON.stringify(secondOffsets), detail: JSON.stringify(secondOffsets) },
+          { name: '重启后身份基线未被改写', ok: secondStack.companion.getPersonality().version >= 1, detail: `v${secondStack.companion.getPersonality().version}` }
         ])
       } finally {
         secondStack.close()

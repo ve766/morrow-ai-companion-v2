@@ -21,6 +21,16 @@ import {
 } from './topic-identity'
 
 /** One observation behind an interest. The ledger, not the counter, is the truth. */
+/**
+ * Half-life of one interest observation, in days.
+ *
+ * Fourteen days is a deliberate choice, not a calibrated parameter: a topic the
+ * user mentioned a month ago and never returned to should weigh less than one
+ * from yesterday, and this is the smallest change that makes that true. It is
+ * recorded as a constant so the registry and the code cannot disagree.
+ */
+export const INTEREST_EVIDENCE_HALF_LIFE_DAYS = 14
+
 export interface InterestEvidenceRow {
   interestId: string
   /** Message id, memory id, or a synthetic id for rows migrated from the old aggregate. */
@@ -43,6 +53,20 @@ export interface InterestEvidenceCounts {
   support: number
   conversations: number
   counter: number
+  /**
+   * Distinct conversations among supporting observations. This is the
+   * independence axis: three repeats in one conversation are one context, not
+   * three.
+   */
+  independentGroups: number
+  /**
+   * Signed, decayed evidence: `Σ polarity × reliability × 2^(-age/14)`.
+   *
+   * Positive and negative evidence are summed separately rather than one
+   * overwriting the other, so a reversal lowers the net instead of erasing the
+   * history. Rounded to 3 decimals to keep the stored aggregate stable.
+   */
+  netSupport: number
   /** Polarity of the newest observation, or null when the ledger is empty. */
   latestPolarity: 'support' | 'counter' | null
   /**
@@ -63,7 +87,7 @@ export interface InterestRepositoryPort {
   insertEvidence(row: InterestEvidenceRow): boolean
   evidenceFor(interestId: string): InterestEvidenceRow[]
   findEvidenceRef(ref: string): InterestEvidenceRow | null
-  fold(interestId: string): InterestEvidenceCounts
+  fold(interestId: string, now?: string): InterestEvidenceCounts
   transaction?<T>(operation: () => T): T
 }
 
@@ -101,6 +125,7 @@ interface InterestRow {
   first_seen_at: string
   last_seen_at: string
   updated_at: string
+  stale_at: string | null
   terms_json: string
   profile_json: string
 }
@@ -127,17 +152,17 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
 
   create(record: InterestRecord): void {
     this.database.connection.prepare(`
-      INSERT INTO interests(id, label, status, origin, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, profile_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(record.id, record.label, record.status, record.origin, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.sourceMessageId, record.conversationId, record.firstSeenAt, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null))
+      INSERT INTO interests(id, label, status, origin, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, stale_at, terms_json, profile_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(record.id, record.label, record.status, record.origin, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.sourceMessageId, record.conversationId, record.firstSeenAt, record.lastSeenAt, record.updatedAt, record.staleAt ?? null, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null))
   }
 
   update(record: InterestRecord): void {
     this.database.connection.prepare(`
       UPDATE interests
-      SET status = ?, origin = ?, evidence_count = ?, conversation_count = ?, strength = ?, confidence = ?, last_seen_at = ?, updated_at = ?, terms_json = ?, profile_json = ?
+      SET status = ?, origin = ?, evidence_count = ?, conversation_count = ?, strength = ?, confidence = ?, last_seen_at = ?, updated_at = ?, stale_at = ?, terms_json = ?, profile_json = ?
       WHERE id = ?
-    `).run(record.status, record.origin, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.lastSeenAt, record.updatedAt, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null), record.id)
+    `).run(record.status, record.origin, record.evidenceCount, record.conversationCount, record.strength, record.confidence, record.lastSeenAt, record.updatedAt, record.staleAt ?? null, JSON.stringify(record.terms), JSON.stringify(record.profile ?? null), record.id)
   }
 
   delete(interestId: string): void {
@@ -165,31 +190,42 @@ export class SqliteInterestRepository implements InterestRepositoryPort {
     return row ? mapEvidence(row) : null
   }
 
-  fold(interestId: string): InterestEvidenceCounts {
+  fold(interestId: string, now?: string): InterestEvidenceCounts {
     // Folded in code rather than SQL: the state depends on *order*, and a single
     // aggregate query cannot say which polarity came last. `evidenceFor` already
     // returns rows ordered by (created_at, evidence_ref), so a tie is decided by
     // the ref and the result is deterministic.
     const rows = this.evidenceFor(interestId)
+    const nowMs = Date.parse(now ?? new Date().toISOString())
     const conversations = new Set<string>()
     let support = 0
     let counter = 0
+    let net = 0
     let lastSupportIndex = -1
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index]!
+      const ageDays = Number.isFinite(nowMs) ? Math.max(0, (nowMs - Date.parse(row.createdAt)) / 86_400_000) : 0
+      const decay = Math.pow(2, -ageDays / INTEREST_EVIDENCE_HALF_LIFE_DAYS)
+      // `match_score` is the topic-identity confidence, used here as the
+      // reliability of this observation. A weak match counts weakly.
+      const weight = Math.max(0, Math.min(1, row.score)) * decay
       if (row.polarity === 'support') {
         support += 1
+        net += weight
         conversations.add(row.conversationId)
         lastSupportIndex = index
       } else {
         counter += 1
+        net -= weight
       }
     }
     const recentCounters = rows.slice(lastSupportIndex + 1).filter((row) => row.polarity === 'counter').length
     return {
       support,
       conversations: conversations.size,
+      independentGroups: conversations.size,
       counter,
+      netSupport: Math.round(net * 1000) / 1000,
       latestPolarity: rows.at(-1)?.polarity ?? null,
       recentCounters,
       lastSupportAt: lastSupportIndex >= 0 ? rows[lastSupportIndex]!.createdAt : null
@@ -217,6 +253,7 @@ function mapInterest(row: InterestRow): InterestRecord {
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     updatedAt: row.updated_at,
+    staleAt: row.stale_at ?? null,
     terms: parseTerms(row.terms_json),
     profile: parseTopicProfile(safeParse(row.profile_json))
   }
@@ -296,9 +333,24 @@ export class InterestService {
 
   /** Active interests for context assembly, strongest first. */
   activeForContext(limit = 5): InterestRecord[] {
+    // `list()` reconciles, which clears `staleAt` on success. A row that is
+    // still marked stale after that failed to recompute, and a projection that
+    // could not be rebuilt must not be presented as a fact about the user.
     return this.list()
-      .filter((record) => record.status === 'active')
+      .filter((record) => record.status === 'active' && !record.staleAt)
       .slice(0, limit)
+  }
+
+  /**
+   * Recomputes one aggregate from its evidence ledger.
+   *
+   * Public because a deleted message leaves the aggregate marked stale by a
+   * trigger, and the repair must be runnable without waiting for the next read.
+   */
+  recompute(interestId: string): InterestRecord | null {
+    const record = this.repository.all().find((candidate) => candidate.id === interestId)
+    if (!record) return null
+    return this.reconcile(record)
   }
 
   /**
@@ -387,7 +439,7 @@ export class InterestService {
       this.recordEvent('interest.counter_evidence', best.record, {
         ref: observation.messageId,
         score: best.match.score,
-        counter: this.repository.fold(best.record.id).counter
+        counter: this.repository.fold(best.record.id, this.safeTimestamp(this.clock())).counter
       })
       return next
     }
@@ -425,7 +477,10 @@ export class InterestService {
       kind,
       conversationId: observation.conversationId,
       polarity: 'support',
-      score: best?.match.score ?? 0,
+      // A brand-new topic has no match to score against; the observation itself
+      // is a direct statement, so it carries full reliability. Scoring it 0 made
+      // every fresh interest weightless.
+      score: best ? best.match.score : 1,
       reason: best ? best.match.reason : 'new_topic',
       createdAt: now,
       evidenceRevision
@@ -464,18 +519,19 @@ export class InterestService {
     })
     // A replay of the same observation must not move anything.
     if (!inserted) return this.reconcile(existing) ?? existing
-    const folded = this.repository.fold(existing.id)
+    const folded = this.repository.fold(existing.id, this.safeTimestamp(this.clock()))
     const evaluation = this.evaluate(existing.status, folded)
     // A returning topic that was archived becomes a candidate again, and a
     // candidate only becomes active through the documented threshold.
     let status = evaluation.status
     if (existing.status === 'archived' && existing.conversationId !== observation.conversationId) status = 'candidate'
-    // User evidence on a topic Morrow owns makes it shared; Morrow's own evidence
-    // on a user topic does not. The two claims stay distinguishable instead of
-    // one silently becoming the other.
+    // `shared` means both sides have independent evidence for the same topic —
+    // in either order. What must never happen is one side silently becoming the
+    // other: user evidence on a Morrow topic does not make it `user`, and Morrow
+    // evidence on a user topic does not make it `morrow`.
     const origin: InterestRecord['origin'] = observation.origin === 'morrow'
-      ? existing.origin
-      : existing.origin === 'morrow' ? 'shared' : existing.origin
+      ? (existing.origin === 'user' ? 'shared' : existing.origin)
+      : (existing.origin === 'morrow' ? 'shared' : existing.origin)
     const updated: InterestRecord = {
       ...existing,
       origin,
@@ -512,7 +568,7 @@ export class InterestService {
    * must not keep an interest alive in the next prompt.
    */
   private reconcile(record: InterestRecord): InterestRecord | null {
-    const folded = this.repository.fold(record.id)
+    const folded = this.repository.fold(record.id, this.safeTimestamp(this.clock()))
     if (folded.support === 0) {
       // No supporting observation is left at all: the interest has no standing,
       // whatever counters it may have. Removed so it cannot reach the next prompt.
@@ -524,7 +580,7 @@ export class InterestService {
 
     if (record.evidenceCount === evaluation.evidenceCount && record.conversationCount === evaluation.conversationCount &&
       record.status === evaluation.status && Math.abs(record.strength - evaluation.strength) < 0.0005 &&
-      record.confidence === evaluation.confidence) {
+      record.confidence === evaluation.confidence && !record.staleAt) {
       return record
     }
     const repaired: InterestRecord = {
@@ -534,6 +590,7 @@ export class InterestService {
       strength: evaluation.strength,
       confidence: evaluation.confidence,
       status: evaluation.status,
+      staleAt: null,
       updatedAt: this.safeTimestamp(this.clock())
     }
     this.repository.update(repaired)
@@ -575,14 +632,22 @@ export class InterestService {
     strength: number
     confidence: number
   } {
+    // Two numbers, two jobs:
+    //   - promotion is a *count* question ("how many independent observations
+    //     still stand"), so it uses the integer count minus the counters that
+    //     were recorded after the newest support;
+    //   - strength is an *evidence weight* question, so it uses the signed,
+    //     decayed and reliability-weighted net. An old observation counts less
+    //     without changing whether the topic crossed the promotion gate.
     const effectiveSupport = Math.max(0, folded.support - folded.recentCounters)
-    const conversationCount = Math.max(1, folded.conversations)
+    const netSupport = Math.max(0, folded.netSupport)
+    const conversationCount = Math.max(1, folded.independentGroups)
     return {
       status: this.derivedStatus(current, conversationCount, effectiveSupport, folded.latestPolarity),
       evidenceCount: folded.support,
       effectiveSupport,
       conversationCount,
-      strength: computeInterestStrength(effectiveSupport, conversationCount, 0),
+      strength: computeInterestStrength(netSupport, conversationCount, 0),
       confidence: confidenceForEvidence(effectiveSupport, conversationCount)
     }
   }

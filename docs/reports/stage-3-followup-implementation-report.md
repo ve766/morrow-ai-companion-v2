@@ -176,3 +176,23 @@ F1–F5 已按代码级修复并有回归证据，F6 已修，F7 只保留客观
 | S3-03 | 已修：净证据聚合 + 不确定性门禁 + 非断言语气 abstain |
 | S3-04 | 已修：事务内预算预留（迁移 33），失败/未提出释放名额 |
 | S3-05 | 已修：登记表删除追加段，规则内联，旧映射标 deprecated |
+
+
+---
+
+## 10. 2026-10-31 全代码纠偏（对应任务 §1 P0-1…P0-8）
+
+| 编号 | 状态 | 关键改动 | 回归 |
+|---|---|---|---|
+| P0-1 | 已修（通道 + 一种生产者） | 知识缺口事件 → 反思候选 → `observeMorrow`；归属升级为 `shared` | L5 六条；变异测试证明会红 |
+| P0-2 | 已修 | 迁移 34：FK + `stale_at` + 删证据不删聚合 + 清孤儿 | `migrations.test.ts`、`interest-evidence.test.ts` |
+| P0-3 | 已修 | `cognitive-outbox.ts`：事务内入队、模块级幂等、启动重放 | 7 条单测 |
+| P0-4 | 已修 | `user_interaction_profile` 与身份分离 | L4 + 6 条单测 |
+| P0-5 | 已修 | `memory_evidence`、类型化半衰期、重要度进排序 | 排序对照测试 |
+| P0-6 | 部分 | `detectFromTurn` + `goal_candidates`；确认入口缺 IPC/UI | L10 |
+| P0-7 | 已修 | 6 类假阳性关闭 + 变异测试 | 见验收矩阵 §3 |
+| P0-8 | 已修 | `uncertain` 状态；预算按 turn 键 | 探索单测 |
+
+**门槛**：`tsc` 0 / `vitest` **87 文件 774 用例** / `eval:stage3` **15 PASS · 0 FAIL · 1 NOT_RUN** / 消融三臂各自命中 / 纵向·重启·长对话 PASS。
+
+**仍未完成**：身份自身演化、反思质量指标、appraisal 重构、目标确认 UI、语义级提出检测、语音、真实 Provider、Windows 安装升级、CI。

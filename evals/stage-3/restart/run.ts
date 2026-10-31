@@ -39,7 +39,7 @@ async function main(): Promise<void> {
         topicText: '长期记忆里证据与遗忘的边界'
       })
     }
-    firstOffsets = Object.fromEntries(first.growth.list().map((entry) => [entry.dimension, entry.offset]))
+    firstOffsets = first.interaction.offsets() as unknown as Record<string, number>
     firstInterestId = first.interests.activeForContext(10).find((interest) => interest.origin !== 'user')?.id ?? ''
     assertions.push({ name: '重启前写入记忆与漂移', ok: Boolean(memory.id) && Object.values(firstOffsets).some((offset) => offset !== 0), detail: JSON.stringify(firstOffsets) })
   } finally {
@@ -51,7 +51,7 @@ async function main(): Promise<void> {
     const conversation = second.companion.createConversation()
     await second.companion.sendChat({ conversationId: conversation.id, requestId: crypto.randomUUID(), content: '我们继续之前那个项目。', includeSensitive: false }, () => undefined)
     const payload = systemText(second.provider.lastPayload)
-    const secondOffsets = Object.fromEntries(second.growth.list().map((entry) => [entry.dimension, entry.offset]))
+    const secondOffsets = second.interaction.offsets() as unknown as Record<string, number>
     const secondInterest = second.interests.activeForContext(10).find((interest) => interest.origin !== 'user')
 
     assertions.push({ name: '重启后记忆进入最终 payload', ok: payload.includes('Morrow'), detail: 'text scan' })

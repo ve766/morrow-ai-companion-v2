@@ -1,8 +1,8 @@
 {
-  "datasetVersion": "stage-3-v1.3",
-  "harnessVersion": "stage-3-runner-v4",
+  "datasetVersion": "stage-3-v2.0",
+  "harnessVersion": "stage-3-runner-v5",
   "provider": "scripted-offline",
-  "note": "Each scenario is executed by evals/stage-3/runner/cli.ts against a temporary SQLite database and the real CompanionService. A scripted provider is used, so every assertion is about wiring, persistence and the serialized payload — never about model quality. L11 rebuilds the whole runtime on the same database file.",
+  "note": "Scripted provider. Every assertion is about wiring, persistence and the serialized payload. L5 and L10 now drive production paths only; the harness no longer calls observeMorrow() or goals.create() to seed a pass.",
   "scenarios": [
     {
       "id": "L1",
@@ -25,13 +25,13 @@
     {
       "id": "L4",
       "name": "多轮正负反馈下人格稳定",
-      "requirement": "人格稳定 + 双向有界漂移（显式风格指令，含反证）",
+      "requirement": "交互适配有界、双向、可回滚；身份基线字段不被改动",
       "executable": true
     },
     {
       "id": "L5",
       "name": "用户兴趣与 Morrow 自身关注不混淆",
-      "requirement": "用户兴趣 / Morrow 自身兴趣 / 共同兴趣分离；许可 ≠ 已提出",
+      "requirement": "用户/Morrow/共同兴趣三分，且 Morrow 兴趣由真实反思生产链产生（不靠测试注入）",
       "executable": true
     },
     {
@@ -61,13 +61,13 @@
     {
       "id": "L10",
       "name": "长期目标跨会话连续性",
-      "requirement": "长期目标跨会话连续；用户目标/共同计划/Morrow 问题三分；完成与过期即退出上下文",
+      "requirement": "长期目标由真实对话创建；含糊意愿只生成待确认候选",
       "executable": true
     },
     {
       "id": "L11",
       "name": "重启后状态连续",
-      "requirement": "真实主数据库 + 全运行时重建后连续",
+      "requirement": "重启前后交互偏移非零且连续；身份基线不变",
       "executable": true
     },
     {

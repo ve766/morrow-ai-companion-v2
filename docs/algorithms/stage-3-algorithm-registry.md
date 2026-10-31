@@ -221,3 +221,82 @@ T    = 0.5^(age_days / 90)
 - 反思**质量指标**（§2C）。
 - 语音 ASR/TTS 闭环（§2F）。
 - 人格漂移的 UI 呈现与用户确认流程（服务层已有 `rollback`，界面未接）。
+
+
+---
+
+## 2026-10-31 纠偏：算法变更（以本节为准）
+
+> 与上文冲突时，本节优先。上文的 G1「人格成长」与 X1「预算」描述已被下列版本取代。
+
+### I1 兴趣证据折叠（替代「计数」）
+
+```
+net(i) = Σ_g polarity_g × reliability_g × 2^(−age_g/14)
+```
+
+- `reliability_g` = 该观测的主题匹配分（新主题直接观测记 1.0）；
+- `age` 半衰期 **14 天**（`INTEREST_EVIDENCE_HALF_LIFE_DAYS`）；
+- 晋升仍用**整数计数**：`support − recentCounters ≥ 3` 且独立会话 ≥ 2；
+- 强度用 `net`，置信度用计数——两者分离，不再混成一个数；
+- 参数版本：`interest.evidence.v2`。
+
+**证据独立性**：一个观测 = 一条来源（message / memory / reflection finding），`UNIQUE(evidence_ref)` 保证重试与重复反思只记一次；独立性按 `conversation_id` 分组。
+
+### I2 归属升级
+
+```
+origin' = morrow 且 origin=user  → shared
+origin' = user   且 origin=morrow → shared
+否则保持不变
+```
+
+`shared` 的定义是「双方各有独立证据」，与先后顺序无关；任一侧都不得吞掉另一侧。
+
+### M2 记忆重要度（修正）
+
+```
+I(m) = clip(.30·S + .25·U + .15·R + .10·G + .10·C + .10·T, 0, 1)
+R = 1 − e^(−n/3)          n = evidence_type='restatement' 的独立分组数
+T = 2^(−age/H_type)       H ∈ {365 边界/身份, 180 目标或用户明确, 90 其它}
+```
+
+- **`revision` 不再参与 R**：编辑不等于提及；
+- `n` 来自 `memory_evidence` 账本，无行时为 0；
+- 排序：`rank = base + 0.20·I`（加法，只影响近分；准入在排序之前）；
+- 参数版本：`memory.importance.v2`。
+
+### X2 探索状态与预算（修正）
+
+```
+状态: permitted → selected_for_prompt → actually_raised | not_raised | uncertain
+                                      ↘ provider_failed | user_rejected
+预算键: (scope, turn_id) + reservation_day
+```
+
+- `uncertain` 独立存在，不消耗预算，也不再被报成 `not_raised`；
+- consume/release 只按 `turn_id` 查找，跨 UTC 日不再丢预约。
+
+### G2 交互适配（替代 G1 的语义）
+
+```
+offset_d = clamp(Σ polarity·strength·2^(−age/45), −8, +8)   仅当 N_d ≥ 3
+effective_d = clamp(identity_d + offset_d, 0, 100)
+```
+
+- 写入 `user_interaction_profile`，**不写** `personality_profiles`；
+- 只影响 warmth/directness/humor 三个表达数值，`disagreementStyle`/`systemRules`/`version` 恒为身份基线；
+- 参数版本：`interaction-profile.v1`；
+- **身份自身的演化（G1 原意）当前无生产者，标记为未实现。**
+
+### R1 Morrow 问题候选
+
+```
+label 在 ≥2 个独立会话的 knowledge_gap 中出现
+  ∧ label 长度 ≥ 2
+  ∧ label 不匹配问题残留词（哪里/到哪/来着/…）
+  → morrow_interest_candidate → observeMorrow(kind=reflection)
+```
+
+- 缺口来源：事实守卫把无依据个人断言改写（`guard.verdict='rewrite'`）；
+- 已知局限：只覆盖「守卫改写」这一种缺口，不是通用问题生成器。
