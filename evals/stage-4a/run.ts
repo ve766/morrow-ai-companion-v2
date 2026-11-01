@@ -156,15 +156,18 @@ async function live(): Promise<void> {
     const say = async (source: { companion: typeof stack.companion; lastPayload: () => string }, conversationId: string, content: string): Promise<{ reply: string; digest: string; evidence: string[]; operationBlock: string }> => {
       const companion = source.companion
       let reply = ''
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= 5; attempt += 1) {
         try {
           const result = await companion.sendChat({ conversationId, requestId: randomUUID(), content, includeSensitive: false }, () => undefined)
           reply = result.assistantMessage.body
           break
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          const transient = ['PROVIDER_DEADLINE', 'PROVIDER_TIMEOUT', 'PROVIDER_RATE_LIMITED', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RESPONSE'].some((code) => message.includes(code))
-          if (attempt === 3 || !transient) throw error
+          // The provider surfaces the classification on the error code, not
+          // always in the message; both are checked and the bound is 5 because
+          // this reasoning model regularly exceeds the 45s deadline.
+          const marker = [error instanceof Error ? error.message : String(error), String((error as { code?: string }).code ?? '')].join(' ')
+          const transient = ['PROVIDER_DEADLINE', 'PROVIDER_TIMEOUT', 'PROVIDER_RATE_LIMITED', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RESPONSE'].some((code) => marker.includes(code))
+          if (attempt === 5 || !transient) throw error
         }
       }
       const system = systemText(source.lastPayload())
