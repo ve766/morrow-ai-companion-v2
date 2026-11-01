@@ -237,6 +237,30 @@ export class ReflectionFindingRouter {
     return hints
   }
 
+  /**
+   * R5: records the consumption outcome for hints injected into one turn,
+   * judged from the delivered reply. `used_observed` requires a deterministic
+   * term overlap between the finding statement and the reply; anything else is
+   * honestly `not_observed`. The model saying "I used it" proves nothing.
+   */
+  observeConsumption(turnId: string, reply: string): void {
+    const rows = this.options.database.connection.prepare(
+      "SELECT finding_id, kind, statement FROM reflection_finding_routes WHERE injected_turn_id = ? AND status = 'injected'"
+    ).all(turnId.toLowerCase()) as Array<{ finding_id: string; kind: string; statement: string }>
+    for (const row of rows) {
+      const terms = row.statement.split(/[^\p{Script=Han}a-zA-Z]+/u).filter((term) => term.length >= 2)
+      const hit = terms.some((term) => reply.toLowerCase().includes(term.toLowerCase()))
+      const outcome = hit ? 'used_observed' : 'not_observed'
+      try {
+        this.options.database.connection.prepare(
+          "UPDATE reflection_finding_routes SET status = ?, updated_at = ? WHERE finding_id = ? AND status = 'injected'"
+        ).run(outcome, this.clock(), row.finding_id)
+      } catch {
+        // Trace writes never break the chat path.
+      }
+    }
+  }
+
   /** One bounded prompt block. Empty when there is nothing eligible. */
   promptBlock(turnId?: string): string {
     const hints = this.promptHints({ injectedTurnId: turnId })

@@ -1052,6 +1052,9 @@ export class CompanionService {
                 }
               }
             : {}),
+          observeConsumption: (input) => {
+            selfModelLoop.findingRouter?.observeConsumption(input.turnId, input.reply)
+          },
           recordKnowledgeGap: (input) => {
             // Durable on purpose. This event is the input to reflection — the
             // evidence that Morrow failed to ground something — not telemetry.
@@ -1225,6 +1228,8 @@ export interface SelfModelLoopHooks {
    * failed to close. It is deliberately not "the user mentioned X often".
    */
   recordKnowledgeGap?(input: { label: string; conversationId: string; turnId: string }): void
+  /** R5: grades the consumption of hints this turn injected. */
+  observeConsumption?(input: { turnId: string; reply: string }): void
 }
 
 /**
@@ -1649,6 +1654,9 @@ export class ChatService {
       // the exploration permission be settled against the text that was actually
       // delivered.
       this.settleExploration(requestId, 'succeeded', deliveredText)
+      // R5: the reflection router grades what its injected hints achieved in
+      // this exact reply (deterministic term evidence, never model self-report).
+      this.selfModel?.observeConsumption?.({ turnId: requestId, reply: deliveredText })
       this.recordTurnState(conversationId, requestId, 'committed')
       if (this.outbox && this.projectors.length > 0) {
         const drained = this.drainCognition(requestId)

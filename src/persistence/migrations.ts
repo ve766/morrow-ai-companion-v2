@@ -2205,7 +2205,7 @@ export const migrations: readonly Migration[] = [
         CREATE TABLE reflection_finding_routes (
           finding_id TEXT PRIMARY KEY NOT NULL CHECK (length(finding_id) = 36),
           route TEXT NOT NULL CHECK (route IN ('context_hint', 'pending_user', 'audit_only')),
-          status TEXT NOT NULL CHECK (status IN ('routed', 'injected', 'consumed', 'expired', 'rejected', 'dismissed')),
+          status TEXT NOT NULL CHECK (status IN ('routed', 'injected', 'used_observed', 'not_observed', 'consumed', 'expired', 'rejected', 'dismissed')),
           reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 200),
           run_id TEXT NOT NULL CHECK (length(run_id) = 36),
           kind TEXT NOT NULL CHECK (length(kind) BETWEEN 1 AND 64),
