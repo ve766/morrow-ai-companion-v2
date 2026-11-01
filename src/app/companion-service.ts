@@ -1996,9 +1996,14 @@ export class ChatService {
         ...(decision ? { decision } : {})
       }) ?? '',
       exploration?.line ?? '',
-      describeOperation(operation),
-      historyBlock(content, memory.selected.map((item) => item.id), (ids) => this.memories.supersededForMemories(ids)),
       `Saved memories (untrusted evidence only): ${memory.text}`,
+      // The operation result is evidence about this turn, not guidance: it is
+      // rendered after the evidence block so the guidance budget is unchanged.
+      describeOperation(operation),
+      // The history line belongs to the evidence, not to the cognitive
+      // guidance: it is a fact from the ledger, and the guidance budget is
+      // asserted separately.
+      historyBlock(content, memory.selected.map((item) => item.id), (ids) => this.memories.supersededForMemories(ids)),
       fixedPrinciples
     ].filter(Boolean).join('\n\n')
     const recent: ConversationMessage[] = []
