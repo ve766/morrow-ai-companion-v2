@@ -185,7 +185,7 @@ export class ReflectionFindingRouter {
    * confident first. Findings the user rejected are excluded; injecting marks
    * the route row, so the trace shows what the model actually saw.
    */
-  promptHints(limit = MAX_PROMPT_HINTS): PromptHint[] {
+  promptHints(options: { limit?: number; injectedTurnId?: string | undefined } = {}): PromptHint[] {
     const now = this.clock()
     const nowMs = Date.parse(now)
     const rows = this.options.database.connection.prepare(`
@@ -201,7 +201,7 @@ export class ReflectionFindingRouter {
     const hints: PromptHint[] = []
     const filtered: string[] = []
     for (const row of rows) {
-      if (hints.length >= limit) break
+      if (hints.length >= (options.limit ?? MAX_PROMPT_HINTS)) break
       const kind = row.kind as ReflectionFindingKind
       const spec = FINDING_ROUTES[kind]
       if (!spec || spec.route !== 'context_hint') continue
@@ -220,6 +220,16 @@ export class ReflectionFindingRouter {
         provenance: `reflection run ${row.run_id.slice(0, 8)}`
       })
       this.markStatus(row.id, 'injected', `hint #${hints.length} in the next prompt`)
+      // P1 consumption trace: which turn the hint actually reached.
+      if (options.injectedTurnId) {
+        try {
+          this.options.database.connection.prepare(
+            'UPDATE reflection_finding_routes SET injected_turn_id = ? WHERE finding_id = ?'
+          ).run(options.injectedTurnId.toLowerCase(), row.id)
+        } catch {
+          // Trace writes never break the prompt path.
+        }
+      }
     }
     if (filtered.length > 0) {
       this.recordEvent('reflection.hints_filtered', null, { filtered })
@@ -228,8 +238,8 @@ export class ReflectionFindingRouter {
   }
 
   /** One bounded prompt block. Empty when there is nothing eligible. */
-  promptBlock(): string {
-    const hints = this.promptHints()
+  promptBlock(turnId?: string): string {
+    const hints = this.promptHints({ injectedTurnId: turnId })
     if (hints.length === 0) return ''
     const lines = hints.map((hint) => `- [${hint.kind}, ${hint.provenance}, ${hint.ageHours}h old] ${hint.statement}`)
     return [

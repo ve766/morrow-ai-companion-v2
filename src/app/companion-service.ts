@@ -1683,7 +1683,29 @@ export class ChatService {
           return value.length >= 2 && deliveredText.toLocaleLowerCase().includes(value)
         })
         .map((item) => item.id)
-      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, memoryUse: { referencedIds: referencedMemoryIds, deliveredCount: verified.memory.selected.length }, guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
+      // P0-B evidence gate. Classification is mutually exclusive and ordered
+      // by severity: an answer the fact guard had to rewrite is an answer/
+      // evidence conflict even when evidence was delivered and used; with no
+      // conflict, delivered-but-unused evidence is a model-side miss; a
+      // personal-fact question that retrieved nothing is a retrieval miss.
+      const conflictIds = verified.memory.selected.filter((item) => (item.conflictWith?.length ?? 0) > 0).map((item) => item.id)
+      const manifest = {
+        selectedIds: verified.memory.selected.map((item) => item.id),
+        conflictIds,
+        omitted: verified.memory.omitted
+      }
+      const coverage = manifest.selectedIds.length > 0 ? referencedMemoryIds.length / manifest.selectedIds.length : 0
+      const sourceReliability = manifest.selectedIds.length > 0
+        ? verified.memory.selected.reduce((sum, item) => sum + item.confidence / 100, 0) / manifest.selectedIds.length
+        : 0
+      const conflictPenalty = conflictIds.length > 0 ? 0.2 : 0
+      const answerConfidence = 100 * (0.5 * coverage + 0.3 * sourceReliability + 0.2 * (manifest.selectedIds.length > 0 ? 1 : 0)) * (1 - conflictPenalty)
+      const classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict' =
+        guard.verdict === 'rewrite' ? 'answer_conflict'
+        : manifest.selectedIds.length === 0 ? 'retrieval_miss'
+        : referencedMemoryIds.length === 0 ? 'model_unused'
+        : 'evidence_delivered'
+      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, memoryUse: { referencedIds: referencedMemoryIds, deliveredCount: verified.memory.selected.length }, evidenceGate: { classification, answerConfidence, manifest }, guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
       return {
         conversation: this.conversations.read(conversationId).conversation,
         userMessage,
@@ -1714,6 +1736,11 @@ export class ChatService {
     answer: ReturnType<typeof evaluateAnswerEvidence> | null
     guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
     memoryUse?: { referencedIds: readonly string[]; deliveredCount: number } | null
+    evidenceGate?: {
+      classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict'
+      answerConfidence: number
+      manifest: { selectedIds: readonly string[]; conflictIds: readonly string[]; omitted: number }
+    } | null
   }): TurnEvaluation | undefined {
     if (!input.prepared.decision) return undefined
     try {
@@ -1729,6 +1756,7 @@ export class ChatService {
         payloadSha256: input.preview.payloadSha256,
         payloadCharacters: input.preview.exactPayload.length,
         ...(input.memoryUse ? { memoryUse: input.memoryUse } : {}),
+        ...(input.evidenceGate ? { evidenceGate: input.evidenceGate } : {}),
         providerId: input.config.id,
         model: input.config.model,
         providerOutcome: input.outcome,
