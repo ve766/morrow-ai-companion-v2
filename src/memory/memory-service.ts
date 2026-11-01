@@ -441,7 +441,11 @@ export class MemoryService {
         return SINGLE_VALUED_PREDICATES.has(candidate.predicate) && comparableFactValue(slot.value) !== comparableFactValue(candidate.value)
       })
       if (conflicting) {
-        const memory = this.correct(conflicting.id, display, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
+        // Keep the species the existing memory names: correcting 咪咪→豆豆 must
+        // leave '我的猫叫豆豆。', not fall back to the generic 宠物 line.
+        const carried = candidate.predicate === 'pet_name' && !petSpecies ? speciesOf(conflicting.currentText) : null
+        const correctedText = carried ? '我的' + carried + '叫' + candidate.value + '。' : display
+        const memory = this.correct(conflicting.id, correctedText, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
         results.push({ memory, corrected: true })
         continue
       }
@@ -464,7 +468,8 @@ export class MemoryService {
         const petSources = new Set(this.factIndex ? this.factIndex.lookupActive('pet_name').map((fact) => fact.sourceMemoryId) : [])
         if (petSources.size === 1) {
           const target = [...petSources][0]!
-          const species = /猫/u.test(input.text) ? '猫' : /狗/u.test(input.text) ? '狗' : null
+          const targetText = this.repository.get(target)?.currentText ?? ''
+          const species = speciesOf(input.text) ?? speciesOf(targetText)
           const templateText = species ? '我的' + species + '叫' + value + '。' : FACT_DISPLAY_TEMPLATES.pet_name!(value)
           const memory = this.correct(target, templateText, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
           results.push({ memory, corrected: true })
@@ -596,3 +601,11 @@ function comparableFactValue(value: string): string {
 function cleanFactValue(value: string): string {
   return value.normalize('NFKC').replace(/^[s，,。.；;：:！!？?、]+|[s，,。.；;：:！!？?、]+$/gu, '').trim()
 }
+
+/** The species a memory text names, when it names one. */
+function speciesOf(text: string): '猫' | '狗' | null {
+  if (/猫/u.test(text)) return '猫'
+  if (/狗/u.test(text)) return '狗'
+  return null
+}
+
