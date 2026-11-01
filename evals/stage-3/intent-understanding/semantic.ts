@@ -217,10 +217,22 @@ export async function run(target: ReturnType<typeof selectProvider>, key: string
           error: null
         }
         try {
-          const result = await stack.companion.sendChat(
-            { conversationId: conversation.id, requestId: randomUUID(), content, includeSensitive: false },
-            () => undefined
-          )
+          // Retry a transient timeout like a user would: the spark reasoning
+          // latency regularly crosses the 45s deadline on the first attempt.
+          let result: Awaited<ReturnType<typeof stack.companion.sendChat>> | undefined
+          for (let attempt = 1; attempt <= 3; attempt += 1) {
+            try {
+              result = await stack.companion.sendChat(
+                { conversationId: conversation.id, requestId: randomUUID(), content, includeSensitive: false },
+                () => undefined
+              )
+              break
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              if (attempt === 3 || !(message.includes('PROVIDER_DEADLINE') || message.includes('PROVIDER_TIMEOUT'))) throw error
+            }
+          }
+          if (!result) throw new Error('unreachable: the retry loop either returns or throws')
           const record = stack.readings.forMessage(result.userMessage.id)
           const payload = stack.lastPayload()
           base.reply = result.assistantMessage.body.slice(0, 600)

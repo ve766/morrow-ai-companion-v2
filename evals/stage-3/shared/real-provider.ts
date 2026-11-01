@@ -270,7 +270,7 @@ export interface ProviderStackOptions {
    * turn dies with PROVIDER_UNCONFIGURED — which is what the semantic runner
    * silently did on its first live exercise.
    */
-  credentials?: { providerId: string; model: string; apiKey: string }
+  credentials?: { providerId: import('../../../src/shared/companion').ProviderId; model: string; apiKey: string }
 }
 
 /**
