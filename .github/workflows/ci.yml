@@ -40,6 +40,20 @@ jobs:
           npm run evaluate
           npm run evaluate:cognition
 
+      # D-13: the Stage 3 suites are release gates, not local conveniences.
+      # They bind their results to the checkout SHA and fail the job on any
+      # FAIL; a bound commit of "unknown" is impossible here because the
+      # runner always has the git checkout.
+      - name: Stage 3 suites
+        run: |
+          npm run eval:stage3
+          npm run eval:stage3:ablation
+          npm run eval:stage3:longitudinal
+          npm run eval:stage3:restart
+          npm run eval:stage3:long-conversation
+          npm run eval:stage3:intent
+          npm run eval:stage3:memory
+
       - name: Build application bundles
         run: npm run build
 

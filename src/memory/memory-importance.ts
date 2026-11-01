@@ -11,7 +11,7 @@
  * |---|---|---|---|
  * | S | provenance reliability | 1.0 explicit / 0.7 accepted suggestion / 0.5 turn-derived | `source_category` |
  * | U | explicit importance marker ("记住""重要""务必") | 0 / 1 | memory text |
- * | R | repeated independent mentions | `1 − e^(−n/3)` | revision history |
+ * | R | repeated independent mentions | `1 − e^(−n/3)` | evidence ledger (DISTINCT independence groups) |
  * | G | linked to a stated goal | 0 / 1 | memory text |
  * | C | corrected at least once | 0 / 1 | revision history |
  * | T | recency, `0.5^(age_days/90)` | 0 / 1 | `updated_at` |
