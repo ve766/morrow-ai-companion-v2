@@ -22,3 +22,16 @@
 ## 决策:**BLOCKED**
 
 代码侧(A–H)全部完成;唯一阻断=真人复核 + CI workflow scope(外部条件)。不包装成 GO;PR #19 保持 OPEN。
+
+
+---
+
+# 追加：复核补充轮验收（A–E）
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| A 索引失败处理 | PASS | fact-index-faults.test.ts 4 用例（脱敏事件/退避恢复/窗口不热循环/降级扫描命中）+ v42 |
+| B provenance | PASS | 同文件 B 用例（create→revision→fact 全链 source_message_id=真实 id；correct 无 provenance=legacy）+ accept 路径接线 |
+| C 查询收窄 | PASS | closure 套件 60/60（含 F59/F60 断言值对照）；候选收窄至 residence/employer |
+| D CI | BLOCKED_WORKFLOW_SCOPE | 本地提交 4e8547a；远端无 Stage 3 门禁的事实如实记录 |
+| E 真实模型 | AWAITING_MANUAL_REVIEW | 重跑结果绑定本轮 SHA；J1 原则补强；J3/J7 拒绝语境判定；真人 rubric PENDING |

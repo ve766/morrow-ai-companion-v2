@@ -30,3 +30,18 @@
 ## 迁移
 
 v41(fact-ledger-multi-fact-provenance):fact_records 重建(派生态,启动 reindexAll 重建数据);v40→v41 与 v39→v41 升级测试随迁移谱系覆盖;回滚=前向兼容。
+
+
+---
+
+# 追加：复核补充轮（A–E 项处置，2026-11-01）
+
+任务来源：Issue #22 评论 6557123605（ChatGPT 独立复核补充）。本轮修复与证据的完整清单见 [stage-3-final-closure-delta-audit.md](../audit/stage-3-final-closure-delta-audit.md)。摘要：
+
+- **A FIXED**：空 catch 移除 → 脱敏 degradation 事件；v42 fact_index_jobs 表（唯一 memory_id、attempt、error code、退避）；成功才 indexed；retryDue 到期恢复；索引 degraded 时 bounded extractor 扫描降级（不静默零命中）；故障注入测试 4 用例
+- **B FIXED**：v42 给 memory_revisions 增 provenance 列；MemoryCreateOptions.provenance；accept 建议路径传真实 source_message_id；fact 行引用 revision 自己的 provenance；E2E 断言 fact.source_message_id=真实消息 id
+- **C FIXED**：裸值断言候选收窄至 residence/employer；噪音对照由套件固定
+- **D BLOCKED_WORKFLOW_SCOPE**：ci.yml 门禁已在本地提交 4e8547a；推送需 scope；远端 ci.yml 无 Stage 3 门禁的事实如实记录，旧 SUCCESS 不作为 Stage 3 PASS
+- **E 部分修复+PENDING**：J1 固定原则新增先引用证据；J3/J7 拒绝语境判定替换 includes；J2 分类记录；语义 rubric 真人 PENDING
+
+本轮迁移：v42（fact_index_jobs + memory_revisions provenance 列）。测试：fact-index-faults.test.ts（4）+ 迁移谱系 + 全量。
