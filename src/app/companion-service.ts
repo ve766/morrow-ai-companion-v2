@@ -680,7 +680,7 @@ export interface SelfModelLoopServices {
    * Stage 3 P0-5: the memory evidence producer. Without it the repetition term
    * in the importance formula has no input, which is how it read zero forever.
    */
-  memories?: Pick<import('../memory/memory-service').MemoryService, 'observeUtterance'>
+  memories?: Pick<import('../memory/memory-service').MemoryService, 'observeUtterance' | 'createExplicitFromTurn'>
 }
 
 /** What the long-term layer needs to know about the turn it is describing. */
@@ -872,6 +872,24 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
           conversationId: input.conversationId,
           occurredAt: input.occurredAt
         })
+        // Stage 4-A: an explicit "帮我记住/请记住" request IS the user's
+        // authorization — extract the confident facts and store them with the
+        // real source message id. Corrections of an active single-valued fact
+        // supersede the old value through the same authorized path.
+        const saveRequest = input.analysis?.signals.explicitMemorySaveRequest || input.analysis?.signals.explicitMemoryRequest
+        if (saveRequest) {
+          try {
+            services.memories.createExplicitFromTurn({
+              text: input.readUserMessage(),
+              messageId: input.userMessageId,
+              conversationId: input.conversationId,
+              occurredAt: input.occurredAt
+            })
+          } catch {
+            // A failed explicit creation never breaks the turn; the message
+            // stays in history and the fact index retries on the next write.
+          }
+        }
       }
     },
     {

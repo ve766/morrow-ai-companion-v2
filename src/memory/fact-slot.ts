@@ -470,6 +470,8 @@ export function valuesDisagree(left: string, right: string): boolean {
  * instead of being guessed into a predicate).
  */
 export interface FactCandidate {
+  /** The clause the fact was extracted from. */
+  clause: string
   predicate: FactPredicate
   /** Display value as written. */
   value: string
@@ -488,6 +490,20 @@ export function extractFactSlots(text: string): FactCandidate[] {
   if (normalized.length === 0) return []
   const out: FactCandidate[] = []
   const seen = new Set<string>()
+  // Stage 4-A: the compound introduction shape ("我有一只猫，它叫咪咪") and its
+  // correction ("它现在叫豆豆"). The pronoun clause alone has no marker, so
+  // the pet mention in the neighbouring clause licenses the extraction.
+  const compound = /(?:猫|狗|宠物)[，,]\s*(?:它|这只(?:猫|狗|宠物))(?:现在)?(?:的?名字)?叫([^，。]+)/u.exec(normalized)
+  if (compound) {
+    const value = clean(compound[1] ?? '')
+    if (value.length > 0 && value.length <= 40 && !/^(?:什么|啥)/u.test(value)) {
+      const key = ['pet_name', value.normalize('NFKC').trim().toLocaleLowerCase(), 'positive', 'unspecified'].join('|')
+      if (!seen.has(key)) {
+        seen.add(key)
+        out.push({ clause: compound[0], predicate: 'pet_name', value, valueNormalized: value.normalize('NFKC').trim().toLocaleLowerCase(), polarity: 'positive', time: 'unspecified' })
+      }
+    }
+  }
   for (const clause of splitClauses(normalized)) {
     if (REPORTED.test(clause) || HYPOTHETICAL.test(clause) || DOUBLE_NEGATION.test(clause)) continue
     const time = clauseTime(clause)
@@ -526,7 +542,7 @@ export function extractFactSlots(text: string): FactCandidate[] {
       const key = [extractor.predicate, valueNormalized, polarity, time].join('|')
       if (seen.has(key)) continue
       seen.add(key)
-      out.push({ predicate: extractor.predicate, value, valueNormalized, polarity, time })
+      out.push({ clause, predicate: extractor.predicate, value, valueNormalized, polarity, time })
     }
   }
   return out

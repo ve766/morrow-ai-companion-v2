@@ -22,7 +22,26 @@ import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
-import { readFactSlot, extractFactSlots } from './fact-slot'
+import { readFactSlot, extractFactSlots, SINGLE_VALUED_PREDICATES, type FactCandidate } from './fact-slot'
+import { slotsConflict } from './fact-slot'
+/**
+ * Stage 4-A: display templates for facts created from explicit requests.
+ * Each shape re-extracts to the same predicate, so the fact ledger and the
+ * retriever stay consistent with the text the user sees.
+ */
+const FACT_DISPLAY_TEMPLATES: Partial<Record<import('./fact-slot').FactPredicate, (value: string) => string>> = {
+  residence: (value) => `我住在${value}。`,
+  employer: (value) => `我在${value}工作。`,
+  name: (value) => `我的名字叫${value}。`,
+  age: (value) => `我${value}岁。`,
+  project_code: (value) => `我的项目代号是${value}。`,
+  pet_name: (value) => `我的宠物叫${value}。`,
+  object_location: (value) => `我的证件放在${value}。`,
+  health: (value) => `我对${value}过敏。`,
+  preference: (value) => `我喜欢${value}。`,
+  study: (value) => `我在学习${value}。`,
+  goal: (value) => `我的目标是${value}。`
+}
 import type { MorrowEvent } from '../persistence/event-log'
 import { normalizeAssertion, readMemoryUtterance, sameAssertion } from './memory-evidence-policy'
 
@@ -385,6 +404,74 @@ export class MemoryService {
     this.reindexFact(id)
   }
 
+  /**
+   * Stage 4-A: the explicit "帮我记住" path. The user's own words authorize
+   * the memory, so the statement is extracted into facts and stored with the
+   * real source message id — the link the vertical story was missing. A
+   * candidate that conflicts with an existing active single-valued memory is
+   * treated as the user's explicit correction of that memory (the request
+   * said 帮我记住/帮我更新); otherwise it creates a new memory.
+   * Unknown or ambiguous shapes are skipped — the text stays in the
+   * conversation and in lexical retrieval, never guessed into a predicate.
+   */
+  createExplicitFromTurn(input: {
+    text: string
+    messageId: string
+    conversationId: string
+    occurredAt: string
+    sensitivity?: MemoryRecord['sensitivity']
+  }): Array<{ memory: MemoryRecord; corrected: boolean }> {
+    const results: Array<{ memory: MemoryRecord; corrected: boolean }> = []
+    for (const candidate of extractFactSlots(input.text)) {
+      const display = FACT_DISPLAY_TEMPLATES[candidate.predicate]?.(candidate.value)
+      if (!display) continue
+      validateMemoryText(display)
+      const conflicting = this.repository.listActiveForContext(1000).find((record) => {
+        if (record.status !== 'active') return false
+        const slot = readFactSlot(record.currentText)
+        if (!slot || slot.predicate !== candidate.predicate) return false
+        const asserted = { ...slot, value: candidate.value, kind: candidate.polarity === 'negative' ? 'negated' as const : 'assertion' as const }
+        if (slotsConflict(asserted, slot)) return true
+        return SINGLE_VALUED_PREDICATES.has(candidate.predicate) && comparableFactValue(slot.value) !== comparableFactValue(candidate.value)
+      })
+      if (conflicting) {
+        const memory = this.correct(conflicting.id, display, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
+        results.push({ memory, corrected: true })
+        continue
+      }
+      // Skip an exact restatement: the memory already exists.
+      if (this.repository.listActiveForContext(1000).some((record) => sameAssertion(normalizeAssertion(record.currentText), normalizeAssertion(display)))) continue
+      const memory = this.create(display, input.sensitivity ?? 'personal', {
+        correlationId: input.messageId,
+        provenance: { sourceMessageId: input.messageId, kind: 'message' }
+      })
+      results.push({ memory, corrected: false })
+    }
+    // Stage 4-A pronoun correction: "我说错了，它现在叫豆豆" names no
+    // predicate of its own. It is only resolved when exactly ONE active
+    // single-valued pet memory exists in the ledger — zero or several means
+    // ambiguous, and an ambiguous referent is skipped rather than guessed.
+    if (results.length === 0) {
+      const pronoun = /它(?:现在)?(?:的?名字)?叫([^，。！？]+)/u.exec(input.text)
+      const value = pronoun ? cleanFactValue(pronoun[1] ?? '') : ''
+      if (value.length > 0 && value.length <= 40) {
+        const petSources = new Set(this.factIndex ? this.factIndex.lookupActive('pet_name').map((fact) => fact.sourceMemoryId) : [])
+        if (petSources.size === 1) {
+          const target = [...petSources][0]!
+          const memory = this.correct(target, FACT_DISPLAY_TEMPLATES.pet_name!(value), input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
+          results.push({ memory, corrected: true })
+        }
+      }
+    }
+    if (results.length > 0) {
+      this.recordEvent('memory.explicit_created', results[0]!.memory, input.conversationId, {
+        count: results.length,
+        corrected: results.filter((item) => item.corrected).length
+      })
+    }
+    return results
+  }
+
   private transition(id: string, transition: MemoryTransition, changeType: Exclude<MemoryChangeType, 'created'>, correlationId?: string): MemoryRecord {
     const current = this.repository.get(id)
     if (!current) throw new ApplicationError('NOT_FOUND')
@@ -490,4 +577,14 @@ export class MemoryService {
     }
     return new Date(value).toISOString()
   }
+}
+
+function comparableFactValue(value: string): string {
+  // Mirrors fact-slot's comparable(): strips place suffixes is unnecessary here —
+  // exact normalized compare for the same-predicate check.
+  return value.normalize('NFKC').replace(/[的了]/gu, '').trim().toLocaleLowerCase()
+}
+
+function cleanFactValue(value: string): string {
+  return value.normalize('NFKC').replace(/^[s，,。.；;：:！!？?、]+|[s，,。.；;：:！!？?、]+$/gu, '').trim()
 }
