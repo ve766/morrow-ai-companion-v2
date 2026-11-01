@@ -21,6 +21,7 @@ interface FixtureSession {
   user: string
   expectEvidenceValue?: string
   expectPreResponseOperation?: string
+  sameConversationAs?: string
 }
 
 interface Fixture {
@@ -169,8 +170,11 @@ async function live(): Promise<void> {
       return { reply, digest: payloadDigest(stack.lastPayload()).slice(0, 16), evidence: evidenceEntries(system).map((entry) => entry.content), operationBlock: operationBlockOf(system) }
     }
 
+    const sharedConversations = new Map<string, string>()
     for (const step of fixture.sessions) {
-      const conversation = stack.companion.createConversation()
+      const shared = step.sameConversationAs ? sharedConversations.get(step.sameConversationAs) : undefined
+      const conversation = shared ? { id: shared } : stack.companion.createConversation()
+      sharedConversations.set(step.id, conversation.id)
       const turn = await say(stack.companion, conversation.id, step.user)
       transcript.push({ session: step.id, user: step.user, reply: turn.reply.slice(0, 900), payloadDigest: turn.digest, evidence: turn.evidence, operationBlock: turn.operationBlock })
     }

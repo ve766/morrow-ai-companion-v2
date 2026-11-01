@@ -139,7 +139,9 @@ export function planMemoryOperation(input: PlannerInput): MemoryOperationPlan {
     const sameValue = existing.filter((fact) => fact.valueNormalized === candidate.valueNormalized)
     if (sameValue.length > 0) return { operation: 'none', reason: 'already_current' }
 
-    if (existing.length === 0) {
+    // '我还有一只猫' introduces a SECOND animal: a new fact, not a correction.
+    const another = /(?:还有|另一只|另外一个|另外一只|也有一只|also have another)/iu.test(text)
+    if (existing.length === 0 || another) {
       return {
         operation: 'create',
         messageId: input.messageId,

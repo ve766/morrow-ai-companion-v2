@@ -6,7 +6,11 @@
       "id": "A",
       "user": "我有一只猫，它叫咪咪。帮我记住。",
       "expectPreResponseOperation": "create",
-      "expectOperationBlock": { "operation": "create", "status": "committed_and_verified", "currentValue": "咪咪" }
+      "expectOperationBlock": {
+        "operation": "create",
+        "status": "committed_and_verified",
+        "currentValue": "咪咪"
+      }
     },
     {
       "id": "B",
@@ -17,8 +21,16 @@
       "id": "C",
       "user": "我说错了，它现在叫豆豆。帮我更新。",
       "expectPreResponseOperation": "correct",
-      "expectOperationBlock": { "operation": "correct", "status": "committed_and_verified", "previousValue": "咪咪", "currentValue": "豆豆" },
-      "correctionUnderstanding": { "newValue": "豆豆", "oldValue": "咪咪" }
+      "expectOperationBlock": {
+        "operation": "correct",
+        "status": "committed_and_verified",
+        "previousValue": "咪咪",
+        "currentValue": "豆豆"
+      },
+      "correctionUnderstanding": {
+        "newValue": "豆豆",
+        "oldValue": "咪咪"
+      }
     },
     {
       "id": "D",
@@ -29,12 +41,40 @@
     {
       "id": "E",
       "user": "它之前叫什么？",
-      "historyQuestion": { "oldValue": "咪咪", "currentValue": "豆豆" }
+      "historyQuestion": {
+        "oldValue": "咪咪",
+        "currentValue": "豆豆"
+      },
+      "sameConversationAs": "D"
     }
   ],
   "edgeCases": [
-    { "id": "X1", "kind": "ambiguous_pronoun", "setup": ["我有一只猫叫咪咪。帮我记住。", "我还有一只猫叫小黑。帮我记住。"], "turn": "我说错了，它现在叫豆豆。帮我更新。", "expectOperation": "clarify" },
-    { "id": "X2", "kind": "retracted_not_injected", "setup": ["我的护照放在书房。帮我记住。"], "retract": true, "turn": "我的护照放在哪里？", "expectNoEvidence": "书房" },
-    { "id": "X3", "kind": "idempotent_replay", "turn": "我住在杭州。帮我记住。", "replay": 3, "expectActiveCount": 1 }
+    {
+      "id": "X1",
+      "kind": "ambiguous_pronoun",
+      "setup": [
+        "我有一只猫叫咪咪。帮我记住。",
+        "我还有一只猫叫小黑。帮我记住。"
+      ],
+      "turn": "我说错了，它现在叫豆豆。帮我更新。",
+      "expectOperation": "clarify"
+    },
+    {
+      "id": "X2",
+      "kind": "retracted_not_injected",
+      "setup": [
+        "我的护照放在书房。帮我记住。"
+      ],
+      "retract": true,
+      "turn": "我的护照放在哪里？",
+      "expectNoEvidence": "书房"
+    },
+    {
+      "id": "X3",
+      "kind": "idempotent_replay",
+      "turn": "我住在杭州。帮我记住。",
+      "replay": 3,
+      "expectActiveCount": 1
+    }
   ]
 }
