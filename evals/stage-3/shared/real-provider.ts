@@ -25,6 +25,7 @@ import { join, resolve } from 'node:path'
 import { SqliteDatabase } from '../../../src/persistence/database'
 import { MemoryService } from '../../../src/memory/memory-service'
 import { FactMemoryService } from '../../../src/memory/fact-memory'
+import { RelationshipThreadService } from '../../../src/relationship/relationship-threads'
 import { MemoryImportanceService } from '../../../src/memory/memory-importance'
 import { SqliteMemoryRepository } from '../../../src/persistence/memory-repository'
 import { ConversationService } from '../../../src/conversation/conversation-service'
@@ -241,6 +242,7 @@ export interface ProviderStack {
   memories: MemoryService
   /** Stage 4-A: the fact ledger, read back after the story turns. */
   factMemory: FactMemoryService
+  relationships: RelationshipThreadService
   interests: InterestService
   reflection: ReflectionService
   goals: CompanionGoalService
@@ -292,6 +294,7 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
   const eventLog = new EventLogService(database)
   const importance = new MemoryImportanceService(database)
   const factMemory = new FactMemoryService({ database })
+  const relationships = new RelationshipThreadService({ database })
   const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance, factIndex: factMemory })
   const conversations = new ConversationService(new SqliteConversationRepository(database))
   const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
@@ -335,7 +338,7 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
         }
       }
     }),
-    selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, interaction, exploration, goals, memories },
+    selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, interaction, exploration, goals, memories, relationships },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
@@ -352,6 +355,7 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
   return {
     companion,
     factMemory,
+    relationships,
     database,
     events: eventLog,
     memories,
