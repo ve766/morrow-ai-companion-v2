@@ -182,7 +182,6 @@ async function live(): Promise<void> {
     // the corrected value. The order is part of the fixture, not an accident.
     const intro = await say('A', fixture.sessions[0]!.turns[0]!.user)
     transcript.push({ session: 'A', user: fixture.sessions[0]!.turns[0]!.user, reply: intro.reply.slice(0, 900), payloadDigest: intro.digest, evidence: intro.evidence })
-    transcript.push({ session: 'C', user: fixture.sessions[2]!.turns[0]!.user, reply: correction.reply.slice(0, 900), payloadDigest: correction.digest, evidence: correction.evidence })
     for (const scenario of fixture.realModelScenarios) {
       const turn = await say(scenario.session, scenario.user)
       transcript.push({ session: scenario.session, user: scenario.user, reply: turn.reply.slice(0, 900), payloadDigest: turn.digest, evidence: turn.evidence })
