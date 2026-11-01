@@ -876,7 +876,10 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
         // authorization — extract the confident facts and store them with the
         // real source message id. Corrections of an active single-valued fact
         // supersede the old value through the same authorized path.
-        const saveRequest = input.analysis?.signals.explicitMemorySaveRequest || input.analysis?.signals.explicitMemoryRequest
+        // An explicit save request authorizes storage; a correction signal
+        // ("我说错了，它现在叫豆豆") authorizes the supersede path. Questions never
+        // reach it because the extractor refuses interrogatives.
+        const saveRequest = input.analysis?.signals.explicitMemorySaveRequest || input.analysis?.signals.explicitMemoryRequest || input.analysis?.signals.correction
         if (saveRequest) {
           try {
             services.memories.createExplicitFromTurn({

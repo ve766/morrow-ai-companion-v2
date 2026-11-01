@@ -258,15 +258,22 @@ export class FactMemoryService {
    * a past-tense question may read superseded history (the audit layer).
    */
   lookupActive(predicate: string, options: { limit?: number; queryTime?: string; includeSuperseded?: boolean } = {}): FactRecord[] {
+    // A past-tense read is exactly the case that may see superseded history;
+    // includeSuperseded can only narrow it, never widen a current read.
     const wantPast = options.queryTime === 'past'
-    const statusClause = wantPast && options.includeSuperseded
+    const includeSuperseded = wantPast && options.includeSuperseded !== false
+    const statusClause = includeSuperseded
       ? "status IN ('active', 'superseded')"
       : "status = 'active'"
+    // A historical read sees the superseded value that a current read must not:
+    // superseded rows carry valid_to, so the current-only clause cannot simply
+    // be reused with a wider status list.
+    const validClause = includeSuperseded ? '1=1' : 'valid_to IS NULL'
     const timeClause = wantPast ? '1=1' : "time_state != 'past'"
     const rows = this.options.database.connection.prepare(`
       SELECT id, predicate, value_display, value_normalized, polarity, status, source_memory_id, source_revision, source_message_id, provenance_kind, valid_from, valid_to, confidence, sensitivity, time_state
       FROM fact_records
-      WHERE predicate = ? AND ${statusClause} AND valid_to IS NULL AND ${timeClause}
+      WHERE predicate = ? AND ${statusClause} AND ${validClause} AND ${timeClause}
       ORDER BY confidence DESC, updated_at DESC
       LIMIT ?
     `).all(predicate, options.limit ?? 10) as Array<{ id: string; predicate: string; value_display: string; value_normalized: string; polarity: string; status: string; source_memory_id: string; source_revision: number; source_message_id: string | null; provenance_kind: string; valid_from: string; valid_to: string | null; confidence: number; sensitivity: string; time_state: string }>
