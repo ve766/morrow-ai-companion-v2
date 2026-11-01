@@ -97,6 +97,52 @@ A real-model test is valid only when all of the following are true:
 7. It validates response parsing and the actual Morrow provider adapter path, not merely a standalone curl call.
 8. It stores sanitized machine-readable results under `evals/real-provider/results/` and documents the exact commit tested.
 
+## Which suite a result file came from
+
+Requirement 6 says a scripted response must never be labelled a real-model pass.
+A label alone is not enough: the two kinds of run make different *claims*, and a
+label can be misread, re-aggregated, or lost when a file is copied. So every
+machine-readable result also carries a structural discriminator.
+
+| `suite` | Provider | What the artefact may be quoted as evidence for |
+|---|---|---|
+| `mechanism` | a scripted string | that the decision reaches the payload, the prompt and the database |
+| `semantic` | a real model | nothing automatic — it is the input to a human review |
+| `live` | a real model | the connection contract itself: endpoint, model, latency, parse |
+
+Rules that follow from the table:
+
+- Only `semantic` and `live` artefacts may be cited in any statement about model
+  behaviour. A `mechanism` file quoted as intent accuracy is a reporting defect
+  even when every assertion in it passed, because the provider was a string.
+- A `semantic` run has no pass count. Its normal terminal state is
+  `AWAITING_MANUAL_REVIEW`; it reports no accuracy figure, no denominator, and
+  lists what it did not measure. Aggregating that state as a success contradicts
+  requirement 6 in the same way a scripted pass would.
+- Results of different kinds must be distinguishable without opening the JSON:
+  the blocked-record and semantic file names carry a `-semantic` / `-live`
+  suffix so that a directory listing shows which is which.
+- A `BLOCKED_NO_SECRET` record is a result, not a failure and not a crash. It is
+  written, it names the suite, and it states in the artefact itself that it is
+  not an evaluation result. Absence of a credential is never simulated with a
+  scripted provider.
+- There is exactly one credential path per harness, and no file fallback. Two
+  copies of "read the key" do not fail loudly; they fail as two contradictory
+  verdicts on the same commit.
+
+## When there is no commit to name
+
+Requirement 8 asks for the exact commit tested. Where the tree under test carries
+no `.git`, the honest value is `unknown`, and it must be written as `unknown`
+rather than omitted or guessed. A failed `git` call is not evidence of a clean
+tree, so the working-tree field is also `unknown` there, not `clean`.
+
+A result whose commit field is `unknown` may still be used as evidence about
+*behaviour observed at that moment*, but it cannot support any claim of the form
+"this commit does X", and it must not be counted as a verified build in an
+acceptance report. The gap is closed by re-running in a tree that has an identity,
+not by filling the field in by hand.
+
 ## Branch integration
 
 This contract is initially published on `infra/shared-real-model-test-contract`. It becomes available to every development line only after this branch is merged into the shared integration base (normally `main`) and each feature branch syncs that base. A file committed to one feature branch does not automatically appear on sibling branches.

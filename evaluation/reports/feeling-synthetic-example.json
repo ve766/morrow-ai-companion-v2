@@ -75,8 +75,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "330ddbeb9bf7e283facffdea7d430df53b103832ceabfb39dc0ebcb1bc18f4a5",
-    "repeatedResultHash": "330ddbeb9bf7e283facffdea7d430df53b103832ceabfb39dc0ebcb1bc18f4a5"
+    "resultHash": "7043e3e05e905bbf8a35fd51613729dcc08c1fe71e1e2bdd3c9196520e3c12ef",
+    "repeatedResultHash": "7043e3e05e905bbf8a35fd51613729dcc08c1fe71e1e2bdd3c9196520e3c12ef"
   },
   "checks": {
     "minimumCases": true,
@@ -1078,7 +1078,7 @@
       "actual": {
         "intent": "information_query",
         "eventType": null,
-        "confidenceScore": 84,
+        "confidenceScore": 80,
         "uncertainty": "low",
         "delta": {
           "valence": 0,
@@ -1204,7 +1204,7 @@
       "actual": {
         "intent": "planning",
         "eventType": null,
-        "confidenceScore": 92,
+        "confidenceScore": 88,
         "uncertainty": "low",
         "delta": {
           "valence": 0,
@@ -1526,5 +1526,5 @@
       }
     }
   ],
-  "reportSha256": "68fb169a58d273e8d33f72ec2a01b5d8a1375a21395b4062385b808119d9f735"
+  "reportSha256": "63148ea700e1bd09601105804741f24b1c09655158d7dbe3ffbd273f0408e857"
 }

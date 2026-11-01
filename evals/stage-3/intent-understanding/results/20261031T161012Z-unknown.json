@@ -1,0 +1,721 @@
+{
+  "suite": "mechanism",
+  "datasetVersion": "c1-intent-v1",
+  "harnessVersion": "c1-intent-runner-v1",
+  "paramsVersion": "c1-params-v1",
+  "codeCommit": "unknown",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "clock": "real",
+  "provider": "scripted (not a model)",
+  "startedAt": "2026-10-31T16:10:12.362Z",
+  "finishedAt": "2026-10-31T16:10:50.102Z",
+  "denominator": 22,
+  "counts": {
+    "PASS": 22,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT_RUN": 0
+  },
+  "scenarios": [
+    {
+      "id": "C1-A1",
+      "family": "A",
+      "name": "同一句\"可以，继续。\"在三种承接下不同",
+      "requirement": "上下文决定承接对象：执行 / 讲解 / 讨论",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "执行语境承接为 execution",
+          "ok": true,
+          "detail": "execution"
+        },
+        {
+          "name": "讲解语境承接为 explanation",
+          "ok": true,
+          "detail": "explanation"
+        },
+        {
+          "name": "讨论语境承接为 discussion",
+          "ok": true,
+          "detail": "discussion"
+        },
+        {
+          "name": "执行语境进入 execute_pending",
+          "ok": true,
+          "detail": "execute_pending"
+        },
+        {
+          "name": "讲解语境是回答而不是执行",
+          "ok": true,
+          "detail": "answer"
+        },
+        {
+          "name": "执行语境允许执行动作",
+          "ok": true,
+          "detail": "true"
+        },
+        {
+          "name": "三种承接的证据不同",
+          "ok": true,
+          "detail": "prior_user_message,prior_assistant_message,assistant_asked_question,assistant_offered_execute,user_affirmed_prior,continues_execution,antecedent_bound | prior_user_message,prior_assistant_message,assistant_asked_question,assistant_offered_explain,user_affirmed_prior,continues_explanation,antecedent_bound | prior_user_message,prior_assistant_message,assistant_asked_question,assistant_offered_discuss,user_affirmed_prior,continues_discussion,antecedent_bound"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-A2",
+      "family": "A",
+      "name": "同一句\"那你觉得呢？\"：回抛问题 vs 新提问",
+      "requirement": "助手刚问过问题时，用户是把问题抛回来；否则是新提问",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "回抛时状态为 continuing",
+          "ok": true,
+          "detail": "continuing"
+        },
+        {
+          "name": "回抛证据含 assistant_asked_question",
+          "ok": true,
+          "detail": "prior_user_message,prior_assistant_message,assistant_asked_question,continues_discussion,antecedent_bound"
+        },
+        {
+          "name": "新提问状态为 inferred",
+          "ok": true,
+          "detail": "inferred"
+        },
+        {
+          "name": "新提问不含回抛证据",
+          "ok": true,
+          "detail": "prior_user_message,prior_assistant_message,antecedent_bound"
+        },
+        {
+          "name": "两者都不追问",
+          "ok": true,
+          "detail": "answer/answer"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-A3",
+      "family": "A",
+      "name": "同一句\"帮我看看\"在四种语境下不同",
+      "requirement": "代码 / 图片 / 情绪 / 无上下文的目标槽位与决策不同。目标槽位是本轮措辞里的名词短语，指代由 topic 绑定到来源消息；把\"这个函数\"解析成 parseConfig 这样的实体链接不在本轮实现内，本条不作此主张。",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "代码语境目标取自本轮措辞",
+          "ok": true,
+          "detail": "[{\"name\":\"target\",\"value\":\"函数\",\"status\":\"stated\",\"evidenceMessageId\":\"77e37b20-5314-4fd0-a548-ce393dd98f05\"},{\"name\":\"topic\",\"value\":\"我的函数 parseConfig 总是返回 undefined。\",\"status\":\"inferred\",\"evidenceMessageId\":\"c3a6f47b-3757-44f9-a0d4-685c57396066\"}]"
+        },
+        {
+          "name": "代码语境指代绑定到上一轮那条消息",
+          "ok": true,
+          "detail": "[{\"name\":\"target\",\"value\":\"函数\",\"status\":\"stated\",\"evidenceMessageId\":\"77e37b20-5314-4fd0-a548-ce393dd98f05\"},{\"name\":\"topic\",\"value\":\"我的函数 parseConfig 总是返回 undefined。\",\"status\":\"inferred\",\"evidenceMessageId\":\"c3a6f47b-3757-44f9-a0d4-685c57396066\"}]"
+        },
+        {
+          "name": "图片语境目标取自本轮措辞",
+          "ok": true,
+          "detail": "[{\"name\":\"target\",\"value\":\"图\",\"status\":\"stated\",\"evidenceMessageId\":\"f0a6401e-78b3-4898-abe4-c89f675dfc9a\"},{\"name\":\"topic\",\"value\":\"我截了报错弹窗的图。\",\"status\":\"inferred\",\"evidenceMessageId\":\"b1d956e7-0d89-47da-9003-d791e189f87b\"}]"
+        },
+        {
+          "name": "图片语境指代绑定到上一轮那条消息",
+          "ok": true,
+          "detail": "[{\"name\":\"target\",\"value\":\"图\",\"status\":\"stated\",\"evidenceMessageId\":\"f0a6401e-78b3-4898-abe4-c89f675dfc9a\"},{\"name\":\"topic\",\"value\":\"我截了报错弹窗的图。\",\"status\":\"inferred\",\"evidenceMessageId\":\"b1d956e7-0d89-47da-9003-d791e189f87b\"}]"
+        },
+        {
+          "name": "情绪语境下追问目标而不是臆测",
+          "ok": true,
+          "detail": "clarify"
+        },
+        {
+          "name": "完全无上下文时追问目标",
+          "ok": true,
+          "detail": "missing_target"
+        },
+        {
+          "name": "四种语境的承接主题不同",
+          "ok": true,
+          "detail": "topic slots"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-B1",
+      "family": "B",
+      "name": "疑问句不是请求",
+      "requirement": "speech act 与 intent 分离：质疑用疑问句表达，不等于要求执行",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "质疑被读为 question",
+          "ok": true,
+          "detail": "question"
+        },
+        {
+          "name": "质疑不授权执行",
+          "ok": true,
+          "detail": "false"
+        },
+        {
+          "name": "请求被读为 request",
+          "ok": true,
+          "detail": "request"
+        },
+        {
+          "name": "请求授权执行",
+          "ok": true,
+          "detail": "true"
+        },
+        {
+          "name": "两者的 intent 不同",
+          "ok": true,
+          "detail": "ambiguous/request"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-B2",
+      "family": "B",
+      "name": "\"你能不能…\"是能力询问还是请求",
+      "requirement": "依上下文判定，不靠句形",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "无前序提议时读为能力询问",
+          "ok": true,
+          "detail": "question"
+        },
+        {
+          "name": "能力询问记录歧义",
+          "ok": true,
+          "detail": "negation_scope,capability_vs_request"
+        },
+        {
+          "name": "无前序提议时不授权执行",
+          "ok": true,
+          "detail": "false"
+        },
+        {
+          "name": "有前序提议时读为请求",
+          "ok": true,
+          "detail": "request"
+        },
+        {
+          "name": "有前序提议时授权执行",
+          "ok": true,
+          "detail": "true"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-B3",
+      "family": "B",
+      "name": "偏好表达不等于执行要求",
+      "requirement": "用户表达偏好但没有要求立即执行",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "读为 preference_expression",
+          "ok": true,
+          "detail": "preference_expression"
+        },
+        {
+          "name": "不授权执行",
+          "ok": true,
+          "detail": "false"
+        },
+        {
+          "name": "正常回答而不追问",
+          "ok": true,
+          "detail": "answer"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-C1",
+      "family": "C",
+      "name": "引用他人的命令不归因为用户请求",
+      "requirement": "引用主体必须保留，不得转成删除请求",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "引用读为 quotation",
+          "ok": true,
+          "detail": "quotation"
+        },
+        {
+          "name": "归属为 quoted_other",
+          "ok": true,
+          "detail": "quoted_other"
+        },
+        {
+          "name": "引用不授权执行",
+          "ok": true,
+          "detail": "false"
+        },
+        {
+          "name": "引用不被追问也不被执行",
+          "ok": true,
+          "detail": "acknowledge"
+        },
+        {
+          "name": "同一动作直说时才是请求",
+          "ok": true,
+          "detail": "request"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-C2",
+      "family": "C",
+      "name": "假设不是执行授权",
+      "requirement": "假设句必须单独表示，不能转成动作",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "读为 hypothesis",
+          "ok": true,
+          "detail": "hypothesis"
+        },
+        {
+          "name": "归属为 hypothetical",
+          "ok": true,
+          "detail": "hypothetical"
+        },
+        {
+          "name": "不授权执行",
+          "ok": true,
+          "detail": "false"
+        },
+        {
+          "name": "记录假设不确定性",
+          "ok": true,
+          "detail": "hypothetical_not_instruction,missing_target"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-C3",
+      "family": "C",
+      "name": "否定范围：撤回一个待执行动作",
+      "requirement": "“不要删除刚才那条”必须阻止旧动作",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "先前的删除是请求",
+          "ok": true,
+          "detail": "request"
+        },
+        {
+          "name": "撤回读为 retraction",
+          "ok": true,
+          "detail": "retraction"
+        },
+        {
+          "name": "否定作用于动词短语",
+          "ok": true,
+          "detail": "verb_phrase"
+        },
+        {
+          "name": "命中的动作是 delete",
+          "ok": true,
+          "detail": "delete"
+        },
+        {
+          "name": "决策为 stop_previous",
+          "ok": true,
+          "detail": "stop_previous"
+        },
+        {
+          "name": "撤回不授权执行",
+          "ok": true,
+          "detail": "false"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-C4",
+      "family": "C",
+      "name": "纠正理解而不是撤回动作",
+      "requirement": "“我不是说…”应撤销错误推断，不当作新请求",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "读为 correction",
+          "ok": true,
+          "detail": "correction"
+        },
+        {
+          "name": "状态为 changed",
+          "ok": true,
+          "detail": "changed"
+        },
+        {
+          "name": "记录被纠正的消息",
+          "ok": true,
+          "detail": "be55e36a-e476-4b80-a2a5-6054681aa0ad"
+        },
+        {
+          "name": "不授权执行",
+          "ok": true,
+          "detail": "false"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-C5",
+      "family": "C",
+      "name": "引用助手先前的话不归因为用户立场",
+      "requirement": "被引用的方案不得变成用户的请求或执行授权",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "引用不产生用户请求",
+          "ok": true,
+          "detail": "statement"
+        },
+        {
+          "name": "不授权执行",
+          "ok": true,
+          "detail": "false"
+        },
+        {
+          "name": "payload 不要求执行被引用的动作",
+          "ok": true,
+          "detail": "guidance"
+        },
+        {
+          "name": "引用内容没有被当作待办",
+          "ok": true,
+          "detail": "answer"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-D1",
+      "family": "D",
+      "name": "复合请求拆分且保留次级意图",
+      "requirement": "一轮两个要求，按用户顺序处理",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "决策为 split",
+          "ok": true,
+          "detail": "split"
+        },
+        {
+          "name": "主意图是请求",
+          "ok": true,
+          "detail": "request"
+        },
+        {
+          "name": "保留次级意图",
+          "ok": true,
+          "detail": "[\"information_query\"]"
+        },
+        {
+          "name": "payload 说明按顺序处理",
+          "ok": true,
+          "detail": "guidance"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-D2",
+      "family": "D",
+      "name": "多轮补充槽位",
+      "requirement": "对象与期限在不同轮补充，后者不得覆盖前者",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "补充轮带出时间槽位",
+          "ok": true,
+          "detail": "[{\"name\":\"time_horizon\",\"value\":\"这周\",\"status\":\"stated\",\"evidenceMessageId\":\"b3e784b2-3472-47e3-82da-e6481044cdf7\"},{\"name\":\"topic\",\"value\":\"我想整理一下这个项目的文档。\",\"status\":\"inferred\",\"evidenceMessageId\":\"09e8608e-fead-4517-bbc7-554a4788e9ec\"}]"
+        },
+        {
+          "name": "不为本轮没说的对象编造槽位",
+          "ok": true,
+          "detail": "[{\"name\":\"time_horizon\",\"value\":\"这周\",\"status\":\"stated\",\"evidenceMessageId\":\"b3e784b2-3472-47e3-82da-e6481044cdf7\"},{\"name\":\"topic\",\"value\":\"我想整理一下这个项目的文档。\",\"status\":\"inferred\",\"evidenceMessageId\":\"09e8608e-fead-4517-bbc7-554a4788e9ec\"}]"
+        },
+        {
+          "name": "状态为 continuing",
+          "ok": true,
+          "detail": "continuing"
+        },
+        {
+          "name": "证据含承接上一轮",
+          "ok": true,
+          "detail": "prior_user_message,prior_assistant_message,sequences_prior_turn,antecedent_bound"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-D3",
+      "family": "D",
+      "name": "改变目标后旧意图失效",
+      "requirement": "改变目标必须 supersede 旧分析",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "状态为 changed",
+          "ok": true,
+          "detail": "changed"
+        },
+        {
+          "name": "记录被替换的消息",
+          "ok": true,
+          "detail": "96d1012f-c1bb-4820-b466-171f5446691c"
+        },
+        {
+          "name": "旧分析被撤回",
+          "ok": true,
+          "detail": "1"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-D4",
+      "family": "D",
+      "name": "撤回后下一轮不携带旧待办",
+      "requirement": "撤回必须关闭旧意图与未决项",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "撤回决策为 stop_previous",
+          "ok": true,
+          "detail": "stop_previous"
+        },
+        {
+          "name": "旧分析已撤回",
+          "ok": true,
+          "detail": "d188d13d-6082-4966-a01e-c9ebe870ec73,0e5fd75a-98af-4a6a-99e5-92d8167058fa"
+        },
+        {
+          "name": "下一轮 payload 不再引用旧任务",
+          "ok": true,
+          "detail": "guidance clean"
+        },
+        {
+          "name": "未决项全部关闭",
+          "ok": true,
+          "detail": "0"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-D5",
+      "family": "D",
+      "name": "纠正实体后只使用新值并保留来源",
+      "requirement": "纠正优先，旧分析标记失效",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "状态为 changed",
+          "ok": true,
+          "detail": "changed"
+        },
+        {
+          "name": "旧分析被 supersede",
+          "ok": true,
+          "detail": "32c02b0d-dfdb-4966-9acf-b861a1cd5835"
+        },
+        {
+          "name": "payload 要求以纠正为准",
+          "ok": true,
+          "detail": "guidance"
+        },
+        {
+          "name": "仅剩一条有效分析",
+          "ok": true,
+          "detail": "1"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-E1",
+      "family": "E",
+      "name": "没有相关记忆时返回 unknown 而不是猜测",
+      "requirement": "未知是合法结果",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "不编造用户偏好",
+          "ok": true,
+          "detail": "guidance"
+        },
+        {
+          "name": "决策可回答",
+          "ok": true,
+          "detail": "answer"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-E2",
+      "family": "E",
+      "name": "“这次例外”不被写成长期偏好",
+      "requirement": "例外表达不得改变稳定偏好",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "不产生长期偏好写入",
+          "ok": true,
+          "detail": "0"
+        },
+        {
+          "name": "分析存在且可回答",
+          "ok": true,
+          "detail": "reading"
+        }
+      ],
+      "mutations": []
+    },
+    {
+      "id": "C1-F1",
+      "family": "F",
+      "name": "变异：移除上下文",
+      "requirement": "去掉助手提议后，同一句的决策必须改变",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "原句承接 execution",
+          "ok": true,
+          "detail": "execution"
+        },
+        {
+          "name": "移除上下文后承接消失",
+          "ok": true,
+          "detail": "none"
+        },
+        {
+          "name": "决策确实改变",
+          "ok": true,
+          "detail": "execute_pending/clarify"
+        }
+      ],
+      "mutations": [
+        {
+          "name": "remove_assistant_offer",
+          "before": "execution",
+          "after": "none",
+          "changed": true
+        }
+      ]
+    },
+    {
+      "id": "C1-F2",
+      "family": "F",
+      "name": "变异：加入否定词",
+      "requirement": "同一句加否定后必须从请求变成撤回",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "原句是请求",
+          "ok": true,
+          "detail": "request"
+        },
+        {
+          "name": "加否定后是撤回",
+          "ok": true,
+          "detail": "retraction"
+        },
+        {
+          "name": "授权状态改变",
+          "ok": true,
+          "detail": "true/false"
+        }
+      ],
+      "mutations": [
+        {
+          "name": "add_negation",
+          "before": "request",
+          "after": "retraction",
+          "changed": true
+        }
+      ]
+    },
+    {
+      "id": "C1-F3",
+      "family": "F",
+      "name": "变异：打乱话语主体",
+      "requirement": "去掉引用框架后，同一句必须变成用户请求",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "引用时不归因用户",
+          "ok": true,
+          "detail": "quoted_other"
+        },
+        {
+          "name": "直说时归因用户",
+          "ok": true,
+          "detail": "user"
+        },
+        {
+          "name": "归属确实改变",
+          "ok": true,
+          "detail": "quoted_other/user"
+        }
+      ],
+      "mutations": [
+        {
+          "name": "remove_quotation_frame",
+          "before": "quoted_other",
+          "after": "user",
+          "changed": true
+        }
+      ]
+    },
+    {
+      "id": "C1-F4",
+      "family": "F",
+      "name": "变异：错误候选注入",
+      "requirement": "下游不得盲信被篡改的分析：引用不得授权执行",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "篡改的分析被拒绝",
+          "ok": true,
+          "detail": "true"
+        }
+      ],
+      "mutations": [
+        {
+          "name": "inject_quotation_with_binds",
+          "before": "valid reading",
+          "after": "tampered reading",
+          "changed": true
+        }
+      ]
+    }
+  ],
+  "manualReview": {
+    "status": "PENDING",
+    "reason": "Real-model language understanding needs a human reviewer reading the replies. The same rule set that produced the output cannot grade it."
+  },
+  "notMeasured": [
+    "real-provider intent accuracy",
+    "calibrated probability (no calibration set exists; every score is a heuristic)",
+    "Chinese/English open-domain intent coverage beyond the listed scenarios"
+  ]
+}

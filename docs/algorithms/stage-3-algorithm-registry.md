@@ -20,8 +20,21 @@ offset_d = clamp( Σ_i  s_i · w_i · STEP · decay(age_i) ,  −MAX_OFFSET, +MA
 
 decay(age) = 0.5 ^ (age_days / HALF_LIFE_DAYS)
 
-effective_d = clamp( baseline_d + offset_d , 0, 100 )
+effective_d = clamp( baseline_d + offset_d , 0, 100 )     ← 目标公式，当前未实现
 ```
+
+### 接入口（这一维最容易读错的地方）
+
+`offset_d` 每轮都在算、在存、可回滚，但**没有任何读取方把它送进 prompt**：
+
+| 环节 | 代码位置 | 状态 |
+|---|---|---|
+| 产生证据 | `companion-service.ts:1073–1082`（`deriveGrowthSignals` → `growth.apply`） | 每完成轮写入 |
+| 折叠成 offset | `personality-growth.ts` 全量重算 + `personality_growth_state` | 已实现 |
+| 写进 prompt | `companion-service.ts:996–1013` `effectiveProfile` | **不读 growth**，只加 `interaction.offsets()` |
+| 描述文本 | `personality-growth.ts:281` `describeGrowth()` | 导出但**无生产调用点** |
+
+结论：`effective_d = baseline_d + offset_d` 是设计目标，不是现状。prompt 里实际出现的是"基线 + 交互偏移"（见 G2）。两条路径上，**身份基线本身只由用户编辑改变**——这一点成立。
 
 ### 变量与参数
 
@@ -227,7 +240,12 @@ T    = 0.5^(age_days / 90)
 
 ## 2026-10-31 纠偏：算法变更（以本节为准）
 
-> 与上文冲突时，本节优先。上文的 G1「人格成长」与 X1「预算」描述已被下列版本取代。
+> 本节记录 2026-10-31 的一轮修正，**不是第二套真相**：被修正的条目已在原章节就地改写，这里只保留"改了什么、为什么改"。
+>
+> - **G1 未被取代**。它仍是证据台账（`personality_growth_*`），只是**没有消费者**：`effective_d` 未实现，见 G1「接入口」。
+> - **X1 的预算语义被 X2 取代**（事务内预留，不再读-判-写）。
+> - **G2 不是 G1 的替代品**，它是另一条路径（`user_interaction_profile`），也是当前唯一真正影响 prompt 数值的那条。
+
 
 ### I1 兴趣证据折叠（替代「计数」）
 
@@ -287,7 +305,7 @@ effective_d = clamp(identity_d + offset_d, 0, 100)
 - 写入 `user_interaction_profile`，**不写** `personality_profiles`；
 - 只影响 warmth/directness/humor 三个表达数值，`disagreementStyle`/`systemRules`/`version` 恒为身份基线；
 - 参数版本：`interaction-profile.v1`；
-- **身份自身的演化（G1 原意）当前无生产者，标记为未实现。**
+- **G2 与 G1 是两条独立路径**：G2 有生产者也有消费者（进 prompt），G1 有生产者但无消费者（台账只写不读）。上一版此处写「G1 当前无生产者」是错的——`deriveGrowthSignals` 每轮都在写证据（`companion-service.ts:1073`）。未实现的是 **G1 的 `effective_d` 合成**，不是它的证据链。
 
 ### R1 Morrow 问题候选
 
@@ -396,3 +414,5 @@ after:  period.start             # 以后 / 之后
 - 规则：显式风格短语命中后，`intent` 标签不再是否决项；权重 `w = max(0.6, confidence/100)`
 - 仍弃权：引用/转述、假设、角色扮演、`uncertainty='high' ∧ confidence<25`
 - 理由：意图分类器判断的是「这轮要做什么」，不是「这句话说了什么」；用前者否决后者会丢掉明确的请求
+
+> **消费者：无。** 本条只覆盖"证据怎么来"，不覆盖"证据怎么用"——`describeGrowth()` 无生产调用点，`effectiveProfile` 不读 growth。三次真实 32 轮会话的 `interactionOffsets` 恒为 `{0,0,0}`。不要把本条读成"人格会随对话变化"。
