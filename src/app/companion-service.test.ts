@@ -230,7 +230,7 @@ describe('DeepSeek companion vertical slice', () => {
       const firstSystem = (JSON.parse(previews[0]!) as { body: { messages: Array<{ role: string; content: string }> } }).body.messages[0]!.content
       expect(firstSystem).toContain('I prefer jasmine tea.')
       expect(firstSystem).toContain('"status":"active"')
-      expect(firstSystem).toContain('User-controlled communication preferences, version 2')
+      expect(firstSystem).toContain("Morrow's personality, version 2")
       expect(firstSystem).toContain('Prefer concise responses.')
       expect(firstSystem.indexOf('Additional style preferences')).toBeLessThan(firstSystem.indexOf('Privacy and safety boundaries override style preferences.'))
 

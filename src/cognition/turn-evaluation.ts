@@ -39,6 +39,12 @@ export interface TurnEvaluation {
    * `claims` is a count, never the claim text.
    */
   guard: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+  /**
+   * D-5 use trace: which delivered memories the reply plausibly used — a
+   * value-level containment match between the reply and a memory's fact
+   * value. An objective label, never proof of understanding.
+   */
+  memoryUse: { referencedIds: string[]; deliveredCount: number } | null
   recordedAt: string
 }
 
@@ -58,6 +64,7 @@ export interface TurnEvaluationInput {
   providerOutcome: ProviderTurnOutcome
   answer: AnswerEvidenceAssessment | null
   guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+  memoryUse?: { referencedIds: readonly string[]; deliveredCount: number } | null
   recordedAt: string
 }
 
@@ -88,6 +95,9 @@ export function buildTurnEvaluation(input: TurnEvaluationInput): TurnEvaluation 
     provider: { providerId: input.providerId, model: input.model, outcome: input.providerOutcome },
     answer: input.answer,
     guard: input.guard ?? null,
+    memoryUse: input.memoryUse
+      ? { referencedIds: [...new Set(input.memoryUse.referencedIds)].slice(0, 25), deliveredCount: Math.max(0, input.memoryUse.deliveredCount) }
+      : null,
     recordedAt: recordedAt.toISOString()
   }
 }
@@ -135,6 +145,8 @@ export function turnEvaluationEventPayload(evaluation: TurnEvaluation): Record<s
     providerOutcome: evaluation.provider.outcome,
     answerOutcome: evaluation.answer?.outcome ?? 'not_scored',
     answerScored: evaluation.answer?.scored ?? false,
-    answerDetail: evaluation.answer?.detail ?? 'not_scored'
+    answerDetail: evaluation.answer?.detail ?? 'not_scored',
+    memoryUseReferenced: evaluation.memoryUse?.referencedIds.length ?? null,
+    memoryUseDelivered: evaluation.memoryUse?.deliveredCount ?? null
   }
 }

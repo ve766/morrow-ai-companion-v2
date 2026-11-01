@@ -97,7 +97,11 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
   {
     predicate: 'residence',
     read: (text) => {
-      const match = /(?:住在|居住在|现居|定居在?|搬到|搬家到|住址(?:是|为)?)/u.exec(text)
+      // D-5: interrogative and colloquial shapes ("我现在住哪？", "我搬去苏州了")
+      // name the same fact as "我住在杭州". Without them a paraphrased
+      // question has zero lexical overlap and no slot, which is exactly the
+      // cross-session miss the real-provider run produced.
+      const match = /(?:住在|居住在|现居|定居在?|搬到|搬家到|搬去|住址(?:是|为)?|住(?:在)?哪(?:里|儿)?)/u.exec(text)
       if (!match) return null
       return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
     }
@@ -196,7 +200,7 @@ const FUTURE = /(?:以后|将来|未来|明年|后年|下周|下个月|明天|�
 
 /** Sentence-final particles that turn a statement into a question. */
 const QUESTION_TAIL = /(?:吗|么|呢)$/u
-const INTERROGATIVE = /(?:是否|是不是|难道|多少|几岁|什么|谁|哪里|哪儿|哪个|哪些|哪种|怎么|为什么|如何|哪年)/u
+const INTERROGATIVE = /(?:是否|是不是|难道|多少|几岁|什么|谁|哪(?:里|儿|个|些|种|年)?|怎么|为什么|如何)/u
 
 /** Clauses are split on sentence punctuation only. */
 const CLAUSE_SEPARATOR = /[，,。.；;！!？?\n]+/u

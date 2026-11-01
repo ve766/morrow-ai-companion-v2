@@ -38,6 +38,7 @@ import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognitio
 import { isIntentReading, type IntentReading } from '../cognition/intent-reading'
 import { policyForIntent, unrestrictedPolicy } from '../memory/retrieval-policy'
 import { guardAnswerFacts } from '../cognition/answer-fact-guard'
+import { readFactSlot } from '../memory/fact-slot'
 import { remoteSpecFor } from '../providers/provider-registry'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
@@ -1673,7 +1674,16 @@ export class ChatService {
         question: request.content,
         memories: verified.memory.selected.map((item) => ({ id: item.id, content: item.content, ...(item.status ? { status: item.status } : {}), ...(item.conflictWith ? { conflictWith: item.conflictWith } : {}) }))
       })
-      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
+      // D-5 use trace: a value-level containment label per delivered memory —
+      // the reply mentions the fact value the memory carries. Objective, not
+      // proof of understanding, and recorded as exactly that.
+      const referencedMemoryIds = verified.memory.selected
+        .filter((item) => {
+          const value = readFactSlot(item.content)?.value ?? ''
+          return value.length >= 2 && deliveredText.toLocaleLowerCase().includes(value)
+        })
+        .map((item) => item.id)
+      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, memoryUse: { referencedIds: referencedMemoryIds, deliveredCount: verified.memory.selected.length }, guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
       return {
         conversation: this.conversations.read(conversationId).conversation,
         userMessage,
@@ -1703,6 +1713,7 @@ export class ChatService {
     outcome: 'succeeded' | 'failed' | 'cancelled'
     answer: ReturnType<typeof evaluateAnswerEvidence> | null
     guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+    memoryUse?: { referencedIds: readonly string[]; deliveredCount: number } | null
   }): TurnEvaluation | undefined {
     if (!input.prepared.decision) return undefined
     try {
@@ -1717,6 +1728,7 @@ export class ChatService {
         maximumSensitivity: input.maximumSensitivity,
         payloadSha256: input.preview.payloadSha256,
         payloadCharacters: input.preview.exactPayload.length,
+        ...(input.memoryUse ? { memoryUse: input.memoryUse } : {}),
         providerId: input.config.id,
         model: input.config.model,
         providerOutcome: input.outcome,

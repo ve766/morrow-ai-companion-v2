@@ -109,7 +109,7 @@ const NEGATION = /(?:不|没|别|未|非|无)|\b(?:not|no|never|without|don't|do
 const IRONY = /(?:反讽|阴阳怪气|说反话|呵呵|真是好极了)|\b(?:sarcas\w*|sure,? that went well|great,? just great)\b/iu
 const SELF_REPORTED_AMBIGUITY = /(?:你指的是什么|不确定你指|不太明白你的意思|我不懂你说的)|\b(?:i'?m not sure what you mean|unclear what you mean|ambiguous)\b/iu
 const DEICTIC = /(?:这个|那个|它|他们|她们|这件事|那件事|上面(?:说的)?|刚才(?:说的)?|之前(?:说的|提的|提到的)|那么|那里|这点)|\b(?:it|this|those|these)\b/iu
-const QUESTION_WORDS = /(?:什么|怎么|如何|为什么|哪一?个|哪家|哪些|哪种|哪儿|哪里|什么时候|多少|谁|是否|吗)|\b(?:what|who|where|when|which|why|how)\b/iu
+const QUESTION_WORDS = /(?:什么|怎么|如何|为什么|哪(?:一?个|家|些|种|里|儿|年)?|什么时候|多少|谁|是否|吗)|\b(?:what|who|where|when|which|why|how)\b/iu
 const ACTION_VERB = /(?:制定|计划|规划|安排|开始|准备|学习|练习|做|完成|实现|整理|写|读)|\b(?:plan|schedule|start|prepare|build|write|learn|practice|organize)\b/iu
 const SCOPE_WORD = /(?:下周|下个月|本月|本周|今年|明天|每天|每周|预算|小时|天|周|月|年|目标|步骤|范围)|\b(?:next week|next month|this week|tomorrow|daily|weekly|budget|hours?|days?|weeks?|months?|goal|steps?|scope)\b/iu
 

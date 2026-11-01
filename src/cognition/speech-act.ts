@@ -110,7 +110,7 @@ const REQUEST = /(?:帮我|帮忙|请(?:你)?|麻烦(?:你)?|给我|替我|替�
 /** "你能不能…" asks about capability *or* requests, decided by context only. */
 const CAPABILITY_QUESTION = /(?:你能不能|你可以|你会不会|你能|能否|可不可以)|\b(?:can you|could you|are you able to|is it possible for you to)\b/iu
 const QUESTION_SURFACE = /[?？]/u
-const QUESTION_WORD = /(?:什么|怎么|如何|为什么|哪一?个|哪家|哪些|哪种|哪儿|哪里|什么时候|多少|谁|是否|吗)|\b(?:what|who|where|when|which|why|how)\b/iu
+const QUESTION_WORD = /(?:什么|怎么|如何|为什么|哪(?:一?个|家|些|种|里|儿|年)?|什么时候|多少|谁|是否|吗)|\b(?:what|who|where|when|which|why|how)\b/iu
 const AFFIRMATION = /^(?:可以|好|行|嗯|对|是的|没问题|ok|okay|sure|yes|yep|fine)\b/iu
 
 function normalize(value: string): string {
