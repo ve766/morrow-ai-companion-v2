@@ -76,7 +76,7 @@ export function displayTextFor(candidate: PlannedFact, sourceText: string, carri
     if (species) return `我的${species}叫${candidate.value}。`
     return `我的宠物叫${candidate.value}。`
   }
-  return candidate.displayText
+  return candidate.displayText || DISPLAY_TEMPLATES[candidate.predicate]?.(candidate.value) || ''
 }
 
 export function speciesOf(text: string): '猫' | '狗' | null {
@@ -85,13 +85,33 @@ export function speciesOf(text: string): '猫' | '狗' | null {
   return null
 }
 
+/** Display text per predicate; the memory the user sees must re-extract to
+ * the same fact, so these mirror the extractor rules. */
+const DISPLAY_TEMPLATES: Partial<Record<FactPredicate, (value: string) => string>> = {
+  residence: (value) => '我住在' + value + '。',
+  employer: (value) => '我在' + value + '工作。',
+  name: (value) => '我的名字叫' + value + '。',
+  age: (value) => '我' + value + '岁。',
+  project_code: (value) => '我的项目代号是' + value + '。',
+  health: (value) => '我对' + value + '过敏。',
+  preference: (value) => '我喜欢' + value + '。',
+  study: (value) => '我在学习' + value + '。',
+  goal: (value) => '我的目标是' + value + '。',
+  object_location: (value) => '我的证件放在' + value + '。'
+}
+
 function toPlannedFact(candidate: FactCandidate, sourceText: string): PlannedFact {
+  const value = candidate.value
+  const base = DISPLAY_TEMPLATES[candidate.predicate]?.(value) ?? `${candidate.predicate}: ${value}`
+  const displayText = candidate.predicate === 'pet_name'
+    ? displayTextFor({ predicate: 'pet_name', value, valueNormalized: candidate.valueNormalized, polarity: candidate.polarity, displayText: base }, sourceText)
+    : base
   return {
     predicate: candidate.predicate,
-    value: candidate.value,
+    value,
     valueNormalized: candidate.valueNormalized,
     polarity: candidate.polarity,
-    displayText: displayTextFor({ predicate: candidate.predicate, value: candidate.value, valueNormalized: candidate.valueNormalized, polarity: candidate.polarity, displayText: '' }, sourceText)
+    displayText
   }
 }
 

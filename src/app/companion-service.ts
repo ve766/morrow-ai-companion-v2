@@ -1880,7 +1880,7 @@ export class ChatService {
         // A bare pronoun ("它叫什么来着？") carries the question but not its
         // object: widen the retrieval query with the prior user turn so the
         // referent participates in every channel.
-        const widen = firstPass.strategy === 'retrieve_memory' || /(?:^|[，。；s])(?:它|她|他)(?:叫|是|有|在|多大|几)/u.test(content)
+        const widen = firstPass.strategy === 'retrieve_memory' || /(?:它|她|他)(?:之前|以前|原来|曾经)?(?:的?名字)?(?:叫|是|有|在|多大|几)/u.test(content)
         const retrievalQuery = buildRetrievalQuery({
           content,
           referencedBody: referencedMessage?.body,
