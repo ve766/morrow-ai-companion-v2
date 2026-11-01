@@ -29,7 +29,7 @@ const featurePatterns = {
   negation: /(?:不是|并非|没有|不再|不要|不能|没|不|\b(?:no|not|never|don't|do not|doesn't|didn't|won't|can't|cannot|wouldn't)\b)/iu,
   explicitConstraint: /(?:必须|一定要|不要|不能|仅限|只要|只在|不超过|预算|截止时间|时间限制|避免|\b(?:must|only|don't|do not|cannot|can't|no more than|budget|deadline|avoid|constraint)\b)/iu,
   explicitMemoryRequest: /(?:你还记得|你记得我.{0,24}(?:吗|么)|我(?:之前|上次)告诉过你|我之前说过|我上次提到过|我们之前聊过|能回忆起|我的(?:偏好|目标|习惯)(?:是什么|是什么来着|吗|呢)|\b(?:do you remember|can you recall|what do i|what did i tell you|what have i told you|recall my|what is my|what's my)\b)/iu,
-  explicitMemorySaveRequest: /(?:请(?:你)?记住|记住(?:我|这个|这件事|一下)|以后(?:都)?记得|把这(?:条|件事|个)记下来|保存为记忆|\b(?:please remember|remember that|remember this|save this as a memory|save that as a memory)\b)/iu,
+  explicitMemorySaveRequest: /(?:请(?:你)?记住|帮我记住|帮我记(?:一下|着)|记住(?:我|这个|这件事|一下)|以后(?:都)?记得|把这(?:条|件事|个)记下来|保存为记忆|帮我更新|\b(?:please remember|remember that|remember this|save this as a memory|save that as a memory)\b)/iu,
   explicitSelfFact: /(?:我(?:不喜欢|喜欢|偏好|住在|工作在|从事|通常|习惯|的目标|的生日|会)|\bi (?:(?:do not|don't) )?(?:like|prefer|dislike|live|work|usually|tend to|use|avoid)\b)/iu
 } as const
 

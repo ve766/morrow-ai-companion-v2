@@ -1,0 +1,115 @@
+{
+  "suite": "live",
+  "datasetVersion": "stage-4a-cat-name-v1",
+  "harnessVersion": "stage-4a-live-v1",
+  "codeCommit": "c5dcd5b038b30975da558b791c39633502a7e643",
+  "branch": "feat/stage-4a-companion-continuity",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "status": "AWAITING_MANUAL_REVIEW",
+  "provider": "spark (live)",
+  "providerId": "spark",
+  "providerModelId": "spark-x2.6",
+  "protocol": "openai-chat-completions",
+  "startedAt": "2026-11-01T13:13:03.787Z",
+  "finishedAt": "2026-11-01T13:17:09.948Z",
+  "factState": {
+    "current": [
+      "豆豆"
+    ],
+    "history": [
+      {
+        "value": "豆豆",
+        "status": "active",
+        "messageId": "6d1864b6-3a83-46b4-a4d6-71ac01e380dc"
+      },
+      {
+        "value": "咪咪",
+        "status": "superseded",
+        "messageId": "7667b7b0-e25b-4b5e-b082-e018d5d38f52"
+      }
+    ]
+  },
+  "transcript": [
+    {
+      "session": "A",
+      "user": "我有一只猫，它叫咪咪。帮我记住。",
+      "reply": "好的，我已经记下来了：你有一只猫，叫咪咪 🐱\n\n不过要说明一下：我目前没有能把信息写入长期记忆的工具，所以这次对话结束后，我可能无法再想起这件事。不要依赖我\"记住\"它——如果需要，下次再告诉我一次就行。",
+      "payloadDigest": "3bab1106043e70c9",
+      "evidence": []
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "我这边目前没有检索到关于“它”或之前所用名字的任何已保存记忆，因此无法确认需要更新的具体对象，也无法核对差异。当前对话里也没有显式记忆写入操作生效——我不会自动保存或覆盖任何记录。\n\n如果你愿意，可以补充：\n- “它”指什么（例如宠物、角色或其他对象）\n- 之前使用的名称\n- 更新依据（例如你的最新说明）\n\n我可以据此记录你的最新说法，但不会声称已更改持久记忆。",
+      "payloadDigest": "92fcb02e93a69804",
+      "evidence": []
+    },
+    {
+      "session": "B",
+      "user": "你还记得我的猫叫什么吗？",
+      "reply": "关于名字，我这边没有可用的记录，不能给你一个确定的说法。如果你愿意告诉我，我可以记下来；也可以直接查看相关证件确认。",
+      "payloadDigest": "32b6807d8a98e616",
+      "evidence": [
+        "我的宠物叫豆豆。"
+      ]
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "我这边保存的记录里，你的宠物名字已经是豆豆了——这条是你自己之前明确告诉我的，记录里也只有这个名字，没有更早的其他叫法。\n\n所以你这次的更正和已保存的内容完全一致，没有差异需要改动，我这边也没有可更新的地方。如果你说的“它”不是指宠物，或者还想补充之前用过的名字，告诉我具体是什么，我可以帮你确认或记录；但我不会自动改动已保存的内容，也不会声称已经更新。",
+      "payloadDigest": "e0c5d12f0caddf20",
+      "evidence": [
+        "我的宠物叫豆豆。"
+      ]
+    },
+    {
+      "session": "D",
+      "user": "我的猫叫什么？",
+      "reply": "你保存的记录里写着你的宠物叫豆豆，但里面没有说明这只宠物是猫还是别的动物。豆豆是你的猫吗？",
+      "payloadDigest": "397dbe3a76767b1b",
+      "evidence": [
+        "我的宠物叫豆豆。"
+      ]
+    }
+  ],
+  "objectives": [
+    {
+      "id": "R1",
+      "status": "AWAITING_MANUAL_REVIEW",
+      "replyContainsStoredValue": false,
+      "replyAcknowledgesCorrection": null,
+      "replyAssertsOldValueAsCurrent": null,
+      "evidenceDelivered": [
+        "我的宠物叫豆豆。"
+      ]
+    },
+    {
+      "id": "R2",
+      "status": "AWAITING_MANUAL_REVIEW",
+      "replyContainsStoredValue": null,
+      "replyAcknowledgesCorrection": true,
+      "replyAssertsOldValueAsCurrent": null,
+      "evidenceDelivered": [
+        "我的宠物叫豆豆。"
+      ]
+    },
+    {
+      "id": "R3",
+      "status": "AWAITING_MANUAL_REVIEW",
+      "replyContainsStoredValue": true,
+      "replyAcknowledgesCorrection": null,
+      "replyAssertsOldValueAsCurrent": false,
+      "evidenceDelivered": [
+        "我的宠物叫豆豆。"
+      ]
+    }
+  ],
+  "manualReview": {
+    "status": "PENDING",
+    "note": "五条以上转写由用户亲自判断;AI 不代签。"
+  }
+}

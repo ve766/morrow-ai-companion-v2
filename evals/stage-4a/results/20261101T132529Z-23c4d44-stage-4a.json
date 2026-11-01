@@ -1,0 +1,104 @@
+{
+  "suite": "live",
+  "datasetVersion": "stage-4a-cat-name-v1",
+  "harnessVersion": "stage-4a-live-v1",
+  "codeCommit": "23c4d44c6637f2aa977dc0df37e3c6bb590ed005",
+  "branch": "feat/stage-4a-companion-continuity",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "status": "AWAITING_MANUAL_REVIEW",
+  "provider": "spark (live)",
+  "providerId": "spark",
+  "providerModelId": "spark-x2.6",
+  "protocol": "openai-chat-completions",
+  "startedAt": "2026-11-01T13:25:29.710Z",
+  "finishedAt": "2026-11-01T13:27:50.571Z",
+  "factState": {
+    "current": [
+      "豆豆"
+    ],
+    "history": [
+      {
+        "value": "豆豆",
+        "status": "active",
+        "messageId": "ff25b067-5267-4a8a-bc60-b7131b90f9b1"
+      },
+      {
+        "value": "咪咪",
+        "status": "superseded",
+        "messageId": "c9a9be2e-12c8-4b83-869d-093b96d05858"
+      }
+    ]
+  },
+  "transcript": [
+    {
+      "session": "A",
+      "user": "我有一只猫，它叫咪咪。帮我记住。",
+      "reply": "已记住：你有一只猫，名字叫咪咪。",
+      "payloadDigest": "6780d920ff20568a",
+      "evidence": []
+    },
+    {
+      "session": "B",
+      "user": "你还记得我的猫叫什么吗？",
+      "reply": "你的猫叫咪咪。",
+      "payloadDigest": "d28c50de92c296e9",
+      "evidence": [
+        "我的猫叫咪咪。"
+      ]
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "我这边需要先说明一点：在本轮可检索的已存记忆里，我没有找到关于“它”的任何条目，也没有看到之前用的名字。所以目前无法指出“新说法与已存条目的差异”，也不会假装已经更新完成。\n\n要把它记准，我需要两个信息：\n\n1. 之前叫什么（即这次纠正的“错”是指哪个名字）；\n2. “它”指什么——宠物、项目、还是别的什么。\n\n你补充后，我会把“豆豆”作为最新说法记录下来，并明确标明它是本轮的最新更正，而不是旧说法。",
+      "payloadDigest": "70d2354e8b96b5e7",
+      "evidence": []
+    },
+    {
+      "session": "D",
+      "user": "我的猫叫什么？",
+      "reply": "你的猫叫豆豆。",
+      "payloadDigest": "b222c495ced9a5db",
+      "evidence": [
+        "我的猫叫豆豆。"
+      ]
+    }
+  ],
+  "objectives": [
+    {
+      "id": "R1",
+      "status": "AWAITING_MANUAL_REVIEW",
+      "replyContainsStoredValue": true,
+      "replyAcknowledgesCorrection": null,
+      "replyAssertsOldValueAsCurrent": null,
+      "evidenceDelivered": [
+        "我的猫叫咪咪。"
+      ]
+    },
+    {
+      "id": "R2",
+      "status": "AWAITING_MANUAL_REVIEW",
+      "replyContainsStoredValue": null,
+      "replyAcknowledgesCorrection": true,
+      "replyAssertsOldValueAsCurrent": null,
+      "evidenceDelivered": []
+    },
+    {
+      "id": "R3",
+      "status": "AWAITING_MANUAL_REVIEW",
+      "replyContainsStoredValue": true,
+      "replyAcknowledgesCorrection": null,
+      "replyAssertsOldValueAsCurrent": false,
+      "evidenceDelivered": [
+        "我的猫叫豆豆。"
+      ]
+    }
+  ],
+  "manualReview": {
+    "status": "PENDING",
+    "note": "五条以上转写由用户亲自判断;AI 不代签。"
+  }
+}

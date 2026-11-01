@@ -1,0 +1,102 @@
+{
+  "suite": "stage-4a-scripted",
+  "datasetVersion": "stage-4a-cat-name-v2",
+  "codeCommit": "c9e01b533595ae96115dcfa141ef1cd1fda75b61",
+  "branch": "feat/stage-4a-companion-continuity",
+  "command": "npm run eval:stage4a",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "provider": "scripted-offline (not a model)",
+  "startedAt": "2026-11-01T14:13:02.020Z",
+  "finishedAt": "2026-11-01T14:13:05.151Z",
+  "counts": {
+    "PASS": 1,
+    "FAIL": 6
+  },
+  "unmeasured": [
+    "real model behaviour (run with --live)",
+    "human experience review"
+  ],
+  "assertions": [
+    {
+      "id": "A-operation",
+      "ok": false,
+      "detail": "Memory operation for this turn (authoritative; produced by the application before this reply): - operation=create status"
+    },
+    {
+      "id": "B-evidence",
+      "ok": false,
+      "detail": ""
+    },
+    {
+      "id": "C-operation",
+      "ok": false,
+      "detail": "Memory operation for this turn (authoritative; produced by the application before this reply): - operation=clarify statu"
+    },
+    {
+      "id": "D-evidence",
+      "ok": false,
+      "detail": ""
+    },
+    {
+      "id": "final-current",
+      "ok": false,
+      "detail": "[]"
+    },
+    {
+      "id": "final-history",
+      "ok": false,
+      "detail": "[]"
+    },
+    {
+      "id": "provenance",
+      "ok": true,
+      "detail": "message-or-legacy"
+    }
+  ],
+  "turns": [
+    {
+      "session": "A",
+      "user": "我有一只猫，它叫咪咪。帮我记住。",
+      "reply": "好的。",
+      "evidence": "",
+      "operationBlock": "Memory operation for this turn (authoritative; produced by the application before this reply):\n- operation=create status=failed error=DomainValidationError\nThe write did not complete. Do not say it wa",
+      "payloadDigest": "9211521eaadc52f0"
+    },
+    {
+      "session": "B",
+      "user": "你还记得我的猫叫什么吗？",
+      "reply": "好的。",
+      "evidence": "",
+      "operationBlock": "",
+      "payloadDigest": "6681c54560f85264"
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "好的。",
+      "evidence": "",
+      "operationBlock": "Memory operation for this turn (authoritative; produced by the application before this reply):\n- operation=clarify status=clarify reason=pronoun_without_referent\nNothing was written. Ask one short cla",
+      "payloadDigest": "68f0a20f62544294"
+    },
+    {
+      "session": "D",
+      "user": "我的猫现在叫什么？",
+      "reply": "好的。",
+      "evidence": "",
+      "operationBlock": "",
+      "payloadDigest": "b370ee278247a889"
+    },
+    {
+      "session": "E",
+      "user": "它之前叫什么？",
+      "reply": "好的。",
+      "evidence": "",
+      "operationBlock": "",
+      "payloadDigest": "c488af265cd1ca00"
+    }
+  ]
+}

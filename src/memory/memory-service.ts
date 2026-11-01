@@ -22,7 +22,27 @@ import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
-import { readFactSlot, extractFactSlots } from './fact-slot'
+import { readFactSlot, extractFactSlots, SINGLE_VALUED_PREDICATES, type FactCandidate } from './fact-slot'
+import type { MemoryOperationOutcome, MemoryOperationPlan } from './memory-operation-planner'
+import { slotsConflict } from './fact-slot'
+/**
+ * Stage 4-A: display templates for facts created from explicit requests.
+ * Each shape re-extracts to the same predicate, so the fact ledger and the
+ * retriever stay consistent with the text the user sees.
+ */
+const FACT_DISPLAY_TEMPLATES: Partial<Record<import('./fact-slot').FactPredicate, (value: string) => string>> = {
+  residence: (value) => `我住在${value}。`,
+  employer: (value) => `我在${value}工作。`,
+  name: (value) => `我的名字叫${value}。`,
+  age: (value) => `我${value}岁。`,
+  project_code: (value) => `我的项目代号是${value}。`,
+  pet_name: (value) => `我的宠物叫${value}。`,
+  object_location: (value) => `我的证件放在${value}。`,
+  health: (value) => `我对${value}过敏。`,
+  preference: (value) => `我喜欢${value}。`,
+  study: (value) => `我在学习${value}。`,
+  goal: (value) => `我的目标是${value}。`
+}
 import type { MorrowEvent } from '../persistence/event-log'
 import { normalizeAssertion, readMemoryUtterance, sameAssertion } from './memory-evidence-policy'
 
@@ -385,6 +405,245 @@ export class MemoryService {
     this.reindexFact(id)
   }
 
+  /**
+   * Stage 4-A: the explicit "帮我记住" path. The user's own words authorize
+   * the memory, so the statement is extracted into facts and stored with the
+   * real source message id — the link the vertical story was missing. A
+   * candidate that conflicts with an existing active single-valued memory is
+   * treated as the user's explicit correction of that memory (the request
+   * said 帮我记住/帮我更新); otherwise it creates a new memory.
+   * Unknown or ambiguous shapes are skipped — the text stays in the
+   * conversation and in lexical retrieval, never guessed into a predicate.
+   */
+  /**
+   * Stage 4-A final repair: executes a planned operation BEFORE the provider
+   * call, in one transaction, then re-reads the ledger and verifies the shape
+   * it promised. The returned outcome is what the prompt is allowed to claim;
+   * a failed verification returns `failed`, never a success status.
+   *
+   * Idempotent by construction: a replayed turn (provider retry, or the second
+   * prepare of the same turn) finds the committed state and returns the same
+   * outcome with `replayed: true` instead of writing again.
+   */
+  /** Read-only view for the planner: active facts for one predicate. */
+  activeFactsFor(predicate: import('./fact-slot').FactPredicate): ReturnType<import('./fact-memory').FactMemoryService['lookupActive']> {
+    return this.factIndex?.lookupActive(predicate) ?? []
+  }
+
+  /**
+   * Stage 4-A final repair: superseded values of the given memories, for a
+   * past-tense question. History only — the caller renders it as such.
+   */
+  supersededForMemories(memoryIds: readonly string[]): Array<{ predicate: string; value: string }> {
+    if (!this.factIndex || memoryIds.length === 0) return []
+    const placeholders = memoryIds.map(() => '?').join(',')
+    return this.factIndex.supersededFor(memoryIds)
+  }
+
+  /** The stored text of one memory (planner species carry-over). */
+  textOf(memoryId: string): string {
+    return this.repository.get(memoryId)?.currentText ?? ''
+  }
+
+  /** False when no fact ledger is wired: the planner must not claim certainty. */
+  get ledgerAvailable(): boolean {
+    return this.factIndex !== undefined
+  }
+
+  executeOperation(plan: MemoryOperationPlan): MemoryOperationOutcome {
+    if (plan.operation === 'none') return { operation: 'none', status: 'not_applied', reason: plan.reason }
+    if (plan.operation === 'clarify') return { operation: 'clarify', status: 'clarify', reason: plan.reason }
+    if (plan.operation === 'rejected') return { operation: 'rejected', status: 'rejected', reason: plan.reason }
+    if (plan.operation === 'failed') return { operation: 'failed', status: 'failed', errorCode: plan.errorCode }
+
+    if (plan.operation === 'create') {
+      const first = plan.facts[0]!
+      // Replay: this turn already committed this value.
+      const existing = this.factIndex?.lookupActive(first.predicate) ?? []
+      const already = existing.find((fact) => fact.sourceMessageId === plan.messageId && fact.valueNormalized === first.valueNormalized)
+      if (already) {
+        return {
+          operation: 'create',
+          status: 'committed_and_verified',
+          predicate: first.predicate,
+          currentValue: already.valueDisplay,
+          memoryId: already.sourceMemoryId,
+          revision: already.sourceRevision,
+          factId: already.id,
+          ...(already.sourceMessageId ? { sourceMessageId: already.sourceMessageId } : {}),
+          replayed: true
+        }
+      }
+      try {
+        const created = plan.facts.map((fact) => this.create(fact.displayText, 'personal', {
+          correlationId: plan.messageId,
+          provenance: { sourceMessageId: plan.messageId, kind: 'message' }
+        }))
+        // Verify against the ledger, not against the object we just built.
+        const verified = this.factIndex?.lookupActive(first.predicate) ?? []
+        const hit = verified.find((fact) => fact.sourceMessageId === plan.messageId && fact.valueNormalized === first.valueNormalized)
+        if (!hit) {
+          this.recordOperationFailure(plan.messageId, 'verification', 'VERIFICATION_FAILED')
+          return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: 'VERIFICATION_FAILED' }
+        }
+        return {
+          operation: 'create',
+          status: 'committed_and_verified',
+          predicate: first.predicate,
+          currentValue: hit.valueDisplay,
+          memoryId: hit.sourceMemoryId,
+          revision: hit.sourceRevision,
+          factId: hit.id,
+          ...(hit.sourceMessageId ? { sourceMessageId: hit.sourceMessageId } : {}),
+          ...(created.length > 1 ? { reason: 'multiple_facts' } : {})
+        }
+      } catch (error) {
+        this.recordOperationFailure(plan.messageId, 'commit', error instanceof Error ? error.name : 'UNKNOWN')
+        return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
+      }
+    }
+
+    // correct
+    const { target, newValue, displayText } = plan
+    // Replay: the old fact is already superseded by a fact from this turn.
+    const history = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
+    const already = history.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase() && fact.sourceMessageId === plan.messageId)
+    if (already) {
+      return {
+        operation: 'correct',
+        status: 'committed_and_verified',
+        predicate: target.predicate,
+        previousValue: target.previousValue,
+        currentValue: already.valueDisplay,
+        memoryId: already.sourceMemoryId,
+        revision: already.sourceRevision,
+        factId: already.id,
+        ...(already.sourceMessageId ? { sourceMessageId: already.sourceMessageId } : {}),
+        replayed: true
+      }
+    }
+    try {
+      this.correct(target.memoryId, displayText, plan.messageId, { sourceMessageId: plan.messageId, kind: 'message' })
+      const current = this.factIndex?.lookupActive(target.predicate) ?? []
+      const previous = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
+      const newFact = current.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase())
+      const oldFact = previous.find((fact) => fact.valueNormalized === target.previousValue.normalize('NFKC').trim().toLocaleLowerCase())
+      if (!newFact || !oldFact || oldFact.status !== 'superseded') {
+        this.recordOperationFailure(plan.messageId, 'verification', 'VERIFICATION_FAILED')
+        return {
+          operation: 'correct',
+          status: 'failed',
+          predicate: target.predicate,
+          previousValue: target.previousValue,
+          ...(newFact ? { currentValue: newFact.valueDisplay } : {}),
+          errorCode: 'VERIFICATION_FAILED'
+        }
+      }
+      return {
+        operation: 'correct',
+        status: 'committed_and_verified',
+        predicate: target.predicate,
+        previousValue: oldFact.valueDisplay,
+        currentValue: newFact.valueDisplay,
+        memoryId: newFact.sourceMemoryId,
+        revision: newFact.sourceRevision,
+        factId: newFact.id,
+        ...(newFact.sourceMessageId ? { sourceMessageId: newFact.sourceMessageId } : {})
+      }
+    } catch (error) {
+      this.recordOperationFailure(plan.messageId, 'commit', error instanceof Error ? error.name : 'UNKNOWN')
+      return { operation: 'correct', status: 'failed', predicate: target.predicate, previousValue: target.previousValue, errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
+    }
+  }
+
+  /** Sanitized, stage-tagged failure record: ids and codes only. */
+  private recordOperationFailure(messageId: string, stage: 'planning' | 'commit' | 'verification' | 'context', errorCode: string): void {
+    try {
+      this.events?.tryRecord({
+        sourceModule: 'memory',
+        eventType: 'memory.operation.failed',
+        actor: 'system',
+        subjectType: 'conversation_message',
+        subjectId: messageId,
+        correlationId: null,
+        payload: { stage, errorCode: errorCode.slice(0, 64) }
+      })
+    } catch {
+      // Diagnostics must never break the turn; the caller still sees 'failed'.
+    }
+  }
+
+  createExplicitFromTurn(input: {
+    text: string
+    messageId: string
+    conversationId: string
+    occurredAt: string
+    sensitivity?: MemoryRecord['sensitivity']
+  }): Array<{ memory: MemoryRecord; corrected: boolean }> {
+    const results: Array<{ memory: MemoryRecord; corrected: boolean }> = []
+    for (const candidate of extractFactSlots(input.text)) {
+      // The pet template names the species the user actually stated ("我的猫叫
+      // 咪咪" keeps 猫). A generic 宠物 line is weaker evidence for a question
+      // about 猫, and this story is about a cat.
+      const petSpecies = candidate.predicate === 'pet_name' ? (/猫/u.test(input.text) ? '猫' : /狗/u.test(input.text) ? '狗' : null) : null
+      const display = candidate.predicate === 'pet_name' && petSpecies
+        ? '我的' + petSpecies + '叫' + candidate.value + '。'
+        : FACT_DISPLAY_TEMPLATES[candidate.predicate]?.(candidate.value)
+      if (!display) continue
+      validateMemoryText(display)
+      const conflicting = this.repository.listActiveForContext(1000).find((record) => {
+        if (record.status !== 'active') return false
+        const slot = readFactSlot(record.currentText)
+        if (!slot || slot.predicate !== candidate.predicate) return false
+        const asserted = { ...slot, value: candidate.value, kind: candidate.polarity === 'negative' ? 'negated' as const : 'assertion' as const }
+        if (slotsConflict(asserted, slot)) return true
+        return SINGLE_VALUED_PREDICATES.has(candidate.predicate) && comparableFactValue(slot.value) !== comparableFactValue(candidate.value)
+      })
+      if (conflicting) {
+        // Keep the species the existing memory names: correcting 咪咪→豆豆 must
+        // leave '我的猫叫豆豆。', not fall back to the generic 宠物 line.
+        const carried = candidate.predicate === 'pet_name' && !petSpecies ? speciesOf(conflicting.currentText) : null
+        const correctedText = carried ? '我的' + carried + '叫' + candidate.value + '。' : display
+        const memory = this.correct(conflicting.id, correctedText, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
+        results.push({ memory, corrected: true })
+        continue
+      }
+      // Skip an exact restatement: the memory already exists.
+      if (this.repository.listActiveForContext(1000).some((record) => sameAssertion(normalizeAssertion(record.currentText), normalizeAssertion(display)))) continue
+      const memory = this.create(display, input.sensitivity ?? 'personal', {
+        correlationId: input.messageId,
+        provenance: { sourceMessageId: input.messageId, kind: 'message' }
+      })
+      results.push({ memory, corrected: false })
+    }
+    // Stage 4-A pronoun correction: "我说错了，它现在叫豆豆" names no
+    // predicate of its own. It is only resolved when exactly ONE active
+    // single-valued pet memory exists in the ledger — zero or several means
+    // ambiguous, and an ambiguous referent is skipped rather than guessed.
+    if (results.length === 0) {
+      const pronoun = /它(?:现在)?(?:的?名字)?叫([^，。！？]+)/u.exec(input.text)
+      const value = pronoun ? cleanFactValue(pronoun[1] ?? '') : ''
+      if (value.length > 0 && value.length <= 40) {
+        const petSources = new Set(this.factIndex ? this.factIndex.lookupActive('pet_name').map((fact) => fact.sourceMemoryId) : [])
+        if (petSources.size === 1) {
+          const target = [...petSources][0]!
+          const targetText = this.repository.get(target)?.currentText ?? ''
+          const species = speciesOf(input.text) ?? speciesOf(targetText)
+          const templateText = species ? '我的' + species + '叫' + value + '。' : FACT_DISPLAY_TEMPLATES.pet_name!(value)
+          const memory = this.correct(target, templateText, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
+          results.push({ memory, corrected: true })
+        }
+      }
+    }
+    if (results.length > 0) {
+      this.recordEvent('memory.explicit_created', results[0]!.memory, input.conversationId, {
+        count: results.length,
+        corrected: results.filter((item) => item.corrected).length
+      })
+    }
+    return results
+  }
+
   private transition(id: string, transition: MemoryTransition, changeType: Exclude<MemoryChangeType, 'created'>, correlationId?: string): MemoryRecord {
     const current = this.repository.get(id)
     if (!current) throw new ApplicationError('NOT_FOUND')
@@ -491,3 +750,21 @@ export class MemoryService {
     return new Date(value).toISOString()
   }
 }
+
+function comparableFactValue(value: string): string {
+  // Mirrors fact-slot's comparable(): strips place suffixes is unnecessary here —
+  // exact normalized compare for the same-predicate check.
+  return value.normalize('NFKC').replace(/[的了]/gu, '').trim().toLocaleLowerCase()
+}
+
+function cleanFactValue(value: string): string {
+  return value.normalize('NFKC').replace(/^[s，,。.；;：:！!？?、]+|[s，,。.；;：:！!？?、]+$/gu, '').trim()
+}
+
+/** The species a memory text names, when it names one. */
+function speciesOf(text: string): '猫' | '狗' | null {
+  if (/猫/u.test(text)) return '猫'
+  if (/狗/u.test(text)) return '狗'
+  return null
+}
+
