@@ -209,7 +209,9 @@ export class MemoryContextAssembler {
     /** Ids whose wording competes with another candidate; drives the X term. */
     conflictedIds?: ReadonlySet<string>,
     /** Preference fit for the P term; 0 when absent. */
-    preferenceFor?: (record: MemoryRecord) => number
+    preferenceFor?: (record: MemoryRecord) => number,
+    /** P0-A: memory ids addressed through the fact index for this query. */
+    factAddressedIds?: ReadonlySet<string>
   ): AssembledMemoryContext {
     // One lookup per memory, memoised: the comparator runs O(n log n) times and
     // must not turn into a database call each time.
@@ -265,12 +267,15 @@ export class MemoryContextAssembler {
         // 我在北京" vs stored 杭州) — that fact is being contested, so the
         // stored record belongs in view regardless of word overlap.
         const queryMentionsValue = Boolean(memorySlot && memorySlot.value && memorySlot.kind !== 'uncertain' && normalize(query).includes(memorySlot.value))
+        // The fact index addressed this memory for the query's predicate: it
+        // is a candidate no matter how the wording differs.
+        const factAddressed = factAddressedIds?.has(record.id) ?? false
         const sourceReliability = record.sourceCategory === 'user_explicit_input' ? 1 : 0.5
         const score = WEIGHTS.slot * Number(slotMatch) + WEIGHTS.value * Number(queryMentionsValue) +
           WEIGHTS.lexical * Math.min(1, contentOverlap / 2) +
           WEIGHTS.temporal * Number(sharedTime) +
           WEIGHTS.source * sourceReliability
-        return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot, queryMentionsValue }
+        return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot, queryMentionsValue, factAddressed }
       })
       // Resolved once, outside the comparator: a score lookup per comparison
       // would be O(n log n) database reads for no extra information.
@@ -295,9 +300,9 @@ export class MemoryContextAssembler {
         // contradicts is never unrelated. predicateFilter still applies.
         const contested = item.queryMentionsValue ||
           Boolean(item.memorySlot && querySlotCandidates.some((slot) => slot.kind !== 'question' && slot.predicate === item.memorySlot!.predicate && slotsConflict(slot, item.memorySlot)))
-        if (policy?.requireSlotMatch) return item.slotMatch
-        if (policy?.requireContentOverlap) return lexical || contested
-        return lexical || item.slotMatch || contested
+        if (policy?.requireSlotMatch) return item.slotMatch || item.factAddressed
+        if (policy?.requireContentOverlap) return lexical || contested || item.factAddressed
+        return lexical || item.slotMatch || contested || item.factAddressed
     })
 
     // D-5: two recall channels, fused by rank. The lexical channel orders by
@@ -322,7 +327,13 @@ export class MemoryContextAssembler {
       .filter((item) => item.queryMentionsValue)
       .sort((left, right) => right.record.updatedAt.localeCompare(left.record.updatedAt) || left.record.id.localeCompare(right.record.id))
     const valueRanking = new Map(valueOrder.map((item) => [item.record.id, 1] as const))
-    const fusedRelevance = reciprocalRankFusion([lexicalRanking, slotRanking, valueRanking])
+    // The fact-index channel outranks word overlap: an attribute hit is what
+    // "the user asked about this exact fact" means.
+    const factOrder = filteredItems
+      .filter((item) => item.factAddressed)
+      .sort((left, right) => right.record.confidence - left.record.confidence || right.record.updatedAt.localeCompare(left.record.updatedAt) || left.record.id.localeCompare(right.record.id))
+    const factRanking = new Map(factOrder.map((item) => [item.record.id, 1] as const))
+    const fusedRelevance = reciprocalRankFusion([factRanking, lexicalRanking, slotRanking, valueRanking])
 
     const ranked = filteredItems
       .map((item) => ({ item, relevance: this.options.useContextUtility === false ? item.score : (fusedRelevance.get(item.record.id) ?? 0) }))

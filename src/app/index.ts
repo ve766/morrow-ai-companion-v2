@@ -9,6 +9,7 @@ import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
 import { MemoryImportanceService, ARCHIVE_THRESHOLD } from '../memory/memory-importance'
 import { MemoryMaintenanceScheduler } from '../memory/memory-maintenance'
+import { FactMemoryService } from '../memory/fact-memory'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
@@ -199,7 +200,15 @@ if (hasSingleInstanceLock) {
     // archives memories that are both low-importance and 180 days untouched, so
     // a recently used memory is never pushed out by age alone.
     const memoryImportance = new MemoryImportanceService(database)
-    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance })
+    // P0-A: the addressable fact layer, rebuilt from the memories at start
+    // (idempotent) and kept current by the MemoryService lifecycle hooks.
+    const factMemory = new FactMemoryService({ database })
+    try {
+      factMemory.reindexAll()
+    } catch {
+      logger.warn('memory', 'fact index catch-up failed; attribute lookups degrade until the next pass')
+    }
+    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance, factIndex: factMemory })
     // D-12: a lifecycle-controlled scheduler replaces the startup-only pass.
     // It catches up now (the old behaviour), then runs on an interval decided
     // by absolute time — a long-running process keeps its importance scores

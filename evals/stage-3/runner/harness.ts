@@ -17,6 +17,7 @@ import { dirname, join, resolve } from 'node:path'
 import { SqliteDatabase } from '../../../src/persistence/database'
 import { MemoryService } from '../../../src/memory/memory-service'
 import { MemoryImportanceService } from '../../../src/memory/memory-importance'
+import { FactMemoryService } from '../../../src/memory/fact-memory'
 import { SqliteMemoryRepository } from '../../../src/persistence/memory-repository'
 import { ConversationService } from '../../../src/conversation/conversation-service'
 import { SqliteConversationRepository } from '../../../src/persistence/conversation-repository'
@@ -96,6 +97,7 @@ export interface Stack {
   interaction: UserInteractionProfileService
   exploration: ExplorationService
   importance: MemoryImportanceService
+  factMemory: FactMemoryService
   goals: CompanionGoalService
   close: () => void
 }
@@ -129,7 +131,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   // into it, and reflection reads exactly those events.
   const eventLog = new EventLogService(database)
   const memoryImportance = new MemoryImportanceService(database, clock)
-  const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance })
+  const factMemory = new FactMemoryService({ database, ...(clock ? { clock } : {}) })
+  const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance, factIndex: factMemory })
   const conversations = new ConversationService(new SqliteConversationRepository(database))
   const provider = new ScriptedProvider()
   const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
@@ -213,6 +216,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     interaction,
     exploration,
     importance: memoryImportance,
+    factMemory,
     goals,
     close: () => {
       database.close()

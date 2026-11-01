@@ -22,6 +22,7 @@ import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
+import { readFactSlot } from './fact-slot'
 import type { MorrowEvent } from '../persistence/event-log'
 import { normalizeAssertion, readMemoryUtterance, sameAssertion } from './memory-evidence-policy'
 
@@ -73,9 +74,10 @@ export class MemoryService {
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID(),
     private readonly events?: MemoryEventSink,
-    options: { useContextUtility?: boolean; importance?: import('./memory-importance').MemoryImportancePort } = {}
+    options: { useContextUtility?: boolean; importance?: import('./memory-importance').MemoryImportancePort; factIndex?: import('./fact-memory').FactMemoryService } = {}
   ) {
     this.importance = options.importance
+    this.factIndex = options.factIndex
     this.contextAssembler = new MemoryContextAssembler({
       ...(options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }),
       // Ranking reads the cached importance score. Admission does not: a memory
@@ -85,6 +87,17 @@ export class MemoryService {
   }
 
   private readonly importance: import('./memory-importance').MemoryImportancePort | undefined
+  /** P0-A: the addressable fact layer, re-indexed after every lifecycle write. */
+  private readonly factIndex: import('./fact-memory').FactMemoryService | undefined
+
+  private reindexFact(memoryId: string): void {
+    try {
+      this.factIndex?.reindexMemory(memoryId)
+    } catch {
+      // The index is derived state; a failed extraction costs a lookup, never
+      // a memory. The next reindex retries.
+    }
+  }
 
   create(content: string, sensitivity: MemoryRecord['sensitivity'] = 'personal', options: MemoryCreateOptions = {}): MemoryRecord {
     validateMemoryText(content)
@@ -137,6 +150,7 @@ export class MemoryService {
     })
     this.importance?.onMemoryChanged(record.id)
     this.recordEvent(sourceCategory === MEMORY_SOURCE_CATEGORY ? 'memory.created' : 'memory.created_inferred', record, options.correlationId, { confidence, sensitivity })
+    this.reindexFact(record.id)
     return record
   }
 
@@ -210,12 +224,25 @@ export class MemoryService {
   ): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
     const records = this.repository.listActiveForContext(1000)
+    // P0-A fact channel: facts addressed by attribute (predicate lookup on
+    // the fact index), not by text similarity. Their memory ids are marked so
+    // the assembler admits and ranks them through the fact channel.
+    const factAddressedIds = new Set<string>()
+    const querySlotForFacts = readFactSlot(query)
+    if (querySlotForFacts?.predicate && this.factIndex) {
+      try {
+        for (const fact of this.factIndex.lookupActive(querySlotForFacts.predicate)) factAddressedIds.add(fact.sourceMemoryId)
+      } catch {
+        // A fact-lookup failure degrades to the lexical/slot channels only.
+      }
+    }
     // Conflict risk is a property of the candidate set, so it is computed once
     // here and handed to the ranking instead of being re-derived per record.
     return this.contextAssembler.assemble(
       query, records, maximumSensitivity, undefined, undefined, undefined, policy, presentation,
       this.conflictedIds(records),
-      preferenceFor
+      preferenceFor,
+      factAddressedIds
     )
   }
 
@@ -227,15 +254,21 @@ export class MemoryService {
 
   correct(id: string, content: string, correlationId?: string): MemoryRecord {
     validateMemoryText(content)
-    return this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
+    const record = this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
+    this.reindexFact(id)
+    return record
   }
 
   retract(id: string, correlationId?: string): MemoryRecord {
-    return this.transition(id, { type: 'retract' }, 'retracted', correlationId)
+    const record = this.transition(id, { type: 'retract' }, 'retracted', correlationId)
+    this.reindexFact(id)
+    return record
   }
 
   restore(id: string, correlationId?: string): MemoryRecord {
-    return this.transition(id, { type: 'restore' }, 'restored', correlationId)
+    const record = this.transition(id, { type: 'restore' }, 'restored', correlationId)
+    this.reindexFact(id)
+    return record
   }
 
   confirm(id: string, options: { correlationId?: string } = {}): MemoryRecord {
@@ -292,6 +325,7 @@ export class MemoryService {
 
   delete(id: string): void {
     if (!this.repository.delete(id)) throw new ApplicationError('NOT_FOUND')
+    this.reindexFact(id)
   }
 
   private transition(id: string, transition: MemoryTransition, changeType: Exclude<MemoryChangeType, 'created'>, correlationId?: string): MemoryRecord {

@@ -2229,6 +2229,47 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 40,
+    name: 'fact-memory-and-injection-trace',
+    up(database) {
+      // P0-A (final closure): an addressable fact layer over the existing
+      // memories. One row per (source memory, predicate, value), extracted by
+      // the same readFactSlot rules the retriever uses, so the index can never
+      // disagree with the text it indexes. The memory row stays the source of
+      // truth: deleting a memory cascades here, and re-extraction is
+      // idempotent on (source_memory_id, predicate, value).
+      database.exec(`
+        CREATE TABLE fact_records (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          subject TEXT NOT NULL CHECK (subject = 'user'),
+          predicate TEXT NOT NULL CHECK (length(predicate) BETWEEN 3 AND 32),
+          value TEXT NOT NULL CHECK (length(value) BETWEEN 1 AND 200),
+          fact_status TEXT NOT NULL CHECK (fact_status IN ('active', 'superseded', 'retracted', 'uncertain')),
+          source_memory_id TEXT NOT NULL CHECK (length(source_memory_id) = 36),
+          source_message_id TEXT,
+          valid_from TEXT NOT NULL,
+          valid_to TEXT,
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          supersedes_fact_id TEXT CHECK (supersedes_fact_id IS NULL OR length(supersedes_fact_id) = 36),
+          sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          extraction_version TEXT NOT NULL CHECK (length(extraction_version) BETWEEN 3 AND 32),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE UNIQUE INDEX fact_records_dedupe_uq ON fact_records(source_memory_id, predicate, value);
+        CREATE INDEX fact_records_predicate_idx ON fact_records(predicate, fact_status, valid_to);
+        CREATE INDEX fact_records_supersedes_idx ON fact_records(supersedes_fact_id);
+
+        -- P1: which turn a reflection hint was actually injected into, so the
+        -- consumption trace can join the finding to the turn evaluation and
+        -- the answer instead of stopping at "it was routed".
+        ALTER TABLE reflection_finding_routes ADD COLUMN injected_turn_id TEXT CHECK (injected_turn_id IS NULL OR length(injected_turn_id) = 36);
+        ALTER TABLE reflection_finding_routes ADD COLUMN injected_statement_digest TEXT CHECK (injected_statement_digest IS NULL OR length(injected_statement_digest) = 16);
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
