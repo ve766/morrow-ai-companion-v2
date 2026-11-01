@@ -8,6 +8,7 @@ import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
 import { MemoryImportanceService, ARCHIVE_THRESHOLD } from '../memory/memory-importance'
+import { MemoryMaintenanceScheduler } from '../memory/memory-maintenance'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
@@ -44,6 +45,7 @@ const logger = createLogger({ minimumLevel: 'info' })
 let mainWindow: BrowserWindow | undefined
 let unregisterIpc: (() => void) | undefined
 let database: SqliteDatabase | undefined
+let memoryMaintenance: MemoryMaintenanceScheduler | undefined
 let reminderService: ReminderService | undefined
 let companionService: CompanionService | undefined
 let eventLog: EventLogService | undefined
@@ -198,19 +200,20 @@ if (hasSingleInstanceLock) {
     // a recently used memory is never pushed out by age alone.
     const memoryImportance = new MemoryImportanceService(database)
     const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance })
-    // Consolidation and decay run at startup, not in the background: this build
-    // has no scheduler, and a silent timer touching memories would be worse than
-    // an explicit pass whose result is logged.
-    try {
-      memoryImportance.recomputeAll()
-      const groups = memoryImportance.consolidate()
-      const archived = memoryImportance.archiveBelow(ARCHIVE_THRESHOLD, 180)
-      if (groups.length > 0 || archived.length > 0) {
-        logger.debug('memory', 'importance pass', { groups: groups.length, archived: archived.length })
+    // D-12: a lifecycle-controlled scheduler replaces the startup-only pass.
+    // It catches up now (the old behaviour), then runs on an interval decided
+    // by absolute time — a long-running process keeps its importance scores
+    // fresh, and no tick can double-apply decay.
+    memoryMaintenance = new MemoryMaintenanceScheduler({
+      database,
+      importance: memoryImportance,
+      archiveThreshold: ARCHIVE_THRESHOLD,
+      archiveOlderThanDays: 180,
+      onPass: (outcome) => {
+        logger.debug('memory', 'maintenance pass', { groups: outcome.groups, archived: outcome.archived, status: outcome.status })
       }
-    } catch {
-      console.warn('Memory importance could not be recomputed; stored memories are unaffected.')
-    }
+    })
+    memoryMaintenance.start()
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
@@ -468,6 +471,8 @@ if (hasSingleInstanceLock) {
 
 app.on('before-quit', () => {
   eventLog?.tryRecord({ sourceModule: 'app', eventType: 'app.closing', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: {} })
+  memoryMaintenance?.stop()
+  memoryMaintenance = undefined
   reminderService?.shutdown()
   reminderService = undefined
   companionService?.shutdown()
