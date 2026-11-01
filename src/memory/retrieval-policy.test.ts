@@ -58,13 +58,17 @@ describe('phase 2 C: retrieval policy narrows, never widens', () => {
     expect(result.selected.map((item) => item.id)).toEqual([coffee])
   })
 
-  it('keeps a contradicting record for a correction but not for a new topic', () => {
+  it('keeps a contradicting record for a correction and for a new topic (contested facts stay in view)', () => {
+    // D-5 remediation: a query whose own assertion contradicts a stored
+    // single-valued fact is exactly the case where the fact must be visible —
+    // the model cannot acknowledge or resist a claim it cannot see. Conflicts
+    // are surfaced with markers, never hidden by policy.
     const [hangzhou] = ids(['我住在杭州。'])
     const records = [memory(hangzhou!, '我住在杭州。')]
     const correction = assembler.assemble('我住在大阪。', records, 'personal', 25, 3000, undefined, policyForIntent('correction'))
     expect(correction.selected.map((item) => item.id)).toEqual([hangzhou])
     const newTopic = assembler.assemble('我住在大阪。', records, 'personal', 25, 3000, undefined, policyForIntent('new_topic'))
-    expect(newTopic.selected).toEqual([])
+    expect(newTopic.selected.map((item) => item.id)).toEqual([hangzhou])
   })
 
   it('never lifts the sensitivity ceiling, whichever policy is used', () => {
