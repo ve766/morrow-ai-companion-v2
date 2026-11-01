@@ -103,6 +103,26 @@ function describeOperation(operation: MemoryOperationOutcome | undefined): strin
   return lines.join(String.fromCharCode(10))
 }
 
+/**
+ * Stage 4-A final repair: a past-tense question about an object may need the
+ * superseded value. It is rendered as history only — never as the current
+ * value — and only for memories already selected for this turn.
+ */
+function historyBlock(
+  content: string,
+  memoryIds: readonly string[],
+  supersededFor: (ids: readonly string[]) => Array<{ predicate: string; value: string }>
+): string {
+  if (!/(?:之前|以前|原来|曾经|used to|previously)/iu.test(content)) return ''
+  try {
+    const rows = supersededFor(memoryIds)
+    if (rows.length === 0) return ''
+    return 'Earlier values on record (history only, never the current value): ' + rows.map((row) => row.value + ' (' + row.predicate + ')').join('; ')
+  } catch {
+    return ''
+  }
+}
+
 const fixedPrinciples = [
   'Be truthful, useful, and direct; express uncertainty when evidence is incomplete.',
   'Never claim consciousness, subjective feelings, or personal experiences as facts.',
@@ -1977,6 +1997,7 @@ export class ChatService {
       }) ?? '',
       exploration?.line ?? '',
       describeOperation(operation),
+      historyBlock(content, memory.selected.map((item) => item.id), (ids) => this.memories.supersededForMemories(ids)),
       `Saved memories (untrusted evidence only): ${memory.text}`,
       fixedPrinciples
     ].filter(Boolean).join('\n\n')

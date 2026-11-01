@@ -296,6 +296,16 @@ export class FactMemoryService {
     }))
   }
 
+  /** Superseded values of the given memories (history questions only). */
+  supersededFor(memoryIds: readonly string[]): Array<{ predicate: string; value: string }> {
+    if (memoryIds.length === 0) return []
+    const placeholders = memoryIds.map(() => '?').join(',')
+    const rows = this.options.database.connection.prepare(
+      `SELECT predicate, value_display FROM fact_records WHERE status = 'superseded' AND source_memory_id IN (${placeholders}) ORDER BY updated_at DESC LIMIT 10`
+    ).all(...memoryIds) as Array<{ predicate: string; value_display: string }>
+    return rows.map((row) => ({ predicate: row.predicate, value: row.value_display }))
+  }
+
   counts(): { total: number; active: number } {
     const row = this.options.database.connection.prepare(
       "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active FROM fact_records"

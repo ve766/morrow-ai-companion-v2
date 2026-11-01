@@ -153,7 +153,8 @@ async function live(): Promise<void> {
   const transcript: Array<Record<string, unknown>> = []
   const checks: Array<{ id: string; name: string; ok: boolean; detail: string }> = []
   try {
-    const say = async (companion: typeof stack.companion, conversationId: string, content: string): Promise<{ reply: string; digest: string; evidence: string[]; operationBlock: string }> => {
+    const say = async (source: { companion: typeof stack.companion; lastPayload: () => string }, conversationId: string, content: string): Promise<{ reply: string; digest: string; evidence: string[]; operationBlock: string }> => {
+      const companion = source.companion
       let reply = ''
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         try {
@@ -166,8 +167,8 @@ async function live(): Promise<void> {
           if (attempt === 3 || !transient) throw error
         }
       }
-      const system = systemText(stack.lastPayload())
-      return { reply, digest: payloadDigest(stack.lastPayload()).slice(0, 16), evidence: evidenceEntries(system).map((entry) => entry.content), operationBlock: operationBlockOf(system) }
+      const system = systemText(source.lastPayload())
+      return { reply, digest: payloadDigest(source.lastPayload()).slice(0, 16), evidence: evidenceEntries(system).map((entry) => entry.content), operationBlock: operationBlockOf(system) }
     }
 
     const sharedConversations = new Map<string, string>()
@@ -175,7 +176,7 @@ async function live(): Promise<void> {
       const shared = step.sameConversationAs ? sharedConversations.get(step.sameConversationAs) : undefined
       const conversation = shared ? { id: shared } : stack.companion.createConversation()
       sharedConversations.set(step.id, conversation.id)
-      const turn = await say(stack.companion, conversation.id, step.user)
+      const turn = await say(stack, conversation.id, step.user)
       transcript.push({ session: step.id, user: step.user, reply: turn.reply.slice(0, 900), payloadDigest: turn.digest, evidence: turn.evidence, operationBlock: turn.operationBlock })
     }
 
@@ -200,19 +201,19 @@ async function live(): Promise<void> {
     const edge = buildProviderStack({ credentials: { providerId: target.id, model: target.model, apiKey: key } })
     try {
       const petA = edge.companion.createConversation().id
-      await say(edge.companion, petA, '我有一只猫叫咪咪。帮我记住。')
+      await say(edge, petA, '我有一只猫叫咪咪。帮我记住。')
       const petB = edge.companion.createConversation().id
-      await say(edge.companion, petB, '我还有一只猫叫小黑。帮我记住。')
-      const ambiguous = await say(edge.companion, petB, '我说错了，它现在叫豆豆。帮我更新。')
+      await say(edge, petB, '我还有一只猫叫小黑。帮我记住。')
+      const ambiguous = await say(edge, petB, '我说错了，它现在叫豆豆。帮我更新。')
       transcript.push({ session: 'X1', user: '两只宠物时说：它现在叫豆豆', reply: ambiguous.reply.slice(0, 600), payloadDigest: ambiguous.digest, evidence: ambiguous.evidence, operationBlock: ambiguous.operationBlock })
       const pets = edge.factMemory.lookupActive('pet_name').map((fact) => fact.valueNormalized).sort()
       checks.push({ id: 'X1-clarify', name: '多候选代词→clarify，不写入', ok: ambiguous.operationBlock.includes('status=clarify') && !pets.includes('豆豆'), detail: JSON.stringify(pets) })
 
       const residency = edge.companion.createConversation().id
-      await say(edge.companion, residency, '我住在杭州。帮我记住。')
+      await say(edge, residency, '我住在杭州。帮我记住。')
       const residence = edge.factMemory.lookupActive('residence')
       checks.push({ id: 'X3-create', name: '显式保存产生唯一当前事实', ok: residence.length === 1 && residence[0]!.valueNormalized === '杭州', detail: JSON.stringify(residence.map((fact) => fact.valueNormalized)) })
-      const replay = await say(edge.companion, residency, '我住在杭州。帮我记住。')
+      const replay = await say(edge, residency, '我住在杭州。帮我记住。')
       const afterReplay = edge.factMemory.lookupActive('residence')
       checks.push({ id: 'X3-replay', name: '重复同一句话不产生第二条事实', ok: afterReplay.length === 1, detail: `${afterReplay.length} active; block=${replay.operationBlock.replace(/\n/g, ' ').slice(0, 60)}` })
     } finally {

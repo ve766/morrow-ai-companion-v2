@@ -430,6 +430,16 @@ export class MemoryService {
     return this.factIndex?.lookupActive(predicate) ?? []
   }
 
+  /**
+   * Stage 4-A final repair: superseded values of the given memories, for a
+   * past-tense question. History only — the caller renders it as such.
+   */
+  supersededForMemories(memoryIds: readonly string[]): Array<{ predicate: string; value: string }> {
+    if (!this.factIndex || memoryIds.length === 0) return []
+    const placeholders = memoryIds.map(() => '?').join(',')
+    return this.factIndex.supersededFor(memoryIds)
+  }
+
   /** The stored text of one memory (planner species carry-over). */
   textOf(memoryId: string): string {
     return this.repository.get(memoryId)?.currentText ?? ''
