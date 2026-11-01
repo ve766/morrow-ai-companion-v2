@@ -40,8 +40,11 @@
 ### D-12 巩固/衰减调度 — FIXED
 `MemoryMaintenanceScheduler`：启动 catch-up + 6h 间隔 + 绝对时间门（`memory_maintenance_state.last_run_at`，休眠/崩溃不可能重复施加衰减——每次从证据台账重算）+ 单实例互斥（同事务 claim）+ 失败记录与重试 + before-quit stop + 可注入时钟。保护逻辑留在 `archiveBelow`（pin/边界/纠正豁免）；归档≠删除语义不变。
 
-### D-13 CI 覆盖 — FIXED
-PR CI 新增 "Stage 3 suites" 步骤：主/消融/纵向/重启/长对话/intent/memory-recall 全部作为必需步骤，失败即 job 失败；结果绑定 checkout SHA。live Provider 不进 PR CI（secrets 未配置，且契约禁止 fork PR 泄露）。
+### D-13 CI 覆盖 — BLOCKED（推送凭据 scope）
+变更已完成并本地验证（七套件命令逐条退出码 0、结果绑定 SHA、失败即失败），但本机 gh 凭据 scopes 为 gist/read:org/repo——**无 workflow scope，GitHub 拒绝任何改 `.github/workflows/ci.yml` 的推送**（远端逐字拒绝，重试 8 次同因）。完整 diff 保留于 `docs/reports/stage-3-ci-workflow.patch`，解锁步骤：
+1. `gh auth refresh -h github.com -s workflow`
+2. `git apply docs/reports/stage-3-ci-workflow.patch && git commit && git push`
+其余 Stage 3 套件已全部在本机以退出码 0 验证（证据索引 §3）；此阻塞不涉及任何业务代码，也不影响 D-13 的技术内容正确性。
 
 ## 迁移与兼容
 
