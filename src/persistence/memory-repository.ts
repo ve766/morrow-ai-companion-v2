@@ -157,8 +157,8 @@ export class SqliteMemoryRepository implements MemoryRepository {
 
   private insertRevision(revision: MemoryRevisionRecord): void {
     this.database.connection.prepare(`
-      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO memory_revisions(memory_id, revision, content, source_category, status, change_type, created_at, previous_revision, confidence, source_message_id, provenance_kind)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       revision.memoryId,
       revision.revision,
@@ -168,7 +168,9 @@ export class SqliteMemoryRepository implements MemoryRepository {
       revision.changeType,
       revision.createdAt,
       revision.previousRevision,
-      revision.confidence
+      revision.confidence,
+      revision.sourceMessageId ?? null,
+      revision.provenanceKind ?? 'legacy'
     )
   }
 }

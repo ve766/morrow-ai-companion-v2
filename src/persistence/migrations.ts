@@ -2316,6 +2316,34 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 42,
+    name: 'fact-index-jobs-and-revision-provenance',
+    up(database) {
+      // A (final closure review): durable index-job state. A failed re-index
+      // must survive restarts as a pending/degraded job with bounded backoff —
+      // "returning a failure count" is not "handling the failure".
+      database.exec(`
+        CREATE TABLE fact_index_jobs (
+          memory_id TEXT PRIMARY KEY NOT NULL CHECK (length(memory_id) = 36),
+          status TEXT NOT NULL CHECK (status IN ('pending', 'indexed', 'degraded')),
+          attempt_count INTEGER NOT NULL CHECK (attempt_count >= 0),
+          last_error_code TEXT CHECK (last_error_code IS NULL OR length(last_error_code) BETWEEN 3 AND 64),
+          next_retry_at TEXT,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE INDEX fact_index_jobs_retry_idx ON fact_index_jobs(status, next_retry_at);
+      `)
+      // B: message-level provenance at the revision layer. Nullable and
+      // forward-compatible: existing revisions stay legacy/NULL and are never
+      // backfilled with invented ids.
+      database.exec(`
+        ALTER TABLE memory_revisions ADD COLUMN source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36);
+        ALTER TABLE memory_revisions ADD COLUMN provenance_kind TEXT CHECK (provenance_kind IN ('message', 'legacy'));
+      `)
+    }
+  },
 
 ]
 

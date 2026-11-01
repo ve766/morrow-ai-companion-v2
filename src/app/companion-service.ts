@@ -82,6 +82,11 @@ const fixedPrinciples = [
   // D-5: a retrieved personal fact outranks a generic answer, and missing or
   // conflicting evidence asks for clarification, never for a confident guess.
   'When the user asks about a personal fact, check the retrieved memories first and answer from them; if the evidence is missing, ambiguous or conflicting, say so and ask — do not confidently deny or confabulate.',
+  // E (final closure review): when the user pushes for a claim the delivered
+  // evidence contradicts, name the evidence explicitly before anything else —
+  // a bare question without citing the stored fact is the failure shape the
+  // real-provider run exposed.
+  'If the user asks you to assert or agree with something that contradicts the delivered memories, state the evidence you actually hold first, then ask whether they want to update it; do not drop the stored fact and do not pretend it was never there.',
   'Privacy and safety boundaries override style preferences.'
 ].join('\n')
 
@@ -2342,7 +2347,10 @@ export class MemorySuggestionService {
     const memory = this.memories.create(request.content.trim(), sensitivity, {
       sourceCategory: 'model_inferred_confirmed',
       confidence: 70,
-      correlationId: id
+      correlationId: id,
+      // B: the accepted suggestion carries its real source message, so the
+      // fact ledger can cite the exact turn the user approved.
+      provenance: { sourceMessageId: row.source_message_id, kind: 'message' }
     })
     try {
       this.memories.detectConflicts(memory.id)

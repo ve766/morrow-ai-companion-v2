@@ -22,7 +22,7 @@ import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
-import { readFactSlot } from './fact-slot'
+import { readFactSlot, extractFactSlots } from './fact-slot'
 import type { MorrowEvent } from '../persistence/event-log'
 import { normalizeAssertion, readMemoryUtterance, sameAssertion } from './memory-evidence-policy'
 
@@ -32,12 +32,20 @@ export interface MemoryEventSink {
   tryRecord(event: Omit<MorrowEvent, 'schemaVersion' | 'occurredAt' | 'id'>): MorrowEvent | null
 }
 
+export interface MemoryProvenance {
+  /** The real user message that produced this memory, when one exists. */
+  sourceMessageId: string | null
+  kind: 'message' | 'legacy'
+}
+
 export interface MemoryCreateOptions {
   sourceCategory?: MemorySourceCategory
   confidence?: number
   correlationId?: string
   /** Skip duplicate merging (used when the caller has already deduplicated). */
   allowDuplicate?: boolean
+  /** B (final closure review): message-level provenance, threaded to the revision and the fact ledger. */
+  provenance?: MemoryProvenance
 }
 
 export interface MemoryConflictReport {
@@ -89,13 +97,28 @@ export class MemoryService {
   private readonly importance: import('./memory-importance').MemoryImportancePort | undefined
   /** P0-A: the addressable fact layer, re-indexed after every lifecycle write. */
   private readonly factIndex: import('./fact-memory').FactMemoryService | undefined
+  /** One-shot provenance for the next revision write (correct path). */
+  private pendingProvenance: MemoryProvenance | undefined
+
+  private factIndexDegraded = 0
 
   private reindexFact(memoryId: string): void {
     try {
       this.factIndex?.reindexMemory(memoryId)
-    } catch {
-      // The index is derived state; a failed extraction costs a lookup, never
-      // a memory. The next reindex retries.
+      return
+    } catch (error) {
+      // A: structured, sanitized degradation — memoryId + classification only,
+      // never the memory text, SQL parameters, secrets or the raw exception.
+      this.factIndexDegraded += 1
+      this.events?.tryRecord?.({
+        sourceModule: 'memory',
+        eventType: 'memory.fact_index.degraded',
+        actor: 'system',
+        subjectType: 'memory',
+        subjectId: memoryId,
+        correlationId: null,
+        payload: { errorCode: error instanceof Error ? error.name : 'UNKNOWN', attempt: this.factIndexDegraded }
+      })
     }
   }
 
@@ -135,7 +158,7 @@ export class MemoryService {
       confidence,
       lastConfirmedAt: timestamp
     }
-    this.repository.create(record, this.revision(record, 'created', null))
+    this.repository.create(record, this.revision(record, 'created', null, options.provenance))
     // The ledger records where this memory came from; the score is derived from
     // it, never incremented, so a replay cannot inflate importance.
     this.importance?.recordEvidence?.({
@@ -233,7 +256,18 @@ export class MemoryService {
       try {
         for (const fact of this.factIndex.lookupActive(querySlotForFacts.predicate, { queryTime: querySlotForFacts.time, includeSuperseded: querySlotForFacts.time === 'past' })) factAddressedIds.add(fact.sourceMemoryId)
       } catch {
-        // A fact-lookup failure degrades to the lexical/slot channels only.
+        // A: degraded fallback — the index is untrustworthy, so derive the
+        // candidates directly from a bounded slice of the active memories
+        // with the same extractor the index uses. Still never guesses: the
+        // scan answers the same predicate question the index would.
+        for (const record of records.slice(0, 200)) {
+          if (factAddressedIds.has(record.id)) continue
+          try {
+            if (extractFactSlots(record.currentText).some((candidate) => candidate.predicate === querySlotForFacts.predicate)) factAddressedIds.add(record.id)
+          } catch {
+            // One unreadable memory stays out of the fact channel.
+          }
+        }
       }
     }
     // R3 query plan: a bare value assertion ("你就说我在北京") does not carry
@@ -246,7 +280,10 @@ export class MemoryService {
     const activityVerb = /^(?:学|做|看|写|想|试|用|开|玩|读|听|跑|吃)/u.test(assertedValue)
     if (this.factIndex && bareAssertion && !activityVerb) {
       try {
-        for (const predicate of ['residence', 'age', 'name', 'employer', 'job_role', 'project_code']) {
+        // C: '我在北京' asserts a place-of-living/working fact — not a name,
+        // age or project code. Narrow candidates to the place predicates so a
+        // bare value cannot spray every attribute into the prompt.
+        for (const predicate of ['residence', 'employer']) {
           for (const fact of this.factIndex.lookupActive(predicate)) factAddressedIds.add(fact.sourceMemoryId)
         }
       } catch {
@@ -269,8 +306,11 @@ export class MemoryService {
     return history
   }
 
-  correct(id: string, content: string, correlationId?: string): MemoryRecord {
+  correct(id: string, content: string, correlationId?: string, provenance?: MemoryProvenance): MemoryRecord {
     validateMemoryText(content)
+    // B: the correction's own provenance rides on the new revision; the
+    // superseded history keeps the old revision's source.
+    this.pendingProvenance = provenance
     const record = this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
     this.reindexFact(id)
     return record
@@ -425,7 +465,9 @@ export class MemoryService {
     })
   }
 
-  private revision(record: MemoryRecord, changeType: MemoryChangeType, previousRevision: number | null): MemoryRevisionRecord {
+  private revision(record: MemoryRecord, changeType: MemoryChangeType, previousRevision: number | null, provenance?: MemoryProvenance): MemoryRevisionRecord {
+    if (!provenance) provenance = this.pendingProvenance
+    this.pendingProvenance = undefined
     return {
       memoryId: record.id,
       revision: record.revision,
@@ -435,7 +477,9 @@ export class MemoryService {
       changeType,
       createdAt: record.updatedAt,
       previousRevision,
-      confidence: record.confidence
+      confidence: record.confidence,
+      sourceMessageId: provenance?.sourceMessageId ?? null,
+      provenanceKind: provenance?.kind ?? 'legacy'
     }
   }
 

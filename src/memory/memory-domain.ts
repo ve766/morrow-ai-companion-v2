@@ -40,6 +40,9 @@ export interface MemoryRevisionRecord {
   createdAt: string
   previousRevision: number | null
   confidence: number
+  /** B: message-level provenance; legacy rows stay null. */
+  sourceMessageId?: string | null
+  provenanceKind?: 'message' | 'legacy' | null
 }
 
 export type MemoryTransition =
