@@ -264,6 +264,13 @@ export interface ProviderStackOptions {
    * exactly how a scripted response gets mislabelled as a real-model pass.
    */
   factory?: (config: ProviderConfigRecord) => ProviderPort
+  /**
+   * D-3 remediation: real-model runners pass the contract credential here so
+   * the companion actually has a configured provider. Without it the first
+   * turn dies with PROVIDER_UNCONFIGURED — which is what the semantic runner
+   * silently did on its first live exercise.
+   */
+  credentials?: { providerId: string; model: string; apiKey: string }
 }
 
 /**
@@ -334,6 +341,9 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
     }
   })
   companion.saveCognitiveSettings({ enabled: true })
+  if (options.credentials) {
+    companion.saveProvider({ providerId: options.credentials.providerId, model: options.credentials.model, enabled: true, apiKey: options.credentials.apiKey })
+  }
 
   return {
     companion,

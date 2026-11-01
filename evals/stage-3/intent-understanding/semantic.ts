@@ -195,11 +195,11 @@ interface TurnObservation {
   error: string | null
 }
 
-export async function run(): Promise<TurnObservation[]> {
+export async function run(target: ReturnType<typeof selectProvider>, key: string): Promise<TurnObservation[]> {
   const observations: TurnObservation[] = []
 
   for (const scenario of SCENARIOS) {
-    const stack = buildProviderStack()
+    const stack = buildProviderStack({ credentials: { providerId: target.id, model: target.model, apiKey: key } })
     try {
       const conversation = stack.companion.createConversation()
       for (const content of scenario.turns) {
@@ -277,7 +277,7 @@ export async function main(): Promise<void> {
   const stackless = buildProviderStack()
   stackless.close()
 
-  const turns = await run()
+  const turns = await run(target, key)
   const finishedAt = new Date().toISOString()
 
   const readingsPresent = turns.filter((turn) => turn.readingPresent).length
