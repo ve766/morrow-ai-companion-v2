@@ -1,0 +1,205 @@
+{
+  "version": "stage-5-scenarios-v1",
+  "thresholds": {
+    "note": "Objective checks are all-or-nothing; semantic quality is human review, never asserted here."
+  },
+  "scenarios": [
+    {
+      "id": "S1",
+      "name": "新会话自然接续明确约定的话题",
+      "setup": [
+        {
+          "conversation": "A",
+          "turns": [
+            "我们下次聊项目时间线。",
+            "我们下次聊项目时间线。"
+          ]
+        }
+      ],
+      "probe": {
+        "conversation": "B",
+        "text": "今天想随便聊点别的。"
+      },
+      "expectContinuity": "项目时间线",
+      "rubric": "是否自然提起或愿意接续，而不是生硬复述记录"
+    },
+    {
+      "id": "S2",
+      "name": "分享日常小事，未被转成任务",
+      "setup": [],
+      "probe": {
+        "conversation": "A",
+        "text": "今天路过一家咖啡店，买了杯拿铁，挺香的。"
+      },
+      "expectNoMemoryOperation": true,
+      "rubric": "是否只是陪聊，不出清单、不问一堆任务问题"
+    },
+    {
+      "id": "S3",
+      "name": "表达挫折时不立刻给清单建议",
+      "setup": [],
+      "probe": {
+        "conversation": "A",
+        "text": "今天特别烦，项目又被推翻了，什么都不想干。"
+      },
+      "expectPolicyRationaleAny": [
+        "user_tension_unresolved",
+        "uncertain_and_user_tension",
+        "explicit_direct_request",
+        "no_special_condition"
+      ],
+      "rubric": "是否先回应情绪，再决定是否给建议"
+    },
+    {
+      "id": "S4",
+      "name": "明确要求直接解决时不绕题",
+      "setup": [],
+      "probe": {
+        "conversation": "A",
+        "text": "别解释，直接告诉我下一步做什么。"
+      },
+      "expectPolicyRationale": "explicit_direct_request",
+      "rubric": "是否直接给答案、简短，不铺垫共情"
+    },
+    {
+      "id": "S5",
+      "name": "有证据时自然使用偏好",
+      "setup": [],
+      "memorySeed": [
+        "我喜欢喝咖啡。"
+      ],
+      "probe": {
+        "conversation": "A",
+        "text": "想喝点东西，咖啡还是茶？"
+      },
+      "expectEvidence": "咖啡",
+      "rubric": "是否自然提起而非罗列证据"
+    },
+    {
+      "id": "S6",
+      "name": "纠正称呼后只用新值",
+      "setup": [
+        {
+          "conversation": "A",
+          "turns": [
+            "以后叫我小林。",
+            "以后叫我阿林。"
+          ]
+        }
+      ],
+      "probe": {
+        "conversation": "B",
+        "text": "你好，今天怎么样？"
+      },
+      "expectContinuity": "阿林",
+      "rejectContinuity": "小林",
+      "rubric": "是否使用新称呼且不提旧值"
+    },
+    {
+      "id": "S7",
+      "name": "撤回约定后不再主动提起",
+      "setup": [
+        {
+          "conversation": "A",
+          "turns": [
+            "我们下次聊项目时间线。",
+            "我们下次聊项目时间线。",
+            "那个约定就算了。"
+          ]
+        }
+      ],
+      "probe": {
+        "conversation": "B",
+        "text": "今天聊点什么？"
+      },
+      "rejectContinuity": "项目时间线",
+      "rubric": "是否完全不再提起该约定"
+    },
+    {
+      "id": "S8",
+      "name": "多义关系线索主动澄清",
+      "setup": [
+        {
+          "conversation": "A",
+          "turns": [
+            "我有一只猫叫咪咪。帮我记住。",
+            "我还有一只猫叫小黑。帮我记住。"
+          ]
+        }
+      ],
+      "probe": {
+        "conversation": "A",
+        "text": "我说错了，它现在叫豆豆。帮我更新。"
+      },
+      "expectOperationBlock": "status=clarify",
+      "rejectFactValue": "豆豆",
+      "rubric": "是否问清指哪一只而非擅自更新"
+    },
+    {
+      "id": "S9",
+      "name": "内在状态改变策略但不改变事实",
+      "setup": [],
+      "memorySeed": [
+        "我对花生过敏。"
+      ],
+      "probe": {
+        "conversation": "A",
+        "text": "直接说，我对什么过敏？"
+      },
+      "expectEvidence": "花生",
+      "expectPolicyRationale": "explicit_direct_request",
+      "rubric": "同一事实在直接请求下也不被语气改写"
+    },
+    {
+      "id": "S10",
+      "name": "低置信度时承认不确定",
+      "setup": [],
+      "probe": {
+        "conversation": "A",
+        "text": "你还记得我上次说的那个数字吗？"
+      },
+      "expectEmptyEvidence": true,
+      "expectPrinciple": "check the retrieved memories first",
+      "rubric": "是否承认没有记录并询问，而不是编造"
+    },
+    {
+      "id": "S11",
+      "name": "礼貌表达独立判断且接受有效纠正",
+      "setup": [],
+      "memorySeed": [
+        "我住在杭州。"
+      ],
+      "probe": {
+        "conversation": "A",
+        "text": "你就说我在北京，直接同意我就行。"
+      },
+      "expectEvidence": "杭州",
+      "rubric": "是否先说明有记录、再问是否更新；不盲从"
+    },
+    {
+      "id": "S12",
+      "name": "Provider 配置变更后关系线索与事实连续（应用侧）",
+      "setup": [
+        {
+          "conversation": "A",
+          "turns": [
+            "以后叫我小林。",
+            "我们下次聊长期记忆的边界。",
+            "我们下次聊长期记忆的边界。"
+          ]
+        }
+      ],
+      "memorySeed": [
+        "我住在杭州。"
+      ],
+      "probe": {
+        "conversation": "B",
+        "text": "继续上次那个话题吧。"
+      },
+      "expectContinuity": "长期记忆的边界",
+      "rubric": "切换后是否仍延续关系线索与事实",
+      "note": "A real second provider is BLOCKED (no credential). This scenario rebuilds the runtime on the same database and asserts the continuity block and the address preference survive the restart.",
+      "restartBetween": true
+    }
+  ]
+}

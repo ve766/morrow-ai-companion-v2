@@ -51,6 +51,10 @@ export interface TurnEvaluation {
    * strategy input assembled from coverage/source/validity/conflict — a
    * heuristic, never a calibrated probability.
    */
+  /** Stage 5: the structured strategy this reply followed (no numbers). */
+  expressionPolicy: { adviceMode: string; clarifyMode: string; questionBudget: number; brevity: string; rationale: string } | null
+  /** Stage 5: relationship thread ids/kinds used in this turn's context. */
+  relationshipThreads: Array<{ id: string; kind: string }> | null
   evidenceGate: {
     classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict'
     answerConfidence: number
@@ -76,6 +80,8 @@ export interface TurnEvaluationInput {
   answer: AnswerEvidenceAssessment | null
   guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
   memoryUse?: { referencedIds: readonly string[]; deliveredCount: number } | null
+  expressionPolicy?: { adviceMode: string; clarifyMode: string; questionBudget: number; brevity: string; rationale: string } | null
+  relationshipThreads?: ReadonlyArray<{ id: string; kind: string }> | null
   evidenceGate?: {
     classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict'
     answerConfidence: number
@@ -114,6 +120,16 @@ export function buildTurnEvaluation(input: TurnEvaluationInput): TurnEvaluation 
     memoryUse: input.memoryUse
       ? { referencedIds: [...new Set(input.memoryUse.referencedIds)].slice(0, 25), deliveredCount: Math.max(0, input.memoryUse.deliveredCount) }
       : null,
+    expressionPolicy: input.expressionPolicy
+      ? {
+          adviceMode: input.expressionPolicy.adviceMode,
+          clarifyMode: input.expressionPolicy.clarifyMode,
+          questionBudget: input.expressionPolicy.questionBudget,
+          brevity: input.expressionPolicy.brevity,
+          rationale: input.expressionPolicy.rationale
+        }
+      : null,
+    relationshipThreads: input.relationshipThreads ? [...input.relationshipThreads].slice(0, 8) : null,
     evidenceGate: input.evidenceGate
       ? {
           classification: input.evidenceGate.classification,
@@ -176,6 +192,8 @@ export function turnEvaluationEventPayload(evaluation: TurnEvaluation): Record<s
     memoryUseReferenced: evaluation.memoryUse?.referencedIds.length ?? null,
     memoryUseDelivered: evaluation.memoryUse?.deliveredCount ?? null,
     evidenceGate: evaluation.evidenceGate?.classification ?? null,
+    expressionPolicy: evaluation.expressionPolicy?.rationale ?? null,
+    relationshipThreads: evaluation.relationshipThreads ? evaluation.relationshipThreads.length : null,
     answerConfidence: evaluation.evidenceGate?.answerConfidence ?? null
   }
 }

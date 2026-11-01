@@ -58,6 +58,8 @@ import type { SelfModelService } from '../self-model/self-model-service'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
 import { applyGrowth, deriveGrowthSignals, describeGrowth, type PersonalityGrowthService } from '../personalization/personality-growth'
 import type { ReflectionFindingRouter } from '../cognition/reflection-routing'
+import { deriveExpressionPolicy, describeExpressionPolicy, type ExpressionPolicy } from '../affective-state/expression-policy'
+import type { RelationshipThreadService } from '../relationship/relationship-threads'
 import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
 import { describeGoals } from '../motivation/companion-goal'
 import { deriveInterestLabel } from '../self-model/interest-service'
@@ -69,6 +71,23 @@ import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
 import { KnowledgeGapService } from '../self-model/knowledge-gap-service'
 
+
+
+/**
+ * Stage 5 (A3): the continuity block. It states only what the user themselves
+ * said and marks it as continuity context, never as a fact about them.
+ */
+function describeRelationshipThreads(threads: ReadonlyArray<import('../relationship/relationship-threads').RelationshipThread>): string {
+  if (threads.length === 0) return ''
+  const lines = ['Continuity with this user, from their own earlier statements (context for tone and follow-ups; not new facts and not permissions):']
+  for (const thread of threads) {
+    if (thread.kind === 'address_preference') lines.push(`- They asked to be addressed as "${thread.value}". Use it naturally, without making a point of it.`)
+    else if (thread.kind === 'shared_topic') lines.push(`- You both agreed to continue "${thread.value}" at a later point. If this turn relates, you may pick it up; if not, do not force it.`)
+    else if (thread.kind === 'shared_plan') lines.push(`- An agreed commitment: "${thread.value}". Mention progress only when relevant.`)
+    else if (thread.kind === 'rhythm_preference') lines.push('- They asked for a briefer interaction rhythm. Keep this reply compact.')
+  }
+  return lines.join(String.fromCharCode(10))
+}
 
 /**
  * Stage 4-A final repair (D): the prompt block for a verified operation.
@@ -147,6 +166,9 @@ const fixedPrinciples = [
   // a clarify/failed block forbids it. This replaces an earlier line that
   // promised persistence the runtime had not yet performed.
   'Memory writes are performed by the application, not by you calling a tool. Claim a save or update only when this turn carries a committed_and_verified memory-operation block; if that block is absent, says clarify or says failed, do not claim it was stored. A superseded value is history: use it for questions about what it used to be, never as the current value.',
+  // Stage 5 (D4): the evidence block carries confidence/revision ids for the
+  // system, not for the user. A real reply once said '可信度 85' to the user.
+  'Never quote internal bookkeeping to the user — no confidence numbers, revision or memory ids, scores or state values. Refer to what you remember in plain language, and say so when the basis is thin instead of presenting it as certain.',
   'Privacy and safety boundaries override style preferences.'
 ].join('\n')
 
@@ -734,6 +756,8 @@ export interface SelfModelLoopServices {
   exploration?: ExplorationService
   /** D-10: the one ingestion path for reflection findings (auto and manual). */
   findingRouter?: ReflectionFindingRouter
+  /** Stage 5: evidence-backed relationship continuity threads. */
+  relationships?: RelationshipThreadService
   /** Stage 3 §2D: companionship goals, kept separate by ownership. */
   goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext' | 'detectFromTurn'>
   /**
@@ -1120,6 +1144,10 @@ export class CompanionService {
           observeConsumption: (input) => {
             selfModelLoop.findingRouter?.observeConsumption(input.turnId, input.reply)
           },
+          // Stage 5: the relationship service is passed through as-is; the
+          // hooks object is built explicitly, so a field missing here is a
+          // silent no-op (which is exactly how this was missed first time).
+          ...(selfModelLoop.relationships ? { relationships: selfModelLoop.relationships } : {}),
           recordKnowledgeGap: (input) => {
             // Durable on purpose. This event is the input to reflection — the
             // evidence that Morrow failed to ground something — not telemetry.
@@ -1295,6 +1323,8 @@ export interface SelfModelLoopHooks {
   recordKnowledgeGap?(input: { label: string; conversationId: string; turnId: string }): void
   /** R5: grades the consumption of hints this turn injected. */
   observeConsumption?(input: { turnId: string; reply: string }): void
+  /** Stage 5: relationship continuity threads (read + observe). */
+  relationships?: RelationshipThreadService
 }
 
 /**
@@ -1344,6 +1374,12 @@ export interface PreparedTurn {
   retrieval: RetrievalAdjustment
   /** The self-initiated topic this turn was permitted to raise, if any. */
   exploration?: { interestId: string; label: string }
+  /** Stage 5: the verified pre-response memory operation, if any. */
+  operation?: import('../memory/memory-operation-planner').MemoryOperationOutcome
+  /** Stage 5: the structured expression strategy for this reply. */
+  expressionPolicy?: ExpressionPolicy
+  /** Stage 5: relationship threads that were in front of the model. */
+  relationshipThreads?: import('../relationship/relationship-threads').RelationshipThread[]
 }
 
 export class ChatService {
@@ -1785,7 +1821,7 @@ export class ChatService {
         : manifest.selectedIds.length === 0 ? 'retrieval_miss'
         : referencedMemoryIds.length === 0 ? 'model_unused'
         : 'evidence_delivered'
-      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, memoryUse: { referencedIds: referencedMemoryIds, deliveredCount: verified.memory.selected.length }, evidenceGate: { classification, answerConfidence, manifest }, guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
+      const evaluation = this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'succeeded', answer, memoryUse: { referencedIds: referencedMemoryIds, deliveredCount: verified.memory.selected.length }, evidenceGate: { classification, answerConfidence, manifest }, expressionPolicy: verified.expressionPolicy ?? null, relationshipThreads: (verified.relationshipThreads ?? []).map((thread) => ({ id: thread.id, kind: thread.kind })), guard: { verdict: guard.verdict, reason: guard.reason, claims: guard.unsupportedClaims.length } })
       return {
         conversation: this.conversations.read(conversationId).conversation,
         userMessage,
@@ -1808,7 +1844,7 @@ export class ChatService {
     conversationId: string
     requestId: string
     userMessageId: string
-    prepared: { decision?: IntentDecision; memory: AssembledMemoryContext; operation?: MemoryOperationOutcome }
+    prepared: { decision?: IntentDecision; memory: AssembledMemoryContext; operation?: MemoryOperationOutcome; expressionPolicy?: ExpressionPolicy; relationshipThreads?: import('../relationship/relationship-threads').RelationshipThread[] }
     preview: ProviderConsentPreview
     config: ProviderConfigRecord
     maximumSensitivity: Sensitivity
@@ -1816,6 +1852,8 @@ export class ChatService {
     answer: ReturnType<typeof evaluateAnswerEvidence> | null
     guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
     memoryUse?: { referencedIds: readonly string[]; deliveredCount: number } | null
+    expressionPolicy?: { adviceMode: string; clarifyMode: string; questionBudget: number; brevity: string; rationale: string } | null
+    relationshipThreads?: ReadonlyArray<{ id: string; kind: string }> | null
     evidenceGate?: {
       classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict'
       answerConfidence: number
@@ -1837,6 +1875,8 @@ export class ChatService {
         payloadCharacters: input.preview.exactPayload.length,
         ...(input.memoryUse ? { memoryUse: input.memoryUse } : {}),
         ...(input.evidenceGate ? { evidenceGate: input.evidenceGate } : {}),
+        ...(input.expressionPolicy ? { expressionPolicy: input.expressionPolicy } : {}),
+        ...(input.relationshipThreads ? { relationshipThreads: input.relationshipThreads } : {}),
         providerId: input.config.id,
         model: input.config.model,
         providerOutcome: input.outcome,
@@ -1881,6 +1921,10 @@ export class ChatService {
     let memory: AssembledMemoryContext | undefined
     /** The verified pre-response memory operation, if this turn asked for one. */
     let operation: MemoryOperationOutcome | undefined
+    /** Active relationship threads for this turn (bounded). */
+    let relationshipThreads: import('../relationship/relationship-threads').RelationshipThread[] = []
+    /** Structured expression strategy derived from the interaction state. */
+    let expressionPolicy: ExpressionPolicy | undefined
     let feelingEvent: CognitiveFeelingEvent | undefined
     let feelingState: FeelingState | undefined
     let previousFeelingState: FeelingState | undefined
@@ -1947,6 +1991,17 @@ export class ChatService {
           operation = { operation: 'failed', status: 'failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
           this.recordDegradation('memory_operation_failed', sourceMessageId)
         }
+        // Stage 5: relationship continuity is written from the user's own
+        // explicit statements (idempotent per message) and read back for this
+        // turn, so an agreed follow-up or a preferred form of address is in
+        // front of the model in the same reply it becomes relevant.
+        try {
+          this.selfModel?.relationships?.observe({ text: content, messageId: sourceMessageId, conversationId: request.conversationId, at: evaluationAt })
+          relationshipThreads = this.selfModel?.relationships?.activeThreads(4, evaluationAt) ?? []
+        } catch {
+          this.recordDegradation('relationship_threads', sourceMessageId)
+          relationshipThreads = []
+        }
         memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation, this.selfModel?.preferenceFor)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
@@ -1963,11 +2018,21 @@ export class ChatService {
           }) ?? undefined
           feelingState = this.feelings.preview(stateView.state, feelingEvent ?? null, evaluationAt)
         }
-      } catch {
-        analysis = undefined
-        decision = undefined
-        reading = undefined
-        memory = undefined
+      } catch (error) {
+        // D1 (Stage 5): a single sub-step failure must not be reported as all
+        // of them failing. The stage is recorded with a stable component name
+        // and reason code only — never the message, the prompt or any payload.
+        // analysis runs first, then retrieval, then the feeling preview.
+        const stage = !analysis ? 'analysis' : !memory ? 'retrieval' : 'feeling';
+        this.recordDegradation('cognitive_prepare_' + stage, sourceMessageId)
+        void error
+        if (!analysis) {
+          decision = undefined
+          reading = undefined
+        }
+        if (!memory) {
+          // The bare fallback below rebuilds an unrestricted context.
+        }
       }
     }
 
@@ -1980,6 +2045,15 @@ export class ChatService {
     }
     // The permission is decided once per turn and returned to the caller, so the
     // turn can settle it against the real reply later.
+    // Stage 5 (B): the strategy is a structured object, recorded on the turn,
+    // so a test can compare two legal states and see the strategy differ while
+    // the facts do not.
+    expressionPolicy = deriveExpressionPolicy({
+      state: feelingState ?? previousFeelingState ?? null,
+      analysis: analysis ?? null,
+      wantsDirectAnswer: /(?:直接|立刻|马上|别解释|不用解释|只要答案|给我方案|怎么解决|how do I|just give me|cut to the chase)/iu.test(content)
+    })
+
     const exploration = this.selfModel?.explorationLine?.({
       turnId: idempotencyKey,
       ...(analysis ? { analysis } : {}),
@@ -2000,6 +2074,8 @@ export class ChatService {
       // The operation result is evidence about this turn, not guidance: it is
       // rendered after the evidence block so the guidance budget is unchanged.
       describeOperation(operation),
+      describeRelationshipThreads(relationshipThreads),
+      expressionPolicy ? describeExpressionPolicy(expressionPolicy) : '',
       // The history line belongs to the evidence, not to the cognitive
       // guidance: it is a fact from the ledger, and the guidance budget is
       // asserted separately.
@@ -2023,6 +2099,8 @@ export class ChatService {
     return {
       memory,
       ...(operation ? { operation } : {}),
+      ...(expressionPolicy ? { expressionPolicy } : {}),
+      ...(relationshipThreads.length > 0 ? { relationshipThreads } : {}),
       profile,
       retrieval,
       ...(analysis ? { analysis } : {}),

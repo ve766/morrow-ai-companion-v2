@@ -2344,7 +2344,50 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 43,
+    name: 'relationship-threads',
+    up(database) {
+      // Stage 5: relationship continuity. A thread is a low-sensitivity,
+      // evidence-backed continuity note (how the user wants to be addressed, a
+      // topic both agreed to continue, a commitment with progress). It is not a
+      // user profile: no inferred intimacy, dependency, identity or diagnosis.
+      database.exec(`
+        CREATE TABLE relationship_threads (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          kind TEXT NOT NULL CHECK (kind IN ('address_preference', 'shared_topic', 'shared_plan', 'rhythm_preference')),
+          value TEXT NOT NULL CHECK (length(trim(value)) BETWEEN 1 AND 200),
+          status TEXT NOT NULL CHECK (status IN ('candidate', 'active', 'superseded', 'retracted', 'expired')),
+          strength REAL NOT NULL CHECK (strength >= 0 AND strength <= 1),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          source_message_id TEXT NOT NULL CHECK (length(source_message_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          supersedes_thread_id TEXT CHECK (supersedes_thread_id IS NULL OR length(supersedes_thread_id) = 36),
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          expires_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX relationship_threads_kind_idx ON relationship_threads(kind, status, last_seen_at DESC);
+        CREATE UNIQUE INDEX relationship_threads_evidence_uq ON relationship_threads(kind, value, source_message_id);
 
+        -- Each independent turn that supports or contradicts a thread, so a
+        -- repeated sentence in one turn cannot inflate it and a deleted message
+        -- removes its contribution.
+        CREATE TABLE relationship_thread_evidence (
+          thread_id TEXT NOT NULL CHECK (length(thread_id) = 36),
+          source_message_id TEXT NOT NULL CHECK (length(source_message_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          polarity TEXT NOT NULL CHECK (polarity IN ('support', 'counter')),
+          weight REAL NOT NULL CHECK (weight > 0 AND weight <= 1),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (thread_id, source_message_id),
+          FOREIGN KEY (thread_id) REFERENCES relationship_threads(id) ON DELETE CASCADE
+        ) STRICT;
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

@@ -18,6 +18,7 @@ import { SqliteDatabase } from '../../../src/persistence/database'
 import { MemoryService } from '../../../src/memory/memory-service'
 import { MemoryImportanceService } from '../../../src/memory/memory-importance'
 import { FactMemoryService } from '../../../src/memory/fact-memory'
+import { RelationshipThreadService } from '../../../src/relationship/relationship-threads'
 import { SqliteMemoryRepository } from '../../../src/persistence/memory-repository'
 import { ConversationService } from '../../../src/conversation/conversation-service'
 import { SqliteConversationRepository } from '../../../src/persistence/conversation-repository'
@@ -98,6 +99,7 @@ export interface Stack {
   exploration: ExplorationService
   importance: MemoryImportanceService
   factMemory: FactMemoryService
+  relationships: RelationshipThreadService
   goals: CompanionGoalService
   close: () => void
 }
@@ -159,6 +161,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   // D-10: the harness wires the same finding router the app does, so an
   // automatic run and a manual run leave the same durable traces.
   const findingRouter = new ReflectionFindingRouter({ database, pending: new PendingCognitionService(new SqlitePendingItemRepository(database)), events: eventLog, clock: clock ?? undefined })
+  const relationships = new RelationshipThreadService({ database, clock: clock ?? undefined })
   const companion = new CompanionService({
     database,
     memories,
@@ -191,7 +194,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       ...(options.growth ? { interaction } : {}),
       goals,
       memories,
-      findingRouter
+      findingRouter,
+      relationships
     },
     ...(clock ? { clock } : {}),
     continuity: {
@@ -217,6 +221,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     exploration,
     importance: memoryImportance,
     factMemory,
+    relationships,
     goals,
     close: () => {
       database.close()
