@@ -20,11 +20,11 @@ describe('fact index failure handling (A)', () => {
     const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
     const events = new EventLogService(database)
     class BrokenIndex extends FactMemoryService {
-      reindexMemory(): void {
+      override reindexMemory(): void {
         throw new Error('MemoryDbError')
       }
 
-      lookupActive(): never[] {
+      override lookupActive(): never[] {
         throw new Error('MemoryDbError')
       }
     }
