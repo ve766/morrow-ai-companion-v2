@@ -183,3 +183,6 @@
 | P0-6 共享契约 | `docs/testing/shared-real-model-test-contract.md`、`.env.real-model.example`、`src/shared/companion.ts`、迁移 v37、`evals/stage-3/live/run.ts` | `src/providers/openai-compatible.test.ts` | `/v2` endpoint、`MORROW_TEST_API_KEY`、`evals/real-provider/results/` |
 
 真实 Provider 结果目录：`evals/real-provider/results/`（契约版）；历史 `/v1` 结果保留在 `evals/stage-3/live/results/`。
+
+> **订正（状态截至修复轮，见 docs/reports/stage-3-final-remediation-report.md）**：本文为历史记录，以下表述已被后续事实取代——live 断言计数应为 10 断言 9 PASS 1 FAIL；CI 已在 5fe62f54 及后续 HEAD 全绿（run 41270227620/41270251780 及修复轮 run）；G1 生产链已按 D-1 重写（见 docs/algorithms/personality-growth-runtime-v2.md）；Electron renderer 在 CI 双平台 PASS、特定本机环境 BLOCKED，两态并存。
+> §9 的 S3-01 行为陈旧（实际 PASS）。

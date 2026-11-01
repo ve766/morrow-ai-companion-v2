@@ -52,7 +52,7 @@ npm run dev          # 启动开发实例
 
 ```bash
 npm run typecheck    # tsc --noEmit
-npm test             # vitest 全量（40 文件 / 268 测试）
+npm test             # vitest 全量（90+ 文件 / 890+ 测试，随迁移 v39 与修复轮增长）
 npm run build        # electron-vite 构建
 npm run smoke        # 真实 Electron 冒烟（凭据生命周期/认知开关/记忆/目标/提醒/重启）
 npm run verify       # 上述全部

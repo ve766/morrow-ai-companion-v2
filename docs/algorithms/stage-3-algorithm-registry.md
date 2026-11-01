@@ -416,3 +416,6 @@ after:  period.start             # 以后 / 之后
 - 理由：意图分类器判断的是「这轮要做什么」，不是「这句话说了什么」；用前者否决后者会丢掉明确的请求
 
 > **消费者：无。** 本条只覆盖"证据怎么来"，不覆盖"证据怎么用"——`describeGrowth()` 无生产调用点，`effectiveProfile` 不读 growth。三次真实 32 轮会话的 `interactionOffsets` 恒为 `{0,0,0}`。不要把本条读成"人格会随对话变化"。
+
+> **订正（状态截至修复轮，见 docs/reports/stage-3-final-remediation-report.md）**：本文为历史记录，以下表述已被后续事实取代——live 断言计数应为 10 断言 9 PASS 1 FAIL；CI 已在 5fe62f54 及后续 HEAD 全绿（run 41270227620/41270251780 及修复轮 run）；G1 生产链已按 D-1 重写（见 docs/algorithms/personality-growth-runtime-v2.md）；Electron renderer 在 CI 双平台 PASS、特定本机环境 BLOCKED，两态并存。
+> G1 接入口、未实现清单为修复前事实。

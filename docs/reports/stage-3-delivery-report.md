@@ -202,3 +202,6 @@ MORROW_EVAL_SHA=$(git rev-parse HEAD) npm run eval:stage3:longitudinal
 | 整体状态 | **PARTIAL** |
 
 仍未完成：真实 Provider 多轮陪伴、有效 CI、Electron 渲染层、Windows 安装升级、§2B appraisal、§2C 反思质量、§2F 语音。本轮没有新增其中任何一项，也不声称它们存在。
+
+> **订正（状态截至修复轮，见 docs/reports/stage-3-final-remediation-report.md）**：本文为历史记录，以下表述已被后续事实取代——live 断言计数应为 10 断言 9 PASS 1 FAIL；CI 已在 5fe62f54 及后续 HEAD 全绿（run 41270227620/41270251780 及修复轮 run）；G1 生产链已按 D-1 重写（见 docs/algorithms/personality-growth-runtime-v2.md）；Electron renderer 在 CI 双平台 PASS、特定本机环境 BLOCKED，两态并存。
+> §8 的"§2A 已实现"取代 §6.1 的旧结论。

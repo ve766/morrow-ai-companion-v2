@@ -166,3 +166,6 @@ C1 的**确定性机制**满足任务 §9 的九条完成条件：语义分离�
 C1 的**真实模型语境理解能力**没有任何证据，因此：
 
 **C1 = 确定性机制已验证（M4+）；真实模型能力 NOT_RUN。整体 Stage 3 仍为 PARTIAL，不得宣布完成。**
+
+> **订正（状态截至修复轮，见 docs/reports/stage-3-final-remediation-report.md）**：本文为历史记录，以下表述已被后续事实取代——live 断言计数应为 10 断言 9 PASS 1 FAIL；CI 已在 5fe62f54 及后续 HEAD 全绿（run 41270227620/41270251780 及修复轮 run）；G1 生产链已按 D-1 重写（见 docs/algorithms/personality-growth-runtime-v2.md）；Electron renderer 在 CI 双平台 PASS、特定本机环境 BLOCKED，两态并存。
+> 其 P1-15/Electron/C1 证据文件三处为陈旧表述。

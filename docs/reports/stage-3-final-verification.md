@@ -101,3 +101,5 @@ unset ELECTRON_RUN_AS_NODE && node scripts/smoke.mjs
 本机工程验证链**全绿**：类型、894 单测、两组离线评估、构建、真实 Electron 冒烟、C1 机制套件。
 
 但"全绿"只覆盖**可离线判定的部分**。Stage 3 的整体状态仍是 **PARTIAL**：C1 的语义证据 BLOCKED、人工复核 PENDING、CI BLOCKED、语音与语义级探索检测未做。**不建议合并 PR #19**——这个结论不因本次全绿而改变。
+
+> **订正（状态截至修复轮，见 docs/reports/stage-3-final-remediation-report.md）**：本文为历史记录，以下表述已被后续事实取代——live 断言计数应为 10 断言 9 PASS 1 FAIL；CI 已在 5fe62f54 及后续 HEAD 全绿（run 41270227620/41270251780 及修复轮 run）；G1 生产链已按 D-1 重写（见 docs/algorithms/personality-growth-runtime-v2.md）；Electron renderer 在 CI 双平台 PASS、特定本机环境 BLOCKED，两态并存。
