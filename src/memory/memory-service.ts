@@ -240,7 +240,11 @@ export class MemoryService {
     // a residence marker, but it asserts a value FOR a personal attribute.
     // The single-valued attributes are exactly the ones where the stored
     // current value must be in view — to resist, agree or clarify.
-    if (this.factIndex && /(?:^|[，。;,.s])我(?:现在)?(?:在|住在|搬到|搬去|搬进了?)[p{Script=Han}]{2,8}/u.test(query)) {
+    // Activity verbs right after 我在 (我在学习/我在做…) are not places.
+    const bareAssertion = /我(?:现在)?(?:在|住在|搬到|搬去|搬进了?)([\p{Script=Han}]{2,8})/u.exec(query)
+    const assertedValue = bareAssertion?.[1] ?? ''
+    const activityVerb = /^(?:学|做|看|写|想|试|用|开|玩|读|听|跑|吃)/u.test(assertedValue)
+    if (this.factIndex && bareAssertion && !activityVerb) {
       try {
         for (const predicate of ['residence', 'age', 'name', 'employer', 'job_role', 'project_code']) {
           for (const fact of this.factIndex.lookupActive(predicate)) factAddressedIds.add(fact.sourceMemoryId)

@@ -41,7 +41,7 @@ describe('fact ledger (final closure R1/R2)', () => {
       const memory = world.memories.create('我住在杭州，猫叫豆豆。', 'personal')
       const facts = world.database.connection.prepare(
         'SELECT predicate, value_normalized, source_revision, status FROM fact_records WHERE source_memory_id = ?'
-      ).all(memory.id) as Array<{ predicate: string; status: string }>
+      ).all(memory.id) as Array<{ predicate: string; value_normalized: string; source_revision: number; status: string }>
       expect(facts.length).toBeGreaterThanOrEqual(2)
       for (const fact of facts) expect(fact.source_revision).toBe(memory.revision)
     } finally {

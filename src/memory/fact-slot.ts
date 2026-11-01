@@ -135,26 +135,7 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
       return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
     }
   },
-  {
-    // final-closure: pet names and object locations are personal facts users
-    // ask back about ("我的猫叫什么？", "护照放在哪里？").
-    predicate: 'pet_name',
-    read: (text) => {
-      const match = /(?:我的?)?(?:猫|狗|宠物)(?:叫|名字是?|名字叫)?/u.exec(text)
-      if (!match) return null
-      const value = clean(text.slice(match.index + match[0].length))
-      if (/猫|狗|宠物/.test(value)) return null
-      return { value, negated: negatedBefore(text, match.index), asks: /叫什么|什么名字/u.test(value) }
-    }
-  },
-  {
-    predicate: 'object_location',
-    read: (text) => {
-      const match = /(?:护照|身份证|钥匙|证件)(?:放在|在|丢了)?/u.exec(text)
-      if (!match) return null
-      return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
-    }
-  },
+
   {
     predicate: 'health',
     read: (text) => {
@@ -512,7 +493,26 @@ export function extractFactSlots(text: string): FactCandidate[] {
     const time = clauseTime(clause)
     if (time === 'mixed') continue
     const question = QUESTION_TAIL.test(clause) || INTERROGATIVE.test(clause)
-    for (const extractor of EXTRACTORS) {
+    // Multi-fact-only predicates: pet names and object locations are too
+    // marker-greedy for the dominant-slot reader (猫 appears in opinions,
+    // 放在 in prose), so they live here and never in readFactSlot.
+    const extraRules: ReadonlyArray<{ predicate: FactPredicate; read: (clause: string) => { value: string; negated: boolean; asks: boolean } | null }> = [
+      { predicate: 'pet_name', read: (clause) => {
+        const match = /(?:我的?)?(?:猫|狗|宠物)(?:叫|名字是?|名字叫)?/u.exec(clause)
+        if (!match) return null
+        const value = clean(clause.slice(match.index + match[0].length))
+        if (value.length === 0 || /猫|狗|宠物|多大|几岁/u.test(value)) return null
+        return { value, negated: negatedBefore(clause, match.index), asks: false }
+      } },
+      { predicate: 'object_location', read: (clause) => {
+        const match = /(?:护照|身份证|钥匙|证件)(?:放在|在|丢了)?/u.exec(clause)
+        if (!match) return null
+        const value = clean(clause.slice(match.index + match[0].length))
+        if (value.length === 0) return null
+        return { value, negated: negatedBefore(clause, match.index), asks: false }
+      } }
+    ]
+    for (const extractor of [...EXTRACTORS, ...extraRules]) {
       const extracted = extractor.read(clause)
       if (!extracted) continue
       if (extracted.asks || question) continue

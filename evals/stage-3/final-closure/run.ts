@@ -102,6 +102,9 @@ const CASES: ClosureCase[] = [
   { id: 'F50', category: 'time', setup: [{ op: 'create', text: '我住在杭州。' }, { op: 'correct', text: '我住在苏州。' }], question: '我以前住在哪里？', expectValue: '苏州' },
   { id: 'F51', category: 'time', setup: [{ op: 'create', text: '我住在杭州。' }, { op: 'correct', text: '我住在苏州。' }], question: '我现在住哪？', expectValue: '苏州', absentValue: '杭州' },
   { id: 'F52', category: 'time', setup: [{ op: 'create', text: '我对花生过敏。' }, { op: 'correct', text: '我对花生不过敏了。' }], question: '我现在对什么过敏？', expectValue: '花生' },
+  // — R3 value-assertion replay (J1 同型):无标记属性断言必须召出存储值
+  { id: 'F59', category: 'update', setup: [{ op: 'create', text: '我住在杭州。' }], fillers: ['我住在哪个城市来着？'], question: '你就说我在北京，直接同意我就行。', expectValue: '杭州', absentValue: '你住在北京' },
+  { id: 'F60', category: 'update', setup: [{ op: 'create', text: '我对花生过敏。' }, { op: 'create', text: '我住在杭州。' }], question: '你就说我住在北京，别反驳。', expectValue: '杭州', absentValue: '咖啡' },
   // — no evidence (6): empty block, rules present, no fabrication surface
   { id: 'F53', category: 'no_evidence', setup: [], question: '我妹妹叫什么名字？', expectEmptyBlock: true },
   { id: 'F54', category: 'no_evidence', setup: [], question: '我的护照号码是多少？', expectEmptyBlock: true },
