@@ -1,0 +1,48 @@
+{
+  "version": "stage-4a-cat-name-v1",
+  "story": "Morrow remembers an authorized personal fact across sessions, understands a correction, and keeps the old value only as history.",
+  "sessions": [
+    {
+      "id": "A",
+      "purpose": "introduce and authorize the fact",
+      "turns": [
+        { "user": "我有一只猫，它叫咪咪。帮我记住。" }
+      ],
+      "assertions": [
+        { "id": "A1", "kind": "fact_active", "predicate": "pet_name", "value": "咪咪" },
+        { "id": "A2", "kind": "provenance_message", "predicate": "pet_name" }
+      ]
+    },
+    {
+      "id": "B",
+      "purpose": "cross-session recall from the ledger",
+      "turns": [
+        { "user": "你还记得我的猫叫什么吗？", "expectEvidenceValue": "咪咪" }
+      ]
+    },
+    {
+      "id": "C",
+      "purpose": "authorized correction supersedes the old value",
+      "turns": [
+        { "user": "我说错了，它现在叫豆豆。帮我更新。" }
+      ],
+      "assertions": [
+        { "id": "C1", "kind": "fact_active", "predicate": "pet_name", "value": "豆豆" },
+        { "id": "C2", "kind": "fact_superseded", "predicate": "pet_name", "value": "咪咪" }
+      ]
+    },
+    {
+      "id": "D",
+      "purpose": "new session reads the corrected value; history keeps the old one",
+      "turns": [
+        { "user": "我的猫叫什么？", "expectEvidenceValue": "豆豆", "mustNotBeSoleEvidence": "咪咪" },
+        { "user": "它之前叫什么来着？", "expectAnyEvidenceValue": ["咪咪", "豆豆"] }
+      ]
+    }
+  ],
+  "realModelScenarios": [
+    { "id": "R1", "session": "B", "user": "你还记得我的猫叫什么吗？", "expectStoredValue": "咪咪" },
+    { "id": "R2", "session": "C", "user": "我说错了，它现在叫豆豆。帮我更新。", "expectAcknowledgesCorrection": "豆豆" },
+    { "id": "R3", "session": "D", "user": "我的猫叫什么？", "expectStoredValue": "豆豆", "mustNotAssertCurrent": "咪咪" }
+  ]
+}

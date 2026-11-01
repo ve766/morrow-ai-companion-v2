@@ -423,7 +423,13 @@ export class MemoryService {
   }): Array<{ memory: MemoryRecord; corrected: boolean }> {
     const results: Array<{ memory: MemoryRecord; corrected: boolean }> = []
     for (const candidate of extractFactSlots(input.text)) {
-      const display = FACT_DISPLAY_TEMPLATES[candidate.predicate]?.(candidate.value)
+      // The pet template names the species the user actually stated ("我的猫叫
+      // 咪咪" keeps 猫). A generic 宠物 line is weaker evidence for a question
+      // about 猫, and this story is about a cat.
+      const petSpecies = candidate.predicate === 'pet_name' ? (/猫/u.test(input.text) ? '猫' : /狗/u.test(input.text) ? '狗' : null) : null
+      const display = candidate.predicate === 'pet_name' && petSpecies
+        ? '我的' + petSpecies + '叫' + candidate.value + '。'
+        : FACT_DISPLAY_TEMPLATES[candidate.predicate]?.(candidate.value)
       if (!display) continue
       validateMemoryText(display)
       const conflicting = this.repository.listActiveForContext(1000).find((record) => {
@@ -458,7 +464,9 @@ export class MemoryService {
         const petSources = new Set(this.factIndex ? this.factIndex.lookupActive('pet_name').map((fact) => fact.sourceMemoryId) : [])
         if (petSources.size === 1) {
           const target = [...petSources][0]!
-          const memory = this.correct(target, FACT_DISPLAY_TEMPLATES.pet_name!(value), input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
+          const species = /猫/u.test(input.text) ? '猫' : /狗/u.test(input.text) ? '狗' : null
+          const templateText = species ? '我的' + species + '叫' + value + '。' : FACT_DISPLAY_TEMPLATES.pet_name!(value)
+          const memory = this.correct(target, templateText, input.messageId, { sourceMessageId: input.messageId, kind: 'message' })
           results.push({ memory, corrected: true })
         }
       }
