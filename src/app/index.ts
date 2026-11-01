@@ -24,6 +24,7 @@ import { SqliteInterestRepository, InterestService } from '../self-model/interes
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { PersonalizationService } from '../personalization/personalization-service'
 import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { ReflectionFindingRouter } from '../cognition/reflection-routing'
 import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
 import { CompanionGoalService } from '../motivation/companion-goal'
@@ -241,6 +242,9 @@ if (hasSingleInstanceLock) {
     // Phase 2.4: the turn context and the open internal items are persisted
     // beside the conversation, so continuity survives a restart.
     const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database))
+    // D-10: one ingestion path for reflection findings, shared by the
+    // automatic projector and the manual run below.
+    const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events: eventLog })
     const turnContexts = new SqliteTurnContextRepository(database)
     const finalizations = new SqliteTurnFinalizationRepository(database)
     const companion = new CompanionService({
@@ -249,7 +253,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter },
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,
@@ -410,6 +414,7 @@ if (hasSingleInstanceLock) {
       continuity: {
         listPendingItems: () => pendingItems.listOpen(),
         completePendingItem: (request) => pendingItems.complete(request.itemId),
+        decidePendingItem: (request) => pendingItems.decide(request.itemId, request.decision),
         readTurnContext: (request) => turnContexts.get(request.turnId)
       },
       selfModel: {
@@ -429,7 +434,7 @@ if (hasSingleInstanceLock) {
           const outcome = await runBounded(() => {
             const summary = reflection.run('manual')
             if (!('skipped' in summary)) {
-              pendingItems.absorbReflection({ runId: summary.id, findings: reflection.findings(summary.id) })
+              findingRouter.ingestRun(summary.id, reflection.findings(summary.id))
             }
             return summary
           }, { budgetMs: 2_000 })

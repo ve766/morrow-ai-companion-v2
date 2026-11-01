@@ -55,7 +55,8 @@ import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/fee
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
-import { deriveGrowthSignals, type PersonalityGrowthService } from '../personalization/personality-growth'
+import { applyGrowth, deriveGrowthSignals, describeGrowth, type PersonalityGrowthService } from '../personalization/personality-growth'
+import type { ReflectionFindingRouter } from '../cognition/reflection-routing'
 import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
 import { describeGoals } from '../motivation/companion-goal'
 import { deriveInterestLabel } from '../self-model/interest-service'
@@ -77,6 +78,9 @@ const fixedPrinciples = [
   // history, and saying otherwise contradicts what the same conversation
   // already established.
   'A saved fact that is missing from this turn\u2019s memories was not retrieved this turn; say you do not have it in front of you, never that the user never told you.',
+  // D-5: a retrieved personal fact outranks a generic answer, and missing or
+  // conflicting evidence asks for clarification, never for a confident guess.
+  'When the user asks about a personal fact, check the retrieved memories first and answer from them; if the evidence is missing, ambiguous or conflicting, say so and ask — do not confidently deny or confabulate.',
   'Privacy and safety boundaries override style preferences.'
 ].join('\n')
 
@@ -650,7 +654,7 @@ export interface SelfModelLoopServices {
   interests: InterestService
   selfModel: SelfModelService
   /** Rate-limited post-turn reflection; never allowed to fail the chat path. */
-  reflection?: Pick<ReflectionService, 'run'>
+  reflection?: Pick<ReflectionService, 'run' | 'findings'>
   /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
   personalization?: PersonalizationService
   /**
@@ -662,6 +666,8 @@ export interface SelfModelLoopServices {
   growth?: PersonalityGrowthService
   /** Stage 3 X1: constrained self-initiated topics. */
   exploration?: ExplorationService
+  /** D-10: the one ingestion path for reflection findings (auto and manual). */
+  findingRouter?: ReflectionFindingRouter
   /** Stage 3 §2D: companionship goals, kept separate by ownership. */
   goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext' | 'detectFromTurn'>
   /**
@@ -714,11 +720,22 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
     const described = learned.map((entry) => `${entry.dimension}=${entry.value.toFixed(2)}（${entry.evidenceCount} 轮证据）`)
     lines.push(`Bounded interaction preference state (rule-derived heuristic, uncalibrated, not a feeling): ${described.join('; ')}. It may only tune pacing and how much to explore; it never changes facts, permissions or the user's explicit instructions.`)
   }
-  // Stage 3 G1: the drift is described next to the baseline it modifies, and it
-  // never replaces it. A user edit moves the baseline; this line only moves the
-  // few points the evidence has earned.
-  const growth = services.interaction ? services.interaction.describe() : ''
-  if (growth) lines.push(growth)
+  // Stage 3 G1 (D-1 remediation): Morrow's own evidence-formed drift, folded
+  // from the `personality_growth_signals` ledger and already applied to the
+  // personality numbers in the header. This line only explains where the drift
+  // came from and that it is reversible; the user's baseline always wins.
+  const growthLine = services.growth ? describeGrowth(services.growth.list()) : ''
+  if (growthLine) lines.push(growthLine)
+  // Stage 3 G2: communication adaptation for this user — presentation only. It
+  // deliberately reads a different ledger than the growth line above.
+  const adaptation = services.interaction ? services.interaction.describe() : ''
+  if (adaptation) lines.push(adaptation)
+  // D-10: at most two unexpired reflection hints, framed as internal
+  // hypotheses. The router marks what it injected, so the trace shows what
+  // the model actually saw. This is the only prompt consumer of findings;
+  // everything else stays audit-only or goes to the user's pending list.
+  const hints = services.findingRouter?.promptBlock() ?? ''
+  if (hints) lines.push(hints)
   // Stage 3 §2D: goals are described by owner, never merged into one list.
   if (services.goals) {
     try {
@@ -782,15 +799,26 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       module: 'growth',
       version: COGNITIVE_HANDLER_VERSION,
       project: (input) => {
-        // A style request lands in the interaction profile, not in identity.
-        if (!services.interaction) return
+        // One style signal, two ledgers, on purpose (D-1 remediation):
+        //   G1 `personality_growth_signals` — Morrow's own evidence-formed
+        //      presentation drift, folded into the prompt personality numbers;
+        //   G2 `user_interaction_signals` — how to adapt to *this* user,
+        //      surfaced as a separate adaptation line.
+        // The ledgers never mix: each apply() is idempotent on
+        // (dimension, turn_id), so a retried projection converges.
+        if (!services.growth && !services.interaction) return
         const signals = deriveGrowthSignals({
           analysis: input.analysis ?? undefined,
           content: input.readUserMessage(),
           ...(services.personalization ? { personalization: services.personalization.list() } : {})
         })
         for (const signal of signals) {
-          services.interaction.apply({ ...signal, turnId: input.turnId, at: input.occurredAt })
+          if (services.growth) {
+            services.growth.apply({ dimension: signal.dimension, signal: signal.signal, weight: signal.weight, source: signal.source, turnId: input.turnId, at: input.occurredAt })
+          }
+          if (services.interaction) {
+            services.interaction.apply({ dimension: signal.dimension, signal: signal.signal, weight: signal.weight, source: signal.source, turnId: input.turnId, at: input.occurredAt })
+          }
         }
       }
     },
@@ -844,7 +872,12 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       module: 'reflection',
       version: COGNITIVE_HANDLER_VERSION,
       project: () => {
-        services.reflection?.run('post_conversation')
+        const reflection = services.reflection
+        const summary = reflection?.run('post_conversation')
+        // D-10: the projector no longer discards its own output. Findings go
+        // through the same router the manual run uses, so an automatic run and
+        // a manual run leave identical durable traces.
+        if (reflection && summary && !('skipped' in summary)) services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
       }
     }
   ]
@@ -858,6 +891,8 @@ export class CompanionService {
   readonly feelings: CognitiveFeelingService
   readonly chat: ChatService
   readonly memorySuggestions: MemorySuggestionService
+  /** D-1: the authoritative G1 ledger, exposed for diagnostics and rollback. */
+  private readonly growth: PersonalityGrowthService | null
   private readonly guidanceVariant: EvidenceGuidanceVariant
   private readonly evidencePresentation: EvidencePresentation
   /** Phase 2.4 stores, exposed so the shell can read pending items. */
@@ -894,6 +929,8 @@ export class CompanionService {
     this.personality = new PersonalityService(options.database, clock)
     this.cognition = new CognitiveSettingsService(options.database, clock)
     this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
+    // Diagnostic/rollback access to the authoritative growth ledger (D-1).
+    this.growth = options.selfModelLoop?.growth ?? null
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
     const selfModelLoop = options.selfModelLoop
     // The gap ledger is written in the same transaction as the assistant
@@ -994,20 +1031,21 @@ export class CompanionService {
           ...(selfModelLoop.growth
             ? {
                 effectiveProfile: (profile: PersonalityProfile): PersonalityProfile => {
-                  // Only the interaction profile moves the three presentation
-                  // numbers. Morrow's identity — values, disagreement style,
-                  // system rules — is exactly what the user edited.
+                  // D-1: the effective numbers are the user-edited baseline plus
+                  // Morrow's own evidence-formed drift, folded from the G1
+                  // ledger (`personality_growth_signals`). The interaction
+                  // profile (G2) deliberately does not feed these numbers — it
+                  // is communication adaptation and stays a separate line.
                   try {
-                    const offsets = selfModelLoop.interaction!.offsets()
-                    const clamp = (value: number): number => Math.min(100, Math.max(0, value))
+                    const drifted = applyGrowth(profile, selfModelLoop.growth!.list())
                     return {
                       ...profile,
-                      warmth: clamp(profile.warmth + offsets.warmth),
-                      directness: clamp(profile.directness + offsets.directness),
-                      humor: clamp(profile.humor + offsets.humor)
+                      warmth: drifted.warmth,
+                      directness: drifted.directness,
+                      humor: drifted.humor
                     }
                   } catch {
-                    recordCognitiveDegradation('interaction_profile_read')
+                    recordCognitiveDegradation('growth_profile_read')
                     return profile
                   }
                 }
@@ -1041,71 +1079,6 @@ export class CompanionService {
               label: input.label,
               occurredAt: recorded.event.occurredAt
             })
-          },
-          onTurnCompleted: (input) => {
-            try {
-              selfModelLoop.interests.observe({
-                conversationId: input.conversationId,
-                messageId: input.userMessageId,
-                occurredAt: input.occurredAt,
-                topicText: input.content
-              })
-              selfModelLoop.interests.archiveStale(input.occurredAt)
-              // Stage 2 B2. Rule-derived hints carry a low reliability weight so
-              // one turn moves a dimension by at most eta * w (<= 0.05 here).
-              if (selfModelLoop.personalization) {
-                const signals: PersonalizationSignal[] = []
-                const intent = input.analysis?.intent
-                if (intent === 'planning' || intent === 'exploration') {
-                  signals.push({ dimension: 'exploration', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
-                }
-                if (input.analysis?.signals.explicitConstraint) {
-                  signals.push({ dimension: 'pace', signal: -0.5, weight: 0.8, turnId: input.turnId, at: input.occurredAt })
-                }
-                if (input.analysis?.signals.explicitMemoryRequest) {
-                  signals.push({ dimension: 'depth', signal: 0.5, weight: 0.6, turnId: input.turnId, at: input.occurredAt })
-                }
-                for (const signal of signals) selfModelLoop.personalization.apply(signal)
-              }
-              // Stage 3 G1: the same turn is also evidence for the bounded drift.
-              // Signals below the evidence gate are stored and reported as
-              // withheld; they do not move the profile.
-              if (selfModelLoop.growth) {
-                const growthSignals = deriveGrowthSignals({
-                  analysis: input.analysis,
-                  content: input.content,
-                  ...(selfModelLoop.personalization ? { personalization: selfModelLoop.personalization.list() } : {})
-                })
-                for (const signal of growthSignals) {
-                  selfModelLoop.growth.apply({ ...signal, turnId: input.turnId, at: input.occurredAt })
-                }
-              }
-              if (input.analysis?.signals.explicitSelfFact) {
-                // Only a structured predicate/value pair is stored; the message
-                // itself stays in `messages` and is referenced, never copied.
-                const statement = deriveSelfFactStatement(input.content)
-                if (statement) {
-                  selfModelLoop.selfModel.record({
-                    kind: 'fact',
-                    statement,
-                    confidence: 55,
-                    sourceMessageId: input.userMessageId,
-                    conversationId: input.conversationId,
-                    correlationId: input.userMessageId
-                  })
-                } else {
-                  // Nothing readable to keep: record the skip instead of
-                  // storing prose or inventing a placeholder fact.
-                  recordCognitiveDegradation('self_model_fact_unstructured', input.userMessageId)
-                }
-              }
-              // Reflection runs only after a persisted assistant turn. Its own
-              // hourly budget prevents it from running on every rapid message.
-              // Findings are evidence-linked and do not directly edit personality.
-              selfModelLoop.reflection?.run('post_conversation')
-            } catch {
-              recordCognitiveDegradation('self_model_turn_hook', input.userMessageId)
-            }
           }
         }
       : undefined
@@ -1164,6 +1137,19 @@ export class CompanionService {
   savePersonality(request: PersonalityInput): PersonalityProfile { return this.personality.save(request) }
   personalityHistory(): PersonalityRevision[] { return this.personality.history() }
   restorePersonality(request: { version: number }): PersonalityProfile { return this.personality.restore(request.version) }
+  /** Observability for the G1 ledger: per-dimension offset, evidence, revision. */
+  getGrowthState(): import('../personalization/personality-growth').GrowthEntry[] | null {
+    return this.growth ? this.growth.list() : null
+  }
+  /**
+   * User-facing undo of the G1 drift for one dimension. The baseline was never
+   * written, so this returns the effective numbers to exactly the user's edit.
+   */
+  rollbackGrowth(request: { dimension: import('../personalization/personality-growth').GrowthDimension }): boolean {
+    if (!this.growth) return false
+    this.growth.rollback(request.dimension)
+    return true
+  }
   getCognitiveSettings(): CognitiveCoreSettings { return this.cognition.get() }
   saveCognitiveSettings(request: { enabled: boolean }): CognitiveCoreSettings { return this.cognition.save(request.enabled) }
   getFeelingState(): ReturnType<CognitiveFeelingService['snapshot']> { return this.feelings.snapshot() }
@@ -1238,16 +1224,6 @@ export interface SelfModelLoopHooks {
    * failed to close. It is deliberately not "the user mentioned X often".
    */
   recordKnowledgeGap?(input: { label: string; conversationId: string; turnId: string }): void
-  /** Called once per completed turn; must never throw into the chat path. */
-  onTurnCompleted(input: {
-    conversationId: string
-    /** Request id: the idempotency key shared with the turn context. */
-    turnId: string
-    userMessageId: string
-    occurredAt: string
-    content: string
-    analysis?: CognitiveTurnAnalysis
-  }): void
 }
 
 /**
@@ -1682,20 +1658,10 @@ export class ChatService {
           console.warn('Some post-turn cognition could not be applied; it stays queued and will be retried.')
         }
       } else if (this.selfModel) {
-        // Offline callers without an outbox keep the old direct path.
-        try {
-          this.selfModel.onTurnCompleted({
-            conversationId,
-            turnId: requestId,
-            userMessageId: userMessage.id,
-            occurredAt: this.now(),
-            content: request.content.trim(),
-            ...(verified.analysis ? { analysis: verified.analysis } : {})
-          })
-        } catch {
-          this.recordDegradation('self_model_turn_hook', requestId)
-          console.warn('Self-model loop update was unavailable; the chat result is unaffected.')
-        }
+        // Unreachable by construction (the outbox is created whenever the loop
+        // is wired), kept as an honest degradation signal instead of a hidden
+        // second cognition path: post-turn projections run exactly one way.
+        this.recordDegradation('cognitive_outbox_missing', requestId)
       }
       // The turn record and its pending items were applied inside the message
       // transaction (see `afterPersist` above), so there is nothing to write
@@ -1864,7 +1830,7 @@ export class ChatService {
       ...(decision ? { decision } : {})
     })
     const system = [
-      `User-controlled communication preferences, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}.`,
+      `Morrow's personality, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}. The three numbers are the user-edited baseline plus Morrow's own evidence-formed drift (bounded, reversible, rule-derived — not a feeling). Where they conflict, the user's explicit instruction wins.`,
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
       analysis ? cognitivePromptGuidance(analysis, decision, memory.selected.length > 0, memory.conflicts ?? [], this.guidanceVariant, reading) : '',
       analysis && feelingState ? feelingPromptGuidance(analysis, feelingState, feelingEvent ?? null, previousFeelingState) : '',

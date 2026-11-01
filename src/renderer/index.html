@@ -146,6 +146,19 @@
             <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
             <div id="memory-list" class="memory-list" aria-live="polite" aria-busy="false"></div>
           </section>
+
+          <section class="pending-section panel" aria-labelledby="pending-heading">
+            <div class="section-heading memory-heading">
+              <div>
+                <p class="eyebrow">PENDING REVIEW</p>
+                <h2 id="pending-heading">待确认事项</h2>
+              </div>
+              <button id="refresh-pending" class="button button-quiet" type="button">刷新</button>
+            </div>
+            <p class="feedback">Morrow 的反思产生的待验证假设与未决事项。接受表示你在后续对话中认可它;拒绝会把它永久搁置,不再出现。</p>
+            <ul id="pending-list" class="pending-list"></ul>
+            <p id="pending-empty" class="feedback" hidden>当前没有待确认的事项。</p>
+          </section>
         </section>
 
         <!-- 目标视图：目标/授权/提醒。 -->

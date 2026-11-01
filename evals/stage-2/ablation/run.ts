@@ -119,7 +119,7 @@ async function runArm(arm: string, config: ArmConfig): Promise<ArmResult> {
       ...(config.personalization ? { personalization } : {}),
       // A real service, counted: the off arm omits the injection entirely, which
       // is the only honest way to switch reflection off.
-      ...(config.reflection ? { reflection: { run: (trigger: Parameters<ReflectionService['run']>[0]) => { reflectionRuns += 1; return reflection.run(trigger) } } } : {})
+      ...(config.reflection ? { reflection: { run: (trigger: Parameters<ReflectionService['run']>[0]) => { reflectionRuns += 1; return reflection.run(trigger) }, findings: (runId: string) => reflection.findings(runId) } } : {})
     },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),

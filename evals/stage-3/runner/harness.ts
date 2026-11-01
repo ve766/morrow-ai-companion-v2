@@ -29,6 +29,7 @@ import { SelfModelService, SqliteSelfModelRepository } from '../../../src/self-m
 import { ReflectionService, SqliteReflectionRepository } from '../../../src/self-model/reflection-service'
 import { EventLogService } from '../../../src/persistence/event-log'
 import { PendingCognitionService } from '../../../src/cognition/pending-items'
+import { ReflectionFindingRouter } from '../../../src/cognition/reflection-routing'
 import { PersonalizationService } from '../../../src/personalization/personalization-service'
 import { PersonalityGrowthService, GROWTH_MAX_OFFSET } from '../../../src/personalization/personality-growth'
 import { UserInteractionProfileService } from '../../../src/personalization/interaction-profile'
@@ -152,6 +153,9 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   )
   const exploration = new ExplorationService(database, clock)
   const goals = new CompanionGoalService(database, clock)
+  // D-10: the harness wires the same finding router the app does, so an
+  // automatic run and a manual run leave the same durable traces.
+  const findingRouter = new ReflectionFindingRouter({ database, pending: new PendingCognitionService(new SqlitePendingItemRepository(database)), events: eventLog, clock: clock ?? undefined })
   const companion = new CompanionService({
     database,
     memories,
@@ -183,7 +187,8 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       // the arm would still move the thing it claims to remove.
       ...(options.growth ? { interaction } : {}),
       goals,
-      memories
+      memories,
+      findingRouter
     },
     ...(clock ? { clock } : {}),
     continuity: {

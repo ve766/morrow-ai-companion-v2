@@ -414,3 +414,19 @@ export function parseReminderIdRequest(value: unknown): ReminderIdRequest {
   const input = parseObject(value, ['reminderId'], 'Reminder request')
   return { reminderId: parseIdentifier(input.reminderId) }
 }
+
+export function parsePersonalityGrowthRollbackRequest(value: unknown): { dimension: 'warmth' | 'directness' | 'humor' } {
+  const input = parseObject(value, ['dimension'], 'Personality growth rollback request')
+  if (input.dimension !== 'warmth' && input.dimension !== 'directness' && input.dimension !== 'humor') {
+    throw new InputValidationError('Personality growth rollback requires a known dimension')
+  }
+  return { dimension: input.dimension }
+}
+
+export function parsePendingItemDecisionRequest(value: unknown): { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' } {
+  const input = parseObject(value, ['itemId', 'decision'], 'Pending item decision request')
+  if (input.decision !== 'accepted' && input.decision !== 'rejected' && input.decision !== 'dismissed') {
+    throw new InputValidationError('Pending item decision must be accepted, rejected or dismissed')
+  }
+  return { itemId: parseIdentifier(input.itemId), decision: input.decision }
+}

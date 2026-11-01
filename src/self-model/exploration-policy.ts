@@ -139,7 +139,6 @@ export type ExplorationState =
   // confident "did not raise", and it does not consume the budget.
   | 'uncertain'
   | 'provider_failed'
-  | 'user_rejected'
 
 export type RaiseVerdict = 'raised' | 'not_raised' | 'uncertain'
 
@@ -351,11 +350,6 @@ export class ExplorationService {
     return state
   }
 
-  /** The user dismissed the topic (archived / dropped the interest). */
-  markUserRejected(input: { turnId: string; interestId: string; reason: string }): void {
-    this.transition({ ...input, state: 'user_rejected' })
-    this.release(input.turnId)
-  }
 
   /**
    * Frequency state, counted from `actually_raised` only.

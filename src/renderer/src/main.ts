@@ -3,6 +3,7 @@ import './companion.css'
 import type { IpcResult } from '../../shared/contracts'
 import type { MemoryRecord, MemoryRevisionRecord } from '../../memory/memory-domain'
 import { initializeBackup } from './backup-ui'
+import { initializePendingPanel } from './pending-ui'
 import { initializeShell } from './shell-ui'
 import { buildMemoryTimeline } from '../../memory/memory-timeline'
 import { createRequestGuard } from '../../security/request-guard'
@@ -335,3 +336,4 @@ initializeGoals()
 initializeReminders()
 initializeCompanion()
 initializeBackup()
+initializePendingPanel()

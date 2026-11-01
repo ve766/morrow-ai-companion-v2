@@ -2157,6 +2157,78 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 39,
+    name: 'exploration-states-and-finding-routing',
+    up(database) {
+      // D-4 remediation: `user_rejected` never had a production writer — the
+      // exploration gate has no user-facing proposal UI, so no code path could
+      // ever record it. The honest fix removes the dead state instead of
+      // keeping a CHECK row nothing can reach. The table is rebuilt so the
+      // CHECK matches the state machine exactly; historical rows cannot carry
+      // the removed value because no writer ever existed.
+      database.exec(`
+        DROP INDEX IF EXISTS exploration_events_time_idx;
+        DROP INDEX IF EXISTS exploration_events_turn_idx;
+        DROP INDEX IF EXISTS exploration_events_turn_state_uq;
+        DROP TRIGGER IF EXISTS exploration_events_delete_with_turn;
+        ALTER TABLE exploration_events RENAME TO exploration_events_v38;
+        CREATE TABLE exploration_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          interest_id TEXT NOT NULL,
+          state TEXT NOT NULL CHECK (state IN (
+            'eligible', 'permitted', 'selected_for_prompt', 'model_attempted', 'actually_raised',
+            'not_raised', 'uncertain', 'provider_failed'
+          )),
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 120),
+          created_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO exploration_events (id, turn_id, interest_id, state, reason, created_at)
+          SELECT id, turn_id, interest_id, state, reason, created_at FROM exploration_events_v38;
+        DROP TABLE exploration_events_v38;
+        CREATE INDEX exploration_events_time_idx ON exploration_events(created_at DESC);
+        CREATE INDEX exploration_events_turn_idx ON exploration_events(turn_id);
+        CREATE UNIQUE INDEX exploration_events_turn_state_uq ON exploration_events(turn_id, state);
+        CREATE TRIGGER exploration_events_delete_with_turn
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM exploration_events WHERE turn_id = OLD.turn_id;
+        END;
+
+        -- D-10/D-11 remediation: durable routing record for reflection
+        -- findings. One row per finding, written by the shared ingestion path
+        -- (auto projector and manual run alike), so "what happened to this
+        -- finding" is a query rather than a guess. User accept/reject decisions
+        -- on pending items live in cognitive_pending_items; this table records
+        -- the routing decision and its outcome.
+        CREATE TABLE reflection_finding_routes (
+          finding_id TEXT PRIMARY KEY NOT NULL CHECK (length(finding_id) = 36),
+          route TEXT NOT NULL CHECK (route IN ('context_hint', 'pending_user', 'audit_only')),
+          status TEXT NOT NULL CHECK (status IN ('routed', 'injected', 'consumed', 'expired', 'rejected', 'dismissed')),
+          reason TEXT NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 200),
+          run_id TEXT NOT NULL CHECK (length(run_id) = 36),
+          kind TEXT NOT NULL CHECK (length(kind) BETWEEN 1 AND 64),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (finding_id) REFERENCES reflection_findings(id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE INDEX reflection_finding_routes_kind_idx
+          ON reflection_finding_routes(kind, created_at DESC);
+
+        -- D-12 remediation: single-row scheduler state for the memory
+        -- maintenance loop (consolidate / decay / archive). Runs are decided by
+        -- absolute time differences, so a host sleep or a crash can never
+        -- double-apply a decay tick.
+        CREATE TABLE memory_maintenance_state (
+          singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
+          last_run_at TEXT NOT NULL,
+          last_status TEXT NOT NULL CHECK (last_status IN ('ok', 'failed')),
+          last_duration_ms INTEGER NOT NULL CHECK (last_duration_ms >= 0)
+        ) STRICT;
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

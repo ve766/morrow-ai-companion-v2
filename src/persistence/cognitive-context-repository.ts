@@ -192,6 +192,14 @@ export class SqlitePendingItemRepository implements PendingItemPort {
     if (updated.changes === 1) return true
     return this.get(id)?.status === 'done'
   }
+
+  drop(id: string, completedAt: string): boolean {
+    const updated = this.database.connection.prepare(
+      "UPDATE cognitive_pending_items SET status = 'dropped', completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
+    ).run(completedAt, completedAt, id)
+    if (updated.changes === 1) return true
+    return this.get(id)?.status === 'dropped'
+  }
 }
 
 /**

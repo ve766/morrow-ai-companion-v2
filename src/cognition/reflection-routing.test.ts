@@ -1,0 +1,156 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { SqliteDatabase } from '../persistence/database'
+import { EventLogService } from '../persistence/event-log'
+import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
+import { PendingCognitionService } from './pending-items'
+import { FINDING_ROUTES, MAX_PROMPT_HINTS, REFLECTION_FINDING_KINDS, ReflectionFindingRouter } from './reflection-routing'
+
+let directory = ''
+afterEach(() => {
+  if (directory) rmSync(directory, { recursive: true, force: true })
+  directory = ''
+})
+
+interface World {
+  database: SqliteDatabase
+  router: ReflectionFindingRouter
+  pending: PendingCognitionService
+  events: EventLogService
+  clock: { now: string }
+  close: () => void
+}
+
+function openWorld(): World {
+  directory = mkdtempSync(join(tmpdir(), 'morrow-routing-'))
+  const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+  const clock = { now: '2026-11-01T08:00:00.000Z' }
+  const events = new EventLogService(database)
+  const pending = new PendingCognitionService(new SqlitePendingItemRepository(database), () => globalThis.crypto.randomUUID(), () => clock.now)
+  const router = new ReflectionFindingRouter({ database, pending, events, clock: () => clock.now })
+  return { database, router, pending, events, clock, close: () => database.close() }
+}
+
+const RUN = '11111111-1111-4111-8111-111111111111'
+
+function seedRun(database: SqliteDatabase): void {
+  database.connection.prepare(
+    "INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, 'manual', ?, ?, 1, 10, 0, 'completed')"
+  ).run(RUN, '2026-11-01T07:00:00.000Z', '2026-11-01T07:00:10.000Z')
+}
+
+function seedFinding(database: SqliteDatabase, id: string, kind: string, statement: string, confidence: number, createdAt: string): void {
+  database.connection.prepare(
+    'INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, RUN, kind, statement, confidence, '[]', createdAt, `${kind}:${id}`)
+}
+
+const uid = (n: number): string => `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`
+
+describe('reflection finding routing (D-10)', () => {
+  it('covers every finding kind the reflection service can emit, with no fallback', () => {
+    expect(Object.keys(FINDING_ROUTES).sort()).toEqual([...REFLECTION_FINDING_KINDS].sort())
+    for (const spec of Object.values(FINDING_ROUTES)) {
+      expect(['context_hint', 'pending_user', 'audit_only']).toContain(spec.route)
+      expect(spec.reason.length).toBeGreaterThan(10)
+    }
+  })
+
+  it('routes kinds to their registry entries and creates a pending item only for pending-user kinds', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      seedFinding(world.database, uid(1), 'memory_gap', '最近的记录中有 2 次用户纠正；在相关话题上应降低断言置信度并先与用户核对。', 55, '2026-11-01T07:00:00.000Z')
+      seedFinding(world.database, uid(2), 'intent_correction', '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答。', 60, '2026-11-01T07:00:01.000Z')
+      seedFinding(world.database, uid(3), 'interest_candidate', '记忆内容指向一个此前未出现的话题，已作为候选兴趣记录。', 40, '2026-11-01T07:00:02.000Z')
+      world.router.ingestRun(RUN, [
+        { id: uid(1), kind: 'memory_gap', statement: 'g', confidence: 55, createdAt: '2026-11-01T07:00:00.000Z' },
+        { id: uid(2), kind: 'intent_correction', statement: '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答。', confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' },
+        { id: uid(3), kind: 'interest_candidate', statement: 'c', confidence: 40, createdAt: '2026-11-01T07:00:02.000Z' }
+      ])
+      const routes = world.database.connection.prepare('SELECT finding_id, route, status FROM reflection_finding_routes ORDER BY finding_id').all() as Array<{ finding_id: string; route: string; status: string }>
+      expect(routes).toHaveLength(3)
+      expect(routes.find((row) => row.finding_id === uid(1))).toMatchObject({ route: 'context_hint', status: 'routed' })
+      expect(routes.find((row) => row.finding_id === uid(2))).toMatchObject({ route: 'pending_user' })
+      expect(routes.find((row) => row.finding_id === uid(3))).toMatchObject({ route: 'audit_only' })
+      const open = world.pending.listOpen()
+      expect(open).toHaveLength(1)
+      expect(open[0]).toMatchObject({ source: 'reflection', kind: 'intent_correction' })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('injects at most two hints, marks them, and expires stale ones by kind TTL', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const staleAt = '2026-10-30T00:00:00.000Z' // ~58h before the clock: past the 24h memory_gap ttl
+      seedFinding(world.database, uid(1), 'memory_gap', '旧缺口。', 90, staleAt)
+      seedFinding(world.database, uid(2), 'memory_gap', '新缺口 A。', 70, '2026-11-01T06:00:00.000Z')
+      seedFinding(world.database, uid(3), 'memory_gap', '新缺口 B。', 60, '2026-11-01T06:30:00.000Z')
+      seedFinding(world.database, uid(4), 'next_turn_suggestion', '存在未经确认的自我推断；下一轮先用一句话向用户确认。', 45, '2026-11-01T06:40:00.000Z')
+      world.router.ingestRun(RUN, [
+        { id: uid(1), kind: 'memory_gap', statement: '旧缺口。', confidence: 90, createdAt: staleAt },
+        { id: uid(2), kind: 'memory_gap', statement: '新缺口 A。', confidence: 70, createdAt: '2026-11-01T06:00:00.000Z' },
+        { id: uid(3), kind: 'memory_gap', statement: '新缺口 B。', confidence: 60, createdAt: '2026-11-01T06:30:00.000Z' },
+        { id: uid(4), kind: 'next_turn_suggestion', statement: 's', confidence: 45, createdAt: '2026-11-01T06:40:00.000Z' }
+      ])
+      const block = world.router.promptBlock()
+      expect(block).toContain('Internal hypotheses')
+      expect(block).toContain('新缺口 A。')
+      expect(block).toContain('新缺口 B。')
+      expect(block).not.toContain('旧缺口。')
+      // The cap is two: the third eligible hint stays routed, not injected.
+      expect(block.split('\n')).toHaveLength(1 + 2)
+      const statuses = world.database.connection.prepare('SELECT finding_id, status FROM reflection_finding_routes').all() as Array<{ finding_id: string; status: string }>
+      expect(statuses.find((row) => row.finding_id === uid(1))).toMatchObject({ status: 'expired' })
+      expect(statuses.find((row) => row.finding_id === uid(2))).toMatchObject({ status: 'injected' })
+      expect(statuses.find((row) => row.finding_id === uid(3))).toMatchObject({ status: 'injected' })
+      expect(statuses.find((row) => row.finding_id === uid(4))).toMatchObject({ status: 'routed' })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('records the hard cap so a third hint cannot sneak into one prompt', () => {
+    expect(MAX_PROMPT_HINTS).toBe(2)
+  })
+
+  it('a rejected pending concern keeps its dropped status and never resurfaces', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const statement = '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答。'
+      seedFinding(world.database, uid(2), 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: uid(2), kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
+      const open = world.pending.listOpen()
+      expect(open).toHaveLength(1)
+      expect(world.pending.decide(open[0]!.id, 'rejected')).toBe(true)
+      expect(world.pending.listOpen()).toHaveLength(0)
+      // The same statement again (a later run, same dedupe key): the upsert
+      // never resets status, so the dropped item stays dropped.
+      world.router.ingestRun(RUN, [{ id: uid(2), kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:30:00.000Z' }])
+      expect(world.pending.listOpen()).toHaveLength(0)
+      const row = world.database.connection.prepare('SELECT status FROM cognitive_pending_items').get() as { status: string }
+      expect(row.status).toBe('dropped')
+    } finally {
+      world.close()
+    }
+  })
+
+  it('records unroutable kinds instead of guessing a route', () => {
+    const world = openWorld()
+    try {
+      world.router.ingestRun(RUN, [{ id: uid(9), kind: 'made_up_kind', statement: 'x', confidence: 50, createdAt: '2026-11-01T07:00:00.000Z' }])
+      const routes = world.database.connection.prepare('SELECT COUNT(*) AS n FROM reflection_finding_routes').get() as { n: number }
+      expect(routes.n).toBe(0)
+      const events = world.database.connection.prepare("SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'reflection.finding_unroutable'").get() as { n: number }
+      expect(events.n).toBe(1)
+    } finally {
+      world.close()
+    }
+  })
+})

@@ -43,6 +43,7 @@ import {
   parseChatRequest,
   parsePersonalityInput,
   parsePersonalityRestoreRequest,
+  parsePersonalityGrowthRollbackRequest,
   parseMemoryProposalRequest,
   parseMemorySuggestionReviewRequest,
   parseCognitiveSettingsRequest,
@@ -53,6 +54,7 @@ import {
   parseSelfModelIdRequest,
   parseReflectionFindingsRequest,
   parsePendingItemIdRequest,
+  parsePendingItemDecisionRequest,
   parseTurnContextRequest
 } from '../shared/validation'
 import {
@@ -92,6 +94,8 @@ export interface CompanionActions {
   savePersonality(request: PersonalityInput): PersonalityProfile
   personalityHistory(): PersonalityRevision[]
   restorePersonality(request: { version: number }): PersonalityProfile
+  getGrowthState(): import('../personalization/personality-growth').GrowthEntry[] | null
+  rollbackGrowth(request: { dimension: import('../personalization/personality-growth').GrowthDimension }): boolean
   getCognitiveSettings(): CognitiveCoreSettings
   saveCognitiveSettings(request: CognitiveSettingsRequest): CognitiveCoreSettings
   getFeelingState(): FeelingStateView
@@ -131,6 +135,7 @@ export interface SelfModelActions {
 export interface ContinuityActions {
   listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
   completePendingItem(request: { itemId: string }): boolean
+  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): boolean
   readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
 }
 
@@ -257,6 +262,7 @@ export function createIpcHandlers(
     ...(actions.continuity ? {
       [IPC_CHANNELS.pendingItemsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.continuity!.listPendingItems()),
       [IPC_CHANNELS.pendingItemsComplete]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemIdRequest, (request) => actions.continuity!.completePendingItem(request)),
+      [IPC_CHANNELS.pendingItemsDecide]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemDecisionRequest, (request) => actions.continuity!.decidePendingItem(request)),
       [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
     } : {}),
     ...(companion ? {
@@ -272,6 +278,8 @@ export function createIpcHandlers(
       [IPC_CHANNELS.personalitySave]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePersonalityInput, (request) => companion.savePersonality(request)),
       [IPC_CHANNELS.personalityHistory]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.personalityHistory()),
       [IPC_CHANNELS.personalityRestore]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePersonalityRestoreRequest, (request) => companion.restorePersonality(request)),
+      [IPC_CHANNELS.personalityGrowthGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getGrowthState()),
+      [IPC_CHANNELS.personalityGrowthRollback]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePersonalityGrowthRollbackRequest, (request) => companion.rollbackGrowth(request)),
       [IPC_CHANNELS.cognitiveSettingsGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getCognitiveSettings()),
       [IPC_CHANNELS.cognitiveSettingsSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseCognitiveSettingsRequest, (request) => companion.saveCognitiveSettings(request)),
       [IPC_CHANNELS.cognitiveFeelingSnapshot]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getFeelingState()),

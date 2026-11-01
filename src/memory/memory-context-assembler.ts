@@ -45,6 +45,33 @@ const weakWords: readonly string[] = [...frameWords, ...timeWords]
 const WEIGHTS = Object.freeze({ slot: 1, lexical: 1, temporal: 0.25, source: 0.2 })
 const TIME_MARKERS = new RegExp(`(?:${timeWords.join('|')})`, 'gu')
 
+/**
+ * Reciprocal Rank Fusion (D-5 remediation).
+ *
+ * The lexical channel and the fact-slot channel score on different, mutually
+ * uncalibrated scales, so their raw scores must never be added. RRF fuses
+ * *ranks*: `RRF(m) = Σ_channels 1/(k + rank_channel(m))` with k = 60, which is
+ * insensitive to score scale and rewards records that both channels agree on.
+ * The fused value is rescaled into [0, 1] to feed the context-utility
+ * relevance term unchanged; the utility's freshness/quality/conflict terms
+ * then provide the bounded rerank.
+ */
+export const RRF_K = 60
+const RRF_MAX = 2 / (RRF_K + 1)
+
+export function reciprocalRankFusion(channels: ReadonlyArray<ReadonlyMap<string, number>>): Map<string, number> {
+  const fused = new Map<string, number>()
+  for (const ranking of channels) {
+    let rank = 0
+    for (const id of ranking.keys()) {
+      rank += 1
+      fused.set(id, (fused.get(id) ?? 0) + 1 / (RRF_K + rank))
+    }
+  }
+  for (const [id, value] of fused) fused.set(id, value / RRF_MAX)
+  return fused
+}
+
 function normalize(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase()
 }
@@ -126,7 +153,9 @@ function rankScore(
   now: string,
   conflictedIds?: ReadonlySet<string>,
   preferenceFor?: (record: MemoryRecord) => number,
-  importance = 0
+  importance = 0,
+  /** D-5: the RRF-fused relevance; falls back to the raw weighted score. */
+  relevanceOverride = item.score
 ): number {
   const reference = item.record.lastConfirmedAt ?? item.record.updatedAt
   const ageDays = (Date.parse(now) - Date.parse(reference)) / 86_400_000
@@ -134,7 +163,7 @@ function rankScore(
     ? Math.min(1, (ageDays - STALE_UNCONFIRMED_DAYS) / STALE_UNCONFIRMED_DAYS)
     : 0
   const base = contextUtility({
-    relevance: item.score,
+    relevance: relevanceOverride,
     freshness: freshnessOf(reference, now),
     quality: (item.record.confidence / 100) * (item.record.sourceCategory === 'user_explicit_input' ? 1 : 0.5),
     preference: preferenceFor ? preferenceFor(item.record) : 0,
@@ -236,22 +265,45 @@ export class MemoryContextAssembler {
       // Eligibility is not a matter of degree: a phrase, a content word or a
       // proven slot. Frame-only overlap stays out of the request. A policy may
       // narrow this further, never widen it.
-      .filter((item) => {
+    const filteredItems = eligible.filter((item) => {
         if (policy?.predicateFilter && (!item.memorySlot || !policy.predicateFilter.includes(item.memorySlot.predicate))) return false
         if (policy && !policy.admitConflictingEvidence && querySlot && item.memorySlot && slotsConflict(querySlot, item.memorySlot)) return false
         const lexical = item.phraseMatch || item.contentOverlap > 0
         if (policy?.requireSlotMatch) return item.slotMatch
         if (policy?.requireContentOverlap) return lexical
         return lexical || item.slotMatch
-      })
+    })
+
+    // D-5: two recall channels, fused by rank. The lexical channel orders by
+    // word overlap; the slot channel orders records whose *fact predicate*
+    // answers the question ("我现在住哪" vs "我搬去苏州了" share no content
+    // word but name the same fact). A paraphrase that fails the lexical
+    // channel can still surface through the slot channel, which is exactly
+    // the cross-session miss the real-provider run exposed.
+    const lexicalOrder = [...filteredItems].sort((left, right) =>
+      right.score - left.score ||
+      right.record.updatedAt.localeCompare(left.record.updatedAt) ||
+      left.record.id.localeCompare(right.record.id))
+    const lexicalRanking = new Map(lexicalOrder.map((item) => [item.record.id, item.score] as const))
+    const slotOrder = filteredItems
+      .filter((item) => item.slotMatch)
+      .sort((left, right) =>
+        (right.memorySlot?.observedAt ?? '').localeCompare(left.memorySlot?.observedAt ?? '') ||
+        right.record.updatedAt.localeCompare(left.record.updatedAt) ||
+        left.record.id.localeCompare(right.record.id))
+    const slotRanking = new Map(slotOrder.map((item) => [item.record.id, 1] as const))
+    const fusedRelevance = reciprocalRankFusion([lexicalRanking, slotRanking])
+
+    const ranked = filteredItems
+      .map((item) => ({ item, relevance: this.options.useContextUtility === false ? item.score : (fusedRelevance.get(item.record.id) ?? 0) }))
       .sort((left, right) => this.options.useContextUtility === false
         // Legacy ordering (relevance only) used by the ablation arm.
-        ? right.score - left.score ||
-          right.record.updatedAt.localeCompare(left.record.updatedAt) ||
-          left.record.id.localeCompare(right.record.id)
-        : rankScore(right, now, conflictedIds, preferenceFor, importanceOf(right.record.id)) - rankScore(left, now, conflictedIds, preferenceFor, importanceOf(left.record.id)) ||
-          right.record.updatedAt.localeCompare(left.record.updatedAt) ||
-          left.record.id.localeCompare(right.record.id))
+        ? right.item.score - left.item.score ||
+          right.item.record.updatedAt.localeCompare(left.item.record.updatedAt) ||
+          left.item.record.id.localeCompare(right.item.record.id)
+        : rankScore(right.item, now, conflictedIds, preferenceFor, importanceOf(right.item.record.id), right.relevance) - rankScore(left.item, now, conflictedIds, preferenceFor, importanceOf(left.item.record.id), left.relevance) ||
+          right.item.record.updatedAt.localeCompare(left.item.record.updatedAt) ||
+          left.item.record.id.localeCompare(right.item.record.id))
 
     const selected: ContextMemory[] = []
     const slots = new Map<string, FactSlot | null>()
@@ -299,7 +351,7 @@ export class MemoryContextAssembler {
     }
     const encode = presentation === 'entries' ? encodeEntries : encodeJson
     let text = encode(selected)
-    for (const item of eligible.slice(0, limit)) {
+    for (const item of ranked.slice(0, limit).map((entry) => entry.item)) {
       slots.set(item.record.id, item.memorySlot)
       const candidate = [...selected, {
         id: item.record.id,
