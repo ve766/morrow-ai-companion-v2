@@ -140,7 +140,7 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
     // ask back about ("我的猫叫什么？", "护照放在哪里？").
     predicate: 'pet_name',
     read: (text) => {
-      const match = /(?:我的?猫|我的?狗|宠物)(?:叫|名字是?|名字叫)?/u.exec(text)
+      const match = /(?:我的?)?(?:猫|狗|宠物)(?:叫|名字是?|名字叫)?/u.exec(text)
       if (!match) return null
       const value = clean(text.slice(match.index + match[0].length))
       if (/猫|狗|宠物/.test(value)) return null
@@ -473,4 +473,61 @@ export function valuesDisagree(left: string, right: string): boolean {
     { subject: 'user', predicate: 'residence', value: left, kind: 'assertion', time: 'unspecified', question: false, observedAt: '', status: 'active', sourceId: '' },
     { subject: 'user', predicate: 'residence', value: right, kind: 'assertion', time: 'unspecified', question: false, observedAt: '', status: 'active', sourceId: '' }
   ) === 'conflict'
+}
+
+
+/**
+ * Multi-fact extraction (final closure, R1).
+ *
+ * `readFactSlot` answers "what is this sentence mainly about" — one dominant
+ * slot per text. The fact ledger needs the opposite guarantee: every
+ * assertable personal fact in a memory ("我住在杭州，猫叫豆豆，喜欢科幻电影")
+ * becomes its own addressable row. This walker reuses the same extractor
+ * rules and the same conservatism: questions, hypotheses, reported speech,
+ * modal statements and double negations yield nothing; an unknown shape
+ * yields nothing (the memory text stays reachable through lexical retrieval
+ * instead of being guessed into a predicate).
+ */
+export interface FactCandidate {
+  predicate: FactPredicate
+  /** Display value as written. */
+  value: string
+  /** Normalized for uniqueness/addressing (lowercase, punctuation stripped). */
+  valueNormalized: string
+  polarity: 'positive' | 'negative'
+  time: FactTime
+}
+
+function clauseTime(clause: string): FactTime {
+  return classifyFactTime(clause)
+}
+
+export function extractFactSlots(text: string): FactCandidate[] {
+  const normalized = text.normalize('NFKC').trim()
+  if (normalized.length === 0) return []
+  const out: FactCandidate[] = []
+  const seen = new Set<string>()
+  for (const clause of splitClauses(normalized)) {
+    if (REPORTED.test(clause) || HYPOTHETICAL.test(clause) || DOUBLE_NEGATION.test(clause)) continue
+    const time = clauseTime(clause)
+    if (time === 'mixed') continue
+    const question = QUESTION_TAIL.test(clause) || INTERROGATIVE.test(clause)
+    for (const extractor of EXTRACTORS) {
+      const extracted = extractor.read(clause)
+      if (!extracted) continue
+      if (extracted.asks || question) continue
+      const value = clean(extracted.value)
+      if (value.length === 0 || value.length > 60) continue
+      // A bare interrogative or demonstrative object is not a fact value.
+      if (/^(?:什么|啥|哪个|哪些|哪里|哪儿|怎么|多少|它|这)/u.test(value)) continue
+      const polarity: 'positive' | 'negative' = extracted.negated ? 'negative' : 'positive'
+      const valueNormalized = comparable(value)
+      if (valueNormalized.length === 0) continue
+      const key = [extractor.predicate, valueNormalized, polarity, time].join('|')
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ predicate: extractor.predicate, value, valueNormalized, polarity, time })
+    }
+  }
+  return out
 }

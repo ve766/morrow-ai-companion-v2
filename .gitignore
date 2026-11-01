@@ -28,3 +28,8 @@ evaluation/reports/*
 !evaluation/reports/phase211-*.json
 !evaluation/reports/phase22-*.json
 !evaluation/reports/phase23-*.json
+
+# R8: local run/cache artifacts never belong in the product branch
+.tmp-run/
+.tmp/
+*.cjs.tmp

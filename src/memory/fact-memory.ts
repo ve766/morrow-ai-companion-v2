@@ -1,49 +1,62 @@
 /**
- * Addressable fact layer over the existing memories (final closure, P0-A).
+ * Addressable fact ledger over the existing memories (final closure, R1/R2).
  *
  * The memories table stays the single source of truth for text, revisions and
- * lifecycle; this index makes individual facts *addressable by attribute*
- * (subject/predicate/value) so a personal-fact question does not depend on
- * word overlap with the sentence that recorded it. One row per
- * (source memory, predicate, value), extracted by the same `readFactSlot`
- * rules the retriever uses — the index can never disagree with the text.
+ * lifecycle. The ledger is *derived state*: every row cites the exact source
+ * memory revision, and the whole table can be rebuilt from memories at any
+ * time by the idempotent `reindexAll`. Because it is derived, the migration
+ * ships it empty and startup repopulates it — there is no second truth to
+ * migrate.
  *
- * Lifecycle is mirrored, not invented:
- *   - memory retracted        → its facts become `retracted`;
- *   - memory corrected        → the previous value becomes `superseded`
- *                               (with the supersedes chain) and the current
- *                               value is `active`;
- *   - memory deleted          → rows disappear (FK CASCADE);
- *   - memory reinstated       → retraction is lifted on the next reindex.
+ * R1: one memory yields 0..N facts — every clause of the current text is run
+ * through the shared extractor, so "我住在杭州，猫叫豆豆" indexes two facts.
+ * `source_revision` cites the memory revision the value was read from;
+ * `valid_from` is that revision's effective time (updated_at), not the
+ * memory's creation; `provenance_kind='legacy'` with `source_message_id=null`
+ * says honestly that no message reference exists for memories created before
+ * provenance was recorded — never a fabricated id.
  *
- * `reindexMemory` is idempotent (UNIQUE(source_memory_id, predicate, value)),
- * so calling it after every write and once at startup converges.
+ * R2: a memory that is not `active` can never produce an active fact. The
+ * guard runs before any INSERT, so a retracted memory re-indexing from an
+ * empty ledger stays empty instead of resurrecting. Reindex failures are NOT
+ * swallowed: `reindexMemory` throws, `MemoryService.reindexFact` records a
+ * degradation event, and a failed re-index is retried on the next lifecycle
+ * write and at startup.
+ *
+ * Supersede semantics: only an explicit correction of the same memory moves
+ * its old rows to `superseded`. Two different memories asserting different
+ * values for one predicate are conflict candidates for the evidence gate to
+ * clarify — never an automatic overwrite.
  */
 import { randomUUID } from 'node:crypto'
 import type { SqliteDatabase } from '../persistence/database'
-import { readFactSlot } from './fact-slot'
+import { extractFactSlots } from './fact-slot'
 
-export const FACT_EXTRACTION_VERSION = 'fact-index-v1'
+export const FACT_EXTRACTION_VERSION = 'fact-index-v2'
 
 export interface FactRecord {
   id: string
-  subject: 'user'
   predicate: string
-  value: string
-  factStatus: 'active' | 'superseded' | 'retracted' | 'uncertain'
+  valueDisplay: string
+  valueNormalized: string
+  polarity: 'positive' | 'negative'
+  status: 'active' | 'superseded' | 'retracted'
   sourceMemoryId: string
+  sourceRevision: number
   sourceMessageId: string | null
+  provenanceKind: 'message' | 'legacy'
   validFrom: string
   validTo: string | null
   confidence: number
-  supersedesFactId: string | null
   sensitivity: 'normal' | 'personal' | 'sensitive'
+  timeState: 'past' | 'present' | 'future' | 'unspecified'
 }
 
 interface MemoryRow {
   id: string
   current_text: string
   status: string
+  revision: number
   sensitivity: string
   confidence: number
   created_at: string
@@ -62,119 +75,150 @@ export class FactMemoryService {
   }
 
   /**
-   * Re-derives the fact rows for one memory from its current text. Safe to
-   * call any number of times; each (predicate, value) pair is stored once.
+   * Re-derives the fact rows for one memory from its current text and
+   * revision. Throws on storage failure — the caller decides whether that
+   * degrades a turn or blocks a startup pass; silently losing index updates
+   * is what created the resurrection hole in the first place.
    */
   reindexMemory(memoryId: string): void {
     const memory = this.options.database.connection.prepare(
-      'SELECT id, current_text, status, sensitivity, confidence, created_at, updated_at FROM memories WHERE id = ?'
+      'SELECT id, current_text, status, revision, sensitivity, confidence, created_at, updated_at FROM memories WHERE id = ?'
     ).get(memoryId) as MemoryRow | undefined
     if (!memory) return
     const now = this.clock()
-    const slot = readFactSlot(memory.current_text)
-    const activePredicate = slot && slot.kind === 'assertion' && slot.value.length > 0 ? slot.predicate : null
-    const timeState = slot?.time ?? 'unspecified'
+    const database = this.options.database.connection
 
-    // The facts this memory used to carry: any stored row whose value is no
-    // longer the current text's value is superseded (the memory was corrected)
-    // or retracted (the memory itself was).
-    const existing = this.options.database.connection.prepare(
-      'SELECT id, predicate, value, fact_status FROM fact_records WHERE source_memory_id = ?'
-    ).all(memoryId) as Array<{ id: string; predicate: string; value: string; fact_status: string }>
-    for (const row of existing) {
-      const stillCurrent = activePredicate !== null && row.predicate === activePredicate && row.value === slot!.value
-      const targetStatus = memory.status !== 'active' ? 'retracted' : stillCurrent ? 'active' : 'superseded'
-      if (row.fact_status !== targetStatus) {
-        this.options.database.connection.prepare(
-          'UPDATE fact_records SET fact_status = ?, valid_to = ?, updated_at = ? WHERE id = ?'
-        ).run(targetStatus, targetStatus === 'active' ? null : now, now, row.id)
+    database.exec('BEGIN IMMEDIATE')
+    try {
+      // R2 guard first: a non-active memory can only carry retracted facts.
+      if (memory.status !== 'active') {
+        database.prepare(
+          "UPDATE fact_records SET status = 'retracted', valid_to = ?, updated_at = ? WHERE source_memory_id = ? AND status != 'retracted'"
+        ).run(now, now, memoryId)
+        database.exec('COMMIT')
+        return
       }
-    }
 
-    if (activePredicate === null) return
-    const existingActive = existing.find((row) => row.predicate === activePredicate && row.value === slot!.value)
-    if (existingActive) return
-    // A new value for a predicate this memory already asserted supersedes the
-    // old row; a first assertion has no predecessor.
-    const predecessor = this.options.database.connection.prepare(
-      "SELECT id FROM fact_records WHERE source_memory_id = ? AND predicate = ? AND fact_status = 'superseded' ORDER BY updated_at DESC LIMIT 1"
-    ).get(memoryId, activePredicate) as { id: string } | undefined
-    this.options.database.connection.prepare(`
-      INSERT INTO fact_records(id, subject, predicate, value, fact_status, source_memory_id, source_message_id, valid_from, valid_to, confidence, supersedes_fact_id, sensitivity, time_state, extraction_version, created_at, updated_at)
-      VALUES (?, 'user', ?, ?, 'active', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(source_memory_id, predicate, value) DO NOTHING
-    `).run(
-      this.options.makeId?.() ?? randomUUID(),
-      activePredicate,
-      slot!.value,
-      memoryId,
-      // Message-level provenance lives on the memory's revision chain and
-      // its creation event; the fact row keeps the memory reference.
-      null,
-      memory.created_at,
-      Math.max(1, Math.min(100, memory.confidence)),
-      predecessor?.id ?? null,
-      memory.sensitivity,
-      timeState,
-      FACT_EXTRACTION_VERSION,
-      now,
-      now
-    )
+      const candidates = extractFactSlots(memory.current_text)
+      const existing = database.prepare(
+        'SELECT id, predicate, value_normalized, polarity, status FROM fact_records WHERE source_memory_id = ?'
+      ).all(memoryId) as Array<{ id: string; predicate: string; value_normalized: string; polarity: string; status: string }>
+
+      for (const row of existing) {
+        const stillCurrent = candidates.some((candidate) =>
+          candidate.predicate === row.predicate && candidate.valueNormalized === row.value_normalized && candidate.polarity === row.polarity)
+        // Only the lifecycle writes can close a row: a value that disappeared
+        // because the memory was CORRECTED is superseded; rows cannot silently
+        // vanish on a re-read.
+        if (!stillCurrent && row.status === 'active') {
+          database.prepare(
+            "UPDATE fact_records SET status = 'superseded', valid_to = ?, updated_at = ? WHERE id = ?"
+          ).run(now, now, row.id)
+        } else if (stillCurrent && row.status !== 'active') {
+          // A memory restored after a retraction: the row re-opens from its
+          // own history instead of the history being rewritten.
+          database.prepare(
+            "UPDATE fact_records SET status = 'active', valid_to = NULL, updated_at = ? WHERE id = ?"
+          ).run(now, row.id)
+        }
+      }
+
+      for (const candidate of candidates) {
+        const existingRow = existing.find((row) =>
+          row.predicate === candidate.predicate && row.value_normalized === candidate.valueNormalized && row.polarity === candidate.polarity && row.status === 'active')
+        if (existingRow) continue
+        // Supersedes chain: only within the same memory + predicate, where the
+        // correction semantics are unambiguous.
+        const predecessor = database.prepare(
+          "SELECT id FROM fact_records WHERE source_memory_id = ? AND predicate = ? AND status = 'superseded' ORDER BY updated_at DESC LIMIT 1"
+        ).get(memoryId, candidate.predicate) as { id: string } | undefined
+        database.prepare(`
+          INSERT INTO fact_records(id, subject, predicate, value_display, value_normalized, polarity, status, source_memory_id, source_revision, source_message_id, provenance_kind, valid_from, valid_to, confidence, supersedes_fact_id, sensitivity, time_state, extraction_version, created_at, updated_at)
+          VALUES (?, 'user', ?, ?, ?, ?, 'active', ?, ?, NULL, 'legacy', ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(source_memory_id, source_revision, predicate, value_normalized, polarity) DO NOTHING
+        `).run(
+          this.options.makeId?.() ?? randomUUID(),
+          candidate.predicate,
+          candidate.value,
+          candidate.valueNormalized,
+          candidate.polarity,
+          memoryId,
+          memory.revision,
+          memory.updated_at,
+          Math.max(1, Math.min(100, memory.confidence)),
+          predecessor?.id ?? null,
+          memory.sensitivity,
+          candidate.time,
+          FACT_EXTRACTION_VERSION,
+          now,
+          now
+        )
+      }
+      database.exec('COMMIT')
+    } catch (error) {
+      try {
+        database.exec('ROLLBACK')
+      } catch {
+        // The transaction may already be gone; surface the original error.
+      }
+      throw error
+    }
   }
 
-  /** Startup catch-up: re-derive every memory's rows. Idempotent. */
-  reindexAll(): number {
+  /** Startup catch-up: re-derive every memory's rows. Idempotent, throwing. */
+  reindexAll(): { total: number; failed: number } {
     const rows = this.options.database.connection.prepare('SELECT id FROM memories').all() as Array<{ id: string }>
+    let failed = 0
     for (const row of rows) {
       try {
         this.reindexMemory(row.id)
       } catch {
-        // One unreadable memory must not stop the index; the next pass retries.
+        failed += 1
       }
     }
-    return rows.length
+    return { total: rows.length, failed }
   }
 
   /**
-   * Predicate-addressed lookup: the active facts for one predicate. Validity
-   * is part of the query — superseded/retracted rows and expired values are
-   * not current facts, whatever their text similarity.
+   * Predicate-addressed lookup. Valid-time and status filters are part of the
+   * WHERE clause: a present-tense question never sees past or superseded rows,
+   * a past-tense question may read superseded history (the audit layer).
    */
   lookupActive(predicate: string, options: { limit?: number; queryTime?: string; includeSuperseded?: boolean } = {}): FactRecord[] {
-    // Valid-time filter: a present-tense question must not resurrect a past
-    // fact; a past-tense question ("我以前住在哪里") may read superseded
-    // history — that is what the audit layer keeps it for.
     const wantPast = options.queryTime === 'past'
     const statusClause = wantPast && options.includeSuperseded
-      ? "fact_status IN ('active', 'superseded')"
-      : "fact_status = 'active'"
+      ? "status IN ('active', 'superseded')"
+      : "status = 'active'"
     const timeClause = wantPast ? '1=1' : "time_state != 'past'"
     const rows = this.options.database.connection.prepare(`
-      SELECT id, predicate, value, fact_status, source_memory_id, source_message_id, valid_from, valid_to, confidence, supersedes_fact_id, sensitivity
+      SELECT id, predicate, value_display, value_normalized, polarity, status, source_memory_id, source_revision, source_message_id, provenance_kind, valid_from, valid_to, confidence, sensitivity, time_state
       FROM fact_records
       WHERE predicate = ? AND ${statusClause} AND valid_to IS NULL AND ${timeClause}
       ORDER BY confidence DESC, updated_at DESC
       LIMIT ?
-    `).all(predicate, options.limit ?? 10) as Array<{ id: string; predicate: string; value: string; fact_status: string; source_memory_id: string; source_message_id: string | null; valid_from: string; valid_to: string | null; confidence: number; supersedes_fact_id: string | null; sensitivity: string }>
+    `).all(predicate, options.limit ?? 10) as Array<{ id: string; predicate: string; value_display: string; value_normalized: string; polarity: string; status: string; source_memory_id: string; source_revision: number; source_message_id: string | null; provenance_kind: string; valid_from: string; valid_to: string | null; confidence: number; sensitivity: string; time_state: string }>
     return rows.map((row) => ({
       id: row.id,
-      subject: 'user' as const,
       predicate: row.predicate,
-      value: row.value,
-      factStatus: row.fact_status as FactRecord['factStatus'],
+      valueDisplay: row.value_display,
+      valueNormalized: row.value_normalized,
+      polarity: row.polarity as FactRecord['polarity'],
+      status: row.status as FactRecord['status'],
       sourceMemoryId: row.source_memory_id,
+      sourceRevision: row.source_revision,
       sourceMessageId: row.source_message_id,
+      provenanceKind: row.provenance_kind as FactRecord['provenanceKind'],
       validFrom: row.valid_from,
       validTo: row.valid_to,
       confidence: row.confidence,
-      supersedesFactId: row.supersedes_fact_id,
-      sensitivity: row.sensitivity as FactRecord['sensitivity']
+      sensitivity: row.sensitivity as FactRecord['sensitivity'],
+      timeState: row.time_state as FactRecord['timeState']
     }))
   }
 
   counts(): { total: number; active: number } {
     const row = this.options.database.connection.prepare(
-      "SELECT COUNT(*) AS total, SUM(CASE WHEN fact_status = 'active' THEN 1 ELSE 0 END) AS active FROM fact_records"
+      "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active FROM fact_records"
     ).get() as { total: number; active: number | null }
     return { total: row.total, active: row.active ?? 0 }
   }

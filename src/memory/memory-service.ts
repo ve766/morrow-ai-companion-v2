@@ -236,6 +236,19 @@ export class MemoryService {
         // A fact-lookup failure degrades to the lexical/slot channels only.
       }
     }
+    // R3 query plan: a bare value assertion ("你就说我在北京") does not carry
+    // a residence marker, but it asserts a value FOR a personal attribute.
+    // The single-valued attributes are exactly the ones where the stored
+    // current value must be in view — to resist, agree or clarify.
+    if (this.factIndex && /(?:^|[，。;,.s])我(?:现在)?(?:在|住在|搬到|搬去|搬进了?)[p{Script=Han}]{2,8}/u.test(query)) {
+      try {
+        for (const predicate of ['residence', 'age', 'name', 'employer', 'job_role', 'project_code']) {
+          for (const fact of this.factIndex.lookupActive(predicate)) factAddressedIds.add(fact.sourceMemoryId)
+        }
+      } catch {
+        // Same degradation contract.
+      }
+    }
     // Conflict risk is a property of the candidate set, so it is computed once
     // here and handed to the ranking instead of being re-derived per record.
     return this.contextAssembler.assemble(

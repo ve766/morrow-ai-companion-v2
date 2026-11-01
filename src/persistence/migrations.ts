@@ -2271,6 +2271,52 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 41,
+    name: 'fact-ledger-multi-fact-provenance',
+    up(database) {
+      // Final-closure R1/R2: the fact ledger becomes multi-fact and
+      // provenance-correct. One row per (source memory, source revision,
+      // predicate, normalized value, polarity). fact_records is derived state
+      // — the whole table is rebuilt empty here and re-derived from the
+      // memories at startup by the idempotent reindexAll, which also repairs
+      // the R2 resurrection hole (non-active memories never produce active
+      // facts) without a data migration.
+      database.exec(`
+        DROP INDEX IF EXISTS fact_records_dedupe_uq;
+        DROP INDEX IF EXISTS fact_records_predicate_idx;
+        DROP INDEX IF EXISTS fact_records_supersedes_idx;
+        DROP TABLE fact_records;
+        CREATE TABLE fact_records (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          subject TEXT NOT NULL CHECK (subject = 'user'),
+          predicate TEXT NOT NULL CHECK (length(predicate) BETWEEN 3 AND 32),
+          value_display TEXT NOT NULL CHECK (length(value_display) BETWEEN 1 AND 200),
+          value_normalized TEXT NOT NULL CHECK (length(value_normalized) BETWEEN 1 AND 200),
+          polarity TEXT NOT NULL CHECK (polarity IN ('positive', 'negative')),
+          status TEXT NOT NULL CHECK (status IN ('active', 'superseded', 'retracted')),
+          source_memory_id TEXT NOT NULL CHECK (length(source_memory_id) = 36),
+          source_revision INTEGER NOT NULL CHECK (source_revision > 0),
+          source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36),
+          provenance_kind TEXT NOT NULL CHECK (provenance_kind IN ('message', 'legacy')),
+          valid_from TEXT NOT NULL,
+          valid_to TEXT,
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          supersedes_fact_id TEXT CHECK (supersedes_fact_id IS NULL OR length(supersedes_fact_id) = 36),
+          sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          time_state TEXT NOT NULL CHECK (time_state IN ('past', 'present', 'future', 'unspecified')),
+          extraction_version TEXT NOT NULL CHECK (length(extraction_version) BETWEEN 3 AND 32),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (source_memory_id) REFERENCES memories(id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE UNIQUE INDEX fact_records_dedupe_uq ON fact_records(source_memory_id, source_revision, predicate, value_normalized, polarity);
+        CREATE INDEX fact_records_predicate_idx ON fact_records(predicate, status, time_state);
+        CREATE INDEX fact_records_supersedes_idx ON fact_records(supersedes_fact_id);
+      `)
+    }
+  },
+
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
