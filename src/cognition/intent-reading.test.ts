@@ -194,12 +194,14 @@ describe('D. compound, correction and withdrawal', () => {
   })
 
   it('keeps "not_retrieved" different from "never told" in the slot evidence', () => {
-    // A continuation inherits its topic as `inferred` and cites no message, so
-    // nothing downstream can present it as something the user just said.
+    // A continuation inherits its topic as `inferred`. When the antecedent is a
+    // specific message, that message id is recorded — provenance, not a claim
+    // that the user said it in this turn.
     const reading = read('继续。', [assistant('要我继续讲原理吗？')])
     const topic = reading.entitiesAndSlots.find((slot) => slot.name === 'topic')
     expect(topic?.status).toBe('inferred')
-    expect(topic?.evidenceMessageId).toBeNull()
+    expect(topic?.evidenceMessageId).toBe(M(2))
+    expect(topic?.evidenceMessageId).not.toBe(CURRENT)
   })
 })
 

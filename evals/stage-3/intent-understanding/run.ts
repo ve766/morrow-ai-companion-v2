@@ -159,6 +159,40 @@ function outcome(id: string, family: ScenarioResult['family'], name: string, req
 
 const check = (name: string, ok: boolean, detail: string): Assertion => ({ name, ok, detail })
 
+/**
+ * A slot value shaped like classifier + noun (`个函数`, `张图`) names a class,
+ * not a thing, while still reading as `stated`.
+ *
+ * The C1-A3 assertion used to test `status === 'stated'` and nothing else, so it
+ * passed on exactly those values. Checking only "the value occurs in the
+ * utterance" would not have caught them either: `帮我看看这个函数。` does contain
+ * `个函数`. The two classifiers below are the ones actually observed in the
+ * stored artefact — this is a regression guard for a known shape, not a grammar
+ * rule. It has known false-positive shapes (`个人`, a surname `张`), which will
+ * show up as a red assertion for a human to read rather than as a silent pass.
+ */
+const CLASSIFIER_PREFIX = /^[个张](?=.)/u
+
+/** The target is a noun phrase the user actually said this turn, and not one of those. */
+function nounFromTurn(turn: Turn | undefined, content: string): boolean {
+  const slot = turn?.reading?.entitiesAndSlots.find((item) => item.name === 'target')
+  if (!slot || slot.status !== 'stated') return false
+  if (!content.includes(slot.value)) return false
+  return !CLASSIFIER_PREFIX.test(slot.value)
+}
+
+/**
+ * The deictic reference resolved to the message it points at.
+ *
+ * `target` holds the noun phrase; the resolved referent lives on `topic` as
+ * `inferred` with the evidence message id. Checking the id — not merely
+ * `inferred` — is what makes "the context decided it" a falsifiable claim.
+ */
+function boundTo(turn: Turn | undefined, messageId: string): boolean {
+  const slot = turn?.reading?.entitiesAndSlots.find((item) => item.name === 'topic')
+  return slot?.status === 'inferred' && slot.evidenceMessageId === messageId
+}
+
 /** One contrast: two conversations, same sentence, different prior assistant turn. */
 async function continuationContext(scenario: string, prior: string, reply: string, text: string): Promise<IntentReading | null> {
   const stack = buildStack()
@@ -209,10 +243,10 @@ export async function run(): Promise<{ results: ScenarioResult[]; traces: TurnRe
   {
     const stack = buildStack()
     const code = stack.companion.createConversation()
-    await say(stack, 'C1-A3', code.id, '我的函数 parseConfig 总是返回 undefined。')
+    const codeIntro = await say(stack, 'C1-A3', code.id, '我的函数 parseConfig 总是返回 undefined。')
     const codeTurn = await say(stack, 'C1-A3', code.id, '帮我看看这个函数。')
     const image = stack.companion.createConversation()
-    await say(stack, 'C1-A3', image.id, '我截了报错弹窗的图。')
+    const imageIntro = await say(stack, 'C1-A3', image.id, '我截了报错弹窗的图。')
     const imageTurn = await say(stack, 'C1-A3', image.id, '帮我看看这张图。')
     const venting = stack.companion.createConversation()
     await say(stack, 'C1-A3', venting.id, '最近工作压力好大，天天加班。')
@@ -220,9 +254,12 @@ export async function run(): Promise<{ results: ScenarioResult[]; traces: TurnRe
     const bare = stack.companion.createConversation()
     const bareTurn = await say(stack, 'C1-A3', bare.id, '帮我看看。')
     stack.close()
-    results.push(outcome('C1-A3', 'A', '同一句"帮我看看"在四种语境下不同', '代码 / 图片 / 情绪 / 无上下文的目标槽位与决策不同', [
-      check('代码语境目标为具体对象', codeTurn.reading?.entitiesAndSlots.find((slot) => slot.name === 'target')?.status === 'stated', JSON.stringify(codeTurn.reading?.entitiesAndSlots ?? [])),
-      check('图片语境目标为具体对象', imageTurn.reading?.entitiesAndSlots.find((slot) => slot.name === 'target')?.status === 'stated', JSON.stringify(imageTurn.reading?.entitiesAndSlots ?? [])),
+    results.push(outcome('C1-A3', 'A', '同一句"帮我看看"在四种语境下不同',
+      '代码 / 图片 / 情绪 / 无上下文的目标槽位与决策不同。目标槽位是本轮措辞里的名词短语，指代由 topic 绑定到来源消息；把"这个函数"解析成 parseConfig 这样的实体链接不在本轮实现内，本条不作此主张。', [
+      check('代码语境目标取自本轮措辞', nounFromTurn(codeTurn, '帮我看看这个函数。'), JSON.stringify(codeTurn.reading?.entitiesAndSlots ?? [])),
+      check('代码语境指代绑定到上一轮那条消息', boundTo(codeTurn, codeIntro.messageId), JSON.stringify(codeTurn.reading?.entitiesAndSlots ?? [])),
+      check('图片语境目标取自本轮措辞', nounFromTurn(imageTurn, '帮我看看这张图。'), JSON.stringify(imageTurn.reading?.entitiesAndSlots ?? [])),
+      check('图片语境指代绑定到上一轮那条消息', boundTo(imageTurn, imageIntro.messageId), JSON.stringify(imageTurn.reading?.entitiesAndSlots ?? [])),
       check('情绪语境下追问目标而不是臆测', ventingTurn.reading?.responseMode === 'clarify', String(ventingTurn.reading?.responseMode)),
       check('完全无上下文时追问目标', bareTurn.reading?.clarificationReason === 'missing_target', String(bareTurn.reading?.clarificationReason)),
       check('四种语境的承接主题不同', new Set([codeTurn.reading?.entitiesAndSlots.find((slot) => slot.name === 'topic')?.value ?? '', imageTurn.reading?.entitiesAndSlots.find((slot) => slot.name === 'topic')?.value ?? '', ventingTurn.reading?.entitiesAndSlots.find((slot) => slot.name === 'topic')?.value ?? '', bareTurn.reading?.entitiesAndSlots.find((slot) => slot.name === 'topic')?.value ?? '']).size >= 3, 'topic slots')
@@ -370,7 +407,7 @@ export async function run(): Promise<{ results: ScenarioResult[]; traces: TurnRe
     stack.close()
     results.push(outcome('C1-D2', 'D', '多轮补充槽位', '对象与期限在不同轮补充，后者不得覆盖前者', [
       check('补充轮带出时间槽位', first.reading?.entitiesAndSlots.some((slot) => slot.name === 'time_horizon') === true, JSON.stringify(first.reading?.entitiesAndSlots ?? [])),
-      check('不为本轮没说的对象编造槽位', first.reading?.entitiesAndSlots.every((slot) => slot.name !== 'target'), JSON.stringify(first.reading?.entitiesAndSlots ?? [])),
+      check('不为本轮没说的对象编造槽位', first.reading?.entitiesAndSlots.every((slot) => slot.name !== 'target') === true, JSON.stringify(first.reading?.entitiesAndSlots ?? [])),
       check('状态为 continuing', first.reading?.intentStatus === 'continuing', String(first.reading?.intentStatus)),
       check('证据含承接上一轮', Boolean(first.reading?.context.evidence.includes('sequences_prior_turn')), (first.reading?.context.evidence ?? []).join(','))
     ]))
@@ -538,6 +575,11 @@ async function main(): Promise<void> {
   mkdirSync(join(root, 'traces'), { recursive: true })
 
   const payload = {
+    // Which suite produced this file. The two C1 suites are labelled so that a
+    // mechanism result (scripted provider) can never be filed, quoted or
+    // aggregated as semantic evidence; the semantic suite says `semantic` and
+    // is the only one that runs a model.
+    suite: 'mechanism' as const,
     datasetVersion: DATASET_VERSION,
     harnessVersion: HARNESS_VERSION,
     paramsVersion: PARAMS_VERSION,

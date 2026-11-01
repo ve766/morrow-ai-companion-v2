@@ -10,8 +10,9 @@
  * What it does NOT do:
  *
  *   - it never reads, prints, logs or persists the credential. The key is read
- *     once from a file or the environment, handed to the in-memory secret store,
- *     and scrubbed from the output before it is written;
+ *     once from `MORROW_TEST_API_KEY`, handed to the in-memory secret store, and
+ *     scrubbed from the output before it is written. There is no file fallback —
+ *     see `../shared/real-provider` for why;
  *   - it does not claim human evaluation. Subjective quality is recorded as
  *     `manualReview.status = 'PENDING'` with the rows a human should read;
  *   - it does not turn a missing capability into a pass. A behaviour the run
@@ -20,62 +21,30 @@
  *     count, not FAIL and not PASS.
  *
  * Usage:
- *   MORROW_LIVE_KEY_FILE=.tmp/deepseek.key MORROW_EVAL_SHA=<sha> npm run eval:stage3:live
+ *   MORROW_TEST_API_KEY=... MORROW_EVAL_SHA=<sha> npm run eval:stage3:live
  */
-import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
-import { SqliteDatabase } from '../../../src/persistence/database'
-import { MemoryService } from '../../../src/memory/memory-service'
-import { MemoryImportanceService } from '../../../src/memory/memory-importance'
-import { SqliteMemoryRepository } from '../../../src/persistence/memory-repository'
-import { ConversationService } from '../../../src/conversation/conversation-service'
-import { SqliteConversationRepository } from '../../../src/persistence/conversation-repository'
-import { CompanionService, PersonalityService } from '../../../src/app/companion-service'
 import {
-  SqliteTurnContextRepository,
-  SqliteTurnFinalizationRepository,
-  SqlitePendingItemRepository
-} from '../../../src/persistence/cognitive-context-repository'
-import { SqliteTurnStateRepository } from '../../../src/persistence/turn-state-repository'
-import { InterestService, SqliteInterestRepository } from '../../../src/self-model/interest-service'
-import { SelfModelService, SqliteSelfModelRepository } from '../../../src/self-model/self-model-service'
-import { ReflectionService, SqliteReflectionRepository } from '../../../src/self-model/reflection-service'
-import { EventLogService } from '../../../src/persistence/event-log'
-import { PendingCognitionService } from '../../../src/cognition/pending-items'
-import { PersonalizationService } from '../../../src/personalization/personalization-service'
-import { PersonalityGrowthService } from '../../../src/personalization/personality-growth'
-import { UserInteractionProfileService } from '../../../src/personalization/interaction-profile'
-import { CompanionGoalService } from '../../../src/motivation/companion-goal'
-import { ExplorationService } from '../../../src/self-model/exploration-policy'
-import { DEEPSEEK_MODEL, DEEPSEEK_PROVIDER_ID, SPARK_MAAS_BASE_URL, SPARK_PROVIDER_ID } from '../../../src/shared/companion'
-import { MemorySecretStore } from '../../../src/security/secrets'
-import { OpenAICompatibleProvider } from '../../../src/providers/openai-compatible'
-import type { ProviderInput, ProviderOutput, ProviderPort } from '../../../src/providers/provider-policy'
+  assertNoSecret,
+  buildProviderStack,
+  commitOrUnknown,
+  payloadDigest,
+  readKeyOrNull,
+  resolveContractUrl,
+  selectProvider,
+  systemText,
+  workingTreeDirty,
+  writeBlockedNoSecret
+} from '../shared/real-provider'
+
+export { CONTRACT } from '../shared/real-provider'
 
 export const DATASET_VERSION = 'stage-3-live-v1'
 export const HARNESS_VERSION = 'stage-3-live-runner-v2'
 export const PARAMS_VERSION = 'stage-3-live-params-v2'
-
-/**
- * Shared real-model contract defaults.
- *
- * These come from `docs/testing/shared-real-model-test-contract.md`. The runner
- * refuses to start if the product's own endpoint differs from the contract URL,
- * because a test that talks to a different endpoint than the product does is
- * not evidence about the product.
- */
-export const CONTRACT = Object.freeze({
-  model: 'spark-x2.6',
-  chatCompletionsUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions',
-  responsesUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/v1/responses',
-  anthropicMessagesUrl: 'https://maas-api.cn-huabei-1.xf-yun.com/anthropic/v1/messages',
-  apiKeyEnv: 'MORROW_TEST_API_KEY'
-})
 
 interface Assertion { name: string; ok: boolean; detail: string }
 type Status = 'PASS' | 'FAIL' | 'NOT_RUN' | 'BLOCKED'
@@ -99,180 +68,39 @@ interface TurnRecord {
 }
 
 /**
- * Which provider this run targets.
+ * The stack and its provider plumbing live in `../shared/real-provider`.
  *
- * `spark` exists because the product ships two remote providers and only one of
- * them is OpenAI's shape by name; an evaluation that can only drive DeepSeek
- * would silently skip the other one.
+ * They used to be copied into this runner. Two copies of the credential path do
+ * not fail loudly — they fail as two contradictory verdicts on one commit — so
+ * the copy was removed and this runner imports the single one.
  */
-type LiveProvider = 'deepseek' | 'spark'
-
-function providerOf(): { id: string; model: string; label: LiveProvider } {
-  const label = (process.env.MORROW_LIVE_PROVIDER ?? 'spark').toLowerCase()
-  if (label === 'spark') {
-    return { id: SPARK_PROVIDER_ID, model: process.env.MORROW_TEST_MODEL ?? CONTRACT.model, label }
-  }
-  if (label !== 'deepseek') throw new Error(`Unknown MORROW_LIVE_PROVIDER: ${label}`)
-  return { id: DEEPSEEK_PROVIDER_ID, model: process.env.MORROW_TEST_MODEL ?? DEEPSEEK_MODEL, label: 'deepseek' }
-}
-
-/**
- * The credential is read from the contract environment variable only.
- *
- * There is no file fallback on purpose: a test that can silently pick up a key
- * from a path is a test that can run with the wrong credential, and the contract
- * exists to make exactly one path possible.
- */
-function readKeyOrNull(): string | null {
-  const fromEnv = process.env[CONTRACT.apiKeyEnv]
-  if (!fromEnv) return null
-  const key = fromEnv.trim()
-  return key.length >= 16 ? key : null
-}
-
-function head(): string {
-  return process.env.MORROW_EVAL_SHA ?? 'unknown'
-}
-
-interface Stack {
-  companion: CompanionService
-  database: SqliteDatabase
-  events: EventLogService
-  memories: MemoryService
-  interests: InterestService
-  reflection: ReflectionService
-  goals: CompanionGoalService
-  interaction: UserInteractionProfileService
-  exploration: ExplorationService
-  lastPayload: () => string
-  close: () => void
-}
-
-function buildStack(): Stack {
-  const directory = mkdtempSync(join(tmpdir(), 'morrow-live-'))
-  const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
-  const eventLog = new EventLogService(database)
-  const importance = new MemoryImportanceService(database)
-  const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance })
-  const conversations = new ConversationService(new SqliteConversationRepository(database))
-  const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
-  const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
-  const reflection = new ReflectionService(new SqliteReflectionRepository(database), { memories, interests, selfModel, events: eventLog }, eventLog)
-  const personalization = new PersonalizationService(database)
-  const growth = new PersonalityGrowthService(database)
-  const interaction = new UserInteractionProfileService(database, () => {
-    const profile = new PersonalityService(database).get()
-    return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
-  })
-  const exploration = new ExplorationService(database)
-  const goals = new CompanionGoalService(database)
-
-  // The adapter is the production class, constructed here rather than fetched
-  // from `companion.providers`: the config service is built with this very
-  // factory, so asking it for an adapter calls back into this function and
-  // recurses until the stack dies. The wrapper only observes the serialized
-  // request; every byte of the call goes to the real implementation.
-  let observedPayload = ''
-  const secrets = new MemorySecretStore()
-
-  const companion = new CompanionService({
-    database,
-    memories,
-    conversations,
-    secrets,
-    authorize: async (preview) => {
-      const nowMs = Date.now()
-      return {
-        providerId: preview.providerId,
-        payloadSha256: preview.payloadSha256,
-        approvedAt: new Date(nowMs).toISOString(),
-        expiresAt: new Date(nowMs + 120_000).toISOString(),
-        includeSensitive: preview.maximumSensitivity === 'sensitive'
-      }
-    },
-    providerFactory: (config): ProviderPort => {
-      const real = new OpenAICompatibleProvider(config, secrets)
-      return {
-        profile: real.profile,
-        generate: async (input: ProviderInput, onDelta?: (delta: string) => void): Promise<ProviderOutput> => {
-          observedPayload = JSON.stringify(input.requestPayload)
-          return real.generate(input, onDelta)
-        }
-      }
-    },
-    selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, interaction, exploration, goals, memories },
-    continuity: {
-      contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
-      finalizations: new SqliteTurnFinalizationRepository(database),
-      states: new SqliteTurnStateRepository(database)
-    }
-  })
-  companion.saveCognitiveSettings({ enabled: true })
-
-  return {
-    companion,
-    database,
-    events: eventLog,
-    memories,
-    interests,
-    reflection,
-    goals,
-    interaction,
-    exploration,
-    lastPayload: () => observedPayload,
-    close: () => {
-      database.close()
-      rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
-    }
-  }
-}
-
-function systemText(payload: string): string {
-  try {
-    const parsed = JSON.parse(payload) as { messages?: Array<{ role: string; content: string }> }
-    return parsed.messages?.find((message) => message.role === 'system')?.content ?? ''
-  } catch {
-    return ''
-  }
-}
-
 async function main(): Promise<void> {
   const startedAt = new Date().toISOString()
-  const target = providerOf()
+  const target = selectProvider()
   const key = readKeyOrNull()
   if (!key) {
     // BLOCKED_NO_SECRET is a first-class result, not a crash: the contract says
     // a missing secret must be recorded as blocked, never faked with a scripted
-    // provider.
-    const stamp = startedAt.replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
-    const outDir = join(resolve(process.cwd()), 'evals', 'real-provider', 'results')
-    mkdirSync(outDir, { recursive: true })
-    const file = join(outDir, `${stamp}-${head().slice(0, 7)}.json`)
-    writeFileSync(file, `${JSON.stringify({
-      status: 'BLOCKED_NO_SECRET',
-      reason: `Environment variable ${CONTRACT.apiKeyEnv} is not set.`,
+    // provider. The record is written by the shared module so this runner and
+    // the semantic suite cannot disagree about what "blocked" looks like.
+    const blocked = writeBlockedNoSecret({
+      suite: 'live',
       datasetVersion: DATASET_VERSION,
       harnessVersion: HARNESS_VERSION,
       paramsVersion: PARAMS_VERSION,
-      codeCommit: head(),
-      provider: target.label,
-      providerModelId: target.model,
-      expectedEndpoint: CONTRACT.chatCompletionsUrl,
+      provider: target,
       startedAt,
-      finishedAt: new Date().toISOString()
-    }, null, 2)}\n`)
-    process.stdout.write(`${JSON.stringify({ file, status: 'BLOCKED_NO_SECRET' }, null, 2)}\n`)
+      outDir: join('evals', 'real-provider', 'results'),
+      filenameSuffix: '-live',
+      extra: { workingTree: workingTreeDirty() }
+    })
+    process.stdout.write(`${JSON.stringify(blocked, null, 2)}\n`)
     return
   }
 
-  const contractUrl = process.env.MORROW_TEST_CHAT_COMPLETIONS_URL ?? CONTRACT.chatCompletionsUrl
-  const productUrl = `${SPARK_MAAS_BASE_URL}/chat/completions`
-  if (target.label === 'spark' && contractUrl !== productUrl) {
-    throw new Error(`The product endpoint ${productUrl} differs from the contract endpoint ${contractUrl}.`)
-  }
-  const stack = buildStack()
-  stack.companion.saveProvider({ providerId: target.id as typeof DEEPSEEK_PROVIDER_ID, model: target.model, enabled: true, apiKey: key })
+  const contractUrl = resolveContractUrl(target)
+  const stack = buildProviderStack()
+  stack.companion.saveProvider({ providerId: target.id, model: target.model, enabled: true, apiKey: key })
 
   const turns: TurnRecord[] = []
   const sessions: Record<string, string> = {
@@ -323,7 +151,7 @@ async function main(): Promise<void> {
       if (!result) throw new Error('no result')
       const payload = stack.lastPayload()
       record.reply = result.assistantMessage.body.slice(0, 400)
-      record.payloadSha256 = createHash('sha256').update(payload).digest('hex')
+      record.payloadSha256 = payloadDigest(payload)
       record.payloadCharacters = payload.length
       record.systemCharacters = systemText(payload).length
       record.selectedMemoryIds = result.evaluation?.retrieval.selectedMemoryIds ?? []
@@ -517,10 +345,12 @@ async function main(): Promise<void> {
 
     const finishedAt = new Date().toISOString()
     const payload = {
+      suite: 'live',
       datasetVersion: DATASET_VERSION,
       harnessVersion: HARNESS_VERSION,
       paramsVersion: PARAMS_VERSION,
-      codeCommit: head(),
+      codeCommit: commitOrUnknown(),
+      workingTree: workingTreeDirty(),
       environment: { platform: process.platform, node: process.version },
       clock: 'real',
       status: status === 'PASS' ? 'REAL_PROVIDER_PASS' : 'REAL_PROVIDER_FAIL',
@@ -533,7 +363,12 @@ async function main(): Promise<void> {
       finishedAt,
       turns: turns.length,
       sessions: Object.keys(sessions).length,
-      status,
+      // `status` above is the contract label (REAL_PROVIDER_PASS/FAIL); this is
+      // the per-assertion roll-up. They were once the same key, and the later
+      // one silently won: every stored artefact said "FAIL" instead of
+      // "REAL_PROVIDER_FAIL", which is precisely the ambiguity the contract's
+      // label requirement exists to prevent. Two names, two meanings.
+      verdict: status,
       assertions,
       // Kept separate on purpose: a real model that had nothing to be curious
       // about is a different claim from one that failed to be curious.
@@ -560,15 +395,16 @@ async function main(): Promise<void> {
       turnLog: turns
     }
 
-    // Scrub: the credential must not appear anywhere in the artefact.
+    // Scrub: the credential must not appear anywhere in the artefact. The two
+    // checks (literal key, key-shaped string) are in the shared module so this
+    // runner and the semantic suite cannot diverge on what counts as a leak.
     const serialized = JSON.stringify(payload, null, 2)
-    if (serialized.includes(key)) throw new Error('Refusing to write: the credential leaked into the result payload.')
-    if (/(?:sk|ak)-[A-Za-z0-9_-]{16,}/u.test(serialized)) throw new Error('Refusing to write: a key-shaped string is present in the result payload.')
+    assertNoSecret(serialized, key)
 
     const stamp = startedAt.replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z')
     const outDir = join(resolve(process.cwd()), 'evals', 'real-provider', 'results')
     mkdirSync(outDir, { recursive: true })
-    const file = join(outDir, `${stamp}-${head().slice(0, 7)}.json`)
+    const file = join(outDir, `${stamp}-${commitOrUnknown().slice(0, 7)}-live.json`)
     writeFileSync(file, `${serialized}\n`)
     process.stdout.write(`${JSON.stringify({ file, status, morrowStatus, counts: { turns: turns.length } }, null, 2)}\n`)
     if (status === 'FAIL') process.exitCode = 1

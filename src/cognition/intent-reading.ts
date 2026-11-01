@@ -136,7 +136,7 @@ const REQUEST_TARGET = /(?:帮我|帮忙|请(?:你)?|麻烦(?:你)?|给我|替�
 const BA_TARGET = /把\s*([^\s，。！？,!?]{1,20}?)\s*(?:删|改|加|换|做|写|保存|执行|清空|移)/u
 /** A leading verb is not the object of the request. */
 const LEADING_VERB = /^(?:看看|看一下|看|改一下|改|检查一下|检查|审查|整理|分析|写|做|删掉|删|修一下|修|查一下|查|review|check|look at|fix|rewrite)\s*/u
-const LEADING_FILLER = /^(?:一下|一张|张|个|下|这|那)\s*/u
+const LEADING_FILLER = /^(?:一下|一张|张|下|[这那][个张段份篇条行句些种位块只]?|个)\s*/u
 /** A deictic determiner: it points, it does not name. */
 const DEICTIC_PREFIX = /^[这那](?:个|张|段|份|篇|条|行|句|些|种|位|块|只)?/u
 
@@ -156,6 +156,8 @@ function extractSlots(input: {
   messageId: string
   speechAct: SpeechActReading
   context: LocalContext
+  /** Body of the message the deictic actually resolved to, when it did. */
+  antecedentBody: string | null
 }): IntentSlot[] {
   const slots: IntentSlot[] = []
   const content = input.content
@@ -172,14 +174,15 @@ function extractSlots(input: {
     // would execute against a guess.
     const deicticOnly = (DEICTIC_PREFIX.test(afterVerb) || /^(?:它|他们|她们)/u.test(afterVerb)) && input.context.priorUserBody === null
     const deicticTarget = DEICTIC_PREFIX.test(afterVerb) || /^(?:它|他们|她们)/u.test(afterVerb)
-    if (stripped.length >= 2 && !deicticOnly) {
+    // A deictic object is only an object when the reference actually resolves.
+    // Binding it to "whatever the last message said" was the bug: with two files
+    // in play, or a task switch in between, it pointed at the wrong one.
+    const resolved = deicticTarget ? input.context.antecedent.status === 'bound' : true
+    // One character is a legitimate object in Chinese ("图", "表", "书"). The old
+    // two-character floor rejected them, which is why "帮我看看这张图" had no
+    // object at all and had to fall back to a clarifying question.
+    if (stripped.length >= 1 && !deicticOnly && resolved) {
       slots.push({ name: 'target', value: stripped.slice(0, 40), status: 'stated', evidenceMessageId: input.messageId })
-      // "这个函数" points at the previous turn. Recording it as an inferred topic
-      // is what lets two conversations with the same sentence differ, without
-      // pretending the user named the object in this turn.
-      if (deicticTarget && input.context.priorUserBody) {
-        slots.push({ name: 'topic', value: input.context.priorUserBody.slice(0, 40), status: 'inferred', evidenceMessageId: null })
-      }
     } else {
       slots.push({ name: 'target', value: '', status: 'unknown', evidenceMessageId: null })
     }
@@ -198,17 +201,22 @@ function extractSlots(input: {
   // A resolved reference inherits the previous topic — as `inferred`, citing the
   // message it came from, so nothing downstream has to guess whether the user
   // said it.
-  const inheritedTopic = input.context.continuationTarget !== 'none'
-    ? input.context.priorUserBody ?? input.context.priorAssistantBody
-    : null
+  // The resolved antecedent wins over "the previous message": it is the one that
+  // was actually checked against the noun in this turn.
+  const resolvedTopic = input.context.antecedent.status === 'bound' ? input.antecedentBody : null
+  const inheritedTopic = resolvedTopic ?? (
+    input.context.continuationTarget !== 'none'
+      ? input.context.priorUserBody ?? input.context.priorAssistantBody
+      : null
+  )
   if (inheritedTopic) {
-    // `inferred`, with no message id: the topic came from the previous turn, and
-    // nothing here may present it as something the user just said.
+    // `inferred`, and the message id is recorded only when a specific message was
+    // resolved — never presented as something the user said in this turn.
     slots.push({
       name: 'topic',
       value: inheritedTopic.slice(0, 40),
       status: 'inferred',
-      evidenceMessageId: null
+      evidenceMessageId: resolvedTopic === null ? null : input.context.antecedent.messageId
     })
   }
 
@@ -426,7 +434,10 @@ export function readTurn(input: BuildIntentReadingInput): TurnReading {
   const ambiguous = primary === 'ambiguous' || (candidates.length === 0 && context.continuationTarget === 'none')
 
   const secondary = decision.alternatives.filter((label) => label !== primary).slice(0, 2)
-  const slots = extractSlots({ content: input.content, messageId: input.messageId, speechAct, context })
+  const antecedentBody = context.antecedent.messageId === null
+    ? null
+    : history.find((message) => message.id === context.antecedent.messageId)?.body ?? null
+  const slots = extractSlots({ content: input.content, messageId: input.messageId, speechAct, context, antecedentBody })
   const missing = criticalMissingSlot(slots)
 
   // Only a *request that would be carried out* needs its object before acting.
@@ -467,9 +478,11 @@ export function readTurn(input: BuildIntentReadingInput): TurnReading {
   const clarificationReason = clarificationRequired
     ? missing !== null
       ? `missing_${missing.name}`
-      : assessment.reasons.includes('unresolved_reference')
-        ? 'unresolved_reference'
-        : 'competing_execution_paths'
+      : context.antecedent.status === 'ambiguous'
+        ? 'ambiguous_reference'
+        : assessment.reasons.includes('unresolved_reference')
+          ? 'unresolved_reference'
+          : 'competing_execution_paths'
     : null
 
   // Dedupe again at the reading level: two labels can be supported by the same
@@ -489,6 +502,8 @@ export function readTurn(input: BuildIntentReadingInput): TurnReading {
     uncertainties.push('continuation_without_offer')
   }
   if (missing !== null) uncertainties.push(`missing_${missing.name}`)
+  if (context.antecedent.status === 'ambiguous') uncertainties.push('ambiguous_antecedent')
+  if (context.antecedent.basis === 'quoted_antecedent') uncertainties.push('antecedent_only_in_quotation')
   // "你能不能写诗" without a preceding offer asks about capability; the answer is
   // "yes" *and* the poem, so the doubt is recorded rather than resolved.
   if (speechAct.evidence.includes('capability_without_offer')) uncertainties.push('capability_vs_request')

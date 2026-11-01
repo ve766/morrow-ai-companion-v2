@@ -4,7 +4,7 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { DATASET_VERSION, HARNESS_VERSION, PARAMS_VERSION, buildStack, head, scenarios } from './harness'
+import { DATASET_VERSION, HARNESS_VERSION, PARAMS_VERSION, buildStack, head, scenarios, type ScenarioOutcome } from './harness'
 
 export async function main(): Promise<void> {
   const root = resolve(process.cwd())
