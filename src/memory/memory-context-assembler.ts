@@ -42,7 +42,7 @@ const weakWords: readonly string[] = [...frameWords, ...timeWords]
  *   temporal 0.25  the query and the record mention the same time word
  *   source   0.20  user-typed memories outrank model-inferred ones
  */
-const WEIGHTS = Object.freeze({ slot: 1, lexical: 1, temporal: 0.25, source: 0.2 })
+const WEIGHTS = Object.freeze({ slot: 1, lexical: 1, value: 1, temporal: 0.25, source: 0.2 })
 const TIME_MARKERS = new RegExp(`(?:${timeWords.join('|')})`, 'gu')
 
 /**
@@ -224,6 +224,14 @@ export class MemoryContextAssembler {
     const queryTerms = queryTermsOf(query)
     const phrase = normalize(query).trim()
     const querySlot = readFactSlot(query)
+    // A combined retrieval query (this turn + referenced context) can mix an
+    // assertion with a question and read as `uncertain` overall, which would
+    // hide a contested fact. Line-level slots keep each statement's own
+    // polarity available for the conflict channel.
+    const querySlotCandidates: FactSlot[] = [
+      ...(querySlot && querySlot.kind !== 'uncertain' ? [querySlot] : []),
+      ...query.split(/\n+/).map((line) => readFactSlot(line)).filter((slot): slot is FactSlot => slot !== null && slot.kind !== 'uncertain')
+    ]
     const queryTimes = timeMarkers(query)
     const limit = policy ? Math.min(maxMemories, policy.maxMemories) : maxMemories
 
@@ -253,12 +261,16 @@ export class MemoryContextAssembler {
         const slotMatch = Boolean(querySlot && memorySlot && memorySlot.kind !== 'uncertain' &&
           querySlot.predicate === memorySlot.predicate && timeCompatible &&
           (querySlot.kind === 'question' || compareFactValues(querySlot, memorySlot) === 'equivalent'))
+        // D-5 value channel: the query itself names the fact's value ("你就说
+        // 我在北京" vs stored 杭州) — that fact is being contested, so the
+        // stored record belongs in view regardless of word overlap.
+        const queryMentionsValue = Boolean(memorySlot && memorySlot.value && memorySlot.kind !== 'uncertain' && normalize(query).includes(memorySlot.value))
         const sourceReliability = record.sourceCategory === 'user_explicit_input' ? 1 : 0.5
-        const score = WEIGHTS.slot * Number(slotMatch) +
+        const score = WEIGHTS.slot * Number(slotMatch) + WEIGHTS.value * Number(queryMentionsValue) +
           WEIGHTS.lexical * Math.min(1, contentOverlap / 2) +
           WEIGHTS.temporal * Number(sharedTime) +
           WEIGHTS.source * sourceReliability
-        return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot }
+        return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot, queryMentionsValue }
       })
       // Resolved once, outside the comparator: a score lookup per comparison
       // would be O(n log n) database reads for no extra information.
@@ -267,11 +279,25 @@ export class MemoryContextAssembler {
       // narrow this further, never widen it.
     const filteredItems = eligible.filter((item) => {
         if (policy?.predicateFilter && (!item.memorySlot || !policy.predicateFilter.includes(item.memorySlot.predicate))) return false
-        if (policy && !policy.admitConflictingEvidence && querySlot && item.memorySlot && slotsConflict(querySlot, item.memorySlot)) return false
+        // Note: a query whose own assertion contradicts a stored fact no longer
+        // EXCLUDES that fact — the contradiction is exactly why it must be in
+        // view (see the contested channel below). Conflicts are surfaced with
+        // conflict markers, never silently resolved or hidden.
         const lexical = item.phraseMatch || item.contentOverlap > 0
+        // A fact the query names by value, or a stored fact the query's own
+        // assertion contradicts, is contested evidence: it stays in view even
+        // without word overlap (the latter only where the policy allows
+        // conflicting evidence at all).
+        // A contested single-valued fact is related by definition: hiding it
+        // would let the model agree with (or deny) a claim it cannot check.
+        // This deliberately ignores admitConflictingEvidence — that flag keeps
+        // UNRELATED facts out of narrow turns; a fact the user's own assertion
+        // contradicts is never unrelated. predicateFilter still applies.
+        const contested = item.queryMentionsValue ||
+          Boolean(item.memorySlot && querySlotCandidates.some((slot) => slot.kind !== 'question' && slot.predicate === item.memorySlot!.predicate && slotsConflict(slot, item.memorySlot)))
         if (policy?.requireSlotMatch) return item.slotMatch
-        if (policy?.requireContentOverlap) return lexical
-        return lexical || item.slotMatch
+        if (policy?.requireContentOverlap) return lexical || contested
+        return lexical || item.slotMatch || contested
     })
 
     // D-5: two recall channels, fused by rank. The lexical channel orders by
@@ -292,7 +318,11 @@ export class MemoryContextAssembler {
         right.record.updatedAt.localeCompare(left.record.updatedAt) ||
         left.record.id.localeCompare(right.record.id))
     const slotRanking = new Map(slotOrder.map((item) => [item.record.id, 1] as const))
-    const fusedRelevance = reciprocalRankFusion([lexicalRanking, slotRanking])
+    const valueOrder = filteredItems
+      .filter((item) => item.queryMentionsValue)
+      .sort((left, right) => right.record.updatedAt.localeCompare(left.record.updatedAt) || left.record.id.localeCompare(right.record.id))
+    const valueRanking = new Map(valueOrder.map((item) => [item.record.id, 1] as const))
+    const fusedRelevance = reciprocalRankFusion([lexicalRanking, slotRanking, valueRanking])
 
     const ranked = filteredItems
       .map((item) => ({ item, relevance: this.options.useContextUtility === false ? item.score : (fusedRelevance.get(item.record.id) ?? 0) }))
