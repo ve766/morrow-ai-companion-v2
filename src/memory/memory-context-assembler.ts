@@ -1,7 +1,7 @@
 import type { AssembledMemoryContext, ContextConflict, ContextMemory, Sensitivity } from '../shared/companion'
 import { contextUtility, freshnessOf } from '../cognition/context-utility'
 import type { MemoryRecord } from './memory-domain'
-import { compareFactValues, readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
+import { compareFactValues, readFactSlot, slotsConflict, SINGLE_VALUED_PREDICATES, factsTimeCompatible, type FactSlot } from './fact-slot'
 import type { RetrievalPolicy } from './retrieval-policy'
 
 /** How delivered evidence is rendered for the model (Phase 2.2 experiment). */
@@ -300,6 +300,14 @@ export class MemoryContextAssembler {
         // contradicts is never unrelated. predicateFilter still applies.
         const contested = item.queryMentionsValue ||
           Boolean(item.memorySlot && querySlotCandidates.some((slot) => slot.kind !== 'question' && slot.predicate === item.memorySlot!.predicate && slotsConflict(slot, item.memorySlot)))
+        // Valid-time admission rule: a question with a definite time (现在)
+        // must not admit a single-valued fact whose own statement time is
+        // incompatible (以前) — one current residence, not two. Undated
+        // memories still match undated or dated questions.
+        const queryTimeDefinite = querySlot && querySlot.time !== 'unspecified' && querySlot.time !== 'mixed'
+        const memoryTimeDefinite = item.memorySlot && item.memorySlot.time !== 'unspecified' && item.memorySlot.time !== 'mixed'
+        const timeIncompatible = Boolean(queryTimeDefinite && memoryTimeDefinite && item.memorySlot && !factsTimeCompatible(querySlot!.time, item.memorySlot.time) && SINGLE_VALUED_PREDICATES.has(item.memorySlot.predicate))
+        if (timeIncompatible) return false
         if (policy?.requireSlotMatch) return item.slotMatch || item.factAddressed
         if (policy?.requireContentOverlap) return lexical || contested || item.factAddressed
         return lexical || item.slotMatch || contested || item.factAddressed

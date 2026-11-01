@@ -28,6 +28,8 @@ export type FactPredicate =
   | 'name'
   | 'age'
   | 'project_code'
+  | 'pet_name'
+  | 'object_location'
   | 'health'
   | 'schedule'
 
@@ -62,7 +64,7 @@ const VALUE_NOISE = /^[\s，,。.；;：:！!？?、]+|[\s，。；;：:！!？?
 const COPULA = /^\s*(?:是|为|就是|叫|在)/u
 
 /** Predicates that name one value at a time; a different value is a conflict. */
-const SINGLE_VALUED: ReadonlySet<FactPredicate> = new Set(['residence', 'age', 'name', 'employer', 'job_role', 'project_code'])
+export const SINGLE_VALUED_PREDICATES: ReadonlySet<FactPredicate> = new Set(['residence', 'age', 'name', 'employer', 'job_role', 'project_code'])
 
 function clean(value: string): string {
   // Punctuation first, so a trailing 了 is actually trailing.
@@ -129,6 +131,26 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
     read: (text) => {
       // 学习 must win over 在学, otherwise "我在学习 Blender" leaves "习…".
       const match = /(?:学习|学会|课程|专业|在学(?!习))(?:是|为)?/u.exec(text)
+      if (!match) return null
+      return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
+    }
+  },
+  {
+    // final-closure: pet names and object locations are personal facts users
+    // ask back about ("我的猫叫什么？", "护照放在哪里？").
+    predicate: 'pet_name',
+    read: (text) => {
+      const match = /(?:我的?猫|我的?狗|宠物)(?:叫|名字是?|名字叫)?/u.exec(text)
+      if (!match) return null
+      const value = clean(text.slice(match.index + match[0].length))
+      if (/猫|狗|宠物/.test(value)) return null
+      return { value, negated: negatedBefore(text, match.index), asks: /叫什么|什么名字/u.test(value) }
+    }
+  },
+  {
+    predicate: 'object_location',
+    read: (text) => {
+      const match = /(?:护照|身份证|钥匙|证件)(?:放在|在|丢了)?/u.exec(text)
       if (!match) return null
       return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
     }
@@ -269,6 +291,8 @@ const PREDICATE_MARKERS: Readonly<Record<FactPredicate, RegExp>> = {
   name: /名字|叫|姓名/u,
   age: /岁|年龄/u,
   project_code: /代号/u,
+  pet_name: /猫|狗|宠物/u,
+  object_location: /护照|身份证|钥匙|证件|放在/u,
   health: /过敏|忌口|病史/u,
   schedule: /安排|日程|行程|会议|出差|预约|复查|截止/u
 }
@@ -435,7 +459,7 @@ export function compareFactValues(left: FactSlot | null, right: FactSlot | null)
   // a proven contradiction either.
   if (polarityDiffers) return 'uncertain'
   if (a.includes(b) || b.includes(a)) return 'uncertain'
-  return SINGLE_VALUED.has(left.predicate) ? 'conflict' : 'uncertain'
+  return SINGLE_VALUED_PREDICATES.has(left.predicate) ? 'conflict' : 'uncertain'
 }
 
 /** True only for a proven contradiction; uncertainty is not a conflict. */

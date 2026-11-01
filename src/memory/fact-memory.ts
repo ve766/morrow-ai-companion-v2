@@ -73,6 +73,7 @@ export class FactMemoryService {
     const now = this.clock()
     const slot = readFactSlot(memory.current_text)
     const activePredicate = slot && slot.kind === 'assertion' && slot.value.length > 0 ? slot.predicate : null
+    const timeState = slot?.time ?? 'unspecified'
 
     // The facts this memory used to carry: any stored row whose value is no
     // longer the current text's value is superseded (the memory was corrected)
@@ -99,8 +100,8 @@ export class FactMemoryService {
       "SELECT id FROM fact_records WHERE source_memory_id = ? AND predicate = ? AND fact_status = 'superseded' ORDER BY updated_at DESC LIMIT 1"
     ).get(memoryId, activePredicate) as { id: string } | undefined
     this.options.database.connection.prepare(`
-      INSERT INTO fact_records(id, subject, predicate, value, fact_status, source_memory_id, source_message_id, valid_from, valid_to, confidence, supersedes_fact_id, sensitivity, extraction_version, created_at, updated_at)
-      VALUES (?, 'user', ?, ?, 'active', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fact_records(id, subject, predicate, value, fact_status, source_memory_id, source_message_id, valid_from, valid_to, confidence, supersedes_fact_id, sensitivity, time_state, extraction_version, created_at, updated_at)
+      VALUES (?, 'user', ?, ?, 'active', ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(source_memory_id, predicate, value) DO NOTHING
     `).run(
       this.options.makeId?.() ?? randomUUID(),
@@ -114,6 +115,7 @@ export class FactMemoryService {
       Math.max(1, Math.min(100, memory.confidence)),
       predecessor?.id ?? null,
       memory.sensitivity,
+      timeState,
       FACT_EXTRACTION_VERSION,
       now,
       now
@@ -138,14 +140,22 @@ export class FactMemoryService {
    * is part of the query — superseded/retracted rows and expired values are
    * not current facts, whatever their text similarity.
    */
-  lookupActive(predicate: string, limit = 10): FactRecord[] {
+  lookupActive(predicate: string, options: { limit?: number; queryTime?: string; includeSuperseded?: boolean } = {}): FactRecord[] {
+    // Valid-time filter: a present-tense question must not resurrect a past
+    // fact; a past-tense question ("我以前住在哪里") may read superseded
+    // history — that is what the audit layer keeps it for.
+    const wantPast = options.queryTime === 'past'
+    const statusClause = wantPast && options.includeSuperseded
+      ? "fact_status IN ('active', 'superseded')"
+      : "fact_status = 'active'"
+    const timeClause = wantPast ? '1=1' : "time_state != 'past'"
     const rows = this.options.database.connection.prepare(`
       SELECT id, predicate, value, fact_status, source_memory_id, source_message_id, valid_from, valid_to, confidence, supersedes_fact_id, sensitivity
       FROM fact_records
-      WHERE predicate = ? AND fact_status = 'active' AND valid_to IS NULL
+      WHERE predicate = ? AND ${statusClause} AND valid_to IS NULL AND ${timeClause}
       ORDER BY confidence DESC, updated_at DESC
       LIMIT ?
-    `).all(predicate, limit) as Array<{ id: string; predicate: string; value: string; fact_status: string; source_memory_id: string; source_message_id: string | null; valid_from: string; valid_to: string | null; confidence: number; supersedes_fact_id: string | null; sensitivity: string }>
+    `).all(predicate, options.limit ?? 10) as Array<{ id: string; predicate: string; value: string; fact_status: string; source_memory_id: string; source_message_id: string | null; valid_from: string; valid_to: string | null; confidence: number; supersedes_fact_id: string | null; sensitivity: string }>
     return rows.map((row) => ({
       id: row.id,
       subject: 'user' as const,

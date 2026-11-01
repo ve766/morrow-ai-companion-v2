@@ -2253,6 +2253,7 @@ export const migrations: readonly Migration[] = [
           confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
           supersedes_fact_id TEXT CHECK (supersedes_fact_id IS NULL OR length(supersedes_fact_id) = 36),
           sensitivity TEXT NOT NULL CHECK (sensitivity IN ('normal', 'personal', 'sensitive')),
+          time_state TEXT NOT NULL CHECK (time_state IN ('past', 'present', 'future', 'mixed', 'unspecified')),
           extraction_version TEXT NOT NULL CHECK (length(extraction_version) BETWEEN 3 AND 32),
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,

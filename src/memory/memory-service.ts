@@ -231,7 +231,7 @@ export class MemoryService {
     const querySlotForFacts = readFactSlot(query)
     if (querySlotForFacts?.predicate && this.factIndex) {
       try {
-        for (const fact of this.factIndex.lookupActive(querySlotForFacts.predicate)) factAddressedIds.add(fact.sourceMemoryId)
+        for (const fact of this.factIndex.lookupActive(querySlotForFacts.predicate, { queryTime: querySlotForFacts.time, includeSuperseded: querySlotForFacts.time === 'past' })) factAddressedIds.add(fact.sourceMemoryId)
       } catch {
         // A fact-lookup failure degrades to the lexical/slot channels only.
       }

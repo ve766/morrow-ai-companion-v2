@@ -1815,11 +1815,15 @@ export class ChatService {
           ? cognitiveHistory.find((message) => message.id === firstPass.topicReferenceMessageId)
           : undefined
         const priorUserMessage = [...cognitiveHistory].reverse().find((message) => message.role === 'user')
+        // A bare pronoun ("它叫什么来着？") carries the question but not its
+        // object: widen the retrieval query with the prior user turn so the
+        // referent participates in every channel.
+        const widen = firstPass.strategy === 'retrieve_memory' || /(?:^|[，。；s])(?:它|她|他)(?:叫|是|有|在|多大|几)/u.test(content)
         const retrievalQuery = buildRetrievalQuery({
           content,
           referencedBody: referencedMessage?.body,
           priorUserBody: priorUserMessage?.body,
-          widen: firstPass.strategy === 'retrieve_memory'
+          widen
         })
         // The state at the *start* of the turn decides the retrieval breadth,
         // so this read has to happen before the memory search. Using the state
