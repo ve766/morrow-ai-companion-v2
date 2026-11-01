@@ -171,7 +171,10 @@ async function live(): Promise<void> {
           break
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
-          const transient = message.includes('PROVIDER_DEADLINE') || message.includes('PROVIDER_TIMEOUT') || message.includes('PROVIDER_RATE_LIMITED') || message.includes('PROVIDER_UNAVAILABLE')
+          // PROVIDER_RESPONSE covers an empty/truncated stream from the upstream
+          // reasoning model; it is transient in practice, so it is retried with
+          // the same bound and recorded when the last attempt also fails.
+          const transient = message.includes('PROVIDER_DEADLINE') || message.includes('PROVIDER_TIMEOUT') || message.includes('PROVIDER_RATE_LIMITED') || message.includes('PROVIDER_UNAVAILABLE') || message.includes('PROVIDER_RESPONSE')
           if (attempt === 3 || !transient) throw error
         }
       }
