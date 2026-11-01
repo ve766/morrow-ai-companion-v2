@@ -245,7 +245,7 @@ export class ReflectionFindingRouter {
    */
   observeConsumption(turnId: string, reply: string): void {
     const rows = this.options.database.connection.prepare(
-      "SELECT finding_id, kind, statement FROM reflection_finding_routes WHERE injected_turn_id = ? AND status = 'injected'"
+      "SELECT r.finding_id, r.kind, f.statement FROM reflection_finding_routes r JOIN reflection_findings f ON f.id = r.finding_id WHERE r.injected_turn_id = ? AND r.status = 'injected'"
     ).all(turnId.toLowerCase()) as Array<{ finding_id: string; kind: string; statement: string }>
     for (const row of rows) {
       const terms = row.statement.split(/[^\p{Script=Han}a-zA-Z]+/u).filter((term) => term.length >= 2)
