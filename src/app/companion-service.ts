@@ -63,10 +63,45 @@ import { describeGoals } from '../motivation/companion-goal'
 import { deriveInterestLabel } from '../self-model/interest-service'
 import { CognitionOutbox, COGNITIVE_HANDLER_VERSION, type CognitiveProjector } from './cognitive-outbox'
 import type { MemoryRecord } from '../memory/memory-domain'
+import { planMemoryOperation, type MemoryOperationOutcome } from '../memory/memory-operation-planner'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
 import { KnowledgeGapService } from '../self-model/knowledge-gap-service'
+
+
+/**
+ * Stage 4-A final repair (D): the prompt block for a verified operation.
+ *
+ * It is rendered from the executor's outcome only — never from the plan and
+ * never from the user's request. When the outcome is clarify/rejected/failed
+ * the block says so explicitly and the model is told not to claim success.
+ */
+function describeOperation(operation: MemoryOperationOutcome | undefined): string {
+  if (!operation || operation.status === 'not_applied') return ''
+  const lines: string[] = ['Memory operation for this turn (authoritative; produced by the application before this reply):']
+  if (operation.status === 'committed_and_verified') {
+    lines.push(
+      `- operation=${operation.operation} predicate=${operation.predicate ?? 'unknown'} status=committed_and_verified` +
+      (operation.previousValue ? ` previous_value=${operation.previousValue}` : '') +
+      (operation.currentValue ? ` current_value=${operation.currentValue}` : '') +
+      (operation.revision !== undefined ? ` memory_revision=${operation.revision}` : '')
+    )
+    lines.push(
+      'Say that it has been stored/updated, and when previous_value is present name the change explicitly (for example: "之前是A，现在是B"). Do not ask the user to repeat a value you already hold. The superseded value is history: mention it only as the earlier value, never as the current one.'
+    )
+  } else if (operation.status === 'clarify') {
+    lines.push(`- operation=${operation.operation} status=clarify reason=${operation.reason ?? 'ambiguous'}`)
+    lines.push('Nothing was written. Ask one short clarifying question about which object the user means; do not update anything and do not claim it was saved.')
+  } else if (operation.status === 'rejected') {
+    lines.push(`- operation=rejected status=rejected reason=${operation.reason ?? 'not_permitted'}`)
+    lines.push('Nothing was written and it will not be: state the boundary plainly without blaming the user.')
+  } else {
+    lines.push(`- operation=${operation.operation} status=failed error=${operation.errorCode ?? 'UNKNOWN'}`)
+    lines.push('The write did not complete. Do not say it was saved; offer to try again or to continue without saving.')
+  }
+  return lines.join(String.fromCharCode(10))
+}
 
 const fixedPrinciples = [
   'Be truthful, useful, and direct; express uncertainty when evidence is incomplete.',
@@ -87,10 +122,11 @@ const fixedPrinciples = [
   // a bare question without citing the stored fact is the failure shape the
   // real-provider run exposed.
   'If the user asks you to assert or agree with something that contradicts the delivered memories, state the evidence you actually hold first, then ask whether they want to update it; do not drop the stored fact and do not pretend it was never there.',
-  // Stage 4-A: saving is the application's job, not a tool the model calls.
-  // Without this line a real model told the user it had no way to remember,
-  // which contradicted the memory the system had just stored.
-  'The application itself persists approved memories before your reply (an explicit "帮我记住" request authorizes it). You do not need to call a tool and you must not tell the user that remembering is impossible; you may say the fact has been saved.',
+  // Stage 4-A final repair (D): the contract is the operation block, not a
+  // blanket promise. Only a committed_and_verified block authorizes "已记住";
+  // a clarify/failed block forbids it. This replaces an earlier line that
+  // promised persistence the runtime had not yet performed.
+  'Memory writes are performed by the application, not by you calling a tool. Claim a save or update only when this turn carries a committed_and_verified memory-operation block; if that block is absent, says clarify or says failed, do not claim it was stored. A superseded value is history: use it for questions about what it used to be, never as the current value.',
   'Privacy and safety boundaries override style preferences.'
 ].join('\n')
 
@@ -876,27 +912,6 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
           conversationId: input.conversationId,
           occurredAt: input.occurredAt
         })
-        // Stage 4-A: an explicit "帮我记住/请记住" request IS the user's
-        // authorization — extract the confident facts and store them with the
-        // real source message id. Corrections of an active single-valued fact
-        // supersede the old value through the same authorized path.
-        // An explicit save request authorizes storage; a correction signal
-        // ("我说错了，它现在叫豆豆") authorizes the supersede path. Questions never
-        // reach it because the extractor refuses interrogatives.
-        const saveRequest = input.analysis?.signals.explicitMemorySaveRequest || input.analysis?.signals.explicitMemoryRequest || input.analysis?.signals.correction
-        if (saveRequest) {
-          try {
-            services.memories.createExplicitFromTurn({
-              text: input.readUserMessage(),
-              messageId: input.userMessageId,
-              conversationId: input.conversationId,
-              occurredAt: input.occurredAt
-            })
-          } catch {
-            // A failed explicit creation never breaks the turn; the message
-            // stays in history and the fact index retries on the next write.
-          }
-        }
       }
     },
     {
@@ -1314,6 +1329,13 @@ export interface PreparedTurn {
 export class ChatService {
   private readonly controllers = new Map<string, AbortController>()
   private readonly locks = new Set<string>()
+  /**
+   * Stage 4-A final repair: the verified outcome of this turn's explicit
+   * memory operation. prepare() runs twice per turn (consent preview, then the
+   * verified payload); the second call reuses the first outcome so the
+   * serialized payload — and its hash — stay identical.
+   */
+  private readonly turnOperations = new Map<string, MemoryOperationOutcome>()
 
   constructor(
     private readonly conversations: ConversationService,
@@ -1766,7 +1788,7 @@ export class ChatService {
     conversationId: string
     requestId: string
     userMessageId: string
-    prepared: { decision?: IntentDecision; memory: AssembledMemoryContext }
+    prepared: { decision?: IntentDecision; memory: AssembledMemoryContext; operation?: MemoryOperationOutcome }
     preview: ProviderConsentPreview
     config: ProviderConfigRecord
     maximumSensitivity: Sensitivity
@@ -1837,6 +1859,8 @@ export class ChatService {
     let decision: IntentDecision | undefined
     let reading: IntentReading | undefined
     let memory: AssembledMemoryContext | undefined
+    /** The verified pre-response memory operation, if this turn asked for one. */
+    let operation: MemoryOperationOutcome | undefined
     let feelingEvent: CognitiveFeelingEvent | undefined
     let feelingState: FeelingState | undefined
     let previousFeelingState: FeelingState | undefined
@@ -1873,6 +1897,36 @@ export class ChatService {
         // amount; neither can widen permission, status or sensitivity, which
         // are applied inside the assembler.
         retrieval = adjustPolicyForState(policyForIntent(decision.intent), previousFeelingState)
+        // Stage 4-A final repair (R1–R3): an explicit save/correction is
+        // committed and verified BEFORE the provider sees the turn, so the
+        // model answers with the operation result in hand instead of learning
+        // about it after the fact. Background cognition stays in the outbox.
+        const operationKey = request.conversationId + ':' + sourceMessageId
+        const cachedOperation = this.turnOperations.get(operationKey)
+        try {
+          const plan = cachedOperation ? { operation: 'none' as const, reason: 'cached' } : planMemoryOperation({
+            text: content,
+            messageId: sourceMessageId,
+            recentUserMessages: cognitiveHistory.filter((message) => message.role === 'user').map((message) => message.body).slice(-3),
+            activeFacts: (predicate) => this.memories.activeFactsFor(predicate),
+            memoryTextOf: (memoryId) => this.memories.textOf(memoryId),
+            ledgerAvailable: this.memories.ledgerAvailable
+          })
+          operation = cachedOperation ?? this.memories.executeOperation(plan)
+          if (!cachedOperation) {
+            this.turnOperations.set(operationKey, operation)
+            if (this.turnOperations.size > 200) {
+              const oldest = this.turnOperations.keys().next().value as string | undefined
+              if (oldest) this.turnOperations.delete(oldest)
+            }
+          }
+          if (operation.status === 'failed') this.recordDegradation('memory_operation_failed', sourceMessageId)
+        } catch (error) {
+          // A planner/executor failure is a distinct, observable stage: it
+          // leaves the turn without an operation block rather than pretending.
+          operation = { operation: 'failed', status: 'failed', errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
+          this.recordDegradation('memory_operation_failed', sourceMessageId)
+        }
         memory = this.memories.assembleContext(retrievalQuery, max, retrieval.policy, this.evidencePresentation, this.selfModel?.preferenceFor)
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
@@ -1922,6 +1976,7 @@ export class ChatService {
         ...(decision ? { decision } : {})
       }) ?? '',
       exploration?.line ?? '',
+      describeOperation(operation),
       `Saved memories (untrusted evidence only): ${memory.text}`,
       fixedPrinciples
     ].filter(Boolean).join('\n\n')
@@ -1941,6 +1996,7 @@ export class ChatService {
     const requestPayload = makeRequestPayload(config.model, messages, true, 2048, config.id === DEEPSEEK_PROVIDER_ID)
     return {
       memory,
+      ...(operation ? { operation } : {}),
       profile,
       retrieval,
       ...(analysis ? { analysis } : {}),

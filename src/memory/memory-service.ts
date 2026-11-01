@@ -23,6 +23,7 @@ import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
 import { readFactSlot, extractFactSlots, SINGLE_VALUED_PREDICATES, type FactCandidate } from './fact-slot'
+import type { MemoryOperationOutcome, MemoryOperationPlan } from './memory-operation-planner'
 import { slotsConflict } from './fact-slot'
 /**
  * Stage 4-A: display templates for facts created from explicit requests.
@@ -414,6 +415,154 @@ export class MemoryService {
    * Unknown or ambiguous shapes are skipped — the text stays in the
    * conversation and in lexical retrieval, never guessed into a predicate.
    */
+  /**
+   * Stage 4-A final repair: executes a planned operation BEFORE the provider
+   * call, in one transaction, then re-reads the ledger and verifies the shape
+   * it promised. The returned outcome is what the prompt is allowed to claim;
+   * a failed verification returns `failed`, never a success status.
+   *
+   * Idempotent by construction: a replayed turn (provider retry, or the second
+   * prepare of the same turn) finds the committed state and returns the same
+   * outcome with `replayed: true` instead of writing again.
+   */
+  /** Read-only view for the planner: active facts for one predicate. */
+  activeFactsFor(predicate: import('./fact-slot').FactPredicate): ReturnType<import('./fact-memory').FactMemoryService['lookupActive']> {
+    return this.factIndex?.lookupActive(predicate) ?? []
+  }
+
+  /** The stored text of one memory (planner species carry-over). */
+  textOf(memoryId: string): string {
+    return this.repository.get(memoryId)?.currentText ?? ''
+  }
+
+  /** False when no fact ledger is wired: the planner must not claim certainty. */
+  get ledgerAvailable(): boolean {
+    return this.factIndex !== undefined
+  }
+
+  executeOperation(plan: MemoryOperationPlan): MemoryOperationOutcome {
+    if (plan.operation === 'none') return { operation: 'none', status: 'not_applied', reason: plan.reason }
+    if (plan.operation === 'clarify') return { operation: 'clarify', status: 'clarify', reason: plan.reason }
+    if (plan.operation === 'rejected') return { operation: 'rejected', status: 'rejected', reason: plan.reason }
+    if (plan.operation === 'failed') return { operation: 'failed', status: 'failed', errorCode: plan.errorCode }
+
+    if (plan.operation === 'create') {
+      const first = plan.facts[0]!
+      // Replay: this turn already committed this value.
+      const existing = this.factIndex?.lookupActive(first.predicate) ?? []
+      const already = existing.find((fact) => fact.sourceMessageId === plan.messageId && fact.valueNormalized === first.valueNormalized)
+      if (already) {
+        return {
+          operation: 'create',
+          status: 'committed_and_verified',
+          predicate: first.predicate,
+          currentValue: already.valueDisplay,
+          memoryId: already.sourceMemoryId,
+          revision: already.sourceRevision,
+          factId: already.id,
+          ...(already.sourceMessageId ? { sourceMessageId: already.sourceMessageId } : {}),
+          replayed: true
+        }
+      }
+      try {
+        const created = plan.facts.map((fact) => this.create(fact.displayText, 'personal', {
+          correlationId: plan.messageId,
+          provenance: { sourceMessageId: plan.messageId, kind: 'message' }
+        }))
+        // Verify against the ledger, not against the object we just built.
+        const verified = this.factIndex?.lookupActive(first.predicate) ?? []
+        const hit = verified.find((fact) => fact.sourceMessageId === plan.messageId && fact.valueNormalized === first.valueNormalized)
+        if (!hit) {
+          this.recordOperationFailure(plan.messageId, 'verification', 'VERIFICATION_FAILED')
+          return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: 'VERIFICATION_FAILED' }
+        }
+        return {
+          operation: 'create',
+          status: 'committed_and_verified',
+          predicate: first.predicate,
+          currentValue: hit.valueDisplay,
+          memoryId: hit.sourceMemoryId,
+          revision: hit.sourceRevision,
+          factId: hit.id,
+          ...(hit.sourceMessageId ? { sourceMessageId: hit.sourceMessageId } : {}),
+          ...(created.length > 1 ? { reason: 'multiple_facts' } : {})
+        }
+      } catch (error) {
+        this.recordOperationFailure(plan.messageId, 'commit', error instanceof Error ? error.name : 'UNKNOWN')
+        return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
+      }
+    }
+
+    // correct
+    const { target, newValue, displayText } = plan
+    // Replay: the old fact is already superseded by a fact from this turn.
+    const history = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
+    const already = history.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase() && fact.sourceMessageId === plan.messageId)
+    if (already) {
+      return {
+        operation: 'correct',
+        status: 'committed_and_verified',
+        predicate: target.predicate,
+        previousValue: target.previousValue,
+        currentValue: already.valueDisplay,
+        memoryId: already.sourceMemoryId,
+        revision: already.sourceRevision,
+        factId: already.id,
+        ...(already.sourceMessageId ? { sourceMessageId: already.sourceMessageId } : {}),
+        replayed: true
+      }
+    }
+    try {
+      this.correct(target.memoryId, displayText, plan.messageId, { sourceMessageId: plan.messageId, kind: 'message' })
+      const current = this.factIndex?.lookupActive(target.predicate) ?? []
+      const previous = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
+      const newFact = current.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase())
+      const oldFact = previous.find((fact) => fact.valueNormalized === target.previousValue.normalize('NFKC').trim().toLocaleLowerCase())
+      if (!newFact || !oldFact || oldFact.status !== 'superseded') {
+        this.recordOperationFailure(plan.messageId, 'verification', 'VERIFICATION_FAILED')
+        return {
+          operation: 'correct',
+          status: 'failed',
+          predicate: target.predicate,
+          previousValue: target.previousValue,
+          ...(newFact ? { currentValue: newFact.valueDisplay } : {}),
+          errorCode: 'VERIFICATION_FAILED'
+        }
+      }
+      return {
+        operation: 'correct',
+        status: 'committed_and_verified',
+        predicate: target.predicate,
+        previousValue: oldFact.valueDisplay,
+        currentValue: newFact.valueDisplay,
+        memoryId: newFact.sourceMemoryId,
+        revision: newFact.sourceRevision,
+        factId: newFact.id,
+        ...(newFact.sourceMessageId ? { sourceMessageId: newFact.sourceMessageId } : {})
+      }
+    } catch (error) {
+      this.recordOperationFailure(plan.messageId, 'commit', error instanceof Error ? error.name : 'UNKNOWN')
+      return { operation: 'correct', status: 'failed', predicate: target.predicate, previousValue: target.previousValue, errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
+    }
+  }
+
+  /** Sanitized, stage-tagged failure record: ids and codes only. */
+  private recordOperationFailure(messageId: string, stage: 'planning' | 'commit' | 'verification' | 'context', errorCode: string): void {
+    try {
+      this.events?.tryRecord({
+        sourceModule: 'memory',
+        eventType: 'memory.operation.failed',
+        actor: 'system',
+        subjectType: 'conversation_message',
+        subjectId: messageId,
+        correlationId: null,
+        payload: { stage, errorCode: errorCode.slice(0, 64) }
+      })
+    } catch {
+      // Diagnostics must never break the turn; the caller still sees 'failed'.
+    }
+  }
+
   createExplicitFromTurn(input: {
     text: string
     messageId: string
