@@ -1,72 +1,60 @@
-# Stage 3 最终门槛矩阵
+# Stage 3 最终门槛矩阵（独立审计）
 
-- 审查对象 SHA：`5fe62f546b84b0306e7f11e887bad9c75f3227ba`
-- 分支 / PR：`feat/stage-3-long-term-companion` / [#19](https://github.com/ve766/morrow-ai-companion-v2/pull/19)
-- 审查者独立性：**BLOCKED_INDEPENDENCE**（审查者是本轮实现作者）
-- 判定：PASS / PARTIAL / FAIL / BLOCKED / NOT_RUN。**非 PASS 不计入通过率。**
+- 审查 SHA：`5fe62f546b84b0306e7f11e887bad9c75f3227ba`。状态口径：PASS / PARTIAL / FAIL / BLOCKED / NOT_RUN / NOT_IMPLEMENTED，非 PASS 不计入通过率分子。
+- 证据缩写：[Acceptance] = docs/audit/stage-3-independent-final-acceptance.md；[Lineage] = docs/audit/stage-3-runtime-and-data-lineage-review.md；[Repro] = docs/reports/stage-3-reproducibility-log.md；[Defects] = docs/reports/stage-3-open-defects-and-blockers.md。
 
----
+## 门槛 A：工程真实性
 
-## 门槛一：工程真实性 —— PARTIAL
-
-| 项 | 判定 | 证据 | 缺口 |
-|---|---|---|---|
-| 对话主链 renderer→preload→main→service | PASS | 冒烟跑通真实 Electron 应用（未传 `--no-sandbox`），IPC 往返与重启持久化被断言 | renderer 无逐屏断言 |
-| IPC 契约 | PASS | 66 个通道集中在 `src/shared/contracts.ts`，单处注册循环 | — |
-| 持久化与事务边界 | PASS | 57 张表 / 38 个迁移；消息+证据同事务；effect ledger 条件 UPDATE；预算 `BEGIN IMMEDIATE` | 未逐版本核对升级路径（见下） |
-| 迁移 v1→当前升级 | **PARTIAL** | 存在 `src/persistence/migrations.test.ts` | 本轮未逐版本验证 38 个迁移在旧库上的升级；降级锚点只做了常量检查 |
-| 记忆生命周期 | PASS | 创建/纠正/撤回/删除/归档/恢复均有测试；删除触发器回收证据 | 跨天连续性未测 |
-| Outbox / Effect Ledger | PASS | `tests/correction-round.test.ts` 崩溃矩阵 6 点；并发领取单事务 | — |
-| 目标生命周期与时间语义 | PASS | `goal-time` 边界表 11 条 + 闰年；真实运行中「三月之前」→ `2027-02-28T15:59:59Z` | — |
-| 类型 + 单测 | PASS | 见 `stage-3-reproducibility-log.md`（退出码逐条记录） | — |
-| 构建 | PASS | `electron-vite build` 三产物写出 `out/` | — |
-| CI 双平台 | **BLOCKED** | run `41178081914` 因账号计费未启动 | 外部解除 |
-
-## 门槛二：认知有效性 —— PARTIAL
-
-| 项 | 判定 | 证据 | 缺口 |
-|---|---|---|---|
-| C1 语境理解（机制） | PASS | 22 场景 / 88 断言，`suite=mechanism`，scripted provider | — |
-| C1 语境理解（语义） | **BLOCKED** | `BLOCKED_NO_SECRET`，`notRun` 自陈非评估结果 | 需凭据 + 人工阅读 |
-| 记忆连续性 | **PARTIAL** | 真实 32 轮 / 3 会话中"新会话首轮召回代号"通过；删除/撤回不泄漏有断言 | 跨天、重启后的多轮一致性只在机制层验证 |
-| Morrow 自身兴趣 | **PARTIAL** | 生产链存在：反思 → `observeMorrow`（678）/ `observeMorrowEvidence`（669）；证据按来源拆分、跨会话聚合 | 缺口来源单一（只来自事实守卫改写）；真实运行 `knowledgeGaps=0/1` → `morrowInterests=0`，从未形成兴趣 |
-| 人格身份 / 交互适配 | **FAIL** | 基线只由用户编辑改变（成立）；交互偏移 ±8 有界 | **G1 无消费者**：`describeGrowth()` 无调用点，`effectiveProfile` 不读 growth；`effective_d` 未实现 |
-| 内在状态 | **PARTIAL** | 状态是计算变量，参与检索策略与 prompt；证据可溯源 | appraisal 未重构；无 affect 消融 |
-| 反思 | **PARTIAL** | 增量游标、幂等、依赖注入时钟、限频去重通过 | 质量指标（支持度/重复率/撤回率）未实现 |
-| 长期目标 | PASS | 归属、优先级、过期、完成即退出、跨会话读取 | — |
-| 自主探索 | **PARTIAL** | 状态机 + 原子预算 + `actually_raised` 记账 | "是否真的提起"仍是词面+形态双检，改写式提出漏判；真实运行 `explorationAttempted=0` |
-| 语音 | **NOT_IMPLEMENTED** | 无 adapter、无状态机、无 UI | 门槛项缺失 |
-
-## 门槛三：真实互动质量 —— BLOCKED
-
-| 项 | 判定 | 证据 | 缺口 |
-|---|---|---|---|
-| 契约一致性（模型/端点/密钥变量） | PASS | `docs/testing/shared-real-model-test-contract.md`：`spark-x2.6`、`/v2/chat/completions`、`MORROW_TEST_API_KEY` 单一入口 | — |
-| 真实 Provider 运行（本轮） | **BLOCKED** | `MORROW_TEST_API_KEY` 缺失，写 `BLOCKED_NO_SECRET` | 需凭据 |
-| 真实运行（历史） | **PARTIAL** | 三次 32 轮 / 3 会话、0 失败轮次；召回、纠正、删除传播通过 | 每次都有 1–2 条失败断言；`status` 字段非契约标签；`codeCommit` 为 `unknown` |
-| 人类质量复核 | **NOT_RUN** | `manualReview.status = "PENDING"` | 必须由独立审查者阅读原文 |
-| 主体归属与澄清行为 | **PARTIAL** | 规则层有断言；真实回复中出现过"没有上一轮记录"这类不一致（`ee728fd` 第 3 条 detail） | 未系统评估 |
-
-## 门槛四：平台与产品 —— BLOCKED
-
-| 项 | 判定 | 证据 | 缺口 |
-|---|---|---|---|
-| GitHub Actions | **BLOCKED** | 计费阻断，`steps=[]` | 账户侧解除 |
-| Electron renderer | **PARTIAL→PASS（冒烟级）** | 冒烟 exit 0，输出未带 `[sandbox disabled for this host]`；此前记录的 `0x80000003` 本轮未复现（差异在启动脚本会删除 `ELECTRON_RUN_AS_NODE`） | 仅冒烟，无逐屏交互 |
-| Windows 安装/升级/卸载 | **NOT_RUN** | 只验证 `out/` 构建产物 | 需干净机器 |
-| 语音 ASR/TTS | **NOT_IMPLEMENTED** | — | 无实现 |
-
----
-
-## 汇总
-
-| 门槛 | 判定 | 一句话理由 |
+| 项 | 状态 | 证据 |
 |---|---|---|
-| 工程真实性 | **PARTIAL** | 本机全绿，但 CI BLOCKED、迁移升级路径未逐版本核对 |
-| 认知有效性 | **PARTIAL** | C1 语义 BLOCKED、反思质量缺失；**G1 直接 FAIL（无消费者）** |
-| 真实互动质量 | **BLOCKED** | 无凭据、人工复核 NOT_RUN |
-| 平台与产品 | **BLOCKED** | CI 计费阻断、Windows 未验证、语音未实现 |
+| A1 基线与祖先关系 | PASS | head 领先 base 33 提交、0 落后、merge-base=base tip（8467079），base 未变；PR OPEN/MERGEABLE [Repro §1] |
+| A2 TypeScript | PASS | `npx tsc --noEmit` 退出码 0（审查 SHA 复跑，11.4s）[Repro §2] |
+| A3 全量测试 | PASS（注记） | 95 文件中 94 过、**888/888 断言全过**；1 个文件（offline-evaluation.test.ts）因本机 esbuild 无法写 %TEMP% 而无法装载——TEMP 重定向后 6/6 过、CI 同 SHA 双平台绿，判环境缺陷 [Repro §2/§6] |
+| A4 构建 | PASS | `npx electron-vite build` 退出码 0 [Repro §2] |
+| A5 主评测套件 | PASS | 审查 SHA 复跑 15 PASS / 1 NOT_RUN（L15 按设计由纵向运行器承担），**首次绑定 5fe62f54**（`evals/stage-3/results/20261101T045020Z-5fe62f5.json`，未入库，工件见 [Repro §2]） |
+| A6 消融 | PASS | 4 臂：no_growth→L4/L12 FAIL、no_exploration→L5 FAIL、no_reflection→L5/L9 FAIL——逐模块真实承重（`evals/stage-3/ablation/results/20261101T045045Z-5fe62f5.json`） |
+| A7 纵向 | PASS | 注入时钟、标注 `clock: injected` + clockNote、正例真实发生（day1 raised=1）、冷却 +1h 拒/+7h 许、半衰 fresh=3/aged=1.5（复跑 PASS） |
+| A8 重启 | PASS | 同文件重建完整运行时、非零漂移前置守卫、撤回级联出 payload（复跑 PASS） |
+| A9 长对话 | PASS | 30 轮/3 会话（复跑 PASS） |
+| A10 C1 机制套件 | PASS | 22 场景/88 断言全过，绑定 5fe62f54（复跑） |
+| A11 Electron 冒烟 | **CI PASS / 本机 BLOCKED** | run 41270227620/41270251780（5fe62f54，3 job 全 success，15 步冒烟含真实 Electron）；本机渲染进程启动即崩 0x80000003（--no-sandbox 下 0xC0000005），另见 esbuild %TEMP% 写拒绝 [Repro §6] |
+| A12 结果文件绑定 | **PARTIAL** | 仓库内旧结果：主套件最新绑 b0e719a（早于 C1/迁移 v36-38）、C1 有效结果绑 6ae4520、6 份 `codeCommit:"unknown"`（BLOCKED，不作 HEAD 证据）；live 结果绑 6a885fa。**审查复跑前无任何结果绑定 5fe62f54** [Defects D-2/D-3] |
 
-**整体：NO-GO。** 任何一个门槛为 BLOCKED 都不允许写 GO；认知有效性存在 FAIL 项，进一步排除通过。
+## 门槛 B：认知有效性（真实生产路径）
 
-判定依据见 `stage-3-final-decision.md`；命令与退出码见 `stage-3-reproducibility-log.md`；缺陷见 `stage-3-open-defects-and-blockers.md`。
+| 能力 | 状态 | 证据 |
+|---|---|---|
+| B1 C1 语境/意图理解 | 机制 PASS / 语义 BLOCKED | 机制：22 场景走真实发送链、只记哈希、变异必须使判定移动（A3 假绿修复含 `个函数`/`张图` 形态守卫）；语义：`BLOCKED_NO_SECRET`（两份记录在案）[Repro §3] |
+| B2 记忆连续性 | 机制 PASS / 模型层 PARTIAL | 撤回/纠正/删除/重启/跨会话均有链路级测试（L1/L2/L3/L11/L12/restart）；真实转写暴露轮 13（已投递未使用）与轮 31（跨会话检索零命中→自信否认）[Acceptance §5] |
+| B3 Morrow 自身兴趣 | 机制 PASS / 真实 NOT_RUN | 证据行级 origin 硬隔离、按侧晋升、反证降级 [Lineage §4]；L5 全链 12 断言过；真实运行 morrowInterests=0（缺口 1<3）；"模型提问→候选"生产者不存在（P0-3） |
+| B4 人格身份与成长 | **G2 PASS / G1 FAIL** | 身份基线只有用户写路径；G2 交互画像：双向证据（L4）、删除重算（L12）、重启连续（restart）、进 payload（effectiveProfile+describe）；**G1 台账不可达+无读者（死代码）**，`effective_d=baseline+growth_offset` 未实现 [Lineage §2][Defects D-1] |
+| B5 内在状态 | PASS | 更新事务化+幂等+重放；真实消费：检索放宽（有界）、prompt 引导、反思 bias 证据；不参与探索排序/人格；无数值外泄 [Lineage §7] |
+| B6 反思 | **PARTIAL** | 游标增量、限频、恰好一次、7 类候选；兴趣候选→payload 链成立（L5）；**其余 findings 无 prompt 消费者；自动路径不进 pending items（仅手动 IPC）** [Lineage §6][Defects D-10/D-11] |
+| B7 长期目标 | 机制 PASS | 对话创建→下轮 payload→完成消失→含糊仅候选；owner 三分；过期/源删除级联（L10 复跑 PASS）[Lineage §5] |
+| B8 自主探索 | 机制 PASS / 真实 NOT_RUN | 状态机 9 态、(turn_id,state) 幂等、预算原子预留、uncertain 单列、失败/取消释放；负例单测 20 条；真实运行 attempted=0/raised=0；**`user_rejected` 无写入路径** [Lineage §3][Defects D-4] |
+| B9 语音 | **NOT_IMPLEMENTED** | src/ 无任何 ASR/TTS/录音代码 [Lineage §10] |
+
+## 门槛 C：真实互动质量
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| C1 契约与凭据 | BLOCKED_NO_SECRET | 契约要求 `spark-x2.6` @ `/v2/chat/completions`、`MORROW_TEST_API_KEY`；环境探测：变量未设置、`.tmp/` 不存在、无凭据文件 [Repro §3] |
+| C2 审查 SHA 上真实重跑 | BLOCKED_NO_SECRET | 可直接复跑命令：`MORROW_TEST_API_KEY=… npm run eval:stage3:live`（凭据须由维护者在本机安全注入，不得粘贴于聊天/GitHub） |
+| C3 既有真实证据 | PASS(9/10)+1 FAIL+NOT_RUN（绑定 6a885fa） | spark-x2.6、32 轮/3 会话、0 失败轮；唯一 FAIL=风格证据门槛（signals 2<3，offsets 恒 0）；Morrow 兴趣 NOT_RUN；**早于 C1 主链改动（a0405cd..9ac4bd5），不能证明最终 HEAD** [Defects D-3] |
+| C4 人工质量复核 | **AI 独立审阅完成 / 真人复核 PENDING** | 审查者逐轮审阅 32 轮转写：13 处 PASS 证据、3 处 FAIL/弱点（轮 13、轮 31、风格脱节）[Acceptance §5]；性质是对既有证据的阅读，真人复核仍未发生（三份 live 文件 manualReview 均 PENDING） |
+| C5 校准 | NOT_RUN | 无标注集，`calibration.measured=false`（entry-brief 自认） |
+
+## 门槛 D：平台与产品
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| D1 GitHub Actions | **PASS（新事实）** | run 41270227620 + 41270251780 @ 5fe62f54（2026-11-01T03:42，pull_request）：ubuntu/windows 冒烟 job（15 步）与 Windows 升级路径 job（9 步）全部 success——**开发者文档仍写"CI BLOCKED（计费）"，已过时** [Defects D-6] |
+| D2 Electron renderer | CI PASS / 本机 BLOCKED | CI 真实 Electron 冒烟双平台过；本机 0x80000003（--no-sandbox 后 0xC0000005）复现，判环境 [Repro §6] |
+| D3 Windows 安装/升级/卸载 | NOT_RUN | NSIS 配置存在、`scripts/windows-alpha-install-acceptance.ps1` 存在、无干净授权机器执行记录；升级路径仅 CI 迁移测试级 |
+| D4 语音 | NOT_IMPLEMENTED | 同 B9 |
+| D5 CI 对 stage-3 套件的覆盖 | **PARTIAL** | CI 只跑 stage-1/2 离线评测（`npm run evaluate`/`evaluate:cognition`），**不跑任何 eval:stage3\* 套件**——stage-3 回归依赖开发者或审查者本地执行 |
+
+## 整体
+
+- 全部强制门槛中：真实互动质量 BLOCKED、认知有效性 PARTIAL（D-1/D-9/D-10）、平台 PARTIAL（Windows/语音）。
+- **整体：NO-GO**（Stage 3 不得标记完成；PR #19 不具备合并条件）。依据任务 §5 决策规则，无需叠加即已禁止整体 PASS；结构性缺口与修复顺序见 [stage-3-final-decision.md](stage-3-final-decision.md)。
