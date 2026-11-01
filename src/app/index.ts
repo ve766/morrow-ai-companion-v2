@@ -10,6 +10,7 @@ import { MemoryService } from '../memory/memory-service'
 import { MemoryImportanceService, ARCHIVE_THRESHOLD } from '../memory/memory-importance'
 import { MemoryMaintenanceScheduler } from '../memory/memory-maintenance'
 import { FactMemoryService } from '../memory/fact-memory'
+import { RelationshipThreadService } from '../relationship/relationship-threads'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
@@ -259,13 +260,15 @@ if (hasSingleInstanceLock) {
     const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events: eventLog })
     const turnContexts = new SqliteTurnContextRepository(database)
     const finalizations = new SqliteTurnFinalizationRepository(database)
+    // Stage 5: relationship continuity threads (user-stated continuity notes).
+    const relationships = new RelationshipThreadService({ database })
     const companion = new CompanionService({
       database,
       memories,
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter },
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,

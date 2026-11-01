@@ -480,11 +480,20 @@ export class MemoryService {
           provenance: { sourceMessageId: plan.messageId, kind: 'message' }
         }))
         // Verify against the ledger, not against the object we just built.
-        const verified = this.factIndex?.lookupActive(first.predicate) ?? []
-        const hit = verified.find((fact) => fact.sourceMessageId === plan.messageId && fact.valueNormalized === first.valueNormalized)
-        if (!hit) {
-          this.recordOperationFailure(plan.messageId, 'verification', 'VERIFICATION_FAILED')
-          return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: 'VERIFICATION_FAILED' }
+        // D3: every planned fact is verified, not only the first one.
+        const missing: string[] = []
+        let hit: import('./fact-memory').FactRecord | undefined
+        for (const fact of plan.facts) {
+          const verified = this.factIndex?.lookupActive(fact.predicate) ?? []
+          const found = verified.find((row) => row.sourceMessageId === plan.messageId && row.valueNormalized === fact.valueNormalized)
+          if (!found) missing.push(fact.predicate)
+          else if (!hit) hit = found
+        }
+        if (!hit || missing.length > 0) {
+          this.recordOperationFailure(plan.messageId, 'verification', missing.length > 0 ? 'PARTIAL_VERIFICATION_FAILED' : 'VERIFICATION_FAILED')
+          // Partial success is reported as failed for the whole operation: the
+          // reply must not claim that all facts were stored.
+          return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: missing.length > 0 ? 'PARTIAL_VERIFICATION_FAILED' : 'VERIFICATION_FAILED' }
         }
         return {
           operation: 'create',
