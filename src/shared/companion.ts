@@ -14,7 +14,11 @@ export const LOCAL_PROVIDER_ID = 'local-openai' as const
  * 404 for the unrouted one).
  */
 export const SPARK_PROVIDER_ID = 'spark' as const
-export const SPARK_MAAS_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v1'
+// The shared real-model contract (docs/testing/shared-real-model-test-contract.md)
+// pins Chat Completions to /v2. The adapter appends `/chat/completions`, so the
+// base carries the version: /v1 produced a 200 with an empty completion for
+// spark-x2.6, and the contract names /v2 explicitly.
+export const SPARK_MAAS_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v2'
 
 export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID | typeof SPARK_PROVIDER_ID
 export type ProviderClassKind = 'remote' | 'local'

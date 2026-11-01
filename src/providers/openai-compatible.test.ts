@@ -155,7 +155,7 @@ describe('iFlytek Spark MaaS adapter (Phase 2.3)', () => {
   const sparkConfig: ProviderConfigRecord = {
     id: 'spark',
     providerClass: 'remote',
-    endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v1',
+    endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2',
     model: 'xdeepseekv3',
     enabled: true,
     apiKeyConfigured: true,
@@ -166,7 +166,7 @@ describe('iFlytek Spark MaaS adapter (Phase 2.3)', () => {
     return {
       prompt: 'ping',
       context: { text: '', selected: [], omitted: 0, characterCount: 0 },
-      endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v1/chat/completions',
+      endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions',
       maximumSensitivity: 'personal',
       requestPayload: {
         model: 'xdeepseekv3',
@@ -185,7 +185,7 @@ describe('iFlytek Spark MaaS adapter (Phase 2.3)', () => {
 
   it('accepts the allow-listed MaaS host with a verified model id', async () => {
     const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
-      expect(url).toBe('https://maas-api.cn-huabei-1.xf-yun.com/v1/chat/completions')
+      expect(url).toBe('https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions')
       expect((init?.headers as Record<string, string>).authorization).toBe('Bearer test-only-secret')
       expect(String(init?.body)).not.toContain('test-only-secret')
       return new Response(JSON.stringify({ model: 'xdeepseekv3', choices: [{ message: { content: 'pong' } }] }), { status: 200 })

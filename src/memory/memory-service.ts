@@ -22,12 +22,20 @@ import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import type { RetrievalPolicy } from './retrieval-policy'
 import type { EvidencePresentation } from './memory-context-assembler'
 import { MemoryContextAssembler } from './memory-context-assembler'
+import { readFactSlot, extractFactSlots } from './fact-slot'
 import type { MorrowEvent } from '../persistence/event-log'
+import { normalizeAssertion, readMemoryUtterance, sameAssertion } from './memory-evidence-policy'
 
 // Minimal event sink so the memory module never depends on the persistence
 // module's concrete service; tests inject nothing.
 export interface MemoryEventSink {
   tryRecord(event: Omit<MorrowEvent, 'schemaVersion' | 'occurredAt' | 'id'>): MorrowEvent | null
+}
+
+export interface MemoryProvenance {
+  /** The real user message that produced this memory, when one exists. */
+  sourceMessageId: string | null
+  kind: 'message' | 'legacy'
 }
 
 export interface MemoryCreateOptions {
@@ -36,6 +44,8 @@ export interface MemoryCreateOptions {
   correlationId?: string
   /** Skip duplicate merging (used when the caller has already deduplicated). */
   allowDuplicate?: boolean
+  /** B (final closure review): message-level provenance, threaded to the revision and the fact ledger. */
+  provenance?: MemoryProvenance
 }
 
 export interface MemoryConflictReport {
@@ -72,11 +82,44 @@ export class MemoryService {
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID(),
     private readonly events?: MemoryEventSink,
-    options: { useContextUtility?: boolean } = {}
+    options: { useContextUtility?: boolean; importance?: import('./memory-importance').MemoryImportancePort; factIndex?: import('./fact-memory').FactMemoryService } = {}
   ) {
-    this.contextAssembler = new MemoryContextAssembler(
-      options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }
-    )
+    this.importance = options.importance
+    this.factIndex = options.factIndex
+    this.contextAssembler = new MemoryContextAssembler({
+      ...(options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }),
+      // Ranking reads the cached importance score. Admission does not: a memory
+      // still has to be relevant before importance can order it.
+      importanceOf: (memoryId) => this.importance?.scoreOf?.(memoryId) ?? 0
+    })
+  }
+
+  private readonly importance: import('./memory-importance').MemoryImportancePort | undefined
+  /** P0-A: the addressable fact layer, re-indexed after every lifecycle write. */
+  private readonly factIndex: import('./fact-memory').FactMemoryService | undefined
+  /** One-shot provenance for the next revision write (correct path). */
+  private pendingProvenance: MemoryProvenance | undefined
+
+  private factIndexDegraded = 0
+
+  private reindexFact(memoryId: string): void {
+    try {
+      this.factIndex?.reindexMemory(memoryId)
+      return
+    } catch (error) {
+      // A: structured, sanitized degradation — memoryId + classification only,
+      // never the memory text, SQL parameters, secrets or the raw exception.
+      this.factIndexDegraded += 1
+      this.events?.tryRecord?.({
+        sourceModule: 'memory',
+        eventType: 'memory.fact_index.degraded',
+        actor: 'system',
+        subjectType: 'memory',
+        subjectId: memoryId,
+        correlationId: null,
+        payload: { errorCode: error instanceof Error ? error.name : 'UNKNOWN', attempt: this.factIndexDegraded }
+      })
+    }
   }
 
   create(content: string, sensitivity: MemoryRecord['sensitivity'] = 'personal', options: MemoryCreateOptions = {}): MemoryRecord {
@@ -108,14 +151,29 @@ export class MemoryService {
       sourceCategory,
       status: 'active',
       sensitivity,
+      archivedAt: null,
       createdAt: timestamp,
       updatedAt: timestamp,
       revision: 1,
       confidence,
       lastConfirmedAt: timestamp
     }
-    this.repository.create(record, this.revision(record, 'created', null))
+    this.repository.create(record, this.revision(record, 'created', null, options.provenance))
+    // The ledger records where this memory came from; the score is derived from
+    // it, never incremented, so a replay cannot inflate importance.
+    this.importance?.recordEvidence?.({
+      memoryId: record.id,
+      sourceRef: `create:${record.id}`,
+      sourceKind: 'user_explicit',
+      actor: 'user',
+      conversationId: null,
+      evidenceType: 'statement',
+      confidence: 1,
+      independenceGroup: `memory:${record.id}`
+    })
+    this.importance?.onMemoryChanged(record.id)
     this.recordEvent(sourceCategory === MEMORY_SOURCE_CATEGORY ? 'memory.created' : 'memory.created_inferred', record, options.correlationId, { confidence, sensitivity })
+    this.reindexFact(record.id)
     return record
   }
 
@@ -189,12 +247,56 @@ export class MemoryService {
   ): AssembledMemoryContext {
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
     const records = this.repository.listActiveForContext(1000)
+    // P0-A fact channel: facts addressed by attribute (predicate lookup on
+    // the fact index), not by text similarity. Their memory ids are marked so
+    // the assembler admits and ranks them through the fact channel.
+    const factAddressedIds = new Set<string>()
+    const querySlotForFacts = readFactSlot(query)
+    if (querySlotForFacts?.predicate && this.factIndex) {
+      try {
+        for (const fact of this.factIndex.lookupActive(querySlotForFacts.predicate, { queryTime: querySlotForFacts.time, includeSuperseded: querySlotForFacts.time === 'past' })) factAddressedIds.add(fact.sourceMemoryId)
+      } catch {
+        // A: degraded fallback — the index is untrustworthy, so derive the
+        // candidates directly from a bounded slice of the active memories
+        // with the same extractor the index uses. Still never guesses: the
+        // scan answers the same predicate question the index would.
+        for (const record of records.slice(0, 200)) {
+          if (factAddressedIds.has(record.id)) continue
+          try {
+            if (extractFactSlots(record.currentText).some((candidate) => candidate.predicate === querySlotForFacts.predicate)) factAddressedIds.add(record.id)
+          } catch {
+            // One unreadable memory stays out of the fact channel.
+          }
+        }
+      }
+    }
+    // R3 query plan: a bare value assertion ("你就说我在北京") does not carry
+    // a residence marker, but it asserts a value FOR a personal attribute.
+    // The single-valued attributes are exactly the ones where the stored
+    // current value must be in view — to resist, agree or clarify.
+    // Activity verbs right after 我在 (我在学习/我在做…) are not places.
+    const bareAssertion = /我(?:现在)?(?:在|住在|搬到|搬去|搬进了?)([\p{Script=Han}]{2,8})/u.exec(query)
+    const assertedValue = bareAssertion?.[1] ?? ''
+    const activityVerb = /^(?:学|做|看|写|想|试|用|开|玩|读|听|跑|吃)/u.test(assertedValue)
+    if (this.factIndex && bareAssertion && !activityVerb) {
+      try {
+        // C: '我在北京' asserts a place-of-living/working fact — not a name,
+        // age or project code. Narrow candidates to the place predicates so a
+        // bare value cannot spray every attribute into the prompt.
+        for (const predicate of ['residence', 'employer']) {
+          for (const fact of this.factIndex.lookupActive(predicate)) factAddressedIds.add(fact.sourceMemoryId)
+        }
+      } catch {
+        // Same degradation contract.
+      }
+    }
     // Conflict risk is a property of the candidate set, so it is computed once
     // here and handed to the ranking instead of being re-derived per record.
     return this.contextAssembler.assemble(
       query, records, maximumSensitivity, undefined, undefined, undefined, policy, presentation,
       this.conflictedIds(records),
-      preferenceFor
+      preferenceFor,
+      factAddressedIds
     )
   }
 
@@ -204,25 +306,83 @@ export class MemoryService {
     return history
   }
 
-  correct(id: string, content: string, correlationId?: string): MemoryRecord {
+  correct(id: string, content: string, correlationId?: string, provenance?: MemoryProvenance): MemoryRecord {
     validateMemoryText(content)
-    return this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
+    // B: the correction's own provenance rides on the new revision; the
+    // superseded history keeps the old revision's source.
+    this.pendingProvenance = provenance
+    const record = this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
+    this.reindexFact(id)
+    return record
   }
 
   retract(id: string, correlationId?: string): MemoryRecord {
-    return this.transition(id, { type: 'retract' }, 'retracted', correlationId)
+    const record = this.transition(id, { type: 'retract' }, 'retracted', correlationId)
+    this.reindexFact(id)
+    return record
   }
 
   restore(id: string, correlationId?: string): MemoryRecord {
-    return this.transition(id, { type: 'restore' }, 'restored', correlationId)
+    const record = this.transition(id, { type: 'restore' }, 'restored', correlationId)
+    this.reindexFact(id)
+    return record
   }
 
   confirm(id: string, options: { correlationId?: string } = {}): MemoryRecord {
     return this.transition(id, { type: 'confirm' }, 'confirmed', options.correlationId)
   }
 
+  /**
+   * Reads one user turn for memory evidence (P0-5).
+   *
+   * This is the production producer the repetition term never had. It records
+   * a row only when the turn is an *assertion* that matches a stored fact, and
+   * it records it once per message (`source_ref` is the message id, and that is
+   * the ledger's primary key), so a retried turn cannot inflate the count.
+   *
+   * The gates live in `memory-evidence-policy`: a question, a negation, a
+   * quote, a hypothetical, a role-play or a discussion is not a restatement,
+   * however similar it looks. Being conservative here is the point — a wrong
+   * repetition count is worse than a missing one, because it silently promotes
+   * a passing mention above a fact the user actually cares about.
+   */
+  observeUtterance(input: {
+    text: string
+    messageId: string
+    conversationId: string
+    occurredAt: string
+    actor?: 'user' | 'morrow' | 'system'
+  }): Array<{ memoryId: string; signal: 'restatement' | 'confirmation' }> {
+    const reading = readMemoryUtterance({ text: input.text, ...(input.actor ? { actor: input.actor } : {}) })
+    if (reading.signal === 'none' || !reading.assertion) return []
+    const matched = this.repository.listActiveForContext(1000)
+      .filter((record) => sameAssertion(normalizeAssertion(record.currentText), reading.assertion!))
+    const recorded: Array<{ memoryId: string; signal: 'restatement' | 'confirmation' }> = []
+    for (const record of matched) {
+      this.importance?.recordEvidence?.({
+        memoryId: record.id,
+        // The message is the identity: one turn contributes once, and a replay
+        // of the same turn is a no-op rather than a second mention.
+        sourceRef: input.messageId,
+        sourceKind: 'message',
+        actor: 'user',
+        conversationId: input.conversationId,
+        evidenceType: reading.signal === 'confirmation' ? 'confirmation' : 'restatement',
+        confidence: 0.9,
+        // Same conversation, same group: three repeats in one conversation are
+        // one context, not three independent mentions.
+        independenceGroup: input.conversationId
+      })
+      this.importance?.onMemoryChanged(record.id)
+      this.recordEvent('memory.restated', record, input.conversationId, { signal: reading.signal })
+      recorded.push({ memoryId: record.id, signal: reading.signal })
+    }
+    return recorded
+  }
+
   delete(id: string): void {
     if (!this.repository.delete(id)) throw new ApplicationError('NOT_FOUND')
+    this.reindexFact(id)
   }
 
   private transition(id: string, transition: MemoryTransition, changeType: Exclude<MemoryChangeType, 'created'>, correlationId?: string): MemoryRecord {
@@ -238,6 +398,55 @@ export class MemoryService {
     const revision = this.revision(updated, changeType, current.revision)
     this.repository.transition(current.revision, updated, revision)
     this.recordEvent(`memory.${changeType}`, updated, correlationId, { revision: updated.revision })
+    // A correction is evidence that this memory matters, and it is recorded as
+    // such — but it is not a repetition: being corrected twice does not mean the
+    // user stated it twice.
+    if (changeType === 'corrected') {
+      this.importance?.recordEvidence?.({
+        memoryId: updated.id,
+        sourceRef: `correct:${updated.id}:${updated.revision}`,
+        sourceKind: 'user_explicit',
+        actor: 'user',
+        conversationId: null,
+        evidenceType: 'correction',
+        confidence: 1,
+        independenceGroup: `correction:${updated.id}`
+      })
+    }
+    // A confirmation is evidence that the fact still holds and still matters.
+    // It is deliberately *not* a repetition: agreeing that something is true is
+    // not the same as saying it again, and counting it as one inflated `n`
+    // every time the user accepted a suggestion.
+    if (changeType === 'confirmed') {
+      this.importance?.recordEvidence?.({
+        memoryId: updated.id,
+        sourceRef: `confirm:${updated.id}:${updated.revision}`,
+        sourceKind: 'user_explicit',
+        actor: 'user',
+        conversationId: null,
+        evidenceType: 'confirmation',
+        confidence: 1,
+        independenceGroup: `confirmation:${updated.id}`
+      })
+    }
+    // A retraction suppresses the fact's standing: the ledger keeps the row for
+    // the audit, the score stops counting repetitions, and retrieval drops the
+    // memory. Nothing is deleted, so `restore()` can bring it back intact.
+    if (changeType === 'retracted') {
+      this.importance?.recordEvidence?.({
+        memoryId: updated.id,
+        sourceRef: `retract:${updated.id}:${updated.revision}`,
+        sourceKind: 'user_explicit',
+        actor: 'user',
+        conversationId: null,
+        evidenceType: 'retraction',
+        confidence: 1,
+        independenceGroup: `retraction:${updated.id}`
+      })
+    }
+    // Importance is recomputed from the new revision set, never incremented, so
+    // a correction raises it and a retraction cannot leave a stale high score.
+    this.importance?.onMemoryChanged(updated.id)
     return updated
   }
 
@@ -256,7 +465,9 @@ export class MemoryService {
     })
   }
 
-  private revision(record: MemoryRecord, changeType: MemoryChangeType, previousRevision: number | null): MemoryRevisionRecord {
+  private revision(record: MemoryRecord, changeType: MemoryChangeType, previousRevision: number | null, provenance?: MemoryProvenance): MemoryRevisionRecord {
+    if (!provenance) provenance = this.pendingProvenance
+    this.pendingProvenance = undefined
     return {
       memoryId: record.id,
       revision: record.revision,
@@ -266,7 +477,9 @@ export class MemoryService {
       changeType,
       createdAt: record.updatedAt,
       previousRevision,
-      confidence: record.confidence
+      confidence: record.confidence,
+      sourceMessageId: provenance?.sourceMessageId ?? null,
+      provenanceKind: provenance?.kind ?? 'legacy'
     }
   }
 

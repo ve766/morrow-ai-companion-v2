@@ -26,6 +26,13 @@ export interface RetryOptions {
   totalBudgetMs?: number
   /** Injected in tests so a backoff does not slow the suite down. */
   sleep?: (ms: number) => Promise<void>
+  /**
+   * Clock used for the total-budget deadline. Injected in tests so "the
+   * remaining budget cannot cover the backoff" is a deterministic assertion
+   * instead of a race against real elapsed time — the previous version relied on
+   * `Date.now()` and passed or failed depending on machine load.
+   */
+  now?: () => number
 }
 
 /** Only transient failures are retried; auth, quota, model and cancel never are. */
@@ -203,8 +210,9 @@ export class OpenAICompatibleProvider implements ProviderPort {
   async generate(input: ProviderInput, onDelta?: ProviderDeltaHandler): Promise<ProviderOutput> {
     const maxAttempts = Math.max(1, this.retry.maxAttempts ?? 3)
     const budget = Math.max(1, this.retry.totalBudgetMs ?? DEFAULT_PROVIDER_TOTAL_BUDGET_MS)
-    const deadline = Date.now() + budget
-    const remaining = (): number => deadline - Date.now()
+    const now = this.retry.now ?? (() => Date.now())
+    const deadline = now() + budget
+    const remaining = (): number => deadline - now()
     let attempt = 0
     for (;;) {
       if (remaining() <= 0) throw new ApplicationError('PROVIDER_DEADLINE')

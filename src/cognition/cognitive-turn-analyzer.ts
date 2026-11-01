@@ -10,8 +10,9 @@ import {
   type CognitiveTurnSignals,
   type CognitiveUncertainty
 } from './cognition'
-import { decideIntent, retrievalNeedOf, scoreIntentCandidates, type IntentDecision, type IntentLabel } from './intent-decision'
+import { legacyIntentOf, retrievalNeedOf, scoreIntentCandidates, type IntentDecision } from './intent-decision'
 import { assessIntentConfidence, type IntentAssessment, type IntentConfidenceOverrides } from './intent-confidence'
+import { readTurn, type IntentReading } from './intent-reading'
 
 export const COGNITIVE_HISTORY_LIMIT_MESSAGES = 12
 export const COGNITIVE_HISTORY_LIMIT_CHARACTERS = 6000
@@ -78,12 +79,18 @@ export interface CognitiveTurnReading {
    * calibrated probability because it is not one.
    */
   assessment: IntentAssessment
+  /**
+   * C1 reading: speech act, candidates, slots, uncertainties and the response
+   * mode. The legacy `analysis` is derived from it, so there is one classifier
+   * and the stored observation cannot disagree with what drove the turn.
+   */
+  reading: IntentReading
 }
 
 /**
- * Reads a turn once and returns both the persisted analysis and the Phase-2
- * intent decision. The decision is the single source of the intent; the
- * analysis carries the legacy label so stored records stay valid.
+ * Reads a turn once and returns the persisted analysis, the Phase-2 intent
+ * decision and the C1 reading. The reading is the single source: the legacy
+ * label, the strategy and the alternatives are all derived from it.
  */
 export function analyzeCognitiveTurnDetailed(
   content: string,
@@ -102,11 +109,9 @@ export function analyzeCognitiveTurnDetailed(
   const current = normalize(stripQuotedAndReportedText(content))
   const boundedHistory = boundCognitiveHistory(history)
   const priorUser = [...boundedHistory].reverse().find((message) => message.role === 'user')
-  const decision = decideIntent({
-    content: current,
-    hasPriorTurn: Boolean(priorUser),
-    priorUserBody: priorUser?.body ?? null
-  })
+  const parsed = readTurn({ content, history: boundedHistory, messageId: sourceMessageId })
+  const reading = parsed.reading
+  const decision = parsed.decision
   const reasons = new Set(decision.reasons)
   const signals: CognitiveTurnSignals = {
     correction: reasons.has('explicit_correction_marker'),
@@ -120,7 +125,11 @@ export function analyzeCognitiveTurnDetailed(
     topicSwitch: reasons.has('explicit_topic_switch')
   }
 
-  const intent: CognitiveIntent = decision.legacyIntent
+  // The reading decides the label; the legacy taxonomoy is a projection of it.
+  // Previously this took `decision.legacyIntent`, which kept the rule layer's
+  // guess for turns the reading had deliberately marked `ambiguous` — a quoted
+  // command still reached memory retrieval as if it were a user question.
+  const intent: CognitiveIntent = legacyIntentOf(reading.primaryIntent)
   const alternatives = decision.alternatives
     .map((label) => legacyIntentOf(label))
     .filter((candidate) => candidate !== intent)
@@ -132,7 +141,7 @@ export function analyzeCognitiveTurnDetailed(
   // unresolved reference has no topic at all; everything else stands alone.
   const topicSource = decision.dependsOnPriorTurn && priorUser
     ? 'previous_user_message' as const
-    : decision.intent === 'ambiguous'
+    : reading.primaryIntent === 'ambiguous'
       ? 'none' as const
       : 'current' as const
   const topicReferenceMessageId = topicSource === 'previous_user_message' ? priorUser!.id : null
@@ -140,40 +149,35 @@ export function analyzeCognitiveTurnDetailed(
   // carries one and must not be. Two word-units is the boundary: 1-2 units are
   // bare negation ("不对", "我说错了"), 3+ already contain the new value.
   const correctionNeedsDetail = signals.correction && !signals.explicitSelfFact && !signals.changedMind && wordCount(current) <= 2
-  // Only a *reference* we could not resolve asks for clarification. A plain
-  // statement that matches no intent rule is answered, not interrogated.
-  // B1: the weighted reading decides whether an ambiguous label may be answered
-  // at all. Asking is the safe failure mode; guessing is not.
-  const assessment = assessIntentConfidence({
-    content: current,
-    priorUserBody: priorUser?.body ?? null,
-    candidates: scoreIntentCandidates({
+  // The reading's own policy decides whether to ask; the strategy is derived
+  // from it rather than re-deciding. `clarify` also covers a request whose
+  // object is missing, which the rule layer alone never noticed.
+  const assessment = Object.keys(confidenceOverrides).length === 0
+    ? parsed.assessment
+    : assessIntentConfidence({
       content: current,
-      hasPriorTurn: Boolean(priorUser),
-      priorUserBody: priorUser?.body ?? null
-    })
-  }, confidenceOverrides)
-  // B1 consumes the assessment here, and the rule is deliberately conservative:
-  // asking interrupts the user, so clarification is reserved for turns where the
-  // two leading readings retrieve differently — i.e. where misreading changes
-  // the direction of the answer. A vague turn with one plausible reading is
-  // still answered. An explicit correction overrides any context-derived
-  // reading, and an authorisation gate is never bypassed by a high score.
-  // B1's wiring point is the clarify gate. The retrieval *route* stays with the
-  // rule layer on purpose: a reference turn may point at a fact that lives in
-  // memory rather than in the window ("那我之前说的茶呢？"), so rerouting it from
-  // the score alone silently dropped recall. The score decides *whether to ask*,
-  // not *where to look*.
-  const strategy = reasons.has('reference_without_context') || correctionNeedsDetail || assessment.needsClarification
+      priorUserBody: priorUser?.body ?? null,
+      candidates: scoreIntentCandidates({
+        content: current,
+        hasPriorTurn: Boolean(priorUser),
+        priorUserBody: priorUser?.body ?? null
+      })
+    }, confidenceOverrides)
+  const strategy = reading.responseMode === 'clarify' || correctionNeedsDetail
     ? 'clarify' as const
-    : decision.needsMemoryRetrieval
-      ? 'retrieve_memory' as const
-      : 'answer' as const
+    // `acknowledge` and `stop_previous` answer the turn; they must not drag the
+    // user's private memories into a reply about someone else's quoted words.
+    : reading.responseMode === 'acknowledge' || reading.responseMode === 'stop_previous'
+      ? 'answer' as const
+      : decision.needsMemoryRetrieval
+        ? 'retrieve_memory' as const
+        : 'answer' as const
   const evidence = createIntentEvidence(sourceMessageId, topicReferenceMessageId, decision.confidence, uncertainty)
 
   return {
     decision,
     assessment,
+    reading,
     analysis: {
       schemaVersion: COGNITIVE_SCHEMA_VERSION,
       analyzerVersion: COGNITIVE_ANALYZER_VERSION,
@@ -189,25 +193,6 @@ export function analyzeCognitiveTurnDetailed(
       evidence
     }
   }
-}
-
-const legacyByLabel: Readonly<Record<IntentLabel, CognitiveIntent>> = {
-  information_query: 'information_query',
-  continuation: 'information_query',
-  correction: 'correction',
-  preference_expression: 'sharing',
-  emotion_expression: 'venting',
-  goal_or_plan: 'planning',
-  new_topic: 'exploration',
-  ambiguous: 'uncertain',
-  self_fact: 'sharing',
-  explanation: 'explanation',
-  exploration: 'exploration',
-  feedback: 'feedback'
-}
-
-function legacyIntentOf(label: IntentLabel): CognitiveIntent {
-  return legacyByLabel[label]
 }
 
 export function analyzeCognitiveTurn(

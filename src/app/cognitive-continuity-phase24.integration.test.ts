@@ -57,7 +57,7 @@ function openWorld(
   directory: string,
   script: Script,
   previews: string[] = [],
-  overrides: { contexts?: TurnContextPort; reflection?: Pick<ReflectionService, 'run'> } = {}
+  overrides: { contexts?: TurnContextPort; reflection?: Pick<ReflectionService, 'run' | 'findings'> } = {}
 ): World {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const events = new EventLogService(database)
@@ -121,7 +121,7 @@ function openWorld(
   return { directory, database, companion, memories, conversations, secretStore, previews, script, started }
 }
 
-function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort; reflection?: Pick<ReflectionService, 'run'> } = {}): World {
+function newWorld(script: Partial<Script> = {}, overrides: { contexts?: TurnContextPort; reflection?: Pick<ReflectionService, 'run' | 'findings'> } = {}): World {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-phase24-'))
   directories.push(directory)
   return openWorld(directory, { behaviours: script.behaviours ?? [], proposals: script.proposals ?? [] }, [], overrides)
@@ -181,7 +181,7 @@ afterEach(() => {
 
 describe('bounded reflection lifecycle', () => {
   it('runs reflection only after a successfully persisted assistant turn', async () => {
-    const reflection = { run: vi.fn(() => ({ skipped: 'rate_limited' as const })) }
+    const reflection = { run: vi.fn(() => ({ skipped: 'rate_limited' as const })), findings: vi.fn(() => []) }
     const world = newWorld({}, { reflection })
     try {
       const conversation = world.companion.createConversation()

@@ -28,6 +28,8 @@ export type FactPredicate =
   | 'name'
   | 'age'
   | 'project_code'
+  | 'pet_name'
+  | 'object_location'
   | 'health'
   | 'schedule'
 
@@ -62,7 +64,7 @@ const VALUE_NOISE = /^[\s，,。.；;：:！!？?、]+|[\s，。；;：:！!？?
 const COPULA = /^\s*(?:是|为|就是|叫|在)/u
 
 /** Predicates that name one value at a time; a different value is a conflict. */
-const SINGLE_VALUED: ReadonlySet<FactPredicate> = new Set(['residence', 'age', 'name', 'employer', 'job_role', 'project_code'])
+export const SINGLE_VALUED_PREDICATES: ReadonlySet<FactPredicate> = new Set(['residence', 'age', 'name', 'employer', 'job_role', 'project_code'])
 
 function clean(value: string): string {
   // Punctuation first, so a trailing 了 is actually trailing.
@@ -97,7 +99,11 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
   {
     predicate: 'residence',
     read: (text) => {
-      const match = /(?:住在|居住在|现居|定居在?|搬到|搬家到|住址(?:是|为)?)/u.exec(text)
+      // D-5: interrogative and colloquial shapes ("我现在住哪？", "我搬去苏州了")
+      // name the same fact as "我住在杭州". Without them a paraphrased
+      // question has zero lexical overlap and no slot, which is exactly the
+      // cross-session miss the real-provider run produced.
+      const match = /(?:住在|居住在|现居|定居在?|搬到|搬家到|搬去|住址(?:是|为)?|住(?:在)?哪(?:里|儿)?)/u.exec(text)
       if (!match) return null
       return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
     }
@@ -129,6 +135,7 @@ const EXTRACTORS: ReadonlyArray<{ predicate: FactPredicate; read: (text: string)
       return { value: clean(text.slice(match.index + match[0].length)), negated: negatedBefore(text, match.index), asks: false }
     }
   },
+
   {
     predicate: 'health',
     read: (text) => {
@@ -196,7 +203,7 @@ const FUTURE = /(?:以后|将来|未来|明年|后年|下周|下个月|明天|�
 
 /** Sentence-final particles that turn a statement into a question. */
 const QUESTION_TAIL = /(?:吗|么|呢)$/u
-const INTERROGATIVE = /(?:是否|是不是|难道|多少|几岁|什么|谁|哪里|哪儿|哪个|哪些|哪种|怎么|为什么|如何|哪年)/u
+const INTERROGATIVE = /(?:是否|是不是|难道|多少|几岁|什么|谁|哪(?:里|儿|个|些|种|年)?|怎么|为什么|如何)/u
 
 /** Clauses are split on sentence punctuation only. */
 const CLAUSE_SEPARATOR = /[，,。.；;！!？?\n]+/u
@@ -265,6 +272,8 @@ const PREDICATE_MARKERS: Readonly<Record<FactPredicate, RegExp>> = {
   name: /名字|叫|姓名/u,
   age: /岁|年龄/u,
   project_code: /代号/u,
+  pet_name: /猫|狗|宠物/u,
+  object_location: /护照|身份证|钥匙|证件|放在/u,
   health: /过敏|忌口|病史/u,
   schedule: /安排|日程|行程|会议|出差|预约|复查|截止/u
 }
@@ -431,7 +440,7 @@ export function compareFactValues(left: FactSlot | null, right: FactSlot | null)
   // a proven contradiction either.
   if (polarityDiffers) return 'uncertain'
   if (a.includes(b) || b.includes(a)) return 'uncertain'
-  return SINGLE_VALUED.has(left.predicate) ? 'conflict' : 'uncertain'
+  return SINGLE_VALUED_PREDICATES.has(left.predicate) ? 'conflict' : 'uncertain'
 }
 
 /** True only for a proven contradiction; uncertainty is not a conflict. */
@@ -445,4 +454,80 @@ export function valuesDisagree(left: string, right: string): boolean {
     { subject: 'user', predicate: 'residence', value: left, kind: 'assertion', time: 'unspecified', question: false, observedAt: '', status: 'active', sourceId: '' },
     { subject: 'user', predicate: 'residence', value: right, kind: 'assertion', time: 'unspecified', question: false, observedAt: '', status: 'active', sourceId: '' }
   ) === 'conflict'
+}
+
+
+/**
+ * Multi-fact extraction (final closure, R1).
+ *
+ * `readFactSlot` answers "what is this sentence mainly about" — one dominant
+ * slot per text. The fact ledger needs the opposite guarantee: every
+ * assertable personal fact in a memory ("我住在杭州，猫叫豆豆，喜欢科幻电影")
+ * becomes its own addressable row. This walker reuses the same extractor
+ * rules and the same conservatism: questions, hypotheses, reported speech,
+ * modal statements and double negations yield nothing; an unknown shape
+ * yields nothing (the memory text stays reachable through lexical retrieval
+ * instead of being guessed into a predicate).
+ */
+export interface FactCandidate {
+  predicate: FactPredicate
+  /** Display value as written. */
+  value: string
+  /** Normalized for uniqueness/addressing (lowercase, punctuation stripped). */
+  valueNormalized: string
+  polarity: 'positive' | 'negative'
+  time: FactTime
+}
+
+function clauseTime(clause: string): FactTime {
+  return classifyFactTime(clause)
+}
+
+export function extractFactSlots(text: string): FactCandidate[] {
+  const normalized = text.normalize('NFKC').trim()
+  if (normalized.length === 0) return []
+  const out: FactCandidate[] = []
+  const seen = new Set<string>()
+  for (const clause of splitClauses(normalized)) {
+    if (REPORTED.test(clause) || HYPOTHETICAL.test(clause) || DOUBLE_NEGATION.test(clause)) continue
+    const time = clauseTime(clause)
+    if (time === 'mixed') continue
+    const question = QUESTION_TAIL.test(clause) || INTERROGATIVE.test(clause)
+    // Multi-fact-only predicates: pet names and object locations are too
+    // marker-greedy for the dominant-slot reader (猫 appears in opinions,
+    // 放在 in prose), so they live here and never in readFactSlot.
+    const extraRules: ReadonlyArray<{ predicate: FactPredicate; read: (clause: string) => { value: string; negated: boolean; asks: boolean } | null }> = [
+      { predicate: 'pet_name', read: (clause) => {
+        const match = /(?:我的?)?(?:猫|狗|宠物)(?:叫|名字是?|名字叫)?/u.exec(clause)
+        if (!match) return null
+        const value = clean(clause.slice(match.index + match[0].length))
+        if (value.length === 0 || /猫|狗|宠物|多大|几岁/u.test(value)) return null
+        return { value, negated: negatedBefore(clause, match.index), asks: false }
+      } },
+      { predicate: 'object_location', read: (clause) => {
+        const match = /(?:护照|身份证|钥匙|证件)(?:放在|在|丢了)?/u.exec(clause)
+        if (!match) return null
+        const value = clean(clause.slice(match.index + match[0].length))
+        if (value.length === 0) return null
+        return { value, negated: negatedBefore(clause, match.index), asks: false }
+      } }
+    ]
+    for (const extractor of [...EXTRACTORS, ...extraRules]) {
+      const extracted = extractor.read(clause)
+      if (!extracted) continue
+      if (extracted.asks || question) continue
+      const value = clean(extracted.value)
+      if (value.length === 0 || value.length > 60) continue
+      // A bare interrogative or demonstrative object is not a fact value.
+      if (/^(?:什么|啥|哪个|哪些|哪里|哪儿|怎么|多少|它|这)/u.test(value)) continue
+      const polarity: 'positive' | 'negative' = extracted.negated ? 'negative' : 'positive'
+      const valueNormalized = comparable(value)
+      if (valueNormalized.length === 0) continue
+      const key = [extractor.predicate, valueNormalized, polarity, time].join('|')
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ predicate: extractor.predicate, value, valueNormalized, polarity, time })
+    }
+  }
+  return out
 }

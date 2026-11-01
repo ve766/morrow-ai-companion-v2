@@ -1,7 +1,7 @@
 import type { AssembledMemoryContext, ContextConflict, ContextMemory, Sensitivity } from '../shared/companion'
 import { contextUtility, freshnessOf } from '../cognition/context-utility'
 import type { MemoryRecord } from './memory-domain'
-import { compareFactValues, readFactSlot, slotsConflict, type FactSlot } from './fact-slot'
+import { compareFactValues, readFactSlot, slotsConflict, SINGLE_VALUED_PREDICATES, factsTimeCompatible, type FactSlot } from './fact-slot'
 import type { RetrievalPolicy } from './retrieval-policy'
 
 /** How delivered evidence is rendered for the model (Phase 2.2 experiment). */
@@ -42,8 +42,35 @@ const weakWords: readonly string[] = [...frameWords, ...timeWords]
  *   temporal 0.25  the query and the record mention the same time word
  *   source   0.20  user-typed memories outrank model-inferred ones
  */
-const WEIGHTS = Object.freeze({ slot: 1, lexical: 1, temporal: 0.25, source: 0.2 })
+const WEIGHTS = Object.freeze({ slot: 1, lexical: 1, value: 1, temporal: 0.25, source: 0.2 })
 const TIME_MARKERS = new RegExp(`(?:${timeWords.join('|')})`, 'gu')
+
+/**
+ * Reciprocal Rank Fusion (D-5 remediation).
+ *
+ * The lexical channel and the fact-slot channel score on different, mutually
+ * uncalibrated scales, so their raw scores must never be added. RRF fuses
+ * *ranks*: `RRF(m) = Σ_channels 1/(k + rank_channel(m))` with k = 60, which is
+ * insensitive to score scale and rewards records that both channels agree on.
+ * The fused value is rescaled into [0, 1] to feed the context-utility
+ * relevance term unchanged; the utility's freshness/quality/conflict terms
+ * then provide the bounded rerank.
+ */
+export const RRF_K = 60
+const RRF_MAX = 2 / (RRF_K + 1)
+
+export function reciprocalRankFusion(channels: ReadonlyArray<ReadonlyMap<string, number>>): Map<string, number> {
+  const fused = new Map<string, number>()
+  for (const ranking of channels) {
+    let rank = 0
+    for (const id of ranking.keys()) {
+      rank += 1
+      fused.set(id, (fused.get(id) ?? 0) + 1 / (RRF_K + rank))
+    }
+  }
+  for (const [id, value] of fused) fused.set(id, value / RRF_MAX)
+  return fused
+}
 
 function normalize(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase()
@@ -125,22 +152,38 @@ function rankScore(
   item: { record: MemoryRecord; score: number },
   now: string,
   conflictedIds?: ReadonlySet<string>,
-  preferenceFor?: (record: MemoryRecord) => number
+  preferenceFor?: (record: MemoryRecord) => number,
+  importance = 0,
+  /** D-5: the RRF-fused relevance; falls back to the raw weighted score. */
+  relevanceOverride = item.score
 ): number {
   const reference = item.record.lastConfirmedAt ?? item.record.updatedAt
   const ageDays = (Date.parse(now) - Date.parse(reference)) / 86_400_000
   const stale = item.record.lastConfirmedAt === null && Number.isFinite(ageDays) && ageDays > STALE_UNCONFIRMED_DAYS
     ? Math.min(1, (ageDays - STALE_UNCONFIRMED_DAYS) / STALE_UNCONFIRMED_DAYS)
     : 0
-  return contextUtility({
-    relevance: item.score,
+  const base = contextUtility({
+    relevance: relevanceOverride,
     freshness: freshnessOf(reference, now),
     quality: (item.record.confidence / 100) * (item.record.sourceCategory === 'user_explicit_input' ? 1 : 0.5),
     preference: preferenceFor ? preferenceFor(item.record) : 0,
     conflict: conflictedIds?.has(item.record.id) ? 1 : 0,
     stale
   }).score
+  // Importance is added, not multiplied: it is a tie-breaker that can lift a
+  // clearly important memory over a marginally more relevant one, and it can
+  // never rescue a memory that failed the relevance gate above.
+  return base + IMPORTANCE_WEIGHT * Math.max(0, Math.min(1, importance))
 }
+
+/**
+ * Weight of the importance term.
+ *
+ * 0.2 is enough to change the order of near-ties (the other terms sum to ~1) and
+ * small enough that a highly important but irrelevant memory still does not get
+ * retrieved, because admission is decided before ranking.
+ */
+export const IMPORTANCE_WEIGHT = 0.2
 
 export class MemoryContextAssembler {
   /**
@@ -148,7 +191,11 @@ export class MemoryContextAssembler {
    * injection point, not a test-only patch: the `no_context_utility` arm builds
    * a service with it off and compares the serialized payloads.
    */
-  constructor(private readonly options: { useContextUtility?: boolean } = {}) {}
+  constructor(private readonly options: {
+    useContextUtility?: boolean
+    /** Cached importance score, 0..1. Ranking only; never gates admission. */
+    importanceOf?: (memoryId: string) => number
+  } = {}) {}
 
   assemble(
     query: string,
@@ -162,17 +209,39 @@ export class MemoryContextAssembler {
     /** Ids whose wording competes with another candidate; drives the X term. */
     conflictedIds?: ReadonlySet<string>,
     /** Preference fit for the P term; 0 when absent. */
-    preferenceFor?: (record: MemoryRecord) => number
+    preferenceFor?: (record: MemoryRecord) => number,
+    /** P0-A: memory ids addressed through the fact index for this query. */
+    factAddressedIds?: ReadonlySet<string>
   ): AssembledMemoryContext {
+    // One lookup per memory, memoised: the comparator runs O(n log n) times and
+    // must not turn into a database call each time.
+    const importanceCache = new Map<string, number>()
+    const importanceOf = (memoryId: string): number => {
+      const cached = importanceCache.get(memoryId)
+      if (cached !== undefined) return cached
+      const value = this.options.importanceOf?.(memoryId) ?? 0
+      importanceCache.set(memoryId, value)
+      return value
+    }
     const queryTerms = queryTermsOf(query)
     const phrase = normalize(query).trim()
     const querySlot = readFactSlot(query)
+    // A combined retrieval query (this turn + referenced context) can mix an
+    // assertion with a question and read as `uncertain` overall, which would
+    // hide a contested fact. Line-level slots keep each statement's own
+    // polarity available for the conflict channel.
+    const querySlotCandidates: FactSlot[] = [
+      ...(querySlot && querySlot.kind !== 'uncertain' ? [querySlot] : []),
+      ...query.split(/\n+/).map((line) => readFactSlot(line)).filter((slot): slot is FactSlot => slot !== null && slot.kind !== 'uncertain')
+    ]
     const queryTimes = timeMarkers(query)
     const limit = policy ? Math.min(maxMemories, policy.maxMemories) : maxMemories
 
     const eligible = records
       // Retracted, superseded or unauthorized records never compete on score.
-      .filter((record) => record.status === 'active' && order.indexOf(record.sensitivity) <= order.indexOf(maximumSensitivity))
+      // Archived memories lost the importance competition; they stay in the
+      // database but do not compete for a place in the prompt.
+      .filter((record) => record.status === 'active' && record.archivedAt === null && order.indexOf(record.sensitivity) <= order.indexOf(maximumSensitivity))
       .map((record) => {
         const normalizedContent = normalize(record.currentText)
         const phraseMatch = phrase.length >= 2 && normalizedContent.includes(phrase)
@@ -194,32 +263,96 @@ export class MemoryContextAssembler {
         const slotMatch = Boolean(querySlot && memorySlot && memorySlot.kind !== 'uncertain' &&
           querySlot.predicate === memorySlot.predicate && timeCompatible &&
           (querySlot.kind === 'question' || compareFactValues(querySlot, memorySlot) === 'equivalent'))
+        // D-5 value channel: the query itself names the fact's value ("你就说
+        // 我在北京" vs stored 杭州) — that fact is being contested, so the
+        // stored record belongs in view regardless of word overlap.
+        const queryMentionsValue = Boolean(memorySlot && memorySlot.value && memorySlot.kind !== 'uncertain' && normalize(query).includes(memorySlot.value))
+        // The fact index addressed this memory for the query's predicate: it
+        // is a candidate no matter how the wording differs.
+        const factAddressed = factAddressedIds?.has(record.id) ?? false
         const sourceReliability = record.sourceCategory === 'user_explicit_input' ? 1 : 0.5
-        const score = WEIGHTS.slot * Number(slotMatch) +
+        const score = WEIGHTS.slot * Number(slotMatch) + WEIGHTS.value * Number(queryMentionsValue) +
           WEIGHTS.lexical * Math.min(1, contentOverlap / 2) +
           WEIGHTS.temporal * Number(sharedTime) +
           WEIGHTS.source * sourceReliability
-        return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot }
+        return { record, score, slotMatch, contentOverlap, frameOverlap, phraseMatch, memorySlot, queryMentionsValue, factAddressed }
       })
+      // Resolved once, outside the comparator: a score lookup per comparison
+      // would be O(n log n) database reads for no extra information.
       // Eligibility is not a matter of degree: a phrase, a content word or a
       // proven slot. Frame-only overlap stays out of the request. A policy may
       // narrow this further, never widen it.
-      .filter((item) => {
+    const filteredItems = eligible.filter((item) => {
         if (policy?.predicateFilter && (!item.memorySlot || !policy.predicateFilter.includes(item.memorySlot.predicate))) return false
-        if (policy && !policy.admitConflictingEvidence && querySlot && item.memorySlot && slotsConflict(querySlot, item.memorySlot)) return false
+        // Note: a query whose own assertion contradicts a stored fact no longer
+        // EXCLUDES that fact — the contradiction is exactly why it must be in
+        // view (see the contested channel below). Conflicts are surfaced with
+        // conflict markers, never silently resolved or hidden.
         const lexical = item.phraseMatch || item.contentOverlap > 0
-        if (policy?.requireSlotMatch) return item.slotMatch
-        if (policy?.requireContentOverlap) return lexical
-        return lexical || item.slotMatch
-      })
+        // A fact the query names by value, or a stored fact the query's own
+        // assertion contradicts, is contested evidence: it stays in view even
+        // without word overlap (the latter only where the policy allows
+        // conflicting evidence at all).
+        // A contested single-valued fact is related by definition: hiding it
+        // would let the model agree with (or deny) a claim it cannot check.
+        // This deliberately ignores admitConflictingEvidence — that flag keeps
+        // UNRELATED facts out of narrow turns; a fact the user's own assertion
+        // contradicts is never unrelated. predicateFilter still applies.
+        const contested = item.queryMentionsValue ||
+          Boolean(item.memorySlot && querySlotCandidates.some((slot) => slot.kind !== 'question' && slot.predicate === item.memorySlot!.predicate && slotsConflict(slot, item.memorySlot)))
+        // Valid-time admission rule: a question with a definite time (现在)
+        // must not admit a single-valued fact whose own statement time is
+        // incompatible (以前) — one current residence, not two. Undated
+        // memories still match undated or dated questions.
+        const queryTimeDefinite = querySlot && querySlot.time !== 'unspecified' && querySlot.time !== 'mixed'
+        const memoryTimeDefinite = item.memorySlot && item.memorySlot.time !== 'unspecified' && item.memorySlot.time !== 'mixed'
+        const timeIncompatible = Boolean(queryTimeDefinite && memoryTimeDefinite && item.memorySlot && !factsTimeCompatible(querySlot!.time, item.memorySlot.time) && SINGLE_VALUED_PREDICATES.has(item.memorySlot.predicate))
+        if (timeIncompatible) return false
+        if (policy?.requireSlotMatch) return item.slotMatch || item.factAddressed
+        if (policy?.requireContentOverlap) return lexical || contested || item.factAddressed
+        return lexical || item.slotMatch || contested || item.factAddressed
+    })
+
+    // D-5: two recall channels, fused by rank. The lexical channel orders by
+    // word overlap; the slot channel orders records whose *fact predicate*
+    // answers the question ("我现在住哪" vs "我搬去苏州了" share no content
+    // word but name the same fact). A paraphrase that fails the lexical
+    // channel can still surface through the slot channel, which is exactly
+    // the cross-session miss the real-provider run exposed.
+    const lexicalOrder = [...filteredItems].sort((left, right) =>
+      right.score - left.score ||
+      right.record.updatedAt.localeCompare(left.record.updatedAt) ||
+      left.record.id.localeCompare(right.record.id))
+    const lexicalRanking = new Map(lexicalOrder.map((item) => [item.record.id, item.score] as const))
+    const slotOrder = filteredItems
+      .filter((item) => item.slotMatch)
+      .sort((left, right) =>
+        (right.memorySlot?.observedAt ?? '').localeCompare(left.memorySlot?.observedAt ?? '') ||
+        right.record.updatedAt.localeCompare(left.record.updatedAt) ||
+        left.record.id.localeCompare(right.record.id))
+    const slotRanking = new Map(slotOrder.map((item) => [item.record.id, 1] as const))
+    const valueOrder = filteredItems
+      .filter((item) => item.queryMentionsValue)
+      .sort((left, right) => right.record.updatedAt.localeCompare(left.record.updatedAt) || left.record.id.localeCompare(right.record.id))
+    const valueRanking = new Map(valueOrder.map((item) => [item.record.id, 1] as const))
+    // The fact-index channel outranks word overlap: an attribute hit is what
+    // "the user asked about this exact fact" means.
+    const factOrder = filteredItems
+      .filter((item) => item.factAddressed)
+      .sort((left, right) => right.record.confidence - left.record.confidence || right.record.updatedAt.localeCompare(left.record.updatedAt) || left.record.id.localeCompare(right.record.id))
+    const factRanking = new Map(factOrder.map((item) => [item.record.id, 1] as const))
+    const fusedRelevance = reciprocalRankFusion([factRanking, lexicalRanking, slotRanking, valueRanking])
+
+    const ranked = filteredItems
+      .map((item) => ({ item, relevance: this.options.useContextUtility === false ? item.score : (fusedRelevance.get(item.record.id) ?? 0) }))
       .sort((left, right) => this.options.useContextUtility === false
         // Legacy ordering (relevance only) used by the ablation arm.
-        ? right.score - left.score ||
-          right.record.updatedAt.localeCompare(left.record.updatedAt) ||
-          left.record.id.localeCompare(right.record.id)
-        : rankScore(right, now, conflictedIds, preferenceFor) - rankScore(left, now, conflictedIds, preferenceFor) ||
-          right.record.updatedAt.localeCompare(left.record.updatedAt) ||
-          left.record.id.localeCompare(right.record.id))
+        ? right.item.score - left.item.score ||
+          right.item.record.updatedAt.localeCompare(left.item.record.updatedAt) ||
+          left.item.record.id.localeCompare(right.item.record.id)
+        : rankScore(right.item, now, conflictedIds, preferenceFor, importanceOf(right.item.record.id), right.relevance) - rankScore(left.item, now, conflictedIds, preferenceFor, importanceOf(left.item.record.id), left.relevance) ||
+          right.item.record.updatedAt.localeCompare(left.item.record.updatedAt) ||
+          left.item.record.id.localeCompare(right.item.record.id))
 
     const selected: ContextMemory[] = []
     const slots = new Map<string, FactSlot | null>()
@@ -267,7 +400,7 @@ export class MemoryContextAssembler {
     }
     const encode = presentation === 'entries' ? encodeEntries : encodeJson
     let text = encode(selected)
-    for (const item of eligible.slice(0, limit)) {
+    for (const item of ranked.slice(0, limit).map((entry) => entry.item)) {
       slots.set(item.record.id, item.memorySlot)
       const candidate = [...selected, {
         id: item.record.id,

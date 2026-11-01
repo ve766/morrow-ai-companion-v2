@@ -38,6 +38,8 @@ export const IPC_CHANNELS = {
   personalitySave: 'morrow:personality:save',
   personalityHistory: 'morrow:personality:history',
   personalityRestore: 'morrow:personality:restore',
+  personalityGrowthGet: 'morrow:personality:growth:get',
+  personalityGrowthRollback: 'morrow:personality:growth:rollback',
   chatSend: 'morrow:chat:send',
   chatCancel: 'morrow:chat:cancel',
   chatDelta: 'morrow:chat:delta',
@@ -89,6 +91,7 @@ export const IPC_CHANNELS = {
   reflectionFindings: 'morrow:selfmodel:reflection:findings',
   pendingItemsList: 'morrow:continuity:pending:list',
   pendingItemsComplete: 'morrow:continuity:pending:complete',
+  pendingItemsDecide: 'morrow:continuity:pending:decide',
   turnContextRead: 'morrow:continuity:turn:read'
 } as const
 
@@ -203,6 +206,12 @@ export interface PendingItemIdRequest {
   itemId: string
 }
 
+/** D-11: the user decision on one open internal item. */
+export interface PendingItemDecisionRequest {
+  itemId: string
+  decision: 'accepted' | 'rejected' | 'dismissed'
+}
+
 /** Phase 2.4: read one turn's recorded cognitive context. */
 export interface TurnContextRequest {
   turnId: string
@@ -210,6 +219,11 @@ export interface TurnContextRequest {
 
 export interface PersonalityRestoreRequest {
   version: number
+}
+
+/** D-1: diagnostic read / user-facing rollback of the G1 growth ledger. */
+export interface PersonalityGrowthRollbackRequest {
+  dimension: 'warmth' | 'directness' | 'humor'
 }
 
 export interface CognitiveSettingsRequest {
@@ -269,6 +283,8 @@ export interface MorrowBridge {
     save(request: PersonalityInput): Promise<IpcResult<PersonalityProfile>>
     history(): Promise<IpcResult<PersonalityRevision[]>>
     restore(request: PersonalityRestoreRequest): Promise<IpcResult<PersonalityProfile>>
+    growthGet(): Promise<IpcResult<import('../personalization/personality-growth').GrowthEntry[] | null>>
+    growthRollback(request: PersonalityGrowthRollbackRequest): Promise<IpcResult<boolean>>
   }
   selfModel: {
     listInterests(): Promise<IpcResult<import('../self-model/self-model-domain').InterestRecord[]>>
@@ -293,6 +309,7 @@ export interface MorrowBridge {
   continuity: {
     listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
     completePendingItem(request: PendingItemIdRequest): Promise<IpcResult<boolean>>
+    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<boolean>>
     readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
   chat: {

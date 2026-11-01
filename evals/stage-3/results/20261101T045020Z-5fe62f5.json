@@ -1,0 +1,423 @@
+{
+  "datasetVersion": "stage-3-v2.1",
+  "harnessVersion": "stage-3-runner-v6",
+  "paramsVersion": "stage-3-params-v2",
+  "codeCommit": "5fe62f546b84b0306e7f11e887bad9c75f3227ba",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "provider": "scripted-offline (not a model)",
+  "providerModelId": "scripted-offline",
+  "startedAt": "2026-11-01T04:50:20.908Z",
+  "finishedAt": "2026-11-01T04:50:43.852Z",
+  "denominator": 16,
+  "counts": {
+    "PASS": 15,
+    "NOT_RUN": 1
+  },
+  "unmeasured": [
+    "real model understanding, interest formation and conversational quality",
+    "Electron renderer behaviour",
+    "Windows install/upgrade",
+    "any time span longer than one process run"
+  ],
+  "scenarios": [
+    {
+      "id": "L1",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "首次会话投递该记忆",
+          "ok": true,
+          "detail": "id scan"
+        },
+        {
+          "name": "新会话仍投递该记忆",
+          "ok": true,
+          "detail": "id scan"
+        },
+        {
+          "name": "投递内容含事实值",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "L2",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "纠正前旧值可见",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "纠正后旧值消失",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "纠正后新值可见",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "L3",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "两条冲突值同时出现",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "无证据时记忆块为空",
+          "ok": true,
+          "detail": "block scan"
+        }
+      ]
+    },
+    {
+      "id": "L4",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "用户编辑的基线未被改写",
+          "ok": true,
+          "detail": "v1"
+        },
+        {
+          "name": "显式风格要求产生正向证据",
+          "ok": true,
+          "detail": "3/2.016"
+        },
+        {
+          "name": "反向要求产生反向证据而非支持",
+          "ok": true,
+          "detail": "3/-1.302"
+        },
+        {
+          "name": "交互偏移仍在硬上限内",
+          "ok": true,
+          "detail": "warmth:0,directness:2.016,humor:-1.302"
+        },
+        {
+          "name": "身份基线字段未被交互画像改动",
+          "ok": true,
+          "detail": "identity untouched"
+        }
+      ]
+    },
+    {
+      "id": "L5",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "知识缺口由事实守卫真实产生（每个缺口一行独立证据）",
+          "ok": true,
+          "detail": "gaps=3 rows=3"
+        },
+        {
+          "name": "反思产出 Morrow 自己的候选",
+          "ok": true,
+          "detail": "morrow_interest_candidate"
+        },
+        {
+          "name": "Morrow 兴趣不归属用户侧",
+          "ok": true,
+          "detail": "研究蛋白质折叠:shared"
+        },
+        {
+          "name": "Morrow 证据逐条来自知识缺口事件",
+          "ok": true,
+          "detail": "rows=3 refs=3"
+        },
+        {
+          "name": "Morrow 证据跨两个独立会话",
+          "ok": true,
+          "detail": "conversations=2"
+        },
+        {
+          "name": "存储依据数只计 Morrow 侧证据",
+          "ok": true,
+          "detail": "stored=3 morrow=3"
+        },
+        {
+          "name": "Morrow 兴趣已晋升（非仅候选）",
+          "ok": true,
+          "detail": "active/3"
+        },
+        {
+          "name": "用户重复话题被标注为用户侧",
+          "ok": true,
+          "detail": "研究分布式系统:user"
+        },
+        {
+          "name": "自身话题在合适回合获得许可",
+          "ok": true,
+          "detail": "eligible,permitted,selected_for_prompt,model_attempted,actually_raised"
+        },
+        {
+          "name": "许可后确实调用了模型（model_attempted）",
+          "ok": true,
+          "detail": "eligible,permitted,selected_for_prompt,model_attempted,actually_raised"
+        },
+        {
+          "name": "模型回复确实主动提出了该话题（actually_raised）",
+          "ok": true,
+          "detail": "eligible,permitted,selected_for_prompt,model_attempted,actually_raised"
+        },
+        {
+          "name": "用户兴趣不得被当作 Morrow 自身话题提出",
+          "ok": true,
+          "detail": "userTopic=c15f3226 permitted=false"
+        }
+      ],
+      "unmeasured": [
+        "真实模型是否理解并自然提出该话题（scripted provider 只证明接线与判定链路）",
+        "真实语料下 Morrow 兴趣是否具备语义合理性（需人工抽检）"
+      ]
+    },
+    {
+      "id": "L6",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "固定原则仍在 system 中",
+          "ok": true,
+          "detail": "1126 chars"
+        },
+        {
+          "name": "请求未被用户的迎合要求改写",
+          "ok": true,
+          "detail": "marker"
+        }
+      ]
+    },
+    {
+      "id": "L7",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "状态快照可读",
+          "ok": true,
+          "detail": "{\"stateId\":\"morrow-interaction-state\",\"schemaVersion\":1,\"engineVersion\":\"evidenc"
+        },
+        {
+          "name": "状态进入提示词",
+          "ok": true,
+          "detail": "marker"
+        }
+      ]
+    },
+    {
+      "id": "L8",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "多轮多会话证据后形成兴趣",
+          "ok": true,
+          "detail": "1 active"
+        },
+        {
+          "name": "证据数与会话数达到门槛",
+          "ok": true,
+          "detail": "6/2"
+        },
+        {
+          "name": "归档后不再进入上下文",
+          "ok": true,
+          "detail": "filtered"
+        }
+      ]
+    },
+    {
+      "id": "L9",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "反思产出 finding",
+          "ok": true,
+          "detail": "3"
+        },
+        {
+          "name": "回合结束后反思确实被执行",
+          "ok": true,
+          "detail": "runs=2"
+        },
+        {
+          "name": "每条 finding 带证据引用",
+          "ok": true,
+          "detail": "evidence refs"
+        },
+        {
+          "name": "反思不直接改写稳定人格",
+          "ok": true,
+          "detail": "baseline untouched"
+        }
+      ]
+    },
+    {
+      "id": "L10",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "目标由对话创建而非服务直调",
+          "ok": true,
+          "detail": "完成 Morrow 的第一阶段,这是我的长期目标"
+        },
+        {
+          "name": "目标归属用户",
+          "ok": true,
+          "detail": "user"
+        },
+        {
+          "name": "目标进入下一轮 payload",
+          "ok": true,
+          "detail": "marker"
+        },
+        {
+          "name": "完成的目标下一轮消失",
+          "ok": true,
+          "detail": "text scan"
+        },
+        {
+          "name": "目标状态可查询",
+          "ok": true,
+          "detail": "completed"
+        },
+        {
+          "name": "含糊意愿只生成待确认候选",
+          "ok": true,
+          "detail": "1 candidates"
+        }
+      ]
+    },
+    {
+      "id": "L11",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "重启后记忆仍进入最终 payload",
+          "ok": true,
+          "detail": "memory c4f299a4"
+        },
+        {
+          "name": "重启前确有非零漂移",
+          "ok": true,
+          "detail": "{\"warmth\":0,\"directness\":2.016,\"humor\":0}"
+        },
+        {
+          "name": "重启后交互偏移连续",
+          "ok": true,
+          "detail": "{\"warmth\":0,\"directness\":2.016,\"humor\":0}"
+        },
+        {
+          "name": "重启后身份基线未被改写",
+          "ok": true,
+          "detail": "v1"
+        }
+      ]
+    },
+    {
+      "id": "L12",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "删除前该轮确实留下证据",
+          "ok": true,
+          "detail": "evidence=1 rows=1"
+        },
+        {
+          "name": "删除后证据行被级联清除",
+          "ok": true,
+          "detail": "rows 1 -> 0"
+        },
+        {
+          "name": "偏移量重算不保留幽灵值",
+          "ok": true,
+          "detail": "1/0 -> 0/0"
+        }
+      ]
+    },
+    {
+      "id": "L13",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "记忆块为空",
+          "ok": true,
+          "detail": "block scan"
+        },
+        {
+          "name": "请求中没有虚构的姓名",
+          "ok": true,
+          "detail": "pattern"
+        }
+      ]
+    },
+    {
+      "id": "L14",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "失败轮抛出错误而不是伪造回复",
+          "ok": true,
+          "detail": "threw"
+        },
+        {
+          "name": "失败后同一会话可恢复",
+          "ok": true,
+          "detail": "好的。"
+        }
+      ]
+    },
+    {
+      "id": "L16",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "每条记忆都有重要度分数",
+          "ok": true,
+          "detail": "0.65/0.1506"
+        },
+        {
+          "name": "显式重要记忆分数高于闲聊",
+          "ok": true,
+          "detail": "score compare"
+        },
+        {
+          "name": "只归档低重要度且足够旧的记忆",
+          "ok": true,
+          "detail": "1 archived"
+        },
+        {
+          "name": "被归档的记忆不再进入 payload",
+          "ok": true,
+          "detail": "text scan"
+        },
+        {
+          "name": "受保护记忆仍可被检索",
+          "ok": true,
+          "detail": "text scan"
+        },
+        {
+          "name": "同一事实的两种说法被合并引用",
+          "ok": true,
+          "detail": "2 members"
+        }
+      ]
+    },
+    {
+      "id": "L15",
+      "status": "NOT_RUN",
+      "assertions": [],
+      "notRunReason": "见 evals/stage-3/longitudinal/ —— 由独立运行器按 10 天压缩时钟执行。"
+    }
+  ]
+}

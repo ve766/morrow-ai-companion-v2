@@ -39,6 +39,23 @@ export interface TurnEvaluation {
    * `claims` is a count, never the claim text.
    */
   guard: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+  /**
+   * D-5 use trace: which delivered memories the reply plausibly used — a
+   * value-level containment match between the reply and a memory's fact
+   * value. An objective label, never proof of understanding.
+   */
+  memoryUse: { referencedIds: string[]; deliveredCount: number } | null
+  /**
+   * P0-B evidence gate: the four-way failure classification for personal-fact
+   * turns plus the bounded decision heuristic. `answerConfidence` is a
+   * strategy input assembled from coverage/source/validity/conflict — a
+   * heuristic, never a calibrated probability.
+   */
+  evidenceGate: {
+    classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict'
+    answerConfidence: number
+    manifest: { selectedIds: string[]; conflictIds: string[]; omitted: number }
+  } | null
   recordedAt: string
 }
 
@@ -58,6 +75,12 @@ export interface TurnEvaluationInput {
   providerOutcome: ProviderTurnOutcome
   answer: AnswerEvidenceAssessment | null
   guard?: { verdict: 'allow' | 'rewrite'; reason: string; claims: number } | null
+  memoryUse?: { referencedIds: readonly string[]; deliveredCount: number } | null
+  evidenceGate?: {
+    classification: 'evidence_delivered' | 'retrieval_miss' | 'model_unused' | 'answer_conflict'
+    answerConfidence: number
+    manifest: { selectedIds: readonly string[]; conflictIds: readonly string[]; omitted: number }
+  } | null
   recordedAt: string
 }
 
@@ -88,6 +111,20 @@ export function buildTurnEvaluation(input: TurnEvaluationInput): TurnEvaluation 
     provider: { providerId: input.providerId, model: input.model, outcome: input.providerOutcome },
     answer: input.answer,
     guard: input.guard ?? null,
+    memoryUse: input.memoryUse
+      ? { referencedIds: [...new Set(input.memoryUse.referencedIds)].slice(0, 25), deliveredCount: Math.max(0, input.memoryUse.deliveredCount) }
+      : null,
+    evidenceGate: input.evidenceGate
+      ? {
+          classification: input.evidenceGate.classification,
+          answerConfidence: Math.max(0, Math.min(100, Math.round(input.evidenceGate.answerConfidence))),
+          manifest: {
+            selectedIds: [...new Set(input.evidenceGate.manifest.selectedIds)].slice(0, 25),
+            conflictIds: [...new Set(input.evidenceGate.manifest.conflictIds)].slice(0, 25),
+            omitted: Math.max(0, input.evidenceGate.manifest.omitted)
+          }
+        }
+      : null,
     recordedAt: recordedAt.toISOString()
   }
 }
@@ -135,6 +172,10 @@ export function turnEvaluationEventPayload(evaluation: TurnEvaluation): Record<s
     providerOutcome: evaluation.provider.outcome,
     answerOutcome: evaluation.answer?.outcome ?? 'not_scored',
     answerScored: evaluation.answer?.scored ?? false,
-    answerDetail: evaluation.answer?.detail ?? 'not_scored'
+    answerDetail: evaluation.answer?.detail ?? 'not_scored',
+    memoryUseReferenced: evaluation.memoryUse?.referencedIds.length ?? null,
+    memoryUseDelivered: evaluation.memoryUse?.deliveredCount ?? null,
+    evidenceGate: evaluation.evidenceGate?.classification ?? null,
+    answerConfidence: evaluation.evidenceGate?.answerConfidence ?? null
   }
 }

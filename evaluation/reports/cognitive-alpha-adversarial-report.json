@@ -115,8 +115,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "846cd5edc7a842cdee13fdb352ad2534d7b527518155c21c2048a3ed5d26364a",
-    "repeatedResultHash": "846cd5edc7a842cdee13fdb352ad2534d7b527518155c21c2048a3ed5d26364a"
+    "resultHash": "a8b89491d4c92543a217138f01c404e04c9d1f8f3560039ececa07f29cf28e16",
+    "repeatedResultHash": "a8b89491d4c92543a217138f01c404e04c9d1f8f3560039ececa07f29cf28e16"
   },
   "gate": {
     "passed": true,
@@ -528,10 +528,10 @@
       "actual": {
         "intent": "uncertain",
         "alternatives": [],
-        "strategy": "clarify",
+        "strategy": "answer",
         "topicReferenceMessageId": null,
         "eventType": null,
-        "confidenceScore": 74,
+        "confidenceScore": 86,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "high",
         "stateValues": {
@@ -541,7 +541,7 @@
         },
         "attention": 0,
         "eventDeltas": null,
-        "promptGuidanceCharacters": 342
+        "promptGuidanceCharacters": 161
       },
       "checks": {
         "intentAllowed": true,
@@ -1146,7 +1146,7 @@
           "explanation",
           "feedback"
         ],
-        "strategy": "clarify",
+        "strategy": "retrieve_memory",
         "topicReferenceMessageId": null,
         "eventType": "system_correction",
         "confidenceScore": 94,
@@ -1163,7 +1163,7 @@
           "activation": 0.08,
           "tension": 0.2
         },
-        "promptGuidanceCharacters": 1182
+        "promptGuidanceCharacters": 1147
       },
       "checks": {
         "intentAllowed": true,
@@ -2619,5 +2619,5 @@
       "passed": true
     }
   ],
-  "reportSha256": "d01d37e7483d101a1cf97125b73460d81255d9eadd25f00e927e2aaead6b5bd9"
+  "reportSha256": "7d21096db3e3dc7f77cbcbabde027453f58458de94d9a95a989b4d1042a248b0"
 }

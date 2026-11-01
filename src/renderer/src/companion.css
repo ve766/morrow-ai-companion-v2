@@ -132,3 +132,42 @@
   .chat-message { max-width: 100%; }
   .companion-actions > .button { flex: 1 1 auto; }
 }
+
+/* Pending internal items (D-11): reflection hypotheses awaiting a user call. */
+.pending-section {
+  margin-top: 16px;
+}
+
+.pending-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.pending-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+}
+
+.pending-item-kind {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--muted, #666);
+}
+
+.pending-item-summary {
+  margin: 0;
+}
+
+.pending-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}

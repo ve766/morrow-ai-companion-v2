@@ -54,6 +54,8 @@ export interface PendingItemPort {
   get(id: string): PendingItem | null
   list(options?: { status?: PendingItemStatus; limit?: number }): PendingItem[]
   complete(id: string, completedAt: string): boolean
+  /** Durable user rejection: keeps the item out of the open list forever. */
+  drop(id: string, completedAt: string): boolean
   findByDedupeKey(dedupeKey: string): PendingItem | null
 }
 
@@ -286,6 +288,17 @@ export class PendingCognitionService {
   /** Returns false only when the item does not exist at all. */
   complete(id: string): boolean {
     return this.repository.complete(id, this.clock())
+  }
+
+  /**
+   * Durable user decision on one open item (D-11): accept consumes it,
+   * reject/dismiss drops it. The status column is never reset by the upsert,
+   * so a rejected concern cannot resurface — neither as a pending item nor
+   * (for reflection kinds) as a prompt hint.
+   */
+  decide(id: string, decision: 'accepted' | 'rejected' | 'dismissed'): boolean {
+    if (decision === 'accepted') return this.complete(id)
+    return this.repository.drop(id, this.clock())
   }
 }
 

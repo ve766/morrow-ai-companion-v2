@@ -115,7 +115,7 @@ describe('an invalidated interest stops reaching the request payload', () => {
 
     // Positive control: the block and this exact id are in the serialized request.
     await sendTurn(companion, second.id)
-    expect(provider.lastPayload).toContain('Bounded long-term attention signal')
+    expect(provider.lastPayload).toContain('Topics the user returned to across conversations')
     expect(provider.lastPayload).toContain(target.id)
 
     memories.retract(memoryA.id)

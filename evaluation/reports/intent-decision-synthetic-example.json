@@ -1,6 +1,6 @@
 {
   "evaluatorVersion": "1.0.0",
-  "decisionVersion": "intent-rules-v1",
+  "decisionVersion": "intent-rules-v2",
   "dataset": {
     "id": "intent-decision-synthetic-v1",
     "version": "1.0.0",
@@ -88,7 +88,7 @@
         "needsMemoryRetrieval": true,
         "dependsOnPriorTurn": false,
         "mayProduceMemoryCandidate": false,
-        "confidence": 88,
+        "confidence": 84,
         "confidenceLevel": "high",
         "reasons": [
           "question_marker",
@@ -119,7 +119,7 @@
         "needsMemoryRetrieval": false,
         "dependsOnPriorTurn": false,
         "mayProduceMemoryCandidate": false,
-        "confidence": 84,
+        "confidence": 80,
         "confidenceLevel": "high",
         "reasons": [
           "question_marker",
@@ -149,7 +149,7 @@
         "needsMemoryRetrieval": true,
         "dependsOnPriorTurn": false,
         "mayProduceMemoryCandidate": false,
-        "confidence": 84,
+        "confidence": 80,
         "confidenceLevel": "high",
         "reasons": [
           "question_marker",
@@ -179,7 +179,7 @@
         "needsMemoryRetrieval": true,
         "dependsOnPriorTurn": false,
         "mayProduceMemoryCandidate": false,
-        "confidence": 88,
+        "confidence": 84,
         "confidenceLevel": "high",
         "reasons": [
           "question_marker",
@@ -443,7 +443,7 @@
         "needsMemoryRetrieval": true,
         "dependsOnPriorTurn": false,
         "mayProduceMemoryCandidate": true,
-        "confidence": 96,
+        "confidence": 92,
         "confidenceLevel": "high",
         "reasons": [
           "goal_or_plan_marker",
@@ -474,7 +474,7 @@
         "needsMemoryRetrieval": true,
         "dependsOnPriorTurn": false,
         "mayProduceMemoryCandidate": true,
-        "confidence": 92,
+        "confidence": 88,
         "confidenceLevel": "high",
         "reasons": [
           "goal_or_plan_marker",
@@ -812,5 +812,5 @@
       }
     }
   ],
-  "reportSha256": "e664606565843dbeda4a9f4e6543639ed2c7a86bc8a00cac07bdcb38b9b33a14"
+  "reportSha256": "bd92e76334c9365f1f6848c0e607e77e669d542fa9294bf930f7d19bde2ad5ea"
 }

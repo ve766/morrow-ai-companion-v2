@@ -85,7 +85,8 @@ describe('B5 reflection cannot block a turn', () => {
           run: () => {
             reflectionCalls += 1
             throw new Error('injected reflection failure')
-          }
+          },
+          findings: () => []
         }
       },
       continuity: {

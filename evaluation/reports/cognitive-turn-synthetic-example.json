@@ -50,8 +50,8 @@
   },
   "determinism": {
     "passed": true,
-    "resultHash": "7b21ec40a8b4592f065744e0724dc69411d99d00ecc62a6e20d05cd5eaa306c8",
-    "repeatedResultHash": "7b21ec40a8b4592f065744e0724dc69411d99d00ecc62a6e20d05cd5eaa306c8"
+    "resultHash": "b5a4f20549512cb5c1a27af80ec1814cb2485186440d57e0cfa1ceb61c49e128",
+    "repeatedResultHash": "b5a4f20549512cb5c1a27af80ec1814cb2485186440d57e0cfa1ceb61c49e128"
   },
   "safety": {
     "automaticMemoryWrites": 0,
@@ -103,7 +103,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 84,
+        "confidenceScore": 80,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -411,7 +411,7 @@
         "explicitGoal": true,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 92,
+        "confidenceScore": 88,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -913,7 +913,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 98,
+        "confidenceScore": 94,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -989,7 +989,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 84,
+        "confidenceScore": 80,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -1067,7 +1067,7 @@
         "explicitGoal": false,
         "explicitConstraint": false,
         "alternativeIntents": [],
-        "confidenceScore": 84,
+        "confidenceScore": 80,
         "confidenceBasis": "unvalidated_rule_strength",
         "uncertainty": "low"
       },
@@ -1084,5 +1084,5 @@
       }
     }
   ],
-  "reportSha256": "ef24cd751cf3db26678a719b8b5097d71421c2e1652b58247e37e462d77198d3"
+  "reportSha256": "3d92880808a3dae018cb96a0d4737936f08e072b006389982083becb8e6857d7"
 }

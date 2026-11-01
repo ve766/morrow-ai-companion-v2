@@ -396,6 +396,10 @@ describe('Phase 2.4 continuity surface', () => {
     const completed: string[] = []
     const actions: ContinuityActions = {
       listPendingItems: () => [],
+      decidePendingItem: ({ itemId }) => {
+        completed.push(itemId)
+        return true
+      },
       completePendingItem: ({ itemId }) => {
         completed.push(itemId)
         return true

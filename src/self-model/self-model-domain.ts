@@ -1,6 +1,17 @@
 export const INTEREST_STATUS_VALUES = ['candidate', 'active', 'archived', 'dropped'] as const
 export type InterestStatus = (typeof INTEREST_STATUS_VALUES)[number]
 
+/**
+ * Whose interest a row describes.
+ *
+ * `user`   — the user kept returning to the topic.
+ * `morrow` — Morrow chose to pursue it from her own reflection or unresolved
+ *            questions. It is never inferred from how often the user talks.
+ * `shared` — both have independent evidence for the same topic.
+ */
+export const INTEREST_ORIGINS = ['user', 'morrow', 'shared'] as const
+export type InterestOrigin = (typeof INTEREST_ORIGINS)[number]
+
 export const SELF_MODEL_KINDS = ['fact', 'inference', 'unknown', 'correction'] as const
 export type SelfModelKind = (typeof SELF_MODEL_KINDS)[number]
 
@@ -17,7 +28,10 @@ export const REFLECTION_FINDING_KINDS = [
   // a stored fact.
   'intent_correction',
   // A bounded suggestion for the next turn, derived from repeated feedback.
-  'next_turn_suggestion'
+  'next_turn_suggestion',
+  // A question Morrow formed herself, from her own repeated failure to ground
+  // an answer. Not "the user talks about this" — the evidence is her own gaps.
+  'morrow_interest_candidate'
 ] as const
 export type ReflectionFindingKind = (typeof REFLECTION_FINDING_KINDS)[number]
 
@@ -28,6 +42,8 @@ export interface InterestRecord {
   id: string
   label: string
   status: InterestStatus
+  /** Whose interest this is; never inferred from the other party's evidence. */
+  origin: InterestOrigin
   evidenceCount: number
   conversationCount: number
   strength: number
@@ -37,6 +53,13 @@ export interface InterestRecord {
   firstSeenAt: string
   lastSeenAt: string
   updatedAt: string
+  /**
+   * Set by a trigger when the evidence ledger changed under this aggregate
+   * (message deleted, memory retracted, conversation removed). A stale row must
+   * be recomputed before it may reach a prompt: the cached counters are a
+   * projection, the ledger is the fact.
+   */
+  staleAt?: string | null
   /** Deterministic term set (CJK bigrams / latin tokens) from observed texts; used for topic identity. */
   terms: string[]
   /**

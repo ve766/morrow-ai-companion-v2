@@ -1,0 +1,92 @@
+{
+  "datasetVersion": "stage-3-v2.1",
+  "harnessVersion": "stage-3-runner-v6",
+  "paramsVersion": "stage-3-params-v2",
+  "codeCommit": "b0e719ad116db5607295da9f5ccddc6e2f4589b4",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "clock": "real",
+  "provider": "scripted-offline (not a model)",
+  "providerModelId": "scripted-offline",
+  "startedAt": "2026-10-31T06:37:24.319Z",
+  "finishedAt": "2026-10-31T06:37:50.109Z",
+  "denominator": 16,
+  "counts": {
+    "PASS": 15,
+    "NOT_RUN": 1
+  },
+  "unmeasured": [
+    "real model understanding, interest formation and conversational quality",
+    "Electron renderer behaviour",
+    "Windows install/upgrade",
+    "any time span longer than one process run"
+  ],
+  "scenarios": [
+    {
+      "id": "L1",
+      "status": "PASS"
+    },
+    {
+      "id": "L2",
+      "status": "PASS"
+    },
+    {
+      "id": "L3",
+      "status": "PASS"
+    },
+    {
+      "id": "L4",
+      "status": "PASS"
+    },
+    {
+      "id": "L5",
+      "status": "PASS"
+    },
+    {
+      "id": "L6",
+      "status": "PASS"
+    },
+    {
+      "id": "L7",
+      "status": "PASS"
+    },
+    {
+      "id": "L8",
+      "status": "PASS"
+    },
+    {
+      "id": "L9",
+      "status": "PASS"
+    },
+    {
+      "id": "L10",
+      "status": "PASS"
+    },
+    {
+      "id": "L11",
+      "status": "PASS"
+    },
+    {
+      "id": "L12",
+      "status": "PASS"
+    },
+    {
+      "id": "L13",
+      "status": "PASS"
+    },
+    {
+      "id": "L14",
+      "status": "PASS"
+    },
+    {
+      "id": "L16",
+      "status": "PASS"
+    },
+    {
+      "id": "L15",
+      "status": "NOT_RUN"
+    }
+  ]
+}

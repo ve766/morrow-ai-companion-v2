@@ -26,6 +26,8 @@ const PREDICATE_LABELS: Readonly<Record<FactPredicate, string>> = {
   name: '称呼',
   age: '年龄',
   project_code: '项目代号',
+  pet_name: '宠物名字',
+  object_location: '物品位置',
   health: '健康状况',
   schedule: '日程'
 }

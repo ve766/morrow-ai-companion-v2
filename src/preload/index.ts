@@ -18,6 +18,7 @@ import {
   type MorrowBridge,
   type ConversationIdRequest,
   type PersonalityRestoreRequest,
+  type PersonalityGrowthRollbackRequest,
   type CognitiveSettingsRequest,
   type InterestStatusRequest,
   type SelfModelListRequest,
@@ -25,6 +26,7 @@ import {
   type SelfModelIdRequest,
   type ReflectionFindingsRequest,
   type PendingItemIdRequest,
+  type PendingItemDecisionRequest,
   type TurnContextRequest
 } from '../shared/contracts'
 import type {
@@ -75,7 +77,9 @@ const bridge: MorrowBridge = Object.freeze({
     get: () => invoke<PersonalityProfile>(IPC_CHANNELS.personalityGet),
     save: (request: PersonalityInput) => invoke<PersonalityProfile>(IPC_CHANNELS.personalitySave, request),
     history: () => invoke<PersonalityRevision[]>(IPC_CHANNELS.personalityHistory),
-    restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request)
+    restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request),
+    growthGet: () => invoke<import('../personalization/personality-growth').GrowthEntry[] | null>(IPC_CHANNELS.personalityGrowthGet),
+    growthRollback: (request: PersonalityGrowthRollbackRequest) => invoke<boolean>(IPC_CHANNELS.personalityGrowthRollback, request)
   }),
   selfModel: Object.freeze({
     listInterests: () => invoke<import('../self-model/self-model-domain').InterestRecord[]>(IPC_CHANNELS.interestsList),
@@ -96,6 +100,7 @@ const bridge: MorrowBridge = Object.freeze({
   continuity: Object.freeze({
     listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),
     completePendingItem: (request: PendingItemIdRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsComplete, request),
+    decidePendingItem: (request: PendingItemDecisionRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsDecide, request),
     readTurnContext: (request: TurnContextRequest) => invoke<CognitiveTurnContext | null>(IPC_CHANNELS.turnContextRead, request)
   }),
   chat: Object.freeze({

@@ -493,3 +493,52 @@ describe('v26 reflection finding kinds', () => {
     }
   })
 })
+
+describe('v39 exploration states and finding routing', () => {
+  it('drops the unreachable user_rejected state, keeps rows, and adds the routing tables', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v39-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 38)).toBe(38)
+      // A state the production writer could reach before the upgrade.
+      connection.prepare(
+        "INSERT INTO exploration_events(id, turn_id, interest_id, state, reason, created_at) VALUES (?, ?, ?, 'actually_raised', ?, ?)"
+      ).run('77777777-7777-4777-8777-777777777777', '88888888-8888-4888-8888-888888888888', '99999999-9999-4999-8999-999999999999', 'reply mentioned the topic', '2026-10-31T00:00:00.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      // The upgrade keeps the row and the new CHECK refuses the dead state:
+      // no production writer ever set it, so honest removal costs nothing.
+      const kept = connection.prepare('SELECT id, state FROM exploration_events').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ id: '77777777-7777-4777-8777-777777777777', state: 'actually_raised' })
+      expect(() => connection.prepare(
+        "INSERT INTO exploration_events(id, turn_id, interest_id, state, reason, created_at) VALUES (?, ?, ?, 'user_rejected', ?, ?)"
+      ).run('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dead state', '2026-10-31T00:01:00.000Z')).toThrow()
+
+      // Routing table: routes and statuses are closed sets.
+      expect(() => connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'context_hint', 'routed', 'hint for next turn', ?, 'memory_gap', ?, ?)"
+      ).run('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-10-31T00:02:00.000Z', '2026-10-31T00:02:00.000Z')).toThrow()
+      // The FK is real: a route row needs its finding row.
+      expect(() => connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'audit_only', 'routed', 'consumed by the interest effect', ?, 'interest_candidate', ?, ?)"
+      ).run('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-10-31T00:02:00.000Z', '2026-10-31T00:02:00.000Z')).toThrow()
+
+      // Maintenance state: exactly one row, closed status set.
+      connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (1, ?, 'ok', 12)"
+      ).run('2026-10-31T00:03:00.000Z')
+      expect(() => connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (2, ?, 'ok', 12)"
+      ).run('2026-10-31T00:03:00.000Z')).toThrow()
+      expect(() => connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (1, ?, 'skipped', 12)"
+      ).run('2026-10-31T00:04:00.000Z')).toThrow()
+    } finally {
+      connection.close()
+    }
+  })
+})

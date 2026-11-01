@@ -7,6 +7,9 @@ import type { ProviderConsent, ProviderConsentPreview } from '../providers/provi
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { MemoryService } from '../memory/memory-service'
+import { MemoryImportanceService, ARCHIVE_THRESHOLD } from '../memory/memory-importance'
+import { MemoryMaintenanceScheduler } from '../memory/memory-maintenance'
+import { FactMemoryService } from '../memory/fact-memory'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
@@ -22,10 +25,17 @@ import { createLogger } from '../observability/logger'
 import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
 import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { PersonalizationService } from '../personalization/personalization-service'
+import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { ReflectionFindingRouter } from '../cognition/reflection-routing'
+import { PersonalityService } from './companion-service'
+import { ExplorationService } from '../self-model/exploration-policy'
+import { CompanionGoalService } from '../motivation/companion-goal'
+import { UserInteractionProfileService } from '../personalization/interaction-profile'
 import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
 import { PendingCognitionService, runBounded } from '../cognition/pending-items'
 import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../persistence/turn-state-repository'
+import { IntentReadingRepository } from '../persistence/intent-reading-repository'
 import { ApplicationError } from '../shared/errors'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
@@ -36,6 +46,7 @@ const logger = createLogger({ minimumLevel: 'info' })
 let mainWindow: BrowserWindow | undefined
 let unregisterIpc: (() => void) | undefined
 let database: SqliteDatabase | undefined
+let memoryMaintenance: MemoryMaintenanceScheduler | undefined
 let reminderService: ReminderService | undefined
 let companionService: CompanionService | undefined
 let eventLog: EventLogService | undefined
@@ -185,11 +196,56 @@ if (hasSingleInstanceLock) {
     database = SqliteDatabase.open(databasePath)
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
-    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog)
+    // Stage 3 §2A: importance is recomputed on every memory change; decay only
+    // archives memories that are both low-importance and 180 days untouched, so
+    // a recently used memory is never pushed out by age alone.
+    const memoryImportance = new MemoryImportanceService(database)
+    // P0-A: the addressable fact layer, rebuilt from the memories at start
+    // (idempotent) and kept current by the MemoryService lifecycle hooks.
+    const factMemory = new FactMemoryService({ database })
+    try {
+      factMemory.reindexAll()
+    } catch {
+      logger.warn('memory', 'fact index catch-up failed; attribute lookups degrade until the next pass')
+    }
+    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance, factIndex: factMemory })
+    // D-12: a lifecycle-controlled scheduler replaces the startup-only pass.
+    // It catches up now (the old behaviour), then runs on an interval decided
+    // by absolute time — a long-running process keeps its importance scores
+    // fresh, and no tick can double-apply decay.
+    memoryMaintenance = new MemoryMaintenanceScheduler({
+      database,
+      importance: memoryImportance,
+      archiveThreshold: ARCHIVE_THRESHOLD,
+      archiveOlderThanDays: 180,
+      onPass: (outcome) => {
+        logger.debug('memory', 'maintenance pass', { groups: outcome.groups, archived: outcome.archived, status: outcome.status })
+      }
+    })
+    memoryMaintenance.start()
     const conversations = new ConversationService(new SqliteConversationRepository(database))
     const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
     const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
     const personalization = new PersonalizationService(database)
+    // Stage 3: bounded personality drift and constrained self-initiated topics.
+    // Both are evidence-led and reversible; neither can write the baseline the
+    // user edited, and neither can contact the user outside a turn.
+    const growth = new PersonalityGrowthService(database)
+    const exploration = new ExplorationService(database)
+    // How this user asked Morrow to speak, kept apart from her identity: the
+    // baseline comes from the profile the user edited, and only presentation
+    // dimensions move.
+    const interactionDatabase = database
+    const interaction = new UserInteractionProfileService(
+      interactionDatabase,
+      () => {
+        const profile = new PersonalityService(interactionDatabase).get()
+        return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
+      }
+    )
+    // §2D: companionship goals live beside the task-execution GoalService, not
+    // inside it; see the migration comment for why the two are not merged.
+    const companionGoals = new CompanionGoalService(database)
     const reflection = new ReflectionService(
       new SqliteReflectionRepository(database),
       { memories, interests, selfModel, events: eventLog },
@@ -198,6 +254,9 @@ if (hasSingleInstanceLock) {
     // Phase 2.4: the turn context and the open internal items are persisted
     // beside the conversation, so continuity survives a restart.
     const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database))
+    // D-10: one ingestion path for reflection findings, shared by the
+    // automatic projector and the manual run below.
+    const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events: eventLog })
     const turnContexts = new SqliteTurnContextRepository(database)
     const finalizations = new SqliteTurnFinalizationRepository(database)
     const companion = new CompanionService({
@@ -206,8 +265,14 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization },
-      continuity: { contexts: turnContexts, pending: pendingItems, finalizations, states: new SqliteTurnStateRepository(database) }
+      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter },
+      continuity: {
+        contexts: turnContexts,
+        pending: pendingItems,
+        finalizations,
+        states: new SqliteTurnStateRepository(database),
+        readings: new IntentReadingRepository(database)
+      }
     })
     // Settle any turn that was interrupted between its finalization intent and
     // the assistant-message commit. Safe to run on every start.
@@ -226,6 +291,26 @@ if (hasSingleInstanceLock) {
       }
     } catch {
       console.warn('Interrupted turns could not be recovered at startup; the conversation data is unaffected.')
+    }
+    // Post-turn cognition that was committed but never applied (a crash between
+    // the assistant-message commit and the projections). Idempotent, and it runs
+    // after the interrupted-turn recovery so the same turn is not processed by
+    // two paths at once.
+    try {
+      const drained = companion.drainCognition()
+      if (drained.done > 0 || drained.failed > 0) {
+        eventLog.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'cognition.outbox_replayed',
+          actor: 'system',
+          subjectType: 'application',
+          subjectId: null,
+          correlationId: null,
+          payload: drained
+        })
+      }
+    } catch {
+      console.warn('Queued post-turn cognition could not be replayed; it stays queued for the next start.')
     }
     companionService = companion
     const goalRepository = new SqliteGoalRepository(database)
@@ -341,6 +426,7 @@ if (hasSingleInstanceLock) {
       continuity: {
         listPendingItems: () => pendingItems.listOpen(),
         completePendingItem: (request) => pendingItems.complete(request.itemId),
+        decidePendingItem: (request) => pendingItems.decide(request.itemId, request.decision),
         readTurnContext: (request) => turnContexts.get(request.turnId)
       },
       selfModel: {
@@ -360,7 +446,7 @@ if (hasSingleInstanceLock) {
           const outcome = await runBounded(() => {
             const summary = reflection.run('manual')
             if (!('skipped' in summary)) {
-              pendingItems.absorbReflection({ runId: summary.id, findings: reflection.findings(summary.id) })
+              findingRouter.ingestRun(summary.id, reflection.findings(summary.id))
             }
             return summary
           }, { budgetMs: 2_000 })
@@ -394,6 +480,8 @@ if (hasSingleInstanceLock) {
 
 app.on('before-quit', () => {
   eventLog?.tryRecord({ sourceModule: 'app', eventType: 'app.closing', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: {} })
+  memoryMaintenance?.stop()
+  memoryMaintenance = undefined
   reminderService?.shutdown()
   reminderService = undefined
   companionService?.shutdown()

@@ -139,13 +139,48 @@ describe('phase 2.3 B: provider retry', () => {
   })
 
   it('stops retrying when the remaining budget cannot cover the backoff', async () => {
-    // 60ms budget, 40ms backoff: the second wait cannot fit, so it is a deadline.
+    // 60ms budget, 40ms backoff: after one attempt and one wait there are 20ms
+    // left, which cannot cover another 40ms backoff, so it is a deadline.
+    //
+    // The clock is injected. With `Date.now()` the assertion depended on how
+    // long the first attempt took: on an idle machine it passed, and under a
+    // parallel test run the first attempt alone could eat the budget and the
+    // test failed with one call instead of two. A timing test that measures the
+    // machine is not a test of the retry policy.
     const secrets = new MemorySecretStore()
     secrets.set('deepseek', 'test-only-secret')
     const fetcher = vi.fn(async () => jsonResponse({}, 500))
-    const provider = new OpenAICompatibleProvider(config, secrets, fetcher, 45_000, { maxAttempts: 3, baseDelayMs: 40, maxDelayMs: 40, totalBudgetMs: 60 })
+    let now = 0
+    const provider = new OpenAICompatibleProvider(config, secrets, fetcher, 45_000, {
+      maxAttempts: 3,
+      baseDelayMs: 40,
+      maxDelayMs: 40,
+      totalBudgetMs: 60,
+      now: () => now,
+      sleep: async (ms) => { now += ms }
+    })
     await expect(provider.generate(input)).rejects.toMatchObject({ code: 'PROVIDER_DEADLINE' })
     expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry at all when the first attempt already spent the budget', async () => {
+    // The case a parallel run was accidentally measuring: a slow first request
+    // leaves nothing, so there is no second attempt. Asserted on a fake clock so
+    // it is the policy under test, not the machine.
+    const secrets = new MemorySecretStore()
+    secrets.set('deepseek', 'test-only-secret')
+    let now = 0
+    const fetcher = vi.fn(async () => { now += 55; return jsonResponse({}, 500) })
+    const provider = new OpenAICompatibleProvider(config, secrets, fetcher, 45_000, {
+      maxAttempts: 3,
+      baseDelayMs: 40,
+      maxDelayMs: 40,
+      totalBudgetMs: 60,
+      now: () => now,
+      sleep: async (ms) => { now += ms }
+    })
+    await expect(provider.generate(input)).rejects.toMatchObject({ code: 'PROVIDER_DEADLINE' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('reports a total budget as a deadline, not as a single-attempt timeout', async () => {

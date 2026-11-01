@@ -21,6 +21,7 @@ function memory(id: string, text: string, overrides: Partial<MemoryRecord> = {})
     revision: 1,
     confidence: 85,
     lastConfirmedAt: '2026-10-20T00:00:00.000Z',
+    archivedAt: null,
     ...overrides
   }
 }

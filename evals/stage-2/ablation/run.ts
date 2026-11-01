@@ -64,8 +64,15 @@ interface ArmResult {
   turns: number
   payloadBytes: number[]
   personalizationBlockTurns: number
-  /** Delivered memory ids in payload order, per turn: the observable effect of ranking. */
-  memoryOrderByTurn: string[][]
+  /**
+   * Delivered memories per turn, as indices into the fixture list.
+   *
+   * Indices rather than ids: the comparison below only asks whether the order
+   * changed, and an index is stable across the four arms where an id is not.
+   * The type said `string[][]` long after the implementation stopped producing
+   * strings — the runners were never type-checked, so nothing caught it.
+   */
+  memoryOrderByTurn: number[][]
   reflectionRuns: number
   attentionBlockTurns: number
   recordedPersonalization: Array<{ dimension: string; value: number; evidenceCount: number }>
@@ -112,7 +119,7 @@ async function runArm(arm: string, config: ArmConfig): Promise<ArmResult> {
       ...(config.personalization ? { personalization } : {}),
       // A real service, counted: the off arm omits the injection entirely, which
       // is the only honest way to switch reflection off.
-      ...(config.reflection ? { reflection: { run: (trigger: Parameters<ReflectionService['run']>[0]) => { reflectionRuns += 1; return reflection.run(trigger) } } } : {})
+      ...(config.reflection ? { reflection: { run: (trigger: Parameters<ReflectionService['run']>[0]) => { reflectionRuns += 1; return reflection.run(trigger) }, findings: (runId: string) => reflection.findings(runId) } } : {})
     },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
