@@ -25,21 +25,15 @@
  * hint or as a new pending item.
  */
 import type { SqliteDatabase } from '../persistence/database'
+import { REFLECTION_FINDING_KINDS as DOMAIN_FINDING_KINDS, type ReflectionFindingKind } from '../self-model/self-model-domain'
 import type { EventLogService } from '../persistence/event-log'
 import type { PendingCognitionService } from './pending-items'
 
-/** Every finding kind the reflection service can emit today. */
-export const REFLECTION_FINDING_KINDS = [
-  'memory_gap',
-  'intent_correction',
-  'bias_hint',
-  'next_turn_suggestion',
-  'consistency_note',
-  'interest_candidate',
-  'morrow_interest_candidate'
-] as const
+/** Canonical producer kinds; the domain list is the single source of truth. */
+export const REFLECTION_FINDING_KINDS = DOMAIN_FINDING_KINDS
 
-export type ReflectionFindingKind = typeof REFLECTION_FINDING_KINDS[number]
+export type { ReflectionFindingKind }
+
 export type FindingRoute = 'context_hint' | 'pending_user' | 'audit_only'
 
 export interface FindingRouteSpec {
@@ -60,6 +54,11 @@ export const FINDING_ROUTES: Readonly<Record<ReflectionFindingKind, FindingRoute
     route: 'context_hint',
     ttlHours: 24,
     reason: 'retrieval/clarification hint for the next turn, never a fact'
+  },
+  open_question: {
+    route: 'pending_user',
+    ttlHours: 24 * 7,
+    reason: 'an unresolved question Morrow formed; the user decides whether it matters'
   },
   intent_correction: {
     route: 'pending_user',
@@ -168,7 +167,7 @@ export class ReflectionFindingRouter {
         // never resets it), so it cannot resurface here either.
         this.options.pending.absorbReflection({
           runId,
-          findings: [{ kind: finding.kind, statement: finding.statement, confidence: finding.confidence }]
+          findings: [{ kind: finding.kind, statement: finding.statement, confidence: finding.confidence, findingId: finding.id }]
         })
       }
       this.recordEvent('reflection.finding_routed', runId, {

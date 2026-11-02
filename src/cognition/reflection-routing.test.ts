@@ -28,7 +28,7 @@ function openWorld(): World {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const clock = { now: '2026-11-01T08:00:00.000Z' }
   const events = new EventLogService(database)
-  const pending = new PendingCognitionService(new SqlitePendingItemRepository(database), () => globalThis.crypto.randomUUID(), () => clock.now)
+  const pending = new PendingCognitionService(new SqlitePendingItemRepository(database, events), () => globalThis.crypto.randomUUID(), () => clock.now)
   const router = new ReflectionFindingRouter({ database, pending, events, clock: () => clock.now })
   return { database, router, pending, events, clock, close: () => database.close() }
 }
@@ -128,7 +128,7 @@ describe('reflection finding routing (D-10)', () => {
       world.router.ingestRun(RUN, [{ id: uid(2), kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
       const open = world.pending.listOpen()
       expect(open).toHaveLength(1)
-      expect(world.pending.decide(open[0]!.id, 'rejected')).toBe(true)
+      expect(world.pending.decide(open[0]!.id, 'rejected')).toMatchObject({ status: 'decided', decision: 'rejected' })
       expect(world.pending.listOpen()).toHaveLength(0)
       // The same statement again (a later run, same dedupe key): the upsert
       // never resets status, so the dropped item stays dropped.
@@ -153,4 +153,85 @@ describe('reflection finding routing (D-10)', () => {
       world.close()
     }
   })
+  it('registers open_question as a pending-user route and links the item to the finding', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const statement = 'Morrow 注意到一个尚未解决的问题：长期项目的边界是否包括外部工具。'
+      seedFinding(world.database, uid(2), 'open_question', statement, 55, '2026-11-01T07:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: uid(2), kind: 'open_question', statement, confidence: 55, createdAt: '2026-11-01T07:00:01.000Z' }])
+      expect(FINDING_ROUTES.open_question.route).toBe('pending_user')
+      const open = world.pending.listOpen()
+      expect(open).toHaveLength(1)
+      expect(open[0]!.findingId).toBe(uid(2))
+      const route = world.database.connection.prepare('SELECT route, status FROM reflection_finding_routes WHERE finding_id = ?').get(uid(2)) as { route: string; status: string }
+      expect(route).toMatchObject({ route: 'pending_user', status: 'routed' })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('accepted, rejected and dismissed converge the item and route, with replay and conflict rules', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const statement = '用户纠正过助手对上一轮的理解。'
+      seedFinding(world.database, uid(3), 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: uid(3), kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
+      const item = world.pending.listOpen()[0]!
+      expect(world.pending.decide(item.id, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      const accepted = world.database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(uid(3)) as { status: string }
+      expect(accepted.status).toBe('consumed')
+      expect(world.pending.decide(item.id, 'accepted')).toMatchObject({ status: 'unchanged' })
+      expect(world.pending.decide(item.id, 'rejected')).toMatchObject({ status: 'conflict', current: 'accepted' })
+
+      const second = uid(4)
+      seedFinding(world.database, second, 'intent_correction', '另一条纠正。', 60, '2026-11-01T07:10:00.000Z')
+      world.router.ingestRun(RUN, [{ id: second, kind: 'intent_correction', statement: '另一条纠正。', confidence: 60, createdAt: '2026-11-01T07:10:00.000Z' }])
+      const secondItem = world.pending.listOpen()[0]!
+      expect(world.pending.decide(secondItem.id, 'dismissed')).toMatchObject({ status: 'decided', itemStatus: 'dropped' })
+      const dismissed = world.database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(second) as { status: string }
+      expect(dismissed.status).toBe('dismissed')
+    } finally {
+      world.close()
+    }
+  })
+
+  it('rolls the item back when the route terminal write fails', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      seedFinding(world.database, uid(5), 'intent_correction', '触发回滚。', 60, '2026-11-01T07:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: uid(5), kind: 'intent_correction', statement: '触发回滚。', confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
+      const item = world.pending.listOpen()[0]!
+      world.database.connection.exec("CREATE TRIGGER test_route_abort BEFORE UPDATE ON reflection_finding_routes BEGIN SELECT RAISE(ABORT, 'boom'); END;")
+      try {
+        expect(() => world.pending.decide(item.id, 'rejected')).toThrow()
+      } finally {
+        world.database.connection.exec('DROP TRIGGER test_route_abort')
+      }
+      const row = world.database.connection.prepare('SELECT status, decision FROM cognitive_pending_items WHERE id = ?').get(item.id) as { status: string; decision: string | null }
+      expect(row).toMatchObject({ status: 'open', decision: null })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('writes a sanitized audit event for the decision', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const statement = '用户纠正过助手对上一轮的理解；不应写入审计原文。'
+      seedFinding(world.database, uid(6), 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: uid(6), kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
+      const item = world.pending.listOpen()[0]!
+      world.pending.decide(item.id, 'rejected')
+      const event = world.database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' ORDER BY rowid DESC LIMIT 1").get() as { payload_json: string }
+      expect(event.payload_json).toContain('rejected')
+      expect(event.payload_json).not.toContain('不应写入审计原文')
+    } finally {
+      world.close()
+    }
+  })
+
 })

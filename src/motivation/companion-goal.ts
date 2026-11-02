@@ -65,6 +65,29 @@ export interface CompanionGoalContext {
   dueAt: string | null
 }
 
+export interface CompanionGoalCandidate {
+  id: string
+  title: string
+  conversationId: string
+  createdAt: string
+  dueAt: string | null
+  dueExpression: string | null
+  owner: CompanionGoalOwner
+  sourceState: string
+}
+
+/**
+ * The durable outcome of confirming or rejecting one candidate. `replayed`
+ * marks the same decision arriving twice; an opposite decision after a
+ * terminal state is a conflict, never a silent overwrite.
+ */
+export type GoalCandidateDecisionResult =
+  | { status: 'accepted'; goal: CompanionGoal; replayed: boolean }
+  | { status: 'rejected'; candidateId: string; replayed: boolean }
+  | { status: 'not_found' }
+  | { status: 'conflict'; current: 'accepted' | 'rejected' | 'expired' }
+  | { status: 'source_unavailable'; sourceState: string }
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
 function mapGoal(row: Record<string, unknown>): CompanionGoal {
@@ -205,7 +228,18 @@ export class CompanionGoalService {
   constructor(
     private readonly database: SqliteDatabase,
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly makeId: () => string = () => randomUUID()
+    private readonly makeId: () => string = () => randomUUID(),
+    private readonly events?: {
+      recordDeterministic?(key: string, event: {
+        sourceModule: 'motivation'
+        eventType: string
+        actor: 'user' | 'system'
+        subjectType: string
+        subjectId: string | null
+        correlationId: string | null
+        payload: Record<string, unknown>
+      }): unknown
+    } | undefined
   ) {}
 
   /**
@@ -268,7 +302,7 @@ export class CompanionGoalService {
   }
 
   /** Candidates awaiting confirmation, oldest first. */
-  listCandidates(): Array<{ id: string; title: string; conversationId: string; createdAt: string; dueAt: string | null; dueExpression: string | null; owner: CompanionGoalOwner; sourceState: string }> {
+  listCandidates(): CompanionGoalCandidate[] {
     const rows = this.database.connection.prepare(
       "SELECT id, title, conversation_id, created_at, due_at, due_expression, owner, source_state FROM goal_candidates WHERE status = 'pending' ORDER BY created_at, id"
     ).all() as Array<{ id: string; title: string; conversation_id: string; created_at: string; due_at: string | null; due_expression: string | null; owner: string; source_state: string }>
@@ -285,15 +319,13 @@ export class CompanionGoalService {
   }
 
   /**
-   * Accepts a candidate: the only path from a proposal to a stored goal.
-   *
-   * One transaction covers the source check, the goal creation, the candidate
-   * status change and the audit event. Half of that committing would leave
-   * either an acceptable candidate whose goal already exists, or an accepted
-   * candidate with no goal — both of which the old read-then-write version could
-   * produce under a concurrent accept.
+   * The single decision path for a candidate. One transaction covers the
+   * source check, the goal creation, the candidate terminal state and the
+   * audit event. A source that disappeared marks the candidate expired and
+   * returns a structured result, so the expired state commits instead of being
+   * rolled back by a throw.
    */
-  acceptCandidate(candidateId: string): CompanionGoal {
+  decideCandidate(candidateId: string, decision: 'accept' | 'reject'): GoalCandidateDecisionResult {
     const id = candidateId.toLowerCase()
     return this.database.transaction(() => {
       const row = this.database.connection.prepare(
@@ -302,33 +334,43 @@ export class CompanionGoalService {
         id: string; title: string; conversation_id: string; source_message_id: string
         status: string; owner: string; due_at: string | null; source_state: string
       } | undefined
-      if (!row) throw new TypeError('Goal candidate not found.')
+      if (!row) return { status: 'not_found' as const }
 
-      // Accepting twice is not an error: it returns the goal the first accept
-      // created. The unique key on `candidate_id` is the final defence.
-      if (row.status === 'accepted') {
-        const existing = this.database.connection.prepare(
-          'SELECT * FROM companion_goals WHERE candidate_id = ?'
-        ).get(id) as Record<string, unknown> | undefined
-        if (existing) return mapGoal(existing)
-        throw new TypeError('Goal candidate was accepted but its goal is missing.')
+      const terminal = row.status === 'accepted' || row.status === 'rejected' || row.status === 'expired'
+      if (terminal) {
+        if (decision === 'accept' && row.status === 'accepted') {
+          const existing = this.database.connection.prepare(
+            'SELECT * FROM companion_goals WHERE candidate_id = ?'
+          ).get(id) as Record<string, unknown> | undefined
+          if (existing) return { status: 'accepted' as const, goal: mapGoal(existing), replayed: true }
+        }
+        if (decision === 'reject' && row.status === 'rejected') {
+          return { status: 'rejected' as const, candidateId: id, replayed: true }
+        }
+        return { status: 'conflict' as const, current: row.status as 'accepted' | 'rejected' | 'expired' }
       }
-      if (row.status !== 'pending') throw new TypeError('Goal candidate is not pending.')
+      if (row.status !== 'pending') return { status: 'conflict' as const, current: 'expired' as const }
+
+      if (decision === 'reject') {
+        this.database.connection.prepare(
+          "UPDATE goal_candidates SET status = 'rejected', updated_at = ? WHERE id = ? AND status = 'pending'"
+        ).run(this.clock(), id)
+        this.recordCandidateEvent(id, 'rejected', row)
+        return { status: 'rejected' as const, candidateId: id, replayed: false }
+      }
 
       // A candidate whose source message is gone cannot be accepted: there is
-      // nothing left to confirm.
-      if (row.source_state !== 'live') {
+      // nothing left to confirm. The state is persisted before returning.
+      const sourceState = row.source_state === 'live'
+        && this.database.connection.prepare('SELECT id FROM messages WHERE id = ?').get(row.source_message_id) !== undefined
+        ? 'live'
+        : row.source_state === 'live' ? 'source_deleted' : row.source_state
+      if (sourceState !== 'live') {
         this.database.connection.prepare(
-          "UPDATE goal_candidates SET status = 'expired', updated_at = ? WHERE id = ?"
-        ).run(this.clock(), id)
-        throw new TypeError('Goal candidate source is no longer available.')
-      }
-      const source = this.database.connection.prepare('SELECT id FROM messages WHERE id = ?').get(row.source_message_id)
-      if (!source) {
-        this.database.connection.prepare(
-          "UPDATE goal_candidates SET status = 'expired', source_state = 'source_deleted', updated_at = ? WHERE id = ?"
-        ).run(this.clock(), id)
-        throw new TypeError('Goal candidate source is no longer available.')
+          "UPDATE goal_candidates SET status = 'expired', source_state = ?, updated_at = ? WHERE id = ? AND status = 'pending'"
+        ).run(sourceState, this.clock(), id)
+        this.recordCandidateEvent(id, `source_unavailable:${sourceState}`, row)
+        return { status: 'source_unavailable' as const, sourceState }
       }
 
       const goal = this.createInner({
@@ -340,12 +382,41 @@ export class CompanionGoalService {
         idempotencyKey: `goal:candidate:${id}`
       })
       this.database.connection.prepare("UPDATE goal_candidates SET status = 'accepted', updated_at = ? WHERE id = ?").run(this.clock(), id)
-      return goal
+      this.recordCandidateEvent(id, 'accepted', row)
+      return { status: 'accepted' as const, goal, replayed: false }
     })
   }
 
-  rejectCandidate(candidateId: string): void {
-    this.database.connection.prepare("UPDATE goal_candidates SET status = 'rejected', updated_at = ? WHERE id = ? AND status = 'pending'").run(this.clock(), candidateId)
+  /** Compatibility wrapper: throws the same typed errors callers already map. */
+  acceptCandidate(candidateId: string): CompanionGoal {
+    const result = this.decideCandidate(candidateId, 'accept')
+    if (result.status === 'accepted') return result.goal
+    if (result.status === 'not_found') throw new TypeError('Goal candidate not found.')
+    if (result.status === 'source_unavailable') throw new TypeError('Goal candidate source is no longer available.')
+    throw new TypeError('Goal candidate is not pending.')
+  }
+
+  /** Reject is a durable decision, not a UI hide. */
+  rejectCandidate(candidateId: string): GoalCandidateDecisionResult {
+    return this.decideCandidate(candidateId, 'reject')
+  }
+
+  private recordCandidateEvent(candidateId: string, outcome: string, row: { conversation_id: string; owner: string; due_at: string | null }): void {
+    try {
+      this.events?.recordDeterministic?.(`goal-candidate:${candidateId}:${outcome}`, {
+        sourceModule: 'motivation',
+        eventType: 'goal.candidate_decision',
+        actor: 'user',
+        subjectType: 'goal_candidate',
+        subjectId: candidateId,
+        correlationId: row.conversation_id,
+        payload: { outcome, owner: row.owner, due: row.due_at ? 'set' : 'none' }
+      })
+    } catch {
+      // The audit event is inside the decision transaction; a failure here
+      // rolls the decision back so the ledger cannot disagree with the state.
+      throw new Error('GOAL_CANDIDATE_AUDIT_FAILED')
+    }
   }
 
   create(input: {

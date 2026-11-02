@@ -163,6 +163,19 @@
 
         <!-- 目标视图：目标/授权/提醒。 -->
         <section class="view" data-view="goals" id="goals-view">
+          <section class="goal-section panel" aria-labelledby="goal-candidate-heading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">FROM CONVERSATION</p>
+                <h2 id="goal-candidate-heading">长期目标候选</h2>
+              </div>
+              <button id="refresh-goal-candidates" class="button button-quiet button-small" type="button">刷新候选</button>
+            </div>
+            <p class="goal-scope">这些是从对话中识别出的候选，确认后才会成为目标。Morrow 不会替你决定。</p>
+            <p id="goal-candidate-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+            <div id="goal-candidate-list" class="goal-list" aria-live="polite" aria-busy="false"></div>
+            <p id="goal-candidate-empty" class="feedback" hidden>当前没有待确认的目标候选。</p>
+          </section>
           <section class="goal-section panel" aria-labelledby="goal-heading">
             <div class="section-heading">
               <div>

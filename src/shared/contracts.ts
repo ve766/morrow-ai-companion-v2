@@ -1,5 +1,8 @@
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
+import type { CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
+import type { PendingDecisionResult } from '../cognition/pending-items'
+export type { PendingDecisionResult }
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -63,6 +66,9 @@ export const IPC_CHANNELS = {
   goalsCancelTask: 'morrow:goals:cancel-task',
   goalsStop: 'morrow:goals:stop',
   goalsDelete: 'morrow:goals:delete',
+  companionGoalCandidatesList: 'morrow:companion-goals:candidates:list',
+  companionGoalCandidateAccept: 'morrow:companion-goals:candidates:accept',
+  companionGoalCandidateReject: 'morrow:companion-goals:candidates:reject',
   remindersSnapshot: 'morrow:reminders:snapshot',
   remindersSaveSettings: 'morrow:reminders:save-settings',
   remindersPause: 'morrow:reminders:pause',
@@ -169,6 +175,10 @@ export interface TaskIdRequest {
 
 export interface ConversationIdRequest {
   conversationId: string
+}
+
+export interface GoalCandidateIdRequest {
+  candidateId: string
 }
 
 export interface ProviderGetRequest {
@@ -309,7 +319,7 @@ export interface MorrowBridge {
   continuity: {
     listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
     completePendingItem(request: PendingItemIdRequest): Promise<IpcResult<boolean>>
-    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<boolean>>
+    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<PendingDecisionResult>>
     readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
   chat: {
@@ -343,6 +353,11 @@ export interface MorrowBridge {
     cancelTask(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
     stop(request: GoalIdRequest): Promise<IpcResult<GoalRecord>>
     delete(request: GoalIdRequest): Promise<IpcResult<void>>
+  }
+  companionGoals: {
+    listCandidates(): Promise<IpcResult<CompanionGoalCandidate[]>>
+    acceptCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
+    rejectCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
   }
   reminders: {
     getSnapshot(): Promise<IpcResult<ReminderSnapshot>>

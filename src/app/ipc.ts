@@ -1,4 +1,5 @@
-import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, ProviderGetRequest } from '../shared/contracts'
+import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, PendingDecisionResult, ProviderGetRequest } from '../shared/contracts'
+import type { CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -59,6 +60,7 @@ import {
   parseTurnContextRequest
 } from '../shared/validation'
 import {
+  parseGoalCandidateIdRequest,
   parseGoalCreateRequest,
   parseGoalIdRequest,
   parseGoalPrepareRequest,
@@ -136,13 +138,19 @@ export interface SelfModelActions {
 export interface ContinuityActions {
   listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
   completePendingItem(request: { itemId: string }): boolean
-  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): boolean
+  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): PendingDecisionResult
   readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
+}
+
+export interface CompanionGoalActions {
+  listCandidates(): CompanionGoalCandidate[]
+  decideCandidate(candidateId: string, decision: 'accept' | 'reject'): GoalCandidateDecisionResult
 }
 
 export interface ApplicationActions {
   memories: MemoryService
   goals: GoalService
+  companionGoals?: CompanionGoalActions
   reminders: ReminderActions
   companion?: CompanionActions
   backup?: BackupActions
@@ -235,6 +243,11 @@ export function createIpcHandlers(
     [IPC_CHANNELS.goalsCancelTask]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTaskIdRequest, ({ taskId }) => actions.goals.cancelTask(taskId)),
     [IPC_CHANNELS.goalsStop]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.stop(goalId)),
     [IPC_CHANNELS.goalsDelete]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.delete(goalId)),
+    ...(actions.companionGoals ? {
+      [IPC_CHANNELS.companionGoalCandidatesList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.listCandidates()),
+      [IPC_CHANNELS.companionGoalCandidateAccept]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'accept')),
+      [IPC_CHANNELS.companionGoalCandidateReject]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'reject'))
+    } : {}),
     [IPC_CHANNELS.remindersSnapshot]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.reminders.snapshot()),
     [IPC_CHANNELS.remindersSaveSettings]: (event, payload) => execute(event, trustedRendererUrl, payload, parseReminderSettingsRequest, (request) => actions.reminders.saveSettings(request)),
     [IPC_CHANNELS.remindersPause]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.reminders.pause()),

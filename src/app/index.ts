@@ -246,7 +246,7 @@ if (hasSingleInstanceLock) {
     )
     // §2D: companionship goals live beside the task-execution GoalService, not
     // inside it; see the migration comment for why the two are not merged.
-    const companionGoals = new CompanionGoalService(database)
+    const companionGoals = new CompanionGoalService(database, undefined, undefined, eventLog)
     const reflection = new ReflectionService(
       new SqliteReflectionRepository(database),
       { memories, interests, selfModel, events: eventLog },
@@ -254,7 +254,7 @@ if (hasSingleInstanceLock) {
     )
     // Phase 2.4: the turn context and the open internal items are persisted
     // beside the conversation, so continuity survives a restart.
-    const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database))
+    const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database, eventLog))
     // D-10: one ingestion path for reflection findings, shared by the
     // automatic projector and the manual run below.
     const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events: eventLog })
@@ -439,6 +439,7 @@ if (hasSingleInstanceLock) {
     unregisterIpc = registerIpcHandlers({ getAppInfo }, trustedRendererUrl, {
       memories,
       goals,
+      companionGoals,
       reminders,
       companion,
       backup: backupActions,

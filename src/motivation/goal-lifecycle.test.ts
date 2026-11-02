@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '../persistence/database'
 import { CompanionGoalService, readGoalUtterance } from './companion-goal'
+import { EventLogService } from '../persistence/event-log'
 import { resolveDueAt } from './goal-time'
 
 let databases: SqliteDatabase[] = []
@@ -206,5 +207,61 @@ describe('goal creation and lifecycle', () => {
     const second = goals.create({ title: '第二个目标', dueAt: '2026-10-01T00:00:00.000Z' })
     expect(goals.activeForContext(5).some((item) => item.id === second.id)).toBe(false)
     expect(goals.get(second.id)?.status).toBe('expired')
+  })
+})
+
+describe('goal candidate confirmation closure (BL-02 / goal UI contract)', () => {
+  function withCandidate(database: SqliteDatabase): { goals: CompanionGoalService; candidateId: string; events: EventLogService } {
+    const events = new EventLogService(database, clock)
+    const goals = new CompanionGoalService(database, clock, undefined, events)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    expect(result.candidateId).not.toBeNull()
+    return { goals, candidateId: result.candidateId!, events }
+  }
+
+  it('reject is durable, audited, idempotent and conflicts with accept', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'rejected', replayed: false })
+    expect(goals.listCandidates()).toHaveLength(0)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'rejected', replayed: true })
+    expect(goals.decideCandidate(candidateId, 'accept')).toMatchObject({ status: 'conflict', current: 'rejected' })
+    const event = database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'goal.candidate_decision' ORDER BY rowid DESC LIMIT 1").get() as { payload_json: string }
+    expect(event.payload_json).toContain('rejected')
+    expect(event.payload_json).not.toContain('多读点书')
+  })
+
+  it('accept then reject is a conflict, and a repeated accept returns the same goal', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    const first = goals.decideCandidate(candidateId, 'accept')
+    expect(first.status).toBe('accepted')
+    if (first.status !== 'accepted') throw new Error('expected accepted')
+    const replay = goals.acceptCandidate(candidateId)
+    expect(replay.id).toBe(first.goal.id)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'conflict', current: 'accepted' })
+    expect(goals.list()).toHaveLength(1)
+  })
+
+  it('a disappeared source persists expired instead of rolling back the marker', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    database.connection.prepare("UPDATE goal_candidates SET source_state = 'source_deleted' WHERE id = ?").run(candidateId)
+    expect(() => goals.acceptCandidate(candidateId)).toThrow(/source is no longer available/)
+    const row = database.connection.prepare('SELECT status, source_state FROM goal_candidates WHERE id = ?').get(candidateId) as { status: string; source_state: string }
+    expect(row).toMatchObject({ status: 'expired', source_state: 'source_deleted' })
+    expect(goals.list()).toHaveLength(0)
+  })
+
+  it('accept vs reject leaves exactly one terminal state', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    const accept = goals.decideCandidate(candidateId, 'accept')
+    const reject = goals.rejectCandidate(candidateId)
+    expect(accept.status).toBe('accepted')
+    expect(reject).toMatchObject({ status: 'conflict', current: 'accepted' })
+    const row = database.connection.prepare('SELECT status FROM goal_candidates WHERE id = ?').get(candidateId) as { status: string }
+    expect(row.status).toBe('accepted')
   })
 })

@@ -30,6 +30,10 @@ export interface PendingItem {
   summary: string
   priority: number
   status: PendingItemStatus
+  /** The reflection finding this item came from, when there is one. */
+  findingId: string | null
+  /** The terminal user choice, once decided. */
+  decision: 'accepted' | 'rejected' | 'dismissed' | null
   conversationId: string | null
   detail: Record<string, unknown>
   createdAt: string
@@ -44,10 +48,25 @@ export interface PendingItemDraft {
   kind: string
   summary: string
   priority: number
+  /** The reflection finding this item came from, when there is one. */
+  findingId?: string | undefined
   conversationId: string | null
   detail: Record<string, unknown>
   createdAt: string
 }
+
+export type PendingDecision = 'accepted' | 'rejected' | 'dismissed'
+
+/**
+ * The durable outcome of one decision. `unchanged` is a replay of the same
+ * decision; `conflict` is the opposite decision after a terminal state, which
+ * is never applied silently.
+ */
+export type PendingDecisionResult =
+  | { status: 'decided'; decision: PendingDecision; itemStatus: 'done' | 'dropped' }
+  | { status: 'unchanged'; decision: PendingDecision }
+  | { status: 'conflict'; current: PendingDecision | null }
+  | { status: 'not_found' }
 
 export interface PendingItemPort {
   upsert(draft: PendingItemDraft): PendingItem
@@ -56,6 +75,8 @@ export interface PendingItemPort {
   complete(id: string, completedAt: string): boolean
   /** Durable user rejection: keeps the item out of the open list forever. */
   drop(id: string, completedAt: string): boolean
+  /** One transaction for the item, its reflection route and the audit event. */
+  decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult
   findByDedupeKey(dedupeKey: string): PendingItem | null
 }
 
@@ -161,6 +182,7 @@ export function pendingItemFromReflection(input: {
   confidence: number
   at: string
   makeId: () => string
+  findingId?: string | undefined
 }): PendingItemDraft {
   if (!/^[0-9a-f]{16}$/u.test(input.statementDigest)) throw new TypeError('Reflection items require a statement digest.')
   const priority = Math.min(95, Math.max(20, 100 - Math.round(input.confidence)))
@@ -171,6 +193,7 @@ export function pendingItemFromReflection(input: {
     kind: input.kind.slice(0, 64),
     summary: reflectionSummaryFor(input.kind),
     priority,
+    ...(input.findingId ? { findingId: input.findingId } : {}),
     conversationId: null,
     // No statement, no quoted text, no label: identifiers and a digest only.
     detail: {
@@ -256,7 +279,7 @@ export class PendingCognitionService {
    * a category template, the run id and a digest. The text itself stays in the
    * reflection record, which only the owner reads.
    */
-  absorbReflection(input: { runId: string; findings: ReadonlyArray<{ kind: string; statement: string; confidence: number }> }): string[] {
+  absorbReflection(input: { runId: string; findings: ReadonlyArray<{ kind: string; statement: string; confidence: number; findingId?: string }> }): string[] {
     const at = this.clock()
     const ids: string[] = []
     for (const finding of input.findings.slice(0, MAX_PENDING_ITEMS_PER_TURN)) {
@@ -266,7 +289,8 @@ export class PendingCognitionService {
         statementDigest: createHash('sha256').update(finding.statement).digest('hex').slice(0, 16),
         confidence: finding.confidence,
         at,
-        makeId: this.makeId
+        makeId: this.makeId,
+        ...(finding.findingId ? { findingId: finding.findingId } : {})
       }))
       ids.push(stored.id)
     }
@@ -296,9 +320,8 @@ export class PendingCognitionService {
    * so a rejected concern cannot resurface — neither as a pending item nor
    * (for reflection kinds) as a prompt hint.
    */
-  decide(id: string, decision: 'accepted' | 'rejected' | 'dismissed'): boolean {
-    if (decision === 'accepted') return this.complete(id)
-    return this.repository.drop(id, this.clock())
+  decide(id: string, decision: PendingDecision): PendingDecisionResult {
+    return this.repository.decide(id, decision, this.clock())
   }
 }
 

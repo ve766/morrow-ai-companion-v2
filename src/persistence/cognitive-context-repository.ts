@@ -7,7 +7,7 @@
  */
 import type { SqliteDatabase } from './database'
 import type { CognitiveTurnContext } from '../cognition/turn-context'
-import type { PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
+import type { PendingDecision, PendingDecisionResult, PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
 import { isCognitiveTurnContext, normalizeTurnContext } from '../cognition/turn-context'
 export interface TurnContextPort {
   /** Insert, or replace a record that did not reach a successful outcome. */
@@ -94,6 +94,8 @@ interface PendingRow {
   summary: string
   priority: number
   status: string
+  finding_id: string | null
+  decision: string | null
   conversation_id: string | null
   detail_json: string
   created_at: string
@@ -117,6 +119,8 @@ function mapPending(row: PendingRow): PendingItem {
     summary: row.summary,
     priority: row.priority,
     status: row.status as PendingItemStatus,
+    findingId: row.finding_id ?? null,
+    decision: (row.decision as PendingItem['decision']) ?? null,
     conversationId: row.conversation_id,
     detail,
     createdAt: row.created_at,
@@ -126,14 +130,27 @@ function mapPending(row: PendingRow): PendingItem {
 }
 
 export class SqlitePendingItemRepository implements PendingItemPort {
-  constructor(private readonly database: SqliteDatabase) {}
+  constructor(
+    private readonly database: SqliteDatabase,
+    private readonly events?: {
+      recordDeterministic?(key: string, event: {
+        sourceModule: 'cognition'
+        eventType: string
+        actor: 'user' | 'system'
+        subjectType: string
+        subjectId: string | null
+        correlationId: string | null
+        payload: Record<string, unknown>
+      }): unknown
+    } | undefined
+  ) {}
 
   upsert(draft: PendingItemDraft): PendingItem {
     // A finished item stays finished: re-observing the same concern must not
     // reopen it, otherwise a resolved conflict would reappear every turn.
     this.database.connection.prepare(`
-      INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL)
+      INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, finding_id, conversation_id, detail_json, created_at, updated_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(dedupe_key) DO UPDATE SET
         updated_at = excluded.updated_at,
         priority = CASE WHEN cognitive_pending_items.status = 'done'
@@ -152,6 +169,7 @@ export class SqlitePendingItemRepository implements PendingItemPort {
       draft.kind,
       draft.summary,
       draft.priority,
+      draft.findingId ?? null,
       draft.conversationId,
       JSON.stringify(draft.detail),
       draft.createdAt,
@@ -199,6 +217,51 @@ export class SqlitePendingItemRepository implements PendingItemPort {
     ).run(completedAt, completedAt, id)
     if (updated.changes === 1) return true
     return this.get(id)?.status === 'dropped'
+  }
+
+  /**
+   * BL-02: one transaction updates the item, its reflection route terminal
+   * state and the audit event. A same-decision replay is unchanged; the
+   * opposite decision after a terminal state is a conflict, never a silent
+   * overwrite. Legacy items without finding_id still decide; only the route
+   * update is skipped for them.
+   */
+  decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult {
+    return this.database.transaction(() => {
+      const item = this.get(id)
+      if (!item) return { status: 'not_found' as const }
+      const itemStatus = decision === 'accepted' ? 'done' as const : 'dropped' as const
+      if (item.status !== 'open') {
+        if (item.decision === decision) return { status: 'unchanged' as const, decision }
+        return { status: 'conflict' as const, current: item.decision }
+      }
+      const updated = this.database.connection.prepare(
+        "UPDATE cognitive_pending_items SET status = ?, decision = ?, completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
+      ).run(itemStatus, decision, at, at, id)
+      if (updated.changes !== 1) {
+        const current = this.get(id)
+        if (current?.decision === decision) return { status: 'unchanged' as const, decision }
+        return { status: 'conflict' as const, current: current?.decision ?? null }
+      }
+      const routeStatus = decision === 'accepted' ? 'consumed' : decision === 'rejected' ? 'rejected' : 'dismissed'
+      if (item.findingId) {
+        this.database.connection.prepare(
+          "UPDATE reflection_finding_routes SET status = ?, reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected')"
+        ).run(routeStatus, `user decision: ${decision}`.slice(0, 200), at, item.findingId)
+      }
+      // The audit event is inside the same transaction: a failure rolls back
+      // the item and the route with it. Payload carries ids and states only.
+      this.events?.recordDeterministic?.(`pending-decision:${id}:${decision}`, {
+        sourceModule: 'cognition',
+        eventType: 'pending.decision',
+        actor: 'user',
+        subjectType: 'pending_item',
+        subjectId: id,
+        correlationId: item.findingId,
+        payload: { decision, itemStatus, routeStatus, source: item.source }
+      })
+      return { status: 'decided' as const, decision, itemStatus }
+    })
   }
 }
 
