@@ -261,7 +261,7 @@ if (hasSingleInstanceLock) {
     const turnContexts = new SqliteTurnContextRepository(database)
     const finalizations = new SqliteTurnFinalizationRepository(database)
     // Stage 5: relationship continuity threads (user-stated continuity notes).
-    const relationships = new RelationshipThreadService({ database })
+    const relationships = new RelationshipThreadService({ database, events: eventLog })
     const companion = new CompanionService({
       database,
       memories,

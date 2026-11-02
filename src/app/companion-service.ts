@@ -112,6 +112,12 @@ function describeOperation(operation: MemoryOperationOutcome | undefined): strin
   } else if (operation.status === 'clarify') {
     lines.push(`- operation=${operation.operation} status=clarify reason=${operation.reason ?? 'ambiguous'}`)
     lines.push('Nothing was written. Ask one short clarifying question about which object the user means; do not update anything and do not claim it was saved.')
+  } else if (operation.status === 'rolled_back') {
+    lines.push(`- operation=${operation.operation} status=rolled_back error=${operation.errorCode ?? 'UNKNOWN'}`)
+    lines.push('Nothing was kept: the batch was rolled back. Do not say it was saved; say plainly that it did not go through and offer to try again.')
+  } else if (operation.status === 'recovery_required') {
+    lines.push(`- operation=${operation.operation} status=recovery_required error=${operation.errorCode ?? 'UNKNOWN'}`)
+    lines.push('The record exists but its index is still catching up. Do not claim it is fully saved or fully verified; say it is being finished.')
   } else if (operation.status === 'rejected') {
     lines.push(`- operation=rejected status=rejected reason=${operation.reason ?? 'not_permitted'}`)
     lines.push('Nothing was written and it will not be: state the boundary plainly without blaming the user.')
@@ -169,6 +175,11 @@ const fixedPrinciples = [
   // Stage 5 (D4): the evidence block carries confidence/revision ids for the
   // system, not for the user. A real reply once said '可信度 85' to the user.
   'Never quote internal bookkeeping to the user — no confidence numbers, revision or memory ids, scores or state values. Refer to what you remember in plain language, and say so when the basis is thin instead of presenting it as certain.',
+  // P1-F: two failure shapes from the first live review. S6 answered a greeting
+  // with "我没有情绪，今天运行正常，随时可以帮你做事"; S5 explained its retrieval
+  // boundaries at length instead of simply using the preference.
+  'Answer a greeting as a greeting: a short, warm reply in your own voice. Do not lead with a disclaimer about having no feelings or "running normally", and do not advertise that you are available to help — that is a tool\'s opening, not a companion\'s.',
+  'When you use something you remember about the user, use it naturally in one clause (for example "按我记得的，你喜欢咖啡"). Do not narrate how you retrieved it, what you do or do not have, or the limits of your memory unless the uncertainty actually changes your answer.',
   'Privacy and safety boundaries override style preferences.'
 ].join('\n')
 
@@ -959,6 +970,23 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       }
     },
     {
+      module: 'relationship',
+      version: COGNITIVE_HANDLER_VERSION,
+      project: (input) => {
+        if (!services.relationships) return
+        // P1-D: the mutation is planned from the source text read at projection
+        // time and applied in its own savepoint. A failure leaves this outbox
+        // row pending, so the next start retries instead of losing the change;
+        // the effect ledger keeps a successful projection from running twice.
+        services.relationships.observe({
+          text: input.readUserMessage(),
+          messageId: input.userMessageId,
+          conversationId: input.conversationId,
+          at: input.occurredAt
+        })
+      }
+    },
+    {
       module: 'reflection',
       version: COGNITIVE_HANDLER_VERSION,
       project: () => {
@@ -1695,6 +1723,9 @@ export class ChatService {
           // A missing row inside the transaction is a storage failure, not a
           // reason to keep going: let it roll the whole message back.
           if (!savedAssistant) throw new ApplicationError('STORAGE_ERROR')
+          // P1-D: the relationship mutation rides the durable cognition outbox
+          // (module `relationship`, enqueued below in this same transaction), so
+          // a projection failure is retried from its row instead of swallowed.
           let complete = true
           if (verified.feelingEvent && cognitiveObservationPersisted) {
             try {
@@ -1995,8 +2026,11 @@ export class ChatService {
         // explicit statements (idempotent per message) and read back for this
         // turn, so an agreed follow-up or a preferred form of address is in
         // front of the model in the same reply it becomes relevant.
+        // P1-D: reading is safe before the provider call; writing is not. The
+        // mutation is applied in afterPersist, inside the assistant-message
+        // transaction, so a message that never commits cannot leave a
+        // relationship change behind.
         try {
-          this.selfModel?.relationships?.observe({ text: content, messageId: sourceMessageId, conversationId: request.conversationId, at: evaluationAt })
           relationshipThreads = this.selfModel?.relationships?.activeThreads(4, evaluationAt) ?? []
         } catch {
           this.recordDegradation('relationship_threads', sourceMessageId)
@@ -2051,7 +2085,8 @@ export class ChatService {
     expressionPolicy = deriveExpressionPolicy({
       state: feelingState ?? previousFeelingState ?? null,
       analysis: analysis ?? null,
-      wantsDirectAnswer: /(?:直接|立刻|马上|别解释|不用解释|只要答案|给我方案|怎么解决|how do I|just give me|cut to the chase)/iu.test(content)
+      wantsDirectAnswer: /(?:直接|立刻|马上|别解释|不用解释|只要答案|给我方案|怎么解决|how do I|just give me|cut to the chase)/iu.test(content),
+      text: content
     })
 
     const exploration = this.selfModel?.explorationLine?.({

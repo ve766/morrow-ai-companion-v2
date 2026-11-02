@@ -230,7 +230,8 @@ function historyHint(input: PlannerInput): string {
 /** Rendered for the prompt: only what the executor verified. */
 export interface MemoryOperationOutcome {
   operation: MemoryOperationKind
-  status: 'committed_and_verified' | 'clarify' | 'rejected' | 'failed' | 'not_applied'
+  /** committed_and_verified | rolled_back | recovery_required are the write outcomes. */
+  status: 'committed_and_verified' | 'rolled_back' | 'recovery_required' | 'clarify' | 'rejected' | 'failed' | 'not_applied'
   predicate?: string
   previousValue?: string
   currentValue?: string

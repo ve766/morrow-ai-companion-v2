@@ -31,7 +31,7 @@ export type ProjectedAnalysis = Pick<
  * one module at a time. `(turn_id, module, handler_version)` is the idempotency
  * key, so replaying a turn ten times produces the same state.
  */
-export const COGNITIVE_MODULES = ['interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal', 'memory'] as const
+export const COGNITIVE_MODULES = ['interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal', 'memory', 'relationship'] as const
 export type CognitiveModule = (typeof COGNITIVE_MODULES)[number]
 
 /** Bumped when a projector's semantics change; old rows keep their own version. */

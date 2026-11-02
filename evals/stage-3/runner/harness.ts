@@ -161,7 +161,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
   // D-10: the harness wires the same finding router the app does, so an
   // automatic run and a manual run leave the same durable traces.
   const findingRouter = new ReflectionFindingRouter({ database, pending: new PendingCognitionService(new SqlitePendingItemRepository(database)), events: eventLog, clock: clock ?? undefined })
-  const relationships = new RelationshipThreadService({ database, clock: clock ?? undefined })
+  const relationships = new RelationshipThreadService({ database, clock: clock ?? undefined, events: eventLog })
   const companion = new CompanionService({
     database,
     memories,

@@ -93,6 +93,20 @@ export class FactMemoryService {
   }
 
   /**
+   * Durable degraded mark for a caller that owns recovery (the memory service).
+   * reindexMemory already marks its own failures; this covers a failure raised
+   * above this class (adapter or fault-injection layer) without double-counting
+   * an attempt the class already recorded.
+   */
+  markDegradedJob(memoryId: string, errorCode: string): void {
+    const row = this.options.database.connection.prepare(
+      'SELECT status FROM fact_index_jobs WHERE memory_id = ?'
+    ).get(memoryId) as { status: string } | undefined
+    if (row?.status === 'degraded') return
+    this.markDegraded(memoryId, errorCode)
+  }
+
+  /**
    * A: bounded exponential backoff for a degraded index job:
    * min(2^attempt × 5s, 15min). A job is retryable once next_retry_at has
    * passed; the cap keeps a permanently broken memory observable instead of
@@ -159,14 +173,14 @@ export class FactMemoryService {
     const now = this.clock()
     const database = this.options.database.connection
 
-    database.exec('BEGIN IMMEDIATE')
-    try {
+    // database.transaction() is savepoint-aware: reindex is called from inside
+    // the caller's message/operation transaction, where a raw BEGIN would throw.
+    this.options.database.transaction(() => {
       // R2 guard first: a non-active memory can only carry retracted facts.
       if (memory.status !== 'active') {
         database.prepare(
           "UPDATE fact_records SET status = 'retracted', valid_to = ?, updated_at = ? WHERE source_memory_id = ? AND status != 'retracted'"
         ).run(now, now, memoryId)
-        database.exec('COMMIT')
         return
       }
 
@@ -227,15 +241,7 @@ export class FactMemoryService {
           now
         )
       }
-      database.exec('COMMIT')
-    } catch (error) {
-      try {
-        database.exec('ROLLBACK')
-      } catch {
-        // The transaction may already be gone; surface the original error.
-      }
-      throw error
-    }
+    })
   }
 
   /** Startup catch-up: re-derive every memory's rows. Idempotent, throwing. */
@@ -304,6 +310,11 @@ export class FactMemoryService {
       `SELECT predicate, value_display FROM fact_records WHERE status = 'superseded' AND source_memory_id IN (${placeholders}) ORDER BY updated_at DESC LIMIT 10`
     ).all(...memoryIds) as Array<{ predicate: string; value_display: string }>
     return rows.map((row) => ({ predicate: row.predicate, value: row.value_display }))
+  }
+
+  /** Runs a batch inside one transaction on the same connection. */
+  inTransaction<T>(operation: () => T): T {
+    return this.options.database.transaction(operation)
   }
 
   counts(): { total: number; active: number } {
