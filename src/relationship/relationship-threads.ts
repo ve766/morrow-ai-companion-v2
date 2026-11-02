@@ -192,6 +192,22 @@ export interface ObserveResult {
   threadIds: string[]
   /** True when the caller should ask the user which target was meant. */
   clarification?: string
+  /** The projection was refused because the source could not be trusted. */
+  skipped?: 'source_missing' | 'source_conversation_mismatch'
+}
+
+/**
+ * Raised when the source message cannot be read at all (database unavailable,
+ * table missing, query failure). The durable outbox keeps the obligation and
+ * retries; nothing is written in the meantime. The message never contains the
+ * user's text.
+ */
+export class RelationshipSourceError extends Error {
+  readonly code = 'RELATIONSHIP_SOURCE_UNVERIFIABLE'
+  constructor() {
+    super('RELATIONSHIP_SOURCE_UNVERIFIABLE')
+    this.name = 'RelationshipSourceError'
+  }
 }
 
 /** The journal event this service emits; no user text, only codes. */
@@ -241,44 +257,45 @@ export class RelationshipThreadService {
    * clarification reason instead, so an ambiguous "那个约定就算了" can never
    * retract an unrelated preference.
    */
-  observe(input: { text: string; messageId: string; conversationId: string; at: string }): ObserveResult {
-    // F1/F2: a pending obligation may outlive its source message. If the
-    // database holds messages but not this one, the message was deleted and the
-    // projection must do nothing. An empty messages table is a unit-test
-    // fixture (production always has at least the message that created the
-    // obligation) and in production the projector's text read is already ''
-    // after a deletion, so nothing can be written.
-    try {
-      const anyMessage = this.options.database.connection.prepare('SELECT 1 AS ok FROM messages LIMIT 1').get()
-      if (anyMessage && !this.options.database.connection.prepare('SELECT 1 AS ok FROM messages WHERE id = ?').get(input.messageId)) {
-        return { mutation: null, threadIds: [] }
-      }
-    } catch {
-      // A database without a messages table cannot validate a source; the
-      // caller's text is the only evidence, which is the unit-test case.
-    }
-    const mutation = planRelationshipMutation(input.text, this.rows())
-    if (!mutation) return { mutation: null, threadIds: [] }
-    if (mutation.type === 'clarify') {
-      // Observability: "asked instead of guessed" is a state a health check can
-      // count. Reason code only — never the user's sentence or the values.
-      this.recordEvent(`relationship-clarify:${input.messageId}`, {
-        sourceModule: 'self-model',
-        eventType: 'relationship.clarify',
-        actor: 'system',
-        subjectType: 'conversation_message',
-        subjectId: input.messageId,
-        correlationId: input.conversationId,
-        payload: { reason: mutation.reason }
-      })
-      return { mutation, threadIds: [], clarification: mutation.reason }
-    }
-
-    // The caller may already hold a transaction (afterPersist runs inside the
-    // message commit). database.transaction() uses a savepoint when nested, so
-    // the mutation joins the turn's transaction instead of opening a second
-    // BEGIN, which SQLite rejects.
+  observe(input: { messageId: string; conversationId: string; at: string }): ObserveResult {
+    // F1 (Issue #31): the source body is read here, inside the write
+    // transaction, and a caller-held copy of the text is never accepted as
+    // evidence. BEGIN IMMEDIATE serializes this read against a concurrent
+    // delete on another connection, so the check cannot pass and then write
+    // against a message that no longer exists.
     return this.options.database.transaction(() => {
+      let source: { body: string; conversationId: string } | null
+      try {
+        const row = this.options.database.connection.prepare(
+          'SELECT body, conversation_id FROM messages WHERE id = ?'
+        ).get(input.messageId) as { body: string; conversation_id: string } | undefined
+        source = row ? { body: row.body, conversationId: row.conversation_id } : null
+      } catch {
+        // Database unavailable, table unreadable or query failure: fail closed.
+        // The durable obligation stays pending and is retried.
+        throw new RelationshipSourceError()
+      }
+      if (!source) return { mutation: null, threadIds: [], skipped: 'source_missing' as const }
+      if (source.conversationId !== input.conversationId) {
+        return { mutation: null, threadIds: [], skipped: 'source_conversation_mismatch' as const }
+      }
+      const mutation = planRelationshipMutation(source.body, this.rows())
+      if (!mutation) return { mutation: null, threadIds: [] }
+      if (mutation.type === 'clarify') {
+        // Observability: "asked instead of guessed" is a state a health check can
+        // count. Reason code only — never the user's sentence or the values.
+        this.recordEvent(`relationship-clarify:${input.messageId}`, {
+          sourceModule: 'self-model',
+          eventType: 'relationship.clarify',
+          actor: 'system',
+          subjectType: 'conversation_message',
+          subjectId: input.messageId,
+          correlationId: input.conversationId,
+          payload: { reason: mutation.reason }
+        })
+        return { mutation, threadIds: [], clarification: mutation.reason }
+      }
+
       const threadIds = this.applyMutation(mutation, input)
       // The change and its cause are one durable record: which source message
       // caused it, what operation it was, and (for a withdrawal) why. Values

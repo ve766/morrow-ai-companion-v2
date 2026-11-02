@@ -172,6 +172,84 @@ describe('F1 — deletion erases relationship content', () => {
       }
     }
   })
+  it('an obligation with no source message is refused, not projected from cached text', () => {
+    const stack = open()
+    const turn = randomUUID()
+    const messageId = randomUUID()
+    const conversationId = randomUUID()
+    stack.database.connection.prepare(
+      "INSERT INTO cognitive_outbox(turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, created_at, updated_at) VALUES (?, 'relationship', 1, ?, ?, ?, NULL, 'pending', 0, ?, ?)"
+    ).run(turn, conversationId, messageId, new Date().toISOString(), new Date().toISOString(), new Date().toISOString())
+    const drained = stack.companion.drainCognition()
+    expect(drained.done + drained.failed).toBeGreaterThanOrEqual(1)
+    expect(threads(stack)).toHaveLength(0)
+    expect(evidenceCount(stack)).toBe(0)
+    const row = stack.database.connection.prepare(
+      "SELECT status FROM cognitive_outbox WHERE module = 'relationship' AND turn_id = ?"
+    ).get(turn) as { status: string }
+    expect(row.status).toBe('done')
+  })
+
+  it('a stale obligation whose message was deleted cannot revive it', async () => {
+    const stack = open()
+    const a = stack.companion.createConversation()
+    const turn = randomUUID()
+    await send(stack, a.id, '以后叫我小林。', turn)
+    const message = userMessage(stack, turn)
+    stack.database.connection.prepare('DELETE FROM messages WHERE id = ?').run(message.id)
+    // A different holder may still have the obligation; re-create the pending
+    // row after the delete to model exactly that stale copy.
+    const staleTurn = randomUUID()
+    stack.database.connection.prepare(
+      "INSERT INTO cognitive_outbox(turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, created_at, updated_at) VALUES (?, 'relationship', 1, ?, ?, ?, NULL, 'pending', 0, ?, ?)"
+    ).run(staleTurn, a.id, message.id, message.created_at, new Date().toISOString(), new Date().toISOString())
+    stack.companion.drainCognition()
+    expect(threads(stack).every((thread) => thread.status === 'retracted' && thread.value === '')).toBe(true)
+    expect(evidenceCount(stack)).toBe(0)
+  })
+
+  it('a database error while reading the source fails closed and writes nothing', () => {
+    const stack = open()
+    const a = stack.companion.createConversation()
+    const messageId = randomUUID()
+    stack.database.connection.prepare(
+      "INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, 'user', ?, ?, 1, ?)"
+    ).run(messageId, a.id, '以后叫我小林。', new Date().toISOString(), randomUUID())
+    const connection = stack.database.connection as unknown as { prepare: (sql: string) => unknown }
+    const original = connection.prepare.bind(stack.database.connection)
+    connection.prepare = ((sql: string) => {
+      if (sql.includes('FROM messages WHERE id')) throw new Error('SQLITE_BUSY')
+      return original(sql)
+    }) as typeof connection.prepare
+    try {
+      expect(() => stack.relationships.observe({
+        messageId,
+        conversationId: a.id,
+        at: new Date().toISOString()
+      })).toThrow(/RELATIONSHIP_SOURCE_UNVERIFIABLE|RelationshipSourceError/)
+    } finally {
+      connection.prepare = original as typeof connection.prepare
+    }
+    expect(threads(stack)).toHaveLength(0)
+    expect(evidenceCount(stack)).toBe(0)
+  })
+
+  it('a source from another conversation is refused', () => {
+    const stack = open()
+    const a = stack.companion.createConversation()
+    const b = stack.companion.createConversation()
+    const messageId = randomUUID()
+    stack.database.connection.prepare(
+      "INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, 'user', ?, ?, 1, ?)"
+    ).run(messageId, a.id, '以后叫我小林。', new Date().toISOString(), randomUUID())
+    const result = stack.relationships.observe({
+      messageId,
+      conversationId: b.id,
+      at: new Date().toISOString()
+    })
+    expect(result.skipped).toBe('source_conversation_mismatch')
+    expect(threads(stack)).toHaveLength(0)
+  })
 })
 
 describe('F2 — the obligation is committed with the user message', () => {
@@ -268,7 +346,6 @@ describe('F2 — the obligation is committed with the user message', () => {
     const first = userMessage(stack, firstTurn)
     // Replay the first message's observation after the newer decision landed.
     stack.relationships.observe({
-      text: '以后叫我阿林。',
       messageId: first.id,
       conversationId: a.id,
       at: first.created_at

@@ -1,5 +1,5 @@
 /**
- * Expression policy (Stage 5, delivery B3).
+ * Expression policy (Stage 5, delivery B3; Issue #31 F3).
  *
  * The internal state is a bounded, rule-derived estimate — not a feeling and
  * not evidence about the user. What it may change is *how* Morrow answers:
@@ -8,9 +8,10 @@
  * whether the reply should be brief. It never changes facts, permissions,
  * memory truth, or the personality baseline.
  *
- * The policy is a structured object rather than a pile of adjectives in the
- * prompt, so a test can compare the same input under two legal states and see
- * the strategy differ (and the facts not).
+ * Distress evidence is scoped before it is scored:
+ *   normalize → split clauses → attribute speaker (quote/report) →
+ *   negation/conditional scope → explicit E → independent context C →
+ *   bounded prior tension T → D → policy.
  */
 import type { FeelingState } from './feeling'
 import type { CognitiveTurnAnalysis } from '../cognition/cognition'
@@ -33,28 +34,39 @@ export interface ExpressionPolicy {
 export const EXPRESSION_POLICY_VERSION = 'expression-policy.v2'
 /** Uncertainty above this prefers a clarifying question over a confident claim. */
 export const CLARIFY_UNCERTAINTY_THRESHOLD = 0.55
-/** D at or above this (with contextual corroboration) is distress. */
+/** D at or above this (with independent contextual evidence) is distress. */
 export const DISTRESS_THRESHOLD = 0.65
-/** Contextual evidence below this cannot satisfy the combined rule alone. */
+/** Contextual corroboration below this cannot satisfy the combined rule. */
 export const DISTRESS_CONTEXT_MIN = 0.40
 /** E at or above this is an explicit, high-confidence emotion statement. */
 export const DISTRESS_EXPLICIT_HIGH = 0.85
 
+export type DistressContext = 'neutral' | 'negated' | 'quoted' | 'reported' | 'hypothetical'
+
+export type DistressRationale =
+  | 'explicit_emotion_statement'
+  | 'contextual_corroboration'
+  | 'mild_without_independent_context'
+  | 'negated_emotion'
+  | 'quoted_emotion'
+  | 'reported_emotion'
+  | 'hypothetical_emotion'
+  | 'unresolved_tension_only'
+  | 'no_distress_evidence'
+
 /**
- * Structured distress evidence (Issue #29 F3).
+ * E/C/T/D is a fixed, explainable heuristic, not a probability:
  *
- *   E — explicit emotion statement, from a full first-person/emotion frame
- *   C — contextual corroboration (a second, independent cue class)
- *   T — unresolved interaction tension from the bounded feeling state
- *   D = 0.55*E + 0.25*C + 0.20*T
+ *   E — explicit emotion stated by the current user in the current context
+ *   C — *independent* corroboration (somatic/behavioural cue), never the same
+ *       phrase, its intensity adverb or its punctuation counted twice
+ *   T — unresolved interaction tension from the bounded prior state
+ *   D = 0.55E + 0.25C + 0.20T
  *
- * `distress = E >= 0.85 OR (D >= 0.65 AND C >= 0.40)`.
+ *   distress = E >= 0.85 OR (D >= 0.65 AND C >= 0.40)
  *
- * A single character is never enough: "麻烦你帮我检查一下代码" contains 烦 but
- * has no emotion frame, so E=0 and no distress. The weights are a fixed,
- * explainable heuristic calibrated on the cases in
- * `docs/algorithms/stage-5-distress-evidence-calibration.md`; they are not a
- * probability and are never shown to the user.
+ * A quoted, reported, negated or hypothetical emotion is not E. If the scope
+ * cannot be resolved, the conservative result is no distress.
  */
 export interface DistressEvidence {
   explicit: number
@@ -62,57 +74,113 @@ export interface DistressEvidence {
   tension: number
   score: number
   distress: boolean
-  rationale: 'explicit_emotion_statement' | 'contextual_corroboration' | 'unresolved_tension_only' | 'no_distress_evidence'
+  context: DistressContext
+  rationale: DistressRationale
 }
 
 /** A first-person emotion frame; 烦 is excluded when it starts 麻烦/烦请/烦琐/烦杂. */
 const STRONG_EXPLICIT_PATTERNS: readonly RegExp[] = [
-  /我(?:现在|今天|最近|这两天)?(?:(?:真的|特别|实在|非常|很|太|好|快|有点|有些|稍微)){0,2}(?:累|烦(?!麻|请|琐|杂)|难受|难过|崩溃|焦虑|害怕|委屈|生气|愤怒|绝望|撑不住|受不了|不想活)/u,
+  /我(?:现在|今天|最近|这两天)?(?:(?:真的|特别|实在|非常|很|太|好|快)){0,2}(?:累|烦(?!麻|请|琐|杂)|难受|难过|崩溃|焦虑|害怕|委屈|生气|愤怒|绝望|撑不住|受不了|不想活)/u,
   /(?:今天|现在|最近|这两天)(?:(?:真的|特别|实在|非常|太|很|好)){1,2}(?:累|难受|难过|烦(?!麻|请|琐|杂)|崩溃|焦虑|害怕|委屈)/u,
   /(?:这事|这件事|这|那|他|她|你|工作|项目)(?:真|可|让|把)我(?:(?:真的|特别|实在|非常|很|太)){0,2}(?:累|烦(?!麻|请|琐|杂)|难受|难过|崩溃|焦虑|害怕|委屈|生气)/u,
   /我(?:真的|实在|快)?(?:撑不住|受不了|不想活)了/u
 ]
 
-/** A weaker explicit statement needs corroboration before it can trigger. */
+/** A weaker explicit statement needs independent corroboration first. */
 const MILD_EXPLICIT_PATTERN = /我(?:有点|有些|稍微)(?:累|烦(?!麻|请|琐|杂)|难受|难过|焦虑|害怕)/u
 
-const SOMATIC_CUE = /(?:睡不着|失眠|没力气|不想动|吃不下|没胃口|心慌|喘不过气|头疼)/u
-const INTENSITY_CUE = /(?:真的|特别|实在|非常|太|很|快|有点|有些)/u
-const REPETITION_CUE = /(?:！|!|啊{2,}|呜{2,}|烦死|累死)/u
+/** Loose emotion token used only to scope a boundary (negated/quoted/reported/hypothetical); it never raises E by itself. */
+const BOUNDARY_EMOTION = /(?:累|烦(?!麻|请|琐|杂)|难受|难过|崩溃|焦虑|害怕|委屈|生气|愤怒|绝望|撑不住|受不了|不想活)/u
+
+/** Independent contextual evidence: physical/behavioural, not the same phrase. */
+const SOMATIC_CUE = /(?:睡不着|失眠|没力气|不想动|吃不下|没胃口|心慌|喘不过气|头疼)/gu
+
+const CLAUSE_SPLIT = /[。！？!?；;，,\n]+/u
+const QUOTE_MARK = /[“”"「」『』‘’]/u
+const HYPOTHETICAL = /(?:如果|要是|假如|万一|倘若|若)/u
+const REPORTED = /(?:你|他|她|他们|她们|朋友|同事|家人|别人|有人|听说|据说|医生说|咨询师|主管|老板|我(?:刚才|之前|上次)?).{0,12}(?:说|告诉|提到|表示|觉得|认为|问)/u
+const NEGATION = /(?:不是|并不|没有|没|不|别|从不|才不)/u
+
+interface ClauseReading {
+  context: DistressContext
+  explicit: number
+}
+
+function findExplicit(clause: string): { index: number; strength: number } | null {
+  let best: { index: number; strength: number } | null = null
+  for (const pattern of STRONG_EXPLICIT_PATTERNS) {
+    const match = pattern.exec(clause)
+    if (match && (!best || match.index < best.index)) best = { index: match.index, strength: 1 }
+  }
+  const mild = MILD_EXPLICIT_PATTERN.exec(clause)
+  if (mild && (!best || mild.index < best.index)) best = { index: mild.index, strength: 0.6 }
+  return best
+}
+
+function readClause(clause: string): ClauseReading {
+  const emotion = findExplicit(clause)
+  const token = emotion ?? (() => {
+    const loose = BOUNDARY_EMOTION.exec(clause)
+    return loose ? { index: loose.index, strength: 0 } : null
+  })()
+  if (!token) return { context: 'neutral', explicit: 0 }
+  if (QUOTE_MARK.test(clause)) return { context: 'quoted', explicit: token.strength }
+  const prefix = clause.slice(0, token.index)
+  // Negation scope is limited to the same clause and the prefix before the
+  // emotion, so a later clause ("…，但我很累") stays positive.
+  if (NEGATION.test(prefix)) return { context: 'negated', explicit: token.strength }
+  if (REPORTED.test(clause)) return { context: 'reported', explicit: token.strength }
+  if (HYPOTHETICAL.test(clause)) return { context: 'hypothetical', explicit: token.strength }
+  return { context: 'neutral', explicit: token.strength }
+}
 
 export function assessDistressEvidence(input: { text: string; tension: number }): DistressEvidence {
-  const text = input.text.trim()
-  const explicit = STRONG_EXPLICIT_PATTERNS.some((pattern) => pattern.test(text))
-    ? 1
-    : MILD_EXPLICIT_PATTERN.test(text)
-      ? 0.6
-      : 0
-  // Contextual evidence is a second cue class, not a second copy of the same
-  // word: an explicit frame, a somatic cue, and emphatic punctuation are three
-  // independent classes; one class alone earns 0.4, two or more earn 0.8.
-  const cueClasses = [
-    explicit > 0,
-    SOMATIC_CUE.test(text),
-    REPETITION_CUE.test(text),
-    INTENSITY_CUE.test(text) && explicit > 0
-  ].filter(Boolean).length
-  const contextual = cueClasses >= 2 ? 0.8 : cueClasses === 1 && explicit > 0 ? 0.4 : 0
+  const clauses = input.text.split(CLAUSE_SPLIT).map((clause) => clause.trim()).filter(Boolean)
+  let explicit = 0
+  let boundary: DistressContext | null = null
+  let somatic = 0
+  const somaticSeen = new Set<string>()
+  for (const clause of clauses) {
+    const reading = readClause(clause)
+    if (reading.context === 'neutral') {
+      // Contextual corroboration is counted only from physical/behavioural
+      // cues, in neutral clauses, and never from the emotion phrase itself,
+      // its intensity adverb or its punctuation. Those are part of E.
+      for (const match of clause.matchAll(SOMATIC_CUE)) somaticSeen.add(match[0])
+    }
+    if (reading.context !== 'neutral' && !boundary) boundary = reading.context
+    if (reading.explicit > 0 && reading.context === 'neutral') explicit = Math.max(explicit, reading.explicit)
+  }
+  somatic = somaticSeen.size
+  const contextual = somatic >= 2 ? 0.8 : somatic === 1 ? 0.4 : 0
   const tension = Math.max(0, Math.min(1, input.tension))
   const score = 0.55 * explicit + 0.25 * contextual + 0.2 * tension
   const distress = explicit >= DISTRESS_EXPLICIT_HIGH || (score >= DISTRESS_THRESHOLD && contextual >= DISTRESS_CONTEXT_MIN)
+  const rationale: DistressRationale = explicit >= DISTRESS_EXPLICIT_HIGH
+    ? 'explicit_emotion_statement'
+    : distress
+      ? 'contextual_corroboration'
+      : explicit > 0
+        ? 'mild_without_independent_context'
+        : boundary === 'negated'
+          ? 'negated_emotion'
+          : boundary === 'quoted'
+            ? 'quoted_emotion'
+            : boundary === 'reported'
+              ? 'reported_emotion'
+              : boundary === 'hypothetical'
+                ? 'hypothetical_emotion'
+                : tension > 0
+                  ? 'unresolved_tension_only'
+                  : 'no_distress_evidence'
   return {
     explicit,
     contextual,
     tension,
     score,
     distress,
-    rationale: explicit >= DISTRESS_EXPLICIT_HIGH
-      ? 'explicit_emotion_statement'
-      : distress
-        ? 'contextual_corroboration'
-        : tension > 0
-          ? 'unresolved_tension_only'
-          : 'no_distress_evidence'
+    context: explicit > 0 ? 'neutral' : boundary ?? 'neutral',
+    rationale
   }
 }
 
@@ -147,9 +215,8 @@ export function deriveExpressionPolicy(input: {
       clarifyMode: 'prefer',
       questionBudget: 2,
       brevity: 'normal',
-      // Kept from the v1 trace vocabulary: downstream scenarios and dashboards
-      // already read these labels. The calibrated reason is on the evidence
-      // object, not in the user-visible prompt.
+      // Kept from the v1 trace vocabulary; the calibrated reason is on the
+      // evidence object, not in the user-visible prompt.
       rationale: evidence.distress ? 'uncertain_and_user_tension' : 'uncertain_reading'
     }
   }

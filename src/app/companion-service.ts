@@ -976,12 +976,10 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       version: COGNITIVE_HANDLER_VERSION,
       project: (input) => {
         if (!services.relationships) return
-        // P1-D: the mutation is planned from the source text read at projection
-        // time and applied in its own savepoint. A failure leaves this outbox
-        // row pending, so the next start retries instead of losing the change;
-        // the effect ledger keeps a successful projection from running twice.
+        // F1 (Issue #31): only the source id crosses this boundary. The service
+        // reads the body itself inside the same transaction as the write, so a
+        // caller-held copy cannot outlive the message it came from.
         services.relationships.observe({
-          text: input.readUserMessage(),
           messageId: input.userMessageId,
           conversationId: input.conversationId,
           at: input.occurredAt
