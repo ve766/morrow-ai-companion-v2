@@ -111,9 +111,9 @@ if (!hit || missing.length > 0) throw new Error('VERIFICATION_FAILED')
 | 项目 | 状态 | 说明 |
 |---|---|---|
 | 第二真实 Provider 切换行为 | BLOCKED | 无第二 Provider 凭据；仅做同库运行时重建（S12/测试 14） |
-| Electron/Windows 应用级冒烟 | BLOCKED | 本机 Electron 渲染进程启动即退出（0xC0000005）；与业务代码无关 |
+| Electron/Windows 应用级冒烟 | PASS（CI） | CI `41385531397` 的 windows-latest/ubuntu-latest 真实应用 smoke 通过；本机单独运行崩溃（0xC0000005），仅作环境证据 |
 | 真人自然度评分 | PENDING | Agent 只能按书面 rubric 判定；不得冒充真人评分 |
-| CI | 推送后以 Actions run 为准 | 本文件不预写 CI 结论 |
+| CI | PASS | run `41385531397`，3 个 job 全部 success |
 
 ## 4. 范围声明
 

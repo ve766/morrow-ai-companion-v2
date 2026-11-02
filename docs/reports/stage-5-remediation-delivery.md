@@ -17,8 +17,8 @@
 | scripted 12 场景 | 12/12 PASS |
 | live 12 场景（spark-x2.6） | 12/12 客观 PASS；S5/S6 自然度按 rubric 通过，真人复核 PENDING |
 | typecheck / build | PASS |
-| Electron / Windows 冒烟 | **BLOCKED**（启动崩溃 0xC0000005） |
-| CI | 推送后以 Actions run 为准 |
+| Electron / Windows 冒烟 | **PASS（CI）**：windows-latest 与 ubuntu-latest 真实应用 smoke 通过；本机单独运行 BLOCKED（0xC0000005） |
+| CI | **PASS**：run `41385531397`，3 个 job 全部 success |
 | **整体状态** | **PARTIAL** |
 
 不把“12/12 客观载荷检查”等同于“自然度验收”，也不把“全量测试通过”等同于
@@ -87,7 +87,8 @@
 | `npm run eval:stage3` | 0 | 15 PASS + 1 NOT_RUN / 16 |
 | `npm run eval:stage4a` | 0 | 7/7 |
 | `npm run build` | 0 | 成功 |
-| `MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke` | 1 | BLOCKED：`3221225477 (0xC0000005)` 启动崩溃 |
+| `MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke` | 1（本机） | BLOCKED：`3221225477 (0xC0000005)` 启动崩溃 |
+| CI `41385531397` | success | ubuntu/windows typecheck、tests、build、真实 Electron smoke 全部通过；Windows 升级路径通过 |
 
 环境：win32 / Node 22.23.2 / `node:sqlite`。由于本机 esbuild 无法写系统临时目录，
 测试与评测将 `TEMP/TMP` 指向仓库内 `.tmp/es`（单文件 bundle 可复现该宿主限制）。
@@ -105,10 +106,11 @@
 
 | 项 | 状态 | 复现方式 / 说明 |
 |---|---|---|
-| Electron 应用级冒烟 | BLOCKED | `npm run build && MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke` → 启动即崩溃 0xC0000005；见 `.tmp/smoke.log`（本地，不提交） |
+| Electron 应用级冒烟（CI） | PASS | run `41385531397`：windows-latest 与 ubuntu-latest 真实应用 smoke 通过 |
+| Electron 应用级冒烟（本机） | BLOCKED | `MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke` → 启动即崩溃 0xC0000005；宿主限制，不作为产品结论 |
 | 第二真实 Provider 切换 | NOT_RUN | 无第二 Provider 凭据；不得用配置级测试冒充真实模型切换 |
 | 真人自然度评分 | PENDING | 需要独立审阅者按 rubric 打分；agent 评分已标注为 agent |
-| CI | 推送后 | 以最终提交的 Actions run 为准 |
+| CI | PASS | run `41385531397`，3 个 job 全部 success |
 
 ## 8. 剩余风险
 
@@ -118,7 +120,8 @@
    obligation 进入 `failed`，需要人工检查。聊天本身不受影响，但关系连续性会滞后。
 3. **自然度依赖模型行为**：原则已点名失败形态，但换模型后可能回归；需要 live 场景持续复验。
 4. **单条消息删除**：产品当前无 UI/IPC；触发器覆盖数据库层删除，未来加入删除入口时无需再改。
-5. **Electron 冒烟**：本机渲染进程崩溃使应用级验证缺失；服务层与真实 Provider 链路已单独验证。
+5. **本机 Electron 冒烟不可用**：本机宿主 0xC0000005，但 CI 的 Windows/Ubuntu 真实应用 smoke
+   已通过（run `41385531397`）；本机结果只作为环境证据，不作为产品结论。
 
 ## 9. 回滚步骤
 

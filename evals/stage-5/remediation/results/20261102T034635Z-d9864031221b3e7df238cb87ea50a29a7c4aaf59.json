@@ -434,9 +434,9 @@
   },
   "blocked": [
     {
-      "item": "Electron application smoke (Windows host)",
-      "status": "BLOCKED",
-      "detail": "0xC0000005 during launch with sandbox disabled; environment evidence only"
+      "item": "Electron application smoke",
+      "status": "PASS (CI)",
+      "detail": "windows-latest and ubuntu-latest real-app smoke succeeded in CI; local host launch crashes with 0xC0000005 (environment evidence only)"
     },
     {
       "item": "Second real provider",
@@ -450,13 +450,34 @@
     },
     {
       "item": "CI",
-      "status": "PENDING_PUSH",
-      "detail": "checked after the branch is pushed; see the PR and evidence index"
+      "status": "PASS",
+      "detail": "run 41385531397 success on e293656"
     }
   ],
   "notes": [
     "The 18 task items map to 19 test cases: item 9 has two cases (orphan reconcile and real backup restore).",
     "The pre-existing stage5-presence test that expected a topic withdrawal to retire the address was corrected, not weakened: it now asserts the address survives, the topic stops being injected, and an explicit withdrawal still works.",
     "Live transcripts are synthetic scenario text, not real user data."
-  ]
+  ],
+  "ci": {
+    "runId": 41385531397,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41385531397",
+    "headSha": "e29365683bd49af5804281ffce8012a040bc66b7",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "conclusion": "success"
+      }
+    ],
+    "note": "CI includes the real Electron smoke on windows-latest and ubuntu-latest. The local host smoke remains BLOCKED (0xC0000005) for environment reasons; not used as a product verdict."
+  }
 }
