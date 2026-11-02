@@ -41,12 +41,18 @@ export function deriveExpressionPolicy(input: {
   analysis: CognitiveTurnAnalysis | null
   /** True when the user explicitly asked for a direct answer or a fix. */
   wantsDirectAnswer: boolean
+  /** The user's own words, for explicit distress markers only. */
+  text?: string | undefined
 }): ExpressionPolicy {
   const state = input.state
   const analysis = input.analysis
   const tension = state?.values.tension ?? 0
   const uncertainty = analysis?.uncertainty === 'high' ? 0.8 : analysis?.uncertainty === 'medium' ? 0.55 : 0.25
-  const userDistress = analysis?.signals.negation === true || tension >= ACKNOWLEDGE_TENSION_THRESHOLD
+  // P1-F: a plain negation ("我不喜欢这个方案") is not distress. Distress needs an
+  // explicit statement about how the user feels, or unresolved tension in the
+  // interaction state.
+  const distressSignal = /(?:很累|特别累|好累|难受|难过|烦|崩溃|撑不住|不想(?:做|干|活)|没力气|焦虑|睡不着|压力(?:很|太)?大)/u.test(input.text ?? '')
+  const userDistress = distressSignal || tension >= ACKNOWLEDGE_TENSION_THRESHOLD
 
   // A direct request wins over warmth: the user asked for the answer, not for
   // company. This ordering is the point of the policy.

@@ -129,7 +129,16 @@ export class MemoryService {
     } catch (error) {
       // A: structured, sanitized degradation — memoryId + classification only,
       // never the memory text, SQL parameters, secrets or the raw exception.
+      const errorCode = error instanceof Error ? error.name : 'UNKNOWN'
       this.factIndexDegraded += 1
+      // The index service marks its own failures; this covers a failure raised
+      // by a wrapper (adapter, fault injection) so the job row still exists for
+      // the retry path. Idempotent for an already-degraded job.
+      try {
+        this.factIndex?.markDegradedJob(memoryId, errorCode)
+      } catch {
+        // The event below still records that this memory's index is behind.
+      }
       this.events?.tryRecord?.({
         sourceModule: 'memory',
         eventType: 'memory.fact_index.degraded',
@@ -137,7 +146,7 @@ export class MemoryService {
         subjectType: 'memory',
         subjectId: memoryId,
         correlationId: null,
-        payload: { errorCode: error instanceof Error ? error.name : 'UNKNOWN', attempt: this.factIndexDegraded }
+        payload: { errorCode, attempt: this.factIndexDegraded }
       })
     }
   }
@@ -425,6 +434,12 @@ export class MemoryService {
    * prepare of the same turn) finds the committed state and returns the same
    * outcome with `replayed: true` instead of writing again.
    */
+  /** Runs the batch inside one transaction when the ledger can provide one. */
+  private inTransaction<T>(operation: () => T): T {
+    // Bound call: an unbound method loses `this` and fails reading its options.
+    return this.factIndex ? this.factIndex.inTransaction(operation) : operation()
+  }
+
   /** Read-only view for the planner: active facts for one predicate. */
   activeFactsFor(predicate: import('./fact-slot').FactPredicate): ReturnType<import('./fact-memory').FactMemoryService['lookupActive']> {
     return this.factIndex?.lookupActive(predicate) ?? []
@@ -475,26 +490,42 @@ export class MemoryService {
         }
       }
       try {
-        const created = plan.facts.map((fact) => this.create(fact.displayText, 'personal', {
-          correlationId: plan.messageId,
-          provenance: { sourceMessageId: plan.messageId, kind: 'message' }
-        }))
-        // Verify against the ledger, not against the object we just built.
-        // D3: every planned fact is verified, not only the first one.
-        const missing: string[] = []
-        let hit: import('./fact-memory').FactRecord | undefined
-        for (const fact of plan.facts) {
-          const verified = this.factIndex?.lookupActive(fact.predicate) ?? []
-          const found = verified.find((row) => row.sourceMessageId === plan.messageId && row.valueNormalized === fact.valueNormalized)
-          if (!found) missing.push(fact.predicate)
-          else if (!hit) hit = found
+        // P1-E: creation and verification share one transaction. The repository
+        // opens a savepoint per write; the batch wrapper is what makes a later
+        // verification failure roll the earlier facts back instead of leaving a
+        // half-committed batch that reports success.
+        const degradedBefore = this.factIndexDegraded
+        const outcome = this.inTransaction(() => {
+          const created = plan.facts.map((fact) => this.create(fact.displayText, 'personal', {
+            correlationId: plan.messageId,
+            provenance: { sourceMessageId: plan.messageId, kind: 'message' }
+          }))
+          // Verify against the ledger, not against the object we just built.
+          // D3: every planned fact is verified, not only the first one.
+          const missing: string[] = []
+          let hit: import('./fact-memory').FactRecord | undefined
+          for (const fact of plan.facts) {
+            const verified = this.factIndex?.lookupActive(fact.predicate) ?? []
+            const found = verified.find((row) => row.sourceMessageId === plan.messageId && row.valueNormalized === fact.valueNormalized)
+            if (!found) missing.push(fact.predicate)
+            else if (!hit) hit = found
+          }
+          if (!hit || missing.length > 0) {
+            // An index write that failed during this batch is recoverable: the
+            // primary records exist and the durable job finishes the index. A
+            // mismatch with no index failure is not, and must not survive.
+            if (this.factIndexDegraded === degradedBefore) {
+              throw new Error(missing.length > 0 ? 'PARTIAL_VERIFICATION_FAILED' : 'VERIFICATION_FAILED')
+            }
+            return { created, hit: null, recovery: true as const }
+          }
+          return { created, hit, recovery: false as const }
+        })
+        if (outcome.recovery) {
+          this.recordOperationFailure(plan.messageId, 'verification', 'INDEX_DEGRADED')
+          return { operation: 'create', status: 'recovery_required', predicate: first.predicate, errorCode: 'INDEX_DEGRADED', reason: 'index_pending' }
         }
-        if (!hit || missing.length > 0) {
-          this.recordOperationFailure(plan.messageId, 'verification', missing.length > 0 ? 'PARTIAL_VERIFICATION_FAILED' : 'VERIFICATION_FAILED')
-          // Partial success is reported as failed for the whole operation: the
-          // reply must not claim that all facts were stored.
-          return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: missing.length > 0 ? 'PARTIAL_VERIFICATION_FAILED' : 'VERIFICATION_FAILED' }
-        }
+        const hit = outcome.hit
         return {
           operation: 'create',
           status: 'committed_and_verified',
@@ -504,11 +535,19 @@ export class MemoryService {
           revision: hit.sourceRevision,
           factId: hit.id,
           ...(hit.sourceMessageId ? { sourceMessageId: hit.sourceMessageId } : {}),
-          ...(created.length > 1 ? { reason: 'multiple_facts' } : {})
+          ...(outcome.created.length > 1 ? { reason: 'multiple_facts' } : {})
         }
       } catch (error) {
-        this.recordOperationFailure(plan.messageId, 'commit', error instanceof Error ? error.name : 'UNKNOWN')
-        return { operation: 'create', status: 'failed', predicate: first.predicate, errorCode: error instanceof Error ? error.name : 'UNKNOWN' }
+        const name = error instanceof Error ? error.name : 'UNKNOWN'
+        this.recordOperationFailure(plan.messageId, name.includes('VERIFICATION') ? 'verification' : 'commit', name)
+        // P1-E: distinguish "nothing was kept" from "the record exists but its
+        // index is still catching up". The renderer must not claim success for
+        // either; recovery_required names the durable job that will finish it.
+        const kept = (this.factIndex?.lookupActive(first.predicate) ?? []).filter((fact) => fact.sourceMessageId === plan.messageId)
+        if (kept.length === plan.facts.length) {
+          return { operation: 'create', status: 'recovery_required', predicate: first.predicate, errorCode: name, reason: 'index_pending' }
+        }
+        return { operation: 'create', status: 'rolled_back', predicate: first.predicate, errorCode: name }
       }
     }
 
@@ -532,32 +571,44 @@ export class MemoryService {
       }
     }
     try {
-      this.correct(target.memoryId, displayText, plan.messageId, { sourceMessageId: plan.messageId, kind: 'message' })
-      const current = this.factIndex?.lookupActive(target.predicate) ?? []
-      const previous = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
-      const newFact = current.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase())
-      const oldFact = previous.find((fact) => fact.valueNormalized === target.previousValue.normalize('NFKC').trim().toLocaleLowerCase())
-      if (!newFact || !oldFact || oldFact.status !== 'superseded') {
-        this.recordOperationFailure(plan.messageId, 'verification', 'VERIFICATION_FAILED')
+      // P1-E: the write and its verification commit together, so a correction
+      // whose ledger read disagrees is rolled back rather than reported done.
+      const degradedBefore = this.factIndexDegraded
+      const outcome = this.inTransaction(() => {
+        this.correct(target.memoryId, displayText, plan.messageId, { sourceMessageId: plan.messageId, kind: 'message' })
+        const current = this.factIndex?.lookupActive(target.predicate) ?? []
+        const previous = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
+        const newFact = current.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase())
+        const oldFact = previous.find((fact) => fact.valueNormalized === target.previousValue.normalize('NFKC').trim().toLocaleLowerCase())
+        if (!newFact || !oldFact || oldFact.status !== 'superseded') {
+          // Same split as create: a failed index write is recoverable through
+          // the durable job; a real mismatch rolls the correction back.
+          if (this.factIndexDegraded !== degradedBefore) return { newFact: newFact ?? null, oldFact: oldFact ?? null, recovery: true as const }
+          throw new Error('VERIFICATION_FAILED')
+        }
+        return { newFact, oldFact, recovery: false as const }
+      })
+      if (outcome.recovery) {
+        this.recordOperationFailure(plan.messageId, 'verification', 'INDEX_DEGRADED')
         return {
           operation: 'correct',
-          status: 'failed',
+          status: 'recovery_required',
           predicate: target.predicate,
           previousValue: target.previousValue,
-          ...(newFact ? { currentValue: newFact.valueDisplay } : {}),
-          errorCode: 'VERIFICATION_FAILED'
+          errorCode: 'INDEX_DEGRADED',
+          reason: 'index_pending'
         }
       }
       return {
         operation: 'correct',
         status: 'committed_and_verified',
         predicate: target.predicate,
-        previousValue: oldFact.valueDisplay,
-        currentValue: newFact.valueDisplay,
-        memoryId: newFact.sourceMemoryId,
-        revision: newFact.sourceRevision,
-        factId: newFact.id,
-        ...(newFact.sourceMessageId ? { sourceMessageId: newFact.sourceMessageId } : {})
+        previousValue: outcome.oldFact.valueDisplay,
+        currentValue: outcome.newFact.valueDisplay,
+        memoryId: outcome.newFact.sourceMemoryId,
+        revision: outcome.newFact.sourceRevision,
+        factId: outcome.newFact.id,
+        ...(outcome.newFact.sourceMessageId ? { sourceMessageId: outcome.newFact.sourceMessageId } : {})
       }
     } catch (error) {
       this.recordOperationFailure(plan.messageId, 'commit', error instanceof Error ? error.name : 'UNKNOWN')

@@ -57,14 +57,22 @@ describe('Stage 5: relationship continuity reaches the next real turn', () => {
     expect(lastEvaluation(stack, 'relationshipThreads')).toBeGreaterThanOrEqual(1)
   })
 
-  it('uses an address preference the user set, and stops after they withdraw it', async () => {
+  it('a withdrawn agreement does not touch the address preference (P0-A)', async () => {
     const stack = open()
     const a = stack.companion.createConversation()
     await send(stack, a.id, '以后叫我小林。')
+    await send(stack, a.id, '我们下次聊项目时间线。')
+    await send(stack, a.id, '我们下次聊项目时间线。')
+    // "那个约定就算了" names an agreement, not the address. Retracting it must
+    // leave the address alone — the old code retracted everything active.
+    await send(stack, a.id, '那个约定就算了。')
     const b = stack.companion.createConversation()
     await send(stack, b.id, '你好。')
-    expect(systemText(stack.provider.lastPayload)).toContain('"小林"')
-    await send(stack, b.id, '那个约定就算了。')
+    const system = systemText(stack.provider.lastPayload)
+    expect(system).toContain('"小林"')
+    expect(system).not.toContain('项目时间线')
+    // And the address can still be withdrawn explicitly.
+    await send(stack, b.id, '不要这样称呼我。')
     const c = stack.companion.createConversation()
     await send(stack, c.id, '你好。')
     expect(systemText(stack.provider.lastPayload)).not.toContain('"小林"')

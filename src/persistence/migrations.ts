@@ -2388,6 +2388,71 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 44,
+    name: 'relationship-evidence-deletion-propagation',
+    up(database) {
+      // P0-B: relationship evidence has no message foreign key, so a deleted
+      // message used to leave rows that could keep a thread alive. The trigger
+      // removes them with the message and demotes a thread with no evidence
+      // left; RelationshipThreadService.reconcile() covers a restored backup
+      // that predates the deletion.
+      database.exec(`
+        CREATE TRIGGER relationship_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM relationship_thread_evidence WHERE source_message_id = OLD.id;
+          UPDATE relationship_threads
+            SET status = 'candidate', strength = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE status IN ('active', 'candidate')
+              AND NOT EXISTS (SELECT 1 FROM relationship_thread_evidence e WHERE e.thread_id = relationship_threads.id);
+        END;
+      `)
+    }
+  },
+  {
+    version: 45,
+    name: 'cognitive-outbox-relationship-module',
+    up(database) {
+      // P1-D: a relationship mutation is a post-turn effect like the other
+      // projections. Giving it an outbox row commits the obligation with the
+      // assistant message, so the user's turn and its relationship write share
+      // one commit and a failed projection is retried from the durable row
+      // instead of a swallow-and-hope catch. Rebuild the table because the
+      // module is a CHECK constraint; existing rows are preserved verbatim.
+      database.exec(`
+        DROP INDEX IF EXISTS cognitive_outbox_pending_idx;
+        DROP TRIGGER IF EXISTS cognitive_outbox_cancel_with_message;
+        ALTER TABLE cognitive_outbox RENAME TO cognitive_outbox_v44;
+        CREATE TABLE cognitive_outbox (
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          module TEXT NOT NULL CHECK (module IN ('interest', 'preference', 'growth', 'self_fact', 'reflection', 'goal', 'memory', 'relationship')),
+          handler_version INTEGER NOT NULL CHECK (handler_version > 0),
+          conversation_id TEXT NOT NULL,
+          user_message_id TEXT NOT NULL,
+          occurred_at TEXT NOT NULL,
+          analysis_json TEXT,
+          status TEXT NOT NULL CHECK (status IN ('pending', 'done', 'failed', 'cancelled')),
+          attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (turn_id, module, handler_version)
+        ) STRICT;
+        INSERT INTO cognitive_outbox (turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, last_error, created_at, updated_at)
+          SELECT turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, last_error, created_at, updated_at
+          FROM cognitive_outbox_v44;
+        DROP TABLE cognitive_outbox_v44;
+        CREATE INDEX cognitive_outbox_pending_idx ON cognitive_outbox(status, created_at);
+        CREATE TRIGGER cognitive_outbox_cancel_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          UPDATE cognitive_outbox SET status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE user_message_id = OLD.id AND status = 'pending';
+        END;
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
