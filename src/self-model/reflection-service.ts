@@ -489,12 +489,20 @@ export class ReflectionService {
         handlerVersion: REFLECTION_HANDLER_VERSION,
         effectKey: `finding:${finding.id}`
       }
-      if (this.ledger.begin(identity) === 'applied') return
+      const claim = this.ledger.begin(identity)
+      if (claim.status === 'applied') return
+      // Another worker owns this effect. The owner will apply it; this run must
+      // not duplicate the side effect.
+      if (claim.status === 'busy') return
       try {
         this.applyEffect(finding, effect, candidateOrigins, finishedAt)
-        this.ledger.complete(identity)
+        if (!this.ledger.complete(identity, claim.generation)) {
+          // The lease was stolen while this worker ran. Rolling the effect back
+          // is correct: the new owner will apply it exactly once.
+          throw new Error('LOST_LEASE')
+        }
       } catch (error) {
-        this.ledger.fail(identity, 'reflection_effect_failed')
+        this.ledger.fail(identity, 'reflection_effect_failed', claim.generation)
         throw error
       }
     }

@@ -52,6 +52,12 @@ export interface EffectRecord extends EffectIdentity {
 /** How long one claim is exclusive before another worker may take it over. */
 export const EFFECT_LEASE_MS = 60_000
 
+/** A claim carries the generation that must be presented to complete or fail. */
+export type ClaimResult =
+  | { status: 'run'; generation: number }
+  | { status: 'applied' }
+  | { status: 'busy' }
+
 interface EffectRow {
   effect_id: string
   turn_id: string
@@ -101,19 +107,17 @@ export class CognitiveEffectLedger {
    * row is moved to `running` and the caller owns it until it calls
    * `complete` or `fail`.
    */
-  begin(identity: EffectIdentity): 'run' | 'applied' | 'busy' {
-    // One transaction, one conditional UPDATE, and a changed-row count. The old
-    // version read the row and then wrote `running` with no predicate and no
-    // transaction, so two connections could both decide they owned the effect.
-    //
-    // The claim is conditional on (a) a claimable state and (b) the lease being
-    // absent or expired. Whoever changes a row owns it; everyone else gets
-    // 'busy' or 'applied' and must not run the side effect.
+  begin(identity: EffectIdentity): ClaimResult {
+    // One transaction, one conditional UPDATE, and a changed-row count. The
+    // claim is conditional on (a) a claimable state and (b) the lease being
+    // absent or expired. Every successful claim increments lease_generation;
+    // complete/fail must present that generation, so a worker whose lease was
+    // stolen can never overwrite the new owner's state.
     return this.database.transaction(() => {
       const at = this.clock()
       this.database.connection.prepare(`
-        INSERT INTO cognitive_effect_ledger(effect_id, turn_id, module, handler_version, effect_key, state, attempts, last_error_code, applied_at, created_at, updated_at, claim_owner, lease_until)
-        VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?, NULL, NULL)
+        INSERT INTO cognitive_effect_ledger(effect_id, turn_id, module, handler_version, effect_key, state, attempts, last_error_code, applied_at, created_at, updated_at, claim_owner, lease_until, lease_generation)
+        VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?, NULL, NULL, 0)
         ON CONFLICT(turn_id, module, handler_version, effect_key) DO NOTHING
       `).run(this.makeId().toLowerCase(), identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, at, at)
 
@@ -124,40 +128,49 @@ export class CognitiveEffectLedger {
             claim_owner = ?,
             lease_until = ?,
             attempts = attempts + 1,
+            lease_generation = lease_generation + 1,
             updated_at = ?
         WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
           AND state IN ('pending', 'failed_retryable')
       `).run(this.workerId, lease, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey)
-      if (Number(claimed.changes) === 1) return 'run'
+      if (Number(claimed.changes) === 1) return { status: 'run' as const, generation: this.generationOf(identity) }
 
       const row = this.find(identity)
       if (!row) throw new Error('Effect ledger row disappeared immediately after insert.')
-      if (row.state === 'applied') return 'applied'
+      if (row.state === 'applied') return { status: 'applied' as const }
       // A `running` row whose lease expired is abandoned work: take it over.
       if (row.state === 'running' && row.leaseUntil !== null && row.leaseUntil < at) {
         const stolen = this.database.connection.prepare(`
           UPDATE cognitive_effect_ledger
-          SET claim_owner = ?, lease_until = ?, attempts = attempts + 1, updated_at = ?
+          SET claim_owner = ?, lease_until = ?, attempts = attempts + 1,
+              lease_generation = lease_generation + 1, updated_at = ?
           WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
             AND state = 'running' AND lease_until = ?
         `).run(this.workerId, lease, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, row.leaseUntil)
-        if (Number(stolen.changes) === 1) return 'run'
+        if (Number(stolen.changes) === 1) return { status: 'run' as const, generation: this.generationOf(identity) }
       }
-      if (row.state === 'terminal_failed') return 'busy'
-      return 'busy'
+      return { status: 'busy' as const }
     })
   }
 
+  private generationOf(identity: EffectIdentity): number {
+    const row = this.database.connection.prepare(
+      'SELECT lease_generation FROM cognitive_effect_ledger WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?'
+    ).get(identity.turnId, identity.module, identity.handlerVersion, identity.effectKey) as { lease_generation: number }
+    return Number(row.lease_generation)
+  }
+
   /** Marks the effect applied. Only the claiming worker may do this. */
-  complete(identity: EffectIdentity): boolean {
+  /** Marks the effect applied. Only the claiming generation may do this. */
+  complete(identity: EffectIdentity, generation: number): boolean {
     const at = this.clock()
     const result = this.database.connection.prepare(`
       UPDATE cognitive_effect_ledger
       SET state = 'applied', applied_at = ?, last_error_code = NULL, updated_at = ?,
           lease_until = NULL
       WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
-        AND claim_owner = ?
-    `).run(at, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, this.workerId)
+        AND claim_owner = ? AND lease_generation = ? AND state = 'running'
+    `).run(at, at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, this.workerId, generation)
     return Number(result.changes) === 1
   }
 
@@ -165,20 +178,21 @@ export class CognitiveEffectLedger {
    * Records a failed attempt.
    *
    * A stable error *code* is stored, never the message: an error string can
-   * contain a user's text, and this table is read by diagnostics.
+   * contain a user's text, and this table is read by diagnostics. The update is
+   * fenced by the generation: an old worker cannot fail the new owner's claim.
    */
-  fail(identity: EffectIdentity, errorCode: string): EffectState {
+  fail(identity: EffectIdentity, errorCode: string, generation: number): { state: EffectState; owned: boolean } {
     const at = this.clock()
     const row = this.find(identity)
     const attempts = row?.attempts ?? 1
     const state: EffectState = attempts >= EFFECT_MAX_ATTEMPTS ? 'terminal_failed' : 'failed_retryable'
-    this.database.connection.prepare(`
+    const result = this.database.connection.prepare(`
       UPDATE cognitive_effect_ledger
       SET state = ?, last_error_code = ?, updated_at = ?, lease_until = NULL
       WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
-        AND claim_owner = ?
-    `).run(state, errorCode.slice(0, 64), at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, this.workerId)
-    return state
+        AND claim_owner = ? AND lease_generation = ? AND state = 'running'
+    `).run(state, errorCode.slice(0, 64), at, identity.turnId, identity.module, identity.handlerVersion, identity.effectKey, this.workerId, generation)
+    return { state, owned: Number(result.changes) === 1 }
   }
 
   find(identity: EffectIdentity): EffectRecord | null {
@@ -223,7 +237,8 @@ export class CognitiveEffectLedger {
     const at = this.clock()
     const result = this.database.connection.prepare(`
       UPDATE cognitive_effect_ledger
-      SET state = 'failed_retryable', updated_at = ?, lease_until = NULL
+      SET state = 'failed_retryable', updated_at = ?, lease_until = NULL,
+          claim_owner = NULL, lease_generation = lease_generation + 1
       WHERE state = 'running' AND (lease_until IS NULL OR lease_until <= ?)
     `).run(at, at)
     return Number(result.changes)

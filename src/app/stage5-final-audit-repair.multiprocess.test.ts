@@ -181,6 +181,32 @@ describe('F6 — cross-process outbox invariants', () => {
     expect(messageId).toBeTruthy()
   })
 
+  it('an old worker whose lease was stolen cannot mark the obligation done', async () => {
+    const dir = join(root, 'fencing')
+    const { dbPath, turnId } = await pendingTurn(dir, '以后叫我小林。')
+    const barrier = join(dir, 'barrier')
+    mkdirSync(barrier, { recursive: true })
+    const clock = '2026-11-02T08:00:00.000Z'
+    const oldWorker = runWorker([dbPath, turnId, clock, barrier, 'normal'])
+    await waitFor(() => readdirSync(barrier).some((name) => name.startsWith('ready-')))
+    // The old claim is held at the barrier. A second process takes over after
+    // the lease expires, projects and completes.
+    const future = new Date(Date.parse(clock) + 61_000).toISOString()
+    const takeover = await runWorker([dbPath, turnId, future, '', 'normal'])
+    expect(takeover.code).toBe(0)
+    expect(parse(takeover).done).toBe(1)
+    // Release the old worker: its side effect is idempotent, but its completion
+    // is fenced by the old generation and must be rejected.
+    writeFileSync(join(barrier, 'go'), '1')
+    const oldResult = await oldWorker
+    expect(oldResult.code).toBe(0)
+    expect(parse(oldResult).lostLease).toBe(1)
+    const state = inspect(dbPath)
+    expect(state.evidence).toBe(1)
+    expect(state.applied).toBe(1)
+    expect(state.outbox).toBe(1)
+  })
+
   it('deleting the message while a process holds the claim prevents projection', async () => {
     const dir = join(root, 'delete')
     const { dbPath, turnId, messageId } = await pendingTurn(dir, '以后叫我小林。')

@@ -97,6 +97,8 @@ export interface DrainResult {
   replayed: number
   /** Rows another worker holds a live claim on. Not an error, not progress. */
   busy: number
+  /** The claim was stolen after this worker started; it must not mark done. */
+  lostLease: number
 }
 
 /**
@@ -230,7 +232,7 @@ export class CognitionOutbox {
    */
   drain(projectors: readonly CognitiveProjector[], options: { turnId?: string; limit?: number } = {}): DrainResult {
     const rows = this.pending(options.turnId, options.limit ?? 100)
-    const result: DrainResult = { done: 0, failed: 0, skipped: 0, replayed: 0, busy: 0 }
+    const result: DrainResult = { done: 0, failed: 0, skipped: 0, replayed: 0, busy: 0, lostLease: 0 }
     for (const row of rows) {
       const projector = projectors.find((candidate) => candidate.module === row.module && candidate.version === row.handlerVersion)
       if (!projector) {
@@ -243,20 +245,22 @@ export class CognitionOutbox {
         handlerVersion: row.handlerVersion,
         effectKey: OUTBOX_EFFECT_KEY
       }
+      let claimGeneration: number | null = null
       try {
         const claim = this.ledger.begin(identity)
-        if (claim === 'applied') {
+        if (claim.status === 'applied') {
           this.mark(row, 'done', null, row.attempts)
           result.replayed += 1
           continue
         }
-        if (claim === 'busy') {
+        if (claim.status === 'busy') {
           // Another worker owns this effect right now. Leaving the row pending
           // is correct: the owner will complete it, and if it dies the lease
           // expires and the row becomes claimable again.
           result.busy += 1
           continue
         }
+        claimGeneration = claim.generation
         projector.project({
           turnId: row.turnId,
           conversationId: row.conversationId,
@@ -265,17 +269,30 @@ export class CognitionOutbox {
           analysis: row.analysis,
           readUserMessage: () => this.readUserMessage(row.userMessageId)
         })
-        // Ledger first, outbox second. If the process dies between them the
-        // effect is recorded as applied and the row is completed on replay; the
-        // other order would re-run a committed effect.
-        this.ledger.complete(identity)
+        // Ledger first, outbox second. The completion is fenced by the
+        // generation claimed above: a worker whose lease was stolen must not
+        // mark the obligation done, even if its side effect was idempotent.
+        if (!this.ledger.complete(identity, claim.generation)) {
+          result.lostLease += 1
+          continue
+        }
         this.mark(row, 'done', null, row.attempts)
         result.done += 1
       } catch (error) {
         const attempts = row.attempts + 1
         const message = error instanceof Error ? error.message.slice(0, 200) : 'unknown'
-        const ledgerState = this.ledger.fail(identity, errorCodeOf(error))
-        const terminal = ledgerState === 'terminal_failed' || attempts >= Math.min(OUTBOX_MAX_ATTEMPTS, EFFECT_MAX_ATTEMPTS)
+        if (claimGeneration === null) {
+          // The claim itself failed; nothing was executed and nothing is owned.
+          this.mark(row, 'pending', message, attempts)
+          result.failed += 1
+          continue
+        }
+        const failure = this.ledger.fail(identity, errorCodeOf(error), claimGeneration)
+        if (!failure.owned) {
+          result.lostLease += 1
+          continue
+        }
+        const terminal = failure.state === 'terminal_failed' || attempts >= Math.min(OUTBOX_MAX_ATTEMPTS, EFFECT_MAX_ATTEMPTS)
         this.mark(row, terminal ? 'failed' : 'pending', message, attempts)
         result.failed += 1
       }

@@ -2545,6 +2545,20 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 47,
+    name: 'effect-ledger-lease-generation',
+    up(database) {
+      // F4 (final delivery): a lease timeout alone cannot fence a worker whose
+      // lease was stolen. Every claim increments a generation; complete/fail
+      // are conditional on the owning generation, so an old worker can never
+      // overwrite the new owner's state or mark the obligation done.
+      database.exec(`
+        ALTER TABLE cognitive_effect_ledger ADD COLUMN lease_generation INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX cognitive_effect_ledger_generation_idx ON cognitive_effect_ledger(state, lease_generation);
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

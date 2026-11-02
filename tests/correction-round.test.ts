@@ -127,8 +127,9 @@ describe('P0-3 outbox effect ledger', () => {
     outbox.enqueue({ turnId, conversationId, userMessageId: messageId, occurredAt: AT, analysis: null, modules: ['interest'] })
 
     const identity = { turnId, module: 'interest', handlerVersion: 1, effectKey: 'project' }
-    expect(ledger.begin(identity)).toBe('run')
-    ledger.complete(identity)
+    const claim = ledger.begin(identity)
+    expect(claim.status).toBe('run')
+    if (claim.status === 'run') ledger.complete(identity, claim.generation)
 
     let calls = 0
     const result = outbox.drain([{ module: 'interest', version: 1, project: () => { calls += 1 } }])
@@ -417,15 +418,18 @@ describe('P0-1 effect claim is atomic across connections', () => {
 
     // Both try to claim the same row before either completes. Only the
     // conditional UPDATE that changes a row may return 'run'.
-    expect(ledgerA.begin(identity)).toBe('run')
-    expect(ledgerB.begin(identity)).toBe('busy')
+    const a = ledgerA.begin(identity)
+    const b = ledgerB.begin(identity)
+    expect(a.status).toBe('run')
+    expect(b.status).toBe('busy')
+    if (a.status !== 'run') throw new Error('expected A to claim')
 
     // The loser cannot finish the winner's work.
-    expect(ledgerB.complete(identity)).toBe(false)
-    expect(ledgerA.complete(identity)).toBe(true)
+    expect(ledgerB.complete(identity, 0)).toBe(false)
+    expect(ledgerA.complete(identity, a.generation)).toBe(true)
 
     // Once applied, a later attempt is reported as done, not re-run.
-    expect(ledgerB.begin(identity)).toBe('applied')
+    expect(ledgerB.begin(identity).status).toBe('applied')
   })
 
   it('lets a second connection take over an expired lease, and blocks the old owner', () => {
@@ -436,11 +440,14 @@ describe('P0-1 effect claim is atomic across connections', () => {
     const ledgerA = new CognitiveEffectLedger(database, () => '2026-10-31T00:00:00.000Z')
     const ledgerB = new CognitiveEffectLedger(second, () => '2026-10-31T00:05:00.000Z')
 
-    expect(ledgerA.begin(identity)).toBe('run')
+    const a = ledgerA.begin(identity)
+    expect(a.status).toBe('run')
     // The lease is 60s; five minutes later the claim is abandoned work.
-    expect(ledgerB.begin(identity)).toBe('run')
-    expect(ledgerA.complete(identity)).toBe(false)
-    expect(ledgerB.complete(identity)).toBe(true)
+    const b = ledgerB.begin(identity)
+    expect(b.status).toBe('run')
+    if (a.status !== 'run' || b.status !== 'run') throw new Error('expected both claims')
+    expect(ledgerA.complete(identity, a.generation)).toBe(false)
+    expect(ledgerB.complete(identity, b.generation)).toBe(true)
   })
 
   it('refuses to steal a lease that is still live', () => {
@@ -451,8 +458,8 @@ describe('P0-1 effect claim is atomic across connections', () => {
     const ledgerA = new CognitiveEffectLedger(database, () => '2026-10-31T00:00:00.000Z')
     const ledgerB = new CognitiveEffectLedger(second, () => '2026-10-31T00:00:30.000Z')
 
-    expect(ledgerA.begin(identity)).toBe('run')
-    expect(ledgerB.begin(identity)).toBe('busy')
+    expect(ledgerA.begin(identity).status).toBe('run')
+    expect(ledgerB.begin(identity).status).toBe('busy')
   })
 })
 
