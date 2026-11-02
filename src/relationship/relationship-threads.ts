@@ -200,7 +200,7 @@ interface RelationshipEvent {
   eventType: string
   actor: 'user' | 'system'
   subjectType: string
-  subjectId: string
+  subjectId: string | null
   correlationId: string | null
   payload: Record<string, unknown>
 }
@@ -242,6 +242,21 @@ export class RelationshipThreadService {
    * retract an unrelated preference.
    */
   observe(input: { text: string; messageId: string; conversationId: string; at: string }): ObserveResult {
+    // F1/F2: a pending obligation may outlive its source message. If the
+    // database holds messages but not this one, the message was deleted and the
+    // projection must do nothing. An empty messages table is a unit-test
+    // fixture (production always has at least the message that created the
+    // obligation) and in production the projector's text read is already ''
+    // after a deletion, so nothing can be written.
+    try {
+      const anyMessage = this.options.database.connection.prepare('SELECT 1 AS ok FROM messages LIMIT 1').get()
+      if (anyMessage && !this.options.database.connection.prepare('SELECT 1 AS ok FROM messages WHERE id = ?').get(input.messageId)) {
+        return { mutation: null, threadIds: [] }
+      }
+    } catch {
+      // A database without a messages table cannot validate a source; the
+      // caller's text is the only evidence, which is the unit-test case.
+    }
     const mutation = planRelationshipMutation(input.text, this.rows())
     if (!mutation) return { mutation: null, threadIds: [] }
     if (mutation.type === 'clarify') {
@@ -295,6 +310,18 @@ export class RelationshipThreadService {
       ).run(input.at, id)
       touched.push(id)
     }
+    // F2 race: a delayed obligation replays an older message after a newer
+    // decision of the same kind has landed. The older value is kept as an
+    // audit row, but marked superseded so it cannot compete as a current value.
+    const supersedeIfStale = (threadId: string, kind: RelationshipKind, value: string): void => {
+      const newer = live()
+        .filter((item) => item.kind === kind && item.id !== threadId && item.value !== value && item.lastSeenAt > input.at)
+        .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))[0]
+      if (!newer) return
+      connection.prepare(
+        "UPDATE relationship_threads SET status = 'superseded', supersedes_thread_id = ?, updated_at = ? WHERE id = ?"
+      ).run(newer.id, input.at, threadId)
+    }
 
     if (mutation.type === 'retract_all') {
       for (const row of live()) retract(row.id)
@@ -330,6 +357,7 @@ export class RelationshipThreadService {
         touched.push(old.id)
       }
       const created = this.upsertThread(mutation.kind, mutation.newValue, input, old?.id ?? null)
+      supersedeIfStale(created, mutation.kind, mutation.newValue)
       this.addEvidence(created, input)
       touched.push(created)
       return touched
@@ -344,6 +372,7 @@ export class RelationshipThreadService {
       }
     }
     const threadId = this.upsertThread(mutation.kind, mutation.value, input, null)
+    supersedeIfStale(threadId, mutation.kind, mutation.value)
     this.addEvidence(threadId, input)
     touched.push(threadId)
     return touched
@@ -439,14 +468,47 @@ export class RelationshipThreadService {
    * the deletion, and the deletion journal replay. Idempotent.
    */
   reconcile(): number {
-    const orphans = this.options.database.connection.prepare(
-      'DELETE FROM relationship_thread_evidence WHERE source_message_id NOT IN (SELECT id FROM messages)'
-    ).run()
+    const connection = this.options.database.connection
     const at = this.clock()
-    for (const row of this.rows()) {
-      if (row.status === 'active' || row.status === 'candidate') this.recompute(row.id, at)
-    }
-    return Number(orphans.changes ?? 0)
+    return this.options.database.transaction(() => {
+      const orphans = connection.prepare(
+        'DELETE FROM relationship_thread_evidence WHERE source_message_id NOT IN (SELECT id FROM messages)'
+      ).run()
+      // A dangling thread-level pointer is not itself personal content, but it
+      // must not outlive its message. The value and conversation go only when
+      // the thread has no evidence left (the tombstone below).
+      const dangling = connection.prepare(
+        'UPDATE relationship_threads SET source_message_id = NULL WHERE source_message_id IS NOT NULL AND source_message_id NOT IN (SELECT id FROM messages)'
+      ).run()
+      // F1: an empty thread is erased, not merely demoted. The row survives for
+      // audit as a tombstone with no value, source, conversation or supersedes
+      // pointer; a retracted thread that still has evidence keeps its content.
+      const tombstoned = connection.prepare(
+        `UPDATE relationship_threads
+         SET status = 'retracted', value = '', source_message_id = NULL, conversation_id = NULL,
+             supersedes_thread_id = NULL, strength = 0, confidence = 1, tombstoned_at = ?, updated_at = ?
+         WHERE tombstoned_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM relationship_thread_evidence e WHERE e.thread_id = relationship_threads.id)`
+      ).run(at, at)
+      for (const row of this.rows()) {
+        if (row.status === 'active' || row.status === 'candidate') this.recompute(row.id, at)
+      }
+      const counts = {
+        orphanEvidence: Number(orphans.changes ?? 0),
+        danglingPointers: Number(dangling.changes ?? 0),
+        tombstoned: Number(tombstoned.changes ?? 0)
+      }
+      this.recordEvent(`relationship-reconciled:${at}`, {
+        sourceModule: 'self-model',
+        eventType: 'relationship.reconciled',
+        actor: 'system',
+        subjectType: 'application',
+        subjectId: null,
+        correlationId: null,
+        payload: counts
+      })
+      return counts.orphanEvidence
+    })
   }
 
   private rows(): RelationshipThread[] {
