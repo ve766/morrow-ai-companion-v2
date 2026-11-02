@@ -36,7 +36,7 @@ export interface ExplorationInput {
   /** How many topics were raised in the trailing 24 hours. */
   raisedLastDay: number
   /** The turn's intent reading, when the cognitive core is on. */
-  turn: { intent: string; uncertainty: string; correction: boolean } | null
+  turn: { intent: string; uncertainty: string; correction: boolean; directRequest?: boolean } | null
   /** Topics already used in the current conversation, to avoid repetition. */
   recentlyUsed?: readonly string[]
 }
@@ -84,7 +84,7 @@ export function decideExploration(input: ExplorationInput): ExplorationDecision 
     return { allowed: false, reason, interestId: null, label: null }
   }
 
-  if (input.turn && (input.turn.correction || input.turn.uncertainty === 'high' || input.turn.intent === 'correction')) {
+  if (input.turn && (input.turn.correction || input.turn.directRequest || input.turn.uncertainty === 'high' || input.turn.intent === 'correction')) {
     return { allowed: false, reason: 'turn_not_suitable', interestId: null, label: null }
   }
 

@@ -71,20 +71,17 @@ export class UserInteractionProfileService {
       if (row) {
         // The stored offset is a projection over the signal ledger, and the
         // ledger can shrink: deleting a message removes its signals through a
-        // trigger. A stale projection would keep adapting to a sentence the
-        // user deleted, so a count mismatch rebuilds it before it is read.
-        const ledgerCount = Number((this.database.connection.prepare(
-          'SELECT COUNT(*) AS n FROM user_interaction_signals WHERE dimension = ?'
-        ).get(dimension) as { n: number }).n)
-        if (ledgerCount !== row.evidence_count) {
-          entries.push(this.recompute(dimension))
-          continue
-        }
+        // trigger. Fold on read so a deleted signal or elapsed half-life is
+        // reflected immediately instead of waiting for the next write.
+        const signals = this.database.connection.prepare(
+          'SELECT dimension, turn_id, signal, weight, created_at FROM user_interaction_signals WHERE dimension = ? ORDER BY created_at, turn_id'
+        ).all(dimension) as unknown as GrowthSignalRow[]
+        const folded = signals.length > 0 ? foldGrowth(signals, this.clock()) : { offset: 0, evidenceCount: 0 }
         entries.push({
           dimension,
           baseline: row.baseline,
-          offset: row.offset,
-          evidenceCount: row.evidence_count,
+          offset: folded.offset,
+          evidenceCount: folded.evidenceCount,
           updatedAt: row.updated_at
         })
         continue

@@ -57,7 +57,6 @@ const TIME_MARKERS = new RegExp(`(?:${timeWords.join('|')})`, 'gu')
  * then provide the bounded rerank.
  */
 export const RRF_K = 60
-const RRF_MAX = 2 / (RRF_K + 1)
 
 export function reciprocalRankFusion(channels: ReadonlyArray<ReadonlyMap<string, number>>): Map<string, number> {
   const fused = new Map<string, number>()
@@ -68,7 +67,13 @@ export function reciprocalRankFusion(channels: ReadonlyArray<ReadonlyMap<string,
       fused.set(id, (fused.get(id) ?? 0) + 1 / (RRF_K + rank))
     }
   }
-  for (const [id, value] of fused) fused.set(id, value / RRF_MAX)
+  // A document can be rank 1 in every channel; the normalizer must reflect the
+  // actual channel count, not a hard-coded two. The old 2/(k+1) saturated
+  // four-channel hits at 1.0 and flattened the utility rerank.
+  const maximum = channels.length / (RRF_K + 1)
+  if (maximum > 0) {
+    for (const [id, value] of fused) fused.set(id, value / maximum)
+  }
   return fused
 }
 

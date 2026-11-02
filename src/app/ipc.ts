@@ -1,4 +1,4 @@
-import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult } from '../shared/contracts'
+import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, ProviderGetRequest } from '../shared/contracts'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -40,6 +40,7 @@ import {
   parseConversationIdRequest,
   parseProviderConfigInput,
   parseProviderConnectionRequest,
+  parseProviderGetRequest,
   parseChatRequest,
   parsePersonalityInput,
   parsePersonalityRestoreRequest,
@@ -82,9 +83,9 @@ export interface AppInfoProvider {
 }
 
 export interface CompanionActions {
-  getProvider(): ProviderConfigRecord | null
+  getProvider(request?: ProviderGetRequest): ProviderConfigRecord | null
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord
-  clearProviderCredential(): ProviderConfigRecord | null
+  clearProviderCredential(request?: ProviderGetRequest): ProviderConfigRecord | null
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult>
   createConversation(): ConversationRecord
   listConversations(): ConversationRecord[]
@@ -266,9 +267,9 @@ export function createIpcHandlers(
       [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
     } : {}),
     ...(companion ? {
-      [IPC_CHANNELS.providerGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getProvider()),
+      [IPC_CHANNELS.providerGet]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderGetRequest, (request) => companion.getProvider(request)),
       [IPC_CHANNELS.providerSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConfigInput, (request) => companion.saveProvider(request)),
-      [IPC_CHANNELS.providerClearCredential]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.clearProviderCredential()),
+      [IPC_CHANNELS.providerClearCredential]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderGetRequest, (request) => companion.clearProviderCredential(request)),
       [IPC_CHANNELS.providerTestConnection]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConnectionRequest, (request) => companion.testProviderConnection(request)),
       [IPC_CHANNELS.conversationsCreate]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.createConversation()),
       [IPC_CHANNELS.conversationsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listConversations()),

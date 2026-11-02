@@ -96,6 +96,17 @@ describe('exploration gate', () => {
     expect(decision).toMatchObject({ allowed: false, reason: 'turn_not_suitable' })
   })
 
+  it('never raises a topic when the user asked for a direct answer', () => {
+    const decision = decideExploration({
+      interests: [interest()],
+      now: NOW,
+      lastRaisedAt: null,
+      raisedLastDay: 0,
+      turn: { intent: 'information_query', uncertainty: 'low', correction: false, directRequest: true }
+    })
+    expect(decision).toMatchObject({ allowed: false, reason: 'turn_not_suitable' })
+  })
+
   it('never raises a topic when the intent reading is uncertain', () => {
     const decision = decideExploration({
       interests: [interest()],

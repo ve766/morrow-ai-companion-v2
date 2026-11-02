@@ -338,11 +338,17 @@ export class MemoryService {
   correct(id: string, content: string, correlationId?: string, provenance?: MemoryProvenance): MemoryRecord {
     validateMemoryText(content)
     // B: the correction's own provenance rides on the new revision; the
-    // superseded history keeps the old revision's source.
+    // superseded history keeps the old revision's source. The one-shot slot is
+    // cleared even when the transition throws, or a later create would inherit
+    // this correction's source message.
     this.pendingProvenance = provenance
-    const record = this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
-    this.reindexFact(id)
-    return record
+    try {
+      const record = this.transition(id, { type: 'correct', content }, 'corrected', correlationId)
+      this.reindexFact(id)
+      return record
+    } finally {
+      this.pendingProvenance = undefined
+    }
   }
 
   retract(id: string, correlationId?: string): MemoryRecord {
@@ -555,7 +561,7 @@ export class MemoryService {
     const { target, newValue, displayText } = plan
     // Replay: the old fact is already superseded by a fact from this turn.
     const history = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
-    const already = history.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase() && fact.sourceMessageId === plan.messageId)
+    const already = history.find((fact) => fact.sourceMemoryId === target.memoryId && fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase() && fact.sourceMessageId === plan.messageId)
     if (already) {
       return {
         operation: 'correct',
@@ -578,8 +584,10 @@ export class MemoryService {
         this.correct(target.memoryId, displayText, plan.messageId, { sourceMessageId: plan.messageId, kind: 'message' })
         const current = this.factIndex?.lookupActive(target.predicate) ?? []
         const previous = this.factIndex?.lookupActive(target.predicate, { queryTime: 'past' }) ?? []
-        const newFact = current.find((fact) => fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase())
-        const oldFact = previous.find((fact) => fact.valueNormalized === target.previousValue.normalize('NFKC').trim().toLocaleLowerCase())
+        // Bind both sides to the memory being corrected. A value from another
+        // memory of the same predicate must not satisfy verification.
+        const newFact = current.find((fact) => fact.sourceMemoryId === target.memoryId && fact.valueNormalized === newValue.normalize('NFKC').trim().toLocaleLowerCase())
+        const oldFact = previous.find((fact) => fact.sourceMemoryId === target.memoryId && fact.valueNormalized === target.previousValue.normalize('NFKC').trim().toLocaleLowerCase())
         if (!newFact || !oldFact || oldFact.status !== 'superseded') {
           // Same split as create: a failed index write is recoverable through
           // the durable job; a real mismatch rolls the correction back.

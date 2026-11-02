@@ -27,6 +27,7 @@ import {
   type ReflectionFindingsRequest,
   type PendingItemIdRequest,
   type PendingItemDecisionRequest,
+  type ProviderGetRequest,
   type TurnContextRequest
 } from '../shared/contracts'
 import type {
@@ -62,9 +63,9 @@ function invoke<T>(channel: string, request?: unknown): Promise<IpcResult<T>> {
 const bridge: MorrowBridge = Object.freeze({
   getAppInfo: () => invoke<AppInfo>(IPC_CHANNELS.appInfo),
   providers: Object.freeze({
-    get: () => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet),
+    get: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet, request),
     save: (request: ProviderConfigInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerSave, request),
-    clearCredential: () => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential),
+    clearCredential: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential, request),
     testConnection: (request: ProviderConnectionRequest) => invoke<ProviderConnectionResult>(IPC_CHANNELS.providerTestConnection, request)
   }),
   conversations: Object.freeze({

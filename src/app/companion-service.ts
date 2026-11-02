@@ -785,6 +785,8 @@ export interface SelfModelContextTurn {
   turnId: string
   analysis?: CognitiveTurnAnalysis
   decision?: IntentDecision
+  /** The user asked for a direct answer or fix; self-initiated topics yield. */
+  directRequest?: boolean
 }
 
 // Context block for the long-term layer: rule-derived interests and
@@ -837,7 +839,7 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
   // hypotheses. The router marks what it injected, so the trace shows what
   // the model actually saw. This is the only prompt consumer of findings;
   // everything else stays audit-only or goes to the user's pending list.
-  const hints = services.findingRouter?.promptBlock() ?? ''
+  const hints = services.findingRouter?.promptBlock(turn?.turnId) ?? ''
   if (hints) lines.push(hints)
   // Stage 3 §2D: goals are described by owner, never merged into one list.
   if (services.goals) {
@@ -1103,7 +1105,8 @@ export class CompanionService {
                         ? {
                             intent: turn.analysis.intent,
                             uncertainty: turn.analysis.uncertainty,
-                            correction: turn.analysis.signals.correction
+                            correction: turn.analysis.signals.correction,
+                            directRequest: turn.directRequest === true
                           }
                         : null
                     })
@@ -2117,17 +2120,19 @@ export class ChatService {
     // Stage 5 (B): the strategy is a structured object, recorded on the turn,
     // so a test can compare two legal states and see the strategy differ while
     // the facts do not.
+    const wantsDirectAnswer = /(?:直接|立刻|马上|别解释|不用解释|只要答案|给我方案|怎么解决|how do I|just give me|cut to the chase)/iu.test(content)
     expressionPolicy = deriveExpressionPolicy({
       state: feelingState ?? previousFeelingState ?? null,
       analysis: analysis ?? null,
-      wantsDirectAnswer: /(?:直接|立刻|马上|别解释|不用解释|只要答案|给我方案|怎么解决|how do I|just give me|cut to the chase)/iu.test(content),
+      wantsDirectAnswer,
       text: content
     })
 
     const exploration = this.selfModel?.explorationLine?.({
       turnId: idempotencyKey,
       ...(analysis ? { analysis } : {}),
-      ...(decision ? { decision } : {})
+      ...(decision ? { decision } : {}),
+      directRequest: wantsDirectAnswer
     })
     const system = [
       `Morrow's personality, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}. The three numbers are the user-edited baseline plus Morrow's own evidence-formed drift (bounded, reversible, rule-derived — not a feeling). Where they conflict, the user's explicit instruction wins.`,

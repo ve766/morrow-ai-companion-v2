@@ -268,9 +268,17 @@ if (hasSingleInstanceLock) {
     // cannot complete, the app must not serve a prompt built from uncleaned
     // relationship data. Backup restore replays the deletion journal and then
     // relaunches, so this is also the post-restore boundary.
-    const reconciledOrphans = relationships.reconcile()
-    if (reconciledOrphans > 0) {
-      console.warn(`Relationship reconcile removed ${reconciledOrphans} orphan evidence row(s) before startup.`)
+    //
+    // A degraded database below v46 lacks tombstoned_at; reconcile cannot run
+    // there. Skipping it keeps core chat usable while the migration remains
+    // the only path to full relationship cleanup.
+    if (database.schemaVersion >= 46) {
+      const reconciledOrphans = relationships.reconcile()
+      if (reconciledOrphans > 0) {
+        console.warn(`Relationship reconcile removed ${reconciledOrphans} orphan evidence row(s) before startup.`)
+      }
+    } else {
+      console.warn(`Relationship reconcile skipped: schema v${database.schemaVersion} is below v46.`)
     }
     const companion = new CompanionService({
       database,
