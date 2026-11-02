@@ -51,7 +51,7 @@
 | `npm run eval:stage4a` | 0 | 7/7 |
 | `npm run build` | 0 | electron-vite build 成功 |
 | `MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke` | **1（本机 BLOCKED）** | 本机 Electron 启动即退出 `3221225477 / 0xC0000005`；渲染进程崩溃，未提交页面 |
-| CI run `41385531397` | **success** | ubuntu-latest / windows-latest 的 typecheck、tests、build、真实 Electron smoke 全部通过；Windows 升级路径 job 通过 |
+| CI run `41386833397` | **success** | ubuntu-latest / windows-latest 的 typecheck、tests、build、真实 Electron smoke 全部通过；Windows 升级路径 job 通过 |
 
 > 环境注记：本机 esbuild 无法写入系统临时目录（`Access is denied`，单文件 bundle 可复现），
 > 全量测试与评测把 `TEMP/TMP` 指向仓库内 `.tmp/es`。这是宿主限制，不是产品行为。
@@ -60,10 +60,10 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| Electron / Windows 应用级冒烟 | **PASS（CI）** | CI `41385531397` 的 windows-latest 与 ubuntu-latest 真实应用 smoke 通过；本机单独运行 BLOCKED（`0xC0000005`，环境限制），不作为产品结论 |
+| Electron / Windows 应用级冒烟 | **PASS（CI）** | CI `41386833397` 的 windows-latest 与 ubuntu-latest 真实应用 smoke 通过；本机单独运行 BLOCKED（`0xC0000005`，环境限制），不作为产品结论 |
 | 第二真实 Provider 切换 | NOT_RUN | 无第二 Provider 凭据；只验证同库重建（S12/测试 14） |
 | 真人自然度评分 | PENDING | Agent rubric 见 `transcript-remediation.md`；不得冒充真人评分 |
-| CI | **PASS** | run `41385531397`，3 个 job 全部 success（含 Windows 升级路径） |
+| CI | **PASS** | run `41386833397`，3 个 job 全部 success（含 Windows 升级路径） |
 
 ## 5. 自然度 rubric（摘要）
 

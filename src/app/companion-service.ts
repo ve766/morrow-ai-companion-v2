@@ -63,7 +63,7 @@ import type { RelationshipThreadService } from '../relationship/relationship-thr
 import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
 import { describeGoals } from '../motivation/companion-goal'
 import { deriveInterestLabel } from '../self-model/interest-service'
-import { CognitionOutbox, COGNITIVE_HANDLER_VERSION, type CognitiveProjector } from './cognitive-outbox'
+import { CognitionOutbox, COGNITIVE_HANDLER_VERSION, COGNITIVE_MODULES, type CognitiveProjector } from './cognitive-outbox'
 import type { MemoryRecord } from '../memory/memory-domain'
 import { planMemoryOperation, type MemoryOperationOutcome } from '../memory/memory-operation-planner'
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
@@ -976,12 +976,10 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       version: COGNITIVE_HANDLER_VERSION,
       project: (input) => {
         if (!services.relationships) return
-        // P1-D: the mutation is planned from the source text read at projection
-        // time and applied in its own savepoint. A failure leaves this outbox
-        // row pending, so the next start retries instead of losing the change;
-        // the effect ledger keeps a successful projection from running twice.
+        // F1 (Issue #31): only the source id crosses this boundary. The service
+        // reads the body itself inside the same transaction as the write, so a
+        // caller-held copy cannot outlive the message it came from.
         services.relationships.observe({
-          text: input.readUserMessage(),
           messageId: input.userMessageId,
           conversationId: input.conversationId,
           at: input.occurredAt
@@ -1566,6 +1564,19 @@ export class ChatService {
       return { conversation: existing.conversation, userMessage: existingUser, assistantMessage: existingAssistant, includedMemoryCount: 0 }
     }
     this.locks.add(conversationId)
+    // F2: a turn whose provider call failed leaves its relationship
+    // obligation pending. Apply older pending obligations before this turn
+    // reads the relationship ledger, so an earlier statement is not invisible
+    // for an extra turn. The current turn's row does not exist yet: it is
+    // written later, in the same transaction as the user message.
+    if (this.outbox && this.projectors.length > 0) {
+      try {
+        const earlier = this.drainCognition()
+        if (earlier.failed > 0) this.recordDegradation('cognitive_outbox_drain', requestId)
+      } catch {
+        this.recordDegradation('cognitive_outbox_drain', requestId)
+      }
+    }
     this.recordTurnState(conversationId, requestId, 'received')
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
@@ -1599,7 +1610,25 @@ export class ChatService {
       const appendUser = (cognitiveObservation?: CognitiveTurnRecord): ConversationMessage => {
         const appended = this.conversations.appendMessage(conversationId, 'user', request.content.trim(), requestId, {
           messageId,
-          ...(cognitiveObservation ? { cognitiveObservation } : {})
+          ...(cognitiveObservation ? { cognitiveObservation } : {}),
+          // F2: the relationship obligation is written in the same transaction
+          // as the user message, before the provider is called. A provider
+          // timeout, crash or missing assistant reply cannot lose it; the
+          // projector reads the source text later and the evidence key makes a
+          // replay count once.
+          afterPersist: (saved) => {
+            if (!this.outbox || this.projectors.length === 0) return
+            const storedUser = saved.messages.find((message) => message.id === messageId && message.role === 'user')
+            if (!storedUser) return
+            this.outbox.enqueue({
+              turnId: requestId,
+              conversationId,
+              userMessageId: storedUser.id,
+              occurredAt: storedUser.createdAt,
+              analysis: null,
+              modules: ['relationship']
+            })
+          }
         })
         const stored = appended.messages.find((message) => message.id === messageId && message.role === 'user')
         if (!stored) throw new ApplicationError('STORAGE_ERROR')
@@ -1763,12 +1792,16 @@ export class ChatService {
           // losing the turn (a retried turn returns the stored reply and would
           // never reach the hooks again).
           if (this.outbox && this.projectors.length > 0) {
+            // The relationship obligation was committed with the user message
+            // above; enqueueing it again here would be a harmless no-op, but
+            // the other modules still belong to the assistant-message commit.
             this.outbox.enqueue({
               turnId: requestId,
               conversationId,
               userMessageId: userMessage.id,
               occurredAt: this.now(),
-              analysis: verified.analysis ?? null
+              analysis: verified.analysis ?? null,
+              modules: COGNITIVE_MODULES.filter((module) => module !== 'relationship')
             })
           }
           // A rewritten answer means the assistant could not ground a claim

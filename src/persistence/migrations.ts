@@ -2453,6 +2453,98 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 46,
+    name: 'relationship-deletion-tombstones',
+    up(database) {
+      // F1 (Issue #29): the v44 trigger only demoted an emptied thread, leaving
+      // the user's address/topic/plan text and the source-message pointer in
+      // the row. A deleted message must not leave personal content behind, so a
+      // thread with no surviving evidence becomes a tombstone: no value, no
+      // source or conversation pointer, status retracted. The table is rebuilt
+      // because v43's CHECK constraints required non-empty value and a source
+      // message id; existing rows are copied verbatim.
+      database.exec(`
+        DROP TRIGGER IF EXISTS relationship_evidence_delete_with_message;
+        DROP INDEX IF EXISTS relationship_threads_kind_idx;
+        DROP INDEX IF EXISTS relationship_threads_evidence_uq;
+
+        CREATE TABLE relationship_threads_v46 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          kind TEXT NOT NULL CHECK (kind IN ('address_preference', 'shared_topic', 'shared_plan', 'rhythm_preference')),
+          value TEXT NOT NULL CHECK (length(value) <= 200),
+          status TEXT NOT NULL CHECK (status IN ('candidate', 'active', 'superseded', 'retracted', 'expired')),
+          strength REAL NOT NULL CHECK (strength >= 0 AND strength <= 1),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36),
+          conversation_id TEXT CHECK (conversation_id IS NULL OR length(conversation_id) = 36),
+          supersedes_thread_id TEXT CHECK (supersedes_thread_id IS NULL OR length(supersedes_thread_id) = 36),
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          expires_at TEXT,
+          tombstoned_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          CHECK (
+            (tombstoned_at IS NOT NULL AND value = '' AND source_message_id IS NULL AND conversation_id IS NULL)
+            OR (tombstoned_at IS NULL AND length(trim(value)) BETWEEN 1 AND 200)
+          )
+        ) STRICT;
+        INSERT INTO relationship_threads_v46(id, kind, value, status, strength, confidence, source_message_id, conversation_id, supersedes_thread_id, first_seen_at, last_seen_at, expires_at, tombstoned_at, created_at, updated_at)
+          SELECT id, kind, value, status, strength, confidence, source_message_id, conversation_id, supersedes_thread_id, first_seen_at, last_seen_at, expires_at, NULL, created_at, updated_at
+          FROM relationship_threads;
+
+        CREATE TABLE relationship_thread_evidence_v46 (
+          thread_id TEXT NOT NULL CHECK (length(thread_id) = 36),
+          source_message_id TEXT NOT NULL CHECK (length(source_message_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          polarity TEXT NOT NULL CHECK (polarity IN ('support', 'counter')),
+          weight REAL NOT NULL CHECK (weight > 0 AND weight <= 1),
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (thread_id, source_message_id),
+          FOREIGN KEY (thread_id) REFERENCES relationship_threads_v46(id) ON DELETE CASCADE
+        ) STRICT;
+        INSERT INTO relationship_thread_evidence_v46(thread_id, source_message_id, conversation_id, polarity, weight, created_at)
+          SELECT thread_id, source_message_id, conversation_id, polarity, weight, created_at
+          FROM relationship_thread_evidence;
+
+        DROP TABLE relationship_thread_evidence;
+        DROP TABLE relationship_threads;
+        ALTER TABLE relationship_threads_v46 RENAME TO relationship_threads;
+        ALTER TABLE relationship_thread_evidence_v46 RENAME TO relationship_thread_evidence;
+
+        CREATE INDEX relationship_threads_kind_idx ON relationship_threads(kind, status, last_seen_at DESC);
+        CREATE UNIQUE INDEX relationship_threads_evidence_uq ON relationship_threads(kind, value, source_message_id) WHERE source_message_id IS NOT NULL;
+
+        -- Historical backfill: evidence whose source message is already gone,
+        -- thread-level pointers to those messages, and threads left with no
+        -- evidence at all. Idempotent: a second run finds nothing to do.
+        DELETE FROM relationship_thread_evidence WHERE source_message_id NOT IN (SELECT id FROM messages);
+        UPDATE relationship_threads
+          SET source_message_id = NULL
+          WHERE source_message_id IS NOT NULL AND source_message_id NOT IN (SELECT id FROM messages);
+        UPDATE relationship_threads
+          SET status = 'retracted', value = '', source_message_id = NULL, conversation_id = NULL,
+              supersedes_thread_id = NULL, strength = 0, confidence = 1,
+              tombstoned_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+          WHERE tombstoned_at IS NULL
+            AND NOT EXISTS (SELECT 1 FROM relationship_thread_evidence e WHERE e.thread_id = relationship_threads.id);
+
+        CREATE TRIGGER relationship_evidence_delete_with_message
+        AFTER DELETE ON messages
+        BEGIN
+          DELETE FROM relationship_thread_evidence WHERE source_message_id = OLD.id;
+          UPDATE relationship_threads SET source_message_id = NULL WHERE source_message_id = OLD.id;
+          UPDATE relationship_threads
+            SET status = 'retracted', value = '', source_message_id = NULL, conversation_id = NULL,
+                supersedes_thread_id = NULL, strength = 0, confidence = 1,
+                tombstoned_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+            WHERE tombstoned_at IS NULL
+              AND NOT EXISTS (SELECT 1 FROM relationship_thread_evidence e WHERE e.thread_id = relationship_threads.id);
+        END;
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

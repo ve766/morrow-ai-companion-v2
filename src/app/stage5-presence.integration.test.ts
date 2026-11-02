@@ -126,10 +126,24 @@ describe('Stage 5: the internal state becomes a structured strategy, not adjecti
     expect(policy.questionBudget).toBeGreaterThan(0)
   })
 
-  it('unresolved tension asks for acknowledgement before advice', () => {
+  it('unresolved tension alone does not trigger acknowledgement (F3 calibration)', () => {
     const tense = { ...baseState, values: { ...FEELING_BASELINE, tension: 0.2 } }
     const policy = deriveExpressionPolicy({ state: tense as never, analysis: { ...analysis, uncertainty: 'low' } as never, wantsDirectAnswer: false })
+    // T is only 20% of the score; without an explicit or contextual distress
+    // cue the calibrated model must not pretend the user is distressed.
+    expect(policy.adviceMode).toBe('none')
+    expect(policy.rationale).toBe('unresolved_tension_only')
+  })
+
+  it('an explicit distress statement is acknowledged without relying on tension', () => {
+    const policy = deriveExpressionPolicy({
+      state: baseState as never,
+      analysis: { ...analysis, uncertainty: 'low' } as never,
+      wantsDirectAnswer: false,
+      text: '我现在很烦'
+    })
     expect(policy.adviceMode).toBe('acknowledge_first')
+    expect(policy.rationale).toBe('user_tension_unresolved')
   })
 
   it('the strategy reaches the payload and the turn record without exposing state values', async () => {

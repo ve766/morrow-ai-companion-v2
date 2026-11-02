@@ -86,8 +86,8 @@ MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke                  # 1 · BLOCKED 0xC
 | 项 | 值 |
 |---|---|
 | Workflow | `.github/workflows/ci.yml` |
-| Run | [41385531397](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41385531397) |
-| Head | `e29365683bd49af5804281ffce8012a040bc66b7` |
+| Run | [41386833397](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41386833397) |
+| Head | `9d54c6e02dea443f5b6911810327a9fa08c5353c` |
 | 结论 | **success**（ubuntu-latest、windows-latest 的 typecheck/tests/build/Electron smoke；Windows 升级路径 job） |
 | 说明 | CI 中的 Windows/Ubuntu 真实应用 smoke 为应用级验证；本机单独运行 `0xC0000005` 仅作环境证据 |
 
@@ -95,7 +95,7 @@ MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke                  # 1 · BLOCKED 0xC
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| Electron / Windows 冒烟 | PASS（CI） | CI `41385531397` 的 windows-latest/ubuntu-latest 真实应用 smoke 通过；本机单独运行 BLOCKED（`0xC0000005`，环境证据） |
+| Electron / Windows 冒烟 | PASS（CI） | CI `41386833397` 的 windows-latest/ubuntu-latest 真实应用 smoke 通过；本机单独运行 BLOCKED（`0xC0000005`，环境证据） |
 | 第二真实 Provider | NOT_RUN | 无凭据；S12/测试 14 仅验证同库重建 |
 | 真人自然度 | PENDING | agent rubric 已完成，真人评分未做 |
 | 规则计划器覆盖 | 风险 | 新句式可能落到“无操作/澄清”；方向保守，不会越权撤回 |

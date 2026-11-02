@@ -192,6 +192,22 @@ export interface ObserveResult {
   threadIds: string[]
   /** True when the caller should ask the user which target was meant. */
   clarification?: string
+  /** The projection was refused because the source could not be trusted. */
+  skipped?: 'source_missing' | 'source_conversation_mismatch'
+}
+
+/**
+ * Raised when the source message cannot be read at all (database unavailable,
+ * table missing, query failure). The durable outbox keeps the obligation and
+ * retries; nothing is written in the meantime. The message never contains the
+ * user's text.
+ */
+export class RelationshipSourceError extends Error {
+  readonly code = 'RELATIONSHIP_SOURCE_UNVERIFIABLE'
+  constructor() {
+    super('RELATIONSHIP_SOURCE_UNVERIFIABLE')
+    this.name = 'RelationshipSourceError'
+  }
 }
 
 /** The journal event this service emits; no user text, only codes. */
@@ -200,7 +216,7 @@ interface RelationshipEvent {
   eventType: string
   actor: 'user' | 'system'
   subjectType: string
-  subjectId: string
+  subjectId: string | null
   correlationId: string | null
   payload: Record<string, unknown>
 }
@@ -241,29 +257,45 @@ export class RelationshipThreadService {
    * clarification reason instead, so an ambiguous "那个约定就算了" can never
    * retract an unrelated preference.
    */
-  observe(input: { text: string; messageId: string; conversationId: string; at: string }): ObserveResult {
-    const mutation = planRelationshipMutation(input.text, this.rows())
-    if (!mutation) return { mutation: null, threadIds: [] }
-    if (mutation.type === 'clarify') {
-      // Observability: "asked instead of guessed" is a state a health check can
-      // count. Reason code only — never the user's sentence or the values.
-      this.recordEvent(`relationship-clarify:${input.messageId}`, {
-        sourceModule: 'self-model',
-        eventType: 'relationship.clarify',
-        actor: 'system',
-        subjectType: 'conversation_message',
-        subjectId: input.messageId,
-        correlationId: input.conversationId,
-        payload: { reason: mutation.reason }
-      })
-      return { mutation, threadIds: [], clarification: mutation.reason }
-    }
-
-    // The caller may already hold a transaction (afterPersist runs inside the
-    // message commit). database.transaction() uses a savepoint when nested, so
-    // the mutation joins the turn's transaction instead of opening a second
-    // BEGIN, which SQLite rejects.
+  observe(input: { messageId: string; conversationId: string; at: string }): ObserveResult {
+    // F1 (Issue #31): the source body is read here, inside the write
+    // transaction, and a caller-held copy of the text is never accepted as
+    // evidence. BEGIN IMMEDIATE serializes this read against a concurrent
+    // delete on another connection, so the check cannot pass and then write
+    // against a message that no longer exists.
     return this.options.database.transaction(() => {
+      let source: { body: string; conversationId: string } | null
+      try {
+        const row = this.options.database.connection.prepare(
+          'SELECT body, conversation_id FROM messages WHERE id = ?'
+        ).get(input.messageId) as { body: string; conversation_id: string } | undefined
+        source = row ? { body: row.body, conversationId: row.conversation_id } : null
+      } catch {
+        // Database unavailable, table unreadable or query failure: fail closed.
+        // The durable obligation stays pending and is retried.
+        throw new RelationshipSourceError()
+      }
+      if (!source) return { mutation: null, threadIds: [], skipped: 'source_missing' as const }
+      if (source.conversationId !== input.conversationId) {
+        return { mutation: null, threadIds: [], skipped: 'source_conversation_mismatch' as const }
+      }
+      const mutation = planRelationshipMutation(source.body, this.rows())
+      if (!mutation) return { mutation: null, threadIds: [] }
+      if (mutation.type === 'clarify') {
+        // Observability: "asked instead of guessed" is a state a health check can
+        // count. Reason code only — never the user's sentence or the values.
+        this.recordEvent(`relationship-clarify:${input.messageId}`, {
+          sourceModule: 'self-model',
+          eventType: 'relationship.clarify',
+          actor: 'system',
+          subjectType: 'conversation_message',
+          subjectId: input.messageId,
+          correlationId: input.conversationId,
+          payload: { reason: mutation.reason }
+        })
+        return { mutation, threadIds: [], clarification: mutation.reason }
+      }
+
       const threadIds = this.applyMutation(mutation, input)
       // The change and its cause are one durable record: which source message
       // caused it, what operation it was, and (for a withdrawal) why. Values
@@ -294,6 +326,18 @@ export class RelationshipThreadService {
         "UPDATE relationship_threads SET status = 'retracted', updated_at = ? WHERE id = ? AND status != 'retracted'"
       ).run(input.at, id)
       touched.push(id)
+    }
+    // F2 race: a delayed obligation replays an older message after a newer
+    // decision of the same kind has landed. The older value is kept as an
+    // audit row, but marked superseded so it cannot compete as a current value.
+    const supersedeIfStale = (threadId: string, kind: RelationshipKind, value: string): void => {
+      const newer = live()
+        .filter((item) => item.kind === kind && item.id !== threadId && item.value !== value && item.lastSeenAt > input.at)
+        .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))[0]
+      if (!newer) return
+      connection.prepare(
+        "UPDATE relationship_threads SET status = 'superseded', supersedes_thread_id = ?, updated_at = ? WHERE id = ?"
+      ).run(newer.id, input.at, threadId)
     }
 
     if (mutation.type === 'retract_all') {
@@ -330,6 +374,7 @@ export class RelationshipThreadService {
         touched.push(old.id)
       }
       const created = this.upsertThread(mutation.kind, mutation.newValue, input, old?.id ?? null)
+      supersedeIfStale(created, mutation.kind, mutation.newValue)
       this.addEvidence(created, input)
       touched.push(created)
       return touched
@@ -344,6 +389,7 @@ export class RelationshipThreadService {
       }
     }
     const threadId = this.upsertThread(mutation.kind, mutation.value, input, null)
+    supersedeIfStale(threadId, mutation.kind, mutation.value)
     this.addEvidence(threadId, input)
     touched.push(threadId)
     return touched
@@ -439,14 +485,47 @@ export class RelationshipThreadService {
    * the deletion, and the deletion journal replay. Idempotent.
    */
   reconcile(): number {
-    const orphans = this.options.database.connection.prepare(
-      'DELETE FROM relationship_thread_evidence WHERE source_message_id NOT IN (SELECT id FROM messages)'
-    ).run()
+    const connection = this.options.database.connection
     const at = this.clock()
-    for (const row of this.rows()) {
-      if (row.status === 'active' || row.status === 'candidate') this.recompute(row.id, at)
-    }
-    return Number(orphans.changes ?? 0)
+    return this.options.database.transaction(() => {
+      const orphans = connection.prepare(
+        'DELETE FROM relationship_thread_evidence WHERE source_message_id NOT IN (SELECT id FROM messages)'
+      ).run()
+      // A dangling thread-level pointer is not itself personal content, but it
+      // must not outlive its message. The value and conversation go only when
+      // the thread has no evidence left (the tombstone below).
+      const dangling = connection.prepare(
+        'UPDATE relationship_threads SET source_message_id = NULL WHERE source_message_id IS NOT NULL AND source_message_id NOT IN (SELECT id FROM messages)'
+      ).run()
+      // F1: an empty thread is erased, not merely demoted. The row survives for
+      // audit as a tombstone with no value, source, conversation or supersedes
+      // pointer; a retracted thread that still has evidence keeps its content.
+      const tombstoned = connection.prepare(
+        `UPDATE relationship_threads
+         SET status = 'retracted', value = '', source_message_id = NULL, conversation_id = NULL,
+             supersedes_thread_id = NULL, strength = 0, confidence = 1, tombstoned_at = ?, updated_at = ?
+         WHERE tombstoned_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM relationship_thread_evidence e WHERE e.thread_id = relationship_threads.id)`
+      ).run(at, at)
+      for (const row of this.rows()) {
+        if (row.status === 'active' || row.status === 'candidate') this.recompute(row.id, at)
+      }
+      const counts = {
+        orphanEvidence: Number(orphans.changes ?? 0),
+        danglingPointers: Number(dangling.changes ?? 0),
+        tombstoned: Number(tombstoned.changes ?? 0)
+      }
+      this.recordEvent(`relationship-reconciled:${at}`, {
+        sourceModule: 'self-model',
+        eventType: 'relationship.reconciled',
+        actor: 'system',
+        subjectType: 'application',
+        subjectId: null,
+        correlationId: null,
+        payload: counts
+      })
+      return counts.orphanEvidence
+    })
   }
 
   private rows(): RelationshipThread[] {

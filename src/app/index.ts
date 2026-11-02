@@ -262,6 +262,16 @@ if (hasSingleInstanceLock) {
     const finalizations = new SqliteTurnFinalizationRepository(database)
     // Stage 5: relationship continuity threads (user-stated continuity notes).
     const relationships = new RelationshipThreadService({ database, events: eventLog })
+    // F1: migrations have run and no conversational reader exists yet. Erase
+    // evidence and thread content whose source message is gone, then let the
+    // chat service start. This is fail-closed on purpose: if privacy cleanup
+    // cannot complete, the app must not serve a prompt built from uncleaned
+    // relationship data. Backup restore replays the deletion journal and then
+    // relaunches, so this is also the post-restore boundary.
+    const reconciledOrphans = relationships.reconcile()
+    if (reconciledOrphans > 0) {
+      console.warn(`Relationship reconcile removed ${reconciledOrphans} orphan evidence row(s) before startup.`)
+    }
     const companion = new CompanionService({
       database,
       memories,
