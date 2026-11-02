@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildStack, systemText, type Stack } from '../../evals/stage-3/runner/harness'
+import { BackupService } from '../persistence/backup-service'
 
 let stacks: Stack[] = []
 afterEach(() => {
@@ -174,6 +175,38 @@ describe('Stage 5 remediation — deletion propagation (P0-B)', () => {
       expect(removed).toBe(1)
       expect(evidenceCount(stack)).toBe(0)
       stack.close()
+    } finally {
+      try {
+        rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
+      } catch {
+        // Windows can hold the file briefly.
+      }
+    }
+  })
+
+  it('9b. restoring a backup after the conversation was deleted does not revive the evidence', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'morrow-s5-restore-'))
+    const databasePath = join(dir, 'morrow.sqlite3')
+    try {
+      const first = open(databasePath)
+      const a = first.companion.createConversation()
+      await send(first, a.id, '以后叫我小林。')
+      expect(evidenceCount(first)).toBeGreaterThanOrEqual(1)
+      const backup = new BackupService(first.database, databasePath)
+      const exported = await backup.export(join(dir, 'backups'))
+      // The snapshot still contains the conversation and its evidence; the
+      // deletion happened after it and is replayed from the deletion journal.
+      first.companion.deleteConversation({ conversationId: a.id })
+      expect(evidenceCount(first)).toBe(0)
+      const preview = await backup.preview(exported.directory)
+      const restored = await backup.restore({ token: preview.token, confirmed: true })
+      expect(restored.status).toBe('restored')
+      expect(restored.reappliedDeletions).toBe(1)
+      first.close()
+      const second = open(databasePath)
+      expect(evidenceCount(second)).toBe(0)
+      expect(rows(second).every((row) => row.status !== 'active')).toBe(true)
+      second.close()
     } finally {
       try {
         rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
