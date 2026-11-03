@@ -1,5 +1,5 @@
 import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, PendingDecisionResult, ProviderGetRequest } from '../shared/contracts'
-import type { CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -137,12 +137,12 @@ export interface SelfModelActions {
  */
 export interface ContinuityActions {
   listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
-  completePendingItem(request: { itemId: string }): boolean
   decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): PendingDecisionResult
   readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
 }
 
 export interface CompanionGoalActions {
+  list(): CompanionGoal[]
   listCandidates(): CompanionGoalCandidate[]
   decideCandidate(candidateId: string, decision: 'accept' | 'reject'): GoalCandidateDecisionResult
 }
@@ -244,6 +244,7 @@ export function createIpcHandlers(
     [IPC_CHANNELS.goalsStop]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.stop(goalId)),
     [IPC_CHANNELS.goalsDelete]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.delete(goalId)),
     ...(actions.companionGoals ? {
+      [IPC_CHANNELS.companionGoalsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.list()),
       [IPC_CHANNELS.companionGoalCandidatesList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.listCandidates()),
       [IPC_CHANNELS.companionGoalCandidateAccept]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'accept')),
       [IPC_CHANNELS.companionGoalCandidateReject]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'reject'))
@@ -275,7 +276,6 @@ export function createIpcHandlers(
     } : {}),
     ...(actions.continuity ? {
       [IPC_CHANNELS.pendingItemsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.continuity!.listPendingItems()),
-      [IPC_CHANNELS.pendingItemsComplete]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemIdRequest, (request) => actions.continuity!.completePendingItem(request)),
       [IPC_CHANNELS.pendingItemsDecide]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemDecisionRequest, (request) => actions.continuity!.decidePendingItem(request)),
       [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
     } : {}),

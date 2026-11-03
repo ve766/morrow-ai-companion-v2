@@ -142,8 +142,11 @@ export class ReflectionFindingRouter {
   }
 
   /**
-   * Routes every finding of one run. Safe to call twice for the same run: the
-   * route row is keyed by finding id and existing rows are left alone.
+   * Routes every finding of one run. Each finding is one transaction:
+   * route + pending item (when the route needs one) + required audit event
+   * commit together or not at all. Replaying the same run is idempotent:
+   * an existing route is left untouched and a terminal decision is never
+   * re-absorbed.
    */
   ingestRun(runId: string, findings: ReadonlyArray<{ id: string; kind: string; statement: string; confidence: number; createdAt: string }>): void {
     const at = this.clock()
@@ -151,32 +154,70 @@ export class ReflectionFindingRouter {
       const kind = finding.kind as ReflectionFindingKind
       const spec = FINDING_ROUTES[kind]
       if (!spec) {
-        // A new producer kind without a registry entry: record it as unroutable
-        // instead of guessing a route.
-        this.recordEvent('reflection.finding_unroutable', runId, { kind: finding.kind, findingId: finding.id })
+        // A new producer kind without a registry entry is recorded and
+        // dropped, never guessed into a route.
+        this.recordRequired(`reflection-unroutable:${finding.id}`, 'reflection.finding_unroutable', runId, {
+          kind: finding.kind,
+          findingId: finding.id
+        })
         continue
       }
-      this.options.database.connection.prepare(`
-        INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at)
-        VALUES (?, ?, 'routed', ?, ?, ?, ?, ?)
-        ON CONFLICT(finding_id) DO NOTHING
-      `).run(finding.id, spec.route, spec.reason.slice(0, 200), runId, kind, finding.createdAt, at)
-      if (spec.route === 'pending_user') {
-        // Shared ingestion with the manual path: same dedupe key, same item
-        // template. A rejected concern keeps its dropped status (the upsert
-        // never resets it), so it cannot resurface here either.
-        this.options.pending.absorbReflection({
-          runId,
-          findings: [{ kind: finding.kind, statement: finding.statement, confidence: finding.confidence, findingId: finding.id }]
+      this.options.database.transaction(() => {
+        const existing = this.options.database.connection.prepare(
+          'SELECT route, status FROM reflection_finding_routes WHERE finding_id = ?'
+        ).get(finding.id) as { route: string; status: string } | undefined
+        if (existing) {
+          if (existing.route !== spec.route) throw new Error('REFLECTION_ROUTE_MISMATCH')
+          // Idempotent replay. A rejected/dismissed/consumed route is terminal;
+          // re-absorbing it could resurrect a decided concern.
+          return
+        }
+        this.options.database.connection.prepare(`
+          INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at)
+          VALUES (?, ?, 'routed', ?, ?, ?, ?, ?)
+        `).run(finding.id, spec.route, spec.reason.slice(0, 200), runId, kind, finding.createdAt, at)
+        if (spec.route === 'pending_user') {
+          const ids = this.options.pending.absorbReflection({
+            runId,
+            findings: [{ kind: finding.kind, statement: finding.statement, confidence: finding.confidence, findingId: finding.id }]
+          })
+          for (const id of ids) {
+            const item = this.options.pending.get(id)
+            if (!item) throw new Error('PENDING_ITEM_MISSING')
+            if (item.findingId === null) {
+              // Historical item with the same concern: adopt the link now so
+              // the decision can converge the route. A new record can never
+              // use this path to skip its route.
+              this.options.database.connection.prepare(
+                'UPDATE cognitive_pending_items SET finding_id = ? WHERE id = ? AND finding_id IS NULL'
+              ).run(finding.id, id)
+            } else if (item.findingId !== finding.id) {
+              throw new Error('PENDING_LINK_MISMATCH')
+            }
+          }
+        }
+        this.recordRequired(`reflection-routed:${finding.id}`, 'reflection.finding_routed', runId, {
+          findingId: finding.id,
+          kind: finding.kind,
+          route: spec.route,
+          reason: spec.reason
         })
-      }
-      this.recordEvent('reflection.finding_routed', runId, {
-        findingId: finding.id,
-        kind: finding.kind,
-        route: spec.route,
-        reason: spec.reason
       })
     }
+  }
+
+  /** Required audit: a failure rolls the enclosing transaction back. */
+  private recordRequired(key: string, eventType: string, runId: string | null, payload: Record<string, unknown>): void {
+    if (!this.options.events) throw new Error('REFLECTION_AUDIT_UNAVAILABLE')
+    this.options.events.recordDeterministic(key, {
+      sourceModule: 'self-model',
+      eventType,
+      actor: 'system',
+      subjectType: 'reflection_run',
+      subjectId: runId ?? 'none',
+      correlationId: null,
+      payload
+    })
   }
 
   /**

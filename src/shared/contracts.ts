@@ -1,6 +1,6 @@
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
-import type { CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import type { PendingDecisionResult } from '../cognition/pending-items'
 export type { PendingDecisionResult }
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
   goalsCancelTask: 'morrow:goals:cancel-task',
   goalsStop: 'morrow:goals:stop',
   goalsDelete: 'morrow:goals:delete',
+  companionGoalsList: 'morrow:companion-goals:list',
   companionGoalCandidatesList: 'morrow:companion-goals:candidates:list',
   companionGoalCandidateAccept: 'morrow:companion-goals:candidates:accept',
   companionGoalCandidateReject: 'morrow:companion-goals:candidates:reject',
@@ -96,7 +97,6 @@ export const IPC_CHANNELS = {
   reflectionListRuns: 'morrow:selfmodel:reflection:runs',
   reflectionFindings: 'morrow:selfmodel:reflection:findings',
   pendingItemsList: 'morrow:continuity:pending:list',
-  pendingItemsComplete: 'morrow:continuity:pending:complete',
   pendingItemsDecide: 'morrow:continuity:pending:decide',
   turnContextRead: 'morrow:continuity:turn:read'
 } as const
@@ -318,7 +318,6 @@ export interface MorrowBridge {
    */
   continuity: {
     listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
-    completePendingItem(request: PendingItemIdRequest): Promise<IpcResult<boolean>>
     decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<PendingDecisionResult>>
     readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
@@ -355,6 +354,7 @@ export interface MorrowBridge {
     delete(request: GoalIdRequest): Promise<IpcResult<void>>
   }
   companionGoals: {
+    listGoals(): Promise<IpcResult<CompanionGoal[]>>
     listCandidates(): Promise<IpcResult<CompanionGoalCandidate[]>>
     acceptCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
     rejectCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>

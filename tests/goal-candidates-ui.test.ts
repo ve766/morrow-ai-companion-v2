@@ -26,14 +26,25 @@ class FakeElement {
   setAttribute(): void {}
 }
 
-function installedDom(): { list: FakeElement; feedback: FakeElement; refresh: FakeElement; empty: FakeElement } {
+interface Dom {
+  list: FakeElement
+  formal: FakeElement
+  feedback: FakeElement
+  empty: FakeElement
+}
+
+function installedDom(): Dom {
   const list = new FakeElement()
+  const formal = new FakeElement()
+  const formalEmpty = new FakeElement()
   const feedback = new FakeElement()
   feedback.hidden = true
   const refresh = new FakeElement()
   const empty = new FakeElement()
   const byId: Record<string, FakeElement> = {
     '#goal-candidate-list': list,
+    '#companion-goal-list': formal,
+    '#companion-goal-empty': formalEmpty,
     '#goal-candidate-feedback': feedback,
     '#refresh-goal-candidates': refresh,
     '#goal-candidate-empty': empty
@@ -42,7 +53,7 @@ function installedDom(): { list: FakeElement; feedback: FakeElement; refresh: Fa
     querySelector: (selector: string) => byId[selector] ?? null,
     createElement: () => new FakeElement()
   }
-  return { list, feedback, refresh, empty }
+  return { list, formal, feedback, empty }
 }
 
 const candidate = {
@@ -56,6 +67,20 @@ const candidate = {
   sourceState: 'live'
 }
 
+const goal = {
+  id: '33333333-3333-4333-8333-333333333333',
+  title: candidate.title,
+  detail: '',
+  owner: 'user' as const,
+  status: 'active' as const,
+  priority: 50,
+  dueAt: null,
+  sourceMessageId: null,
+  createdAt: candidate.createdAt,
+  updatedAt: candidate.createdAt,
+  revision: 1
+}
+
 afterEach(() => {
   delete (globalThis as unknown as { document?: unknown }).document
   delete (globalThis as unknown as { window?: unknown }).window
@@ -65,12 +90,17 @@ afterEach(() => {
 describe('goal candidate renderer bridge', () => {
   it('loads real pending candidates and confirms through the preload bridge', async () => {
     const dom = installedDom()
-    const accept = vi.fn(async () => ({ ok: true as const, data: { status: 'accepted' as const, goal: { id: 'g', title: candidate.title, detail: '', owner: 'user' as const, status: 'active' as const, priority: 50, dueAt: null, sourceMessageId: null, createdAt: candidate.createdAt, updatedAt: candidate.createdAt, revision: 1 }, replayed: false } }))
+    let accepted = false
+    const accept = vi.fn(async () => {
+      accepted = true
+      return { ok: true as const, data: { status: 'accepted' as const, goal, replayed: false } }
+    })
     const reject = vi.fn()
     ;(globalThis as unknown as { window: unknown }).window = {
       morrow: {
         companionGoals: {
-          listCandidates: vi.fn(async () => ({ ok: true as const, data: [candidate] })),
+          listGoals: vi.fn(async () => ({ ok: true as const, data: accepted ? [goal] : [] })),
+          listCandidates: vi.fn(async () => ({ ok: true as const, data: accepted ? [] : [candidate] })),
           acceptCandidate: accept,
           rejectCandidate: reject
         }
@@ -89,6 +119,8 @@ describe('goal candidate renderer bridge', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(accept).toHaveBeenCalledWith({ candidateId: candidate.id })
     expect(dom.feedback.textContent).toContain('已确认成为长期目标')
+    // The accepted goal is visible in the formal companion-goal list.
+    expect(dom.formal.children).toHaveLength(1)
   })
 
   it('rejects through the bridge, not by hiding the card locally', async () => {
@@ -98,6 +130,7 @@ describe('goal candidate renderer bridge', () => {
     ;(globalThis as unknown as { window: unknown }).window = {
       morrow: {
         companionGoals: {
+          listGoals: vi.fn(async () => ({ ok: true as const, data: [] })),
           listCandidates: vi.fn(async () => ({ ok: true as const, data: [candidate] })),
           acceptCandidate: accept,
           rejectCandidate: reject

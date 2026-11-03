@@ -419,15 +419,17 @@ export class ReflectionService {
     //    ledger, so two gaps split across two batches still count as two. The
     //    finding cites every gap event; the effect then writes one evidence row
     //    per event, which is what makes independent support countable at all.
+    const labelsInBatch = new Set<string>()
+    for (const event of examinedEvents) {
+      if (event.eventType !== 'cognition.knowledge_gap') continue
+      const label = typeof event.payload.label === 'string' ? event.payload.label.trim() : ''
+      if (label) labelsInBatch.add(label)
+    }
+    let morrowQuestionLabel: string | null = null
     if (findings.length < MAX_FINDINGS_PER_RUN) {
-      const labelsInBatch = new Set<string>()
-      for (const event of examinedEvents) {
-        if (event.eventType !== 'cognition.knowledge_gap') continue
-        const label = typeof event.payload.label === 'string' ? event.payload.label.trim() : ''
-        if (label) labelsInBatch.add(label)
-      }
       const candidate = this.pickMorrowGapCandidate(labelsInBatch)
       if (candidate) {
+        morrowQuestionLabel = candidate.label
         findings.push({
           kind: 'morrow_interest_candidate',
           statement: `我对「${candidate.label}」一直没有可靠的理解；这是我自己想弄明白的问题，不是用户反复提到的偏好。`,
@@ -435,6 +437,25 @@ export class ReflectionService {
           evidence: [
             { kind: 'topic', id: candidate.label },
             ...candidate.events.slice(0, 8).map((item) => ({ kind: 'event', id: item.eventId }))
+          ]
+        })
+      }
+    }
+    // 5b. An open question: the same grounding-failure evidence in a single
+    //     conversation is enough to ask the user whether the topic matters,
+    //     but not enough to claim it as an interest (that still needs two
+    //     conversations). The producer only reads Morrow's own gap events —
+    //     ordinary statements, questions and user preferences never create it.
+    if (findings.length < MAX_FINDINGS_PER_RUN) {
+      const openQuestion = this.pickOpenQuestionCandidate(labelsInBatch, morrowQuestionLabel)
+      if (openQuestion) {
+        findings.push({
+          kind: 'open_question',
+          statement: `我对「${openQuestion.label}」还没有可靠的理解；这是我自己尚未解决的问题，想确认它是否值得继续弄清楚。`,
+          confidence: 40,
+          evidence: [
+            { kind: 'topic', id: openQuestion.label },
+            ...openQuestion.events.slice(0, 4).map((item) => ({ kind: 'event', id: item.eventId }))
           ]
         })
       }
@@ -614,6 +635,28 @@ export class ReflectionService {
    * batches are still two). Reading only the batch made the threshold depend on
    * how the events happened to be paged.
    */
+  /**
+   * A gap label seen in exactly one conversation is an open question, not yet
+   * an interest. The label may only come from Morrow's own knowledge-gap
+   * events; the same artefact filter as the interest candidate applies.
+   */
+  private pickOpenQuestionCandidate(
+    labels: ReadonlySet<string>,
+    excludeLabel: string | null
+  ): { label: string; events: Array<{ eventId: string; conversationId: string; occurredAt: string }> } | null {
+    for (const label of labels) {
+      if (excludeLabel !== null && label === excludeLabel) continue
+      if (label.length < 2) continue
+      if (/(?:哪里|哪儿|什么|哪个|怎么|多少|来着|到哪|上次说|记不记得)/u.test(label)) continue
+      const events = this.repository.gapEvidence(label)
+      if (events.length === 0) continue
+      const conversations = new Set(events.map((item) => item.conversationId))
+      if (conversations.size !== 1) continue
+      return { label, events }
+    }
+    return null
+  }
+
   private pickMorrowGapCandidate(
     labels: ReadonlySet<string>
   ): { label: string; events: Array<{ eventId: string; conversationId: string; occurredAt: string }> } | null {

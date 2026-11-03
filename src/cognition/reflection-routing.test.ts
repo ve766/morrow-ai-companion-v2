@@ -234,4 +234,78 @@ describe('reflection finding routing (D-10)', () => {
     }
   })
 
+  it('rolls the route back when the pending item cannot be written', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      seedFinding(world.database, uid(7), 'intent_correction', '原子化测试。', 60, '2026-11-01T07:00:01.000Z')
+      world.database.connection.exec("CREATE TRIGGER test_pending_abort BEFORE INSERT ON cognitive_pending_items BEGIN SELECT RAISE(ABORT, 'boom'); END;")
+      try {
+        expect(() => world.router.ingestRun(RUN, [{ id: uid(7), kind: 'intent_correction', statement: '原子化测试。', confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])).toThrow()
+      } finally {
+        world.database.connection.exec('DROP TRIGGER test_pending_abort')
+      }
+      const routes = world.database.connection.prepare('SELECT COUNT(*) AS n FROM reflection_finding_routes').get() as { n: number }
+      const items = world.database.connection.prepare('SELECT COUNT(*) AS n FROM cognitive_pending_items').get() as { n: number }
+      const events = world.database.connection.prepare("SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'reflection.finding_routed'").get() as { n: number }
+      expect({ routes: routes.n, items: items.n, events: events.n }).toEqual({ routes: 0, items: 0, events: 0 })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('refuses to decide a new item whose reflection route is missing', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      seedFinding(world.database, uid(8), 'intent_correction', '路由缺失测试。', 60, '2026-11-01T07:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: uid(8), kind: 'intent_correction', statement: '路由缺失测试。', confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
+      const item = world.pending.listOpen()[0]!
+      world.database.connection.prepare('DELETE FROM reflection_finding_routes WHERE finding_id = ?').run(uid(8))
+      expect(() => world.pending.decide(item.id, 'rejected')).toThrow(/PENDING_ROUTE_MISSING/)
+      const row = world.database.connection.prepare('SELECT status, decision FROM cognitive_pending_items WHERE id = ?').get(item.id) as { status: string; decision: string | null }
+      expect(row).toMatchObject({ status: 'open', decision: null })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('keeps the documented compatibility path for legacy items without a finding link', () => {
+    const world = openWorld()
+    try {
+      const ids = world.pending.observeTurn({
+        turnId: uid(11),
+        conversationId: '11111111-1111-4111-8111-111111111111',
+        at: '2026-01-01T00:00:00.000Z',
+        status: 'succeeded',
+        conflicts: [{ predicate: 'residence', memoryIds: ['a', 'b'] }],
+        blockedClaimKinds: []
+      })
+      expect(world.pending.decide(ids[0]!, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      const routeCount = world.database.connection.prepare('SELECT COUNT(*) AS n FROM reflection_finding_routes').get() as { n: number }
+      expect(routeCount.n).toBe(0)
+    } finally {
+      world.close()
+    }
+  })
+
+  it('requires a durable audit sink for decisions', () => {
+    const world = openWorld()
+    try {
+      const legacyRepository = new SqlitePendingItemRepository(world.database)
+      const legacy = new PendingCognitionService(legacyRepository, () => globalThis.crypto.randomUUID(), () => world.clock.now)
+      const [id] = legacy.observeTurn({
+        turnId: uid(12),
+        conversationId: '11111111-1111-4111-8111-111111111111',
+        at: '2026-01-01T00:00:00.000Z',
+        status: 'succeeded',
+        conflicts: [{ predicate: 'work', memoryIds: ['c', 'd'] }],
+        blockedClaimKinds: []
+      })
+      expect(() => legacy.decide(id!, 'accepted')).toThrow(/PENDING_AUDIT_UNAVAILABLE/)
+    } finally {
+      world.close()
+    }
+  })
+
 })

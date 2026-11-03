@@ -381,7 +381,19 @@ if (hasSingleInstanceLock) {
     // Bounded startup reflection: rate-limited inside the service, findings
     // only, never auto-executed actions.
     const startupReflection = reflection.run('startup')
-    if ('skipped' in startupReflection) logger.debug('self-model', 'startup reflection skipped', { reason: startupReflection.skipped })
+    if ('skipped' in startupReflection) {
+      logger.debug('self-model', 'startup reflection skipped', { reason: startupReflection.skipped })
+    } else {
+      // The startup producer must enter the same durable ingestion path as the
+      // manual run and the post-conversation projector. A routing failure is
+      // logged and leaves the finding audit-only; it never blocks startup and
+      // never fabricates a pending item.
+      try {
+        findingRouter.ingestRun(startupReflection.id, reflection.findings(startupReflection.id))
+      } catch {
+        logger.warn('self-model', 'startup reflection findings could not be routed')
+      }
+    }
     const backup = new BackupService(database, databasePath)
     const backupActions = {
       exportBackup: async (): Promise<BackupExportOutcome> => {
@@ -447,7 +459,6 @@ if (hasSingleInstanceLock) {
       // each turn actually read. Marking an item done is the only mutation.
       continuity: {
         listPendingItems: () => pendingItems.listOpen(),
-        completePendingItem: (request) => pendingItems.complete(request.itemId),
         decidePendingItem: (request) => pendingItems.decide(request.itemId, request.decision),
         readTurnContext: (request) => turnContexts.get(request.turnId)
       },

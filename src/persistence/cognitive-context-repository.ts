@@ -223,10 +223,18 @@ export class SqlitePendingItemRepository implements PendingItemPort {
    * BL-02: one transaction updates the item, its reflection route terminal
    * state and the audit event. A same-decision replay is unchanged; the
    * opposite decision after a terminal state is a conflict, never a silent
-   * overwrite. Legacy items without finding_id still decide; only the route
-   * update is skipped for them.
+   * overwrite.
+   *
+   * New items carry finding_id and MUST have a mutable route: a missing or
+   * already-terminal route fails the transaction (item and audit roll back).
+   * Legacy items with finding_id NULL keep the documented compatibility path:
+   * the item decision is durable and the route step is skipped because there
+   * is no route to converge. The audit sink is required: production decisions
+   * cannot commit without their ledger entry.
    */
   decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult {
+    const audit = this.events?.recordDeterministic?.bind(this.events)
+    if (!audit) throw new Error('PENDING_AUDIT_UNAVAILABLE')
     return this.database.transaction(() => {
       const item = this.get(id)
       if (!item) return { status: 'not_found' as const }
@@ -235,6 +243,18 @@ export class SqlitePendingItemRepository implements PendingItemPort {
         if (item.decision === decision) return { status: 'unchanged' as const, decision }
         return { status: 'conflict' as const, current: item.decision }
       }
+
+      const routeStatus = decision === 'accepted' ? 'consumed' : decision === 'rejected' ? 'rejected' : 'dismissed'
+      if (item.findingId) {
+        const route = this.database.connection.prepare(
+          'SELECT status FROM reflection_finding_routes WHERE finding_id = ?'
+        ).get(item.findingId) as { status: string } | undefined
+        if (!route) throw new Error('PENDING_ROUTE_MISSING')
+        if (!['routed', 'injected', 'used_observed', 'not_observed'].includes(route.status)) {
+          throw new Error('PENDING_ROUTE_STATE_CONFLICT')
+        }
+      }
+
       const updated = this.database.connection.prepare(
         "UPDATE cognitive_pending_items SET status = ?, decision = ?, completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
       ).run(itemStatus, decision, at, at, id)
@@ -243,15 +263,17 @@ export class SqlitePendingItemRepository implements PendingItemPort {
         if (current?.decision === decision) return { status: 'unchanged' as const, decision }
         return { status: 'conflict' as const, current: current?.decision ?? null }
       }
-      const routeStatus = decision === 'accepted' ? 'consumed' : decision === 'rejected' ? 'rejected' : 'dismissed'
+
       if (item.findingId) {
-        this.database.connection.prepare(
-          "UPDATE reflection_finding_routes SET status = ?, reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected')"
+        const routeUpdated = this.database.connection.prepare(
+          "UPDATE reflection_finding_routes SET status = ?, reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected', 'used_observed', 'not_observed')"
         ).run(routeStatus, `user decision: ${decision}`.slice(0, 200), at, item.findingId)
+        if (Number(routeUpdated.changes) !== 1) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
       }
+
       // The audit event is inside the same transaction: a failure rolls back
       // the item and the route with it. Payload carries ids and states only.
-      this.events?.recordDeterministic?.(`pending-decision:${id}:${decision}`, {
+      audit(`pending-decision:${id}:${decision}`, {
         sourceModule: 'cognition',
         eventType: 'pending.decision',
         actor: 'user',
