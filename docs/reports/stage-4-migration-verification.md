@@ -1,0 +1,33 @@
+# Stage 4 迁移验证（v48）
+
+本任务没有新增迁移；PR #40 已包含 v48 `pending-decision-terminal-state`。
+本文件记录该迁移在最终代码 SHA 下的升级/恢复验证。
+
+## 1. v48 内容
+
+```sql
+ALTER TABLE cognitive_pending_items ADD COLUMN finding_id TEXT
+  CHECK (finding_id IS NULL OR length(finding_id) = 36);
+ALTER TABLE cognitive_pending_items ADD COLUMN decision TEXT
+  CHECK (decision IS NULL OR decision IN ('accepted','rejected','dismissed'));
+CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(finding_id);
+```
+
+- 历史行保留，两列为 NULL；旧项仍可决策（只更新 item，不更新 route）。
+- 升级失败自动 ROLLBACK；升级前 `VACUUM INTO` 快照（保留 2 份）。
+
+## 2. 验证
+
+| 项 | 命令/测试 | 结果 |
+|---|---|---|
+| 干净库 v1→current | `src/persistence/migrations.test.ts` | PASS |
+| 上一个 schema→current | 同上 | PASS |
+| 迁移事务失败回滚 | 同上（migration failure cases） | PASS |
+| schema 版本 | 测试断言 `CURRENT_SCHEMA_VERSION`（48） | PASS |
+| 备份恢复 | `src/persistence/backup-service.test.ts` | PASS |
+| 重启后候选/目标/pending/route/audit | `stage4-goal-candidate-e2e.test.ts`、`reflection-routing.test.ts`（持久 SQLite） | PASS |
+
+## 3. 回滚
+
+- v48 为加列迁移，旧代码可读（忽略新列）；如需彻底回滚需重建表并保留历史行。
+- 不回退 schema version；不删除历史 finding/pending 行。
