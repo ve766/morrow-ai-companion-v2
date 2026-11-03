@@ -147,3 +147,6 @@ finding 进入 `pending_user` 路由，等待用户确认是否值得继续。
 - 回归：111 文件 / 1042 测试；定向 85/85；Stage 5 scripted/live 12/12；Stage 3
   15+1NOT_RUN/16；Stage 4-A 7/7；build 0。详细根因见
   `docs/reports/stage-4-final-audit-closure.md`。
+- **Issue #44 证据一致性**：未改代码；旧 PENDING 结果保留，新增 CI closure JSON，
+  并修正证据索引 A 组为 5 个 test case、验收矩阵增加轮次边界。见
+  `docs/reports/stage-4-evidence-consistency-closeout.md`。

@@ -1,7 +1,27 @@
-# Stage 4 最终修复验收矩阵（Issue #42）
+# Stage 4 最终修复验收矩阵（Issue #42 + Issue #43 增量）
 
-代码 SHA `1ab1f64d…`；机器结果
-`evals/stage-4-companion-confirmation/results/<UTC>-1ab1f64….json`。
+> **版本/轮次说明（Issue #44 追加）**
+> - **§1–§8 是 Issue #42 的历史验收记录**：绑定代码 SHA `1ab1f64d…`、110 文件 / 1034 测试、
+>   定向 88/88；这些数字是当时的事实，保留原样，不代表当前最终基线。
+> - **§9 是 Issue #43 的增量验收**：绑定代码 SHA `294dcd50c64ee5af2d99cca47dd8a0e6669539b8`，
+>   A 组 5 个 test case、B 组 3 个 test case；全量 111 文件 / 1042 测试、定向 85/85。
+> - **CI 证据**绑定 evidence HEAD `9384eb9781341c8434605f2e15bd1a3cbb2ef615`：
+>   run [41667548702](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41667548702)，
+>   三个 job 全部 success。
+
+## 0. 当前最终基线快照（仅供索引，不替代历史记录）
+
+| 项 | 值 |
+|---|---|
+| PR | [#40](https://github.com/ve766/morrow-ai-companion-v2/pull/40)，OPEN、未合并，base `release/morrow-v2-final-delivery` |
+| 代码 SHA | `294dcd50c64ee5af2d99cca47dd8a0e6669539b8` |
+| evidence HEAD | `9384eb9781341c8434605f2e15bd1a3cbb2ef615` |
+| 当前测试 | 111 文件 / 1042 测试；定向 85/85 |
+| CI | run 41667548702，head `9384eb9`，success（ubuntu/windows typecheck+tests+build+smoke、Windows upgrade path） |
+| 外部项 | humanReview=PENDING_HUMAN；secondProvider=NOT_RUN；realMachineInstall=PENDING_HUMAN；localElectronSmoke=BLOCKED_ENV |
+
+代码 SHA `1ab1f64d…`（§1–§8）与 `294dcd5…`（§9 起）的机器结果分别按各自 SHA 归属；
+`evals/stage-4-companion-confirmation/results/` 中的历史 JSON 未被覆盖。
 
 ## 1. 审阅差异（报告 vs 代码）
 
@@ -93,7 +113,7 @@
 真人自然度 PENDING_HUMAN；第二 Provider NOT_RUN；真机安装/升级 PENDING_HUMAN；
 本机 Electron smoke BLOCKED（环境）。AUD-04/AUD-08 不在本任务范围。
 
-## 9. Issue #43 追加验收（A/B）
+## 9. Issue #43 增量验收（A/B，绑定代码 SHA `294dcd5`）
 
 ### A. Goal candidate 审计强制
 

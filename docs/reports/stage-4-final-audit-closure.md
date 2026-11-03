@@ -87,3 +87,10 @@
   装配（窗口、reminders、备份）仍在 `index.ts`，测试边界在报告与本文件中说明。
 - 旧 `PendingCognitionService.complete/drop` 仍为仓库内部原语，无 IPC 暴露；
   决策语义以 `decide()` 为准。
+
+## 5. 证据一致性收口（Issue #44 追加）
+
+本任务没有修改上述代码或测试。Issue #44 仅修正证据轮次：旧 machine result 的
+`ci=PENDING` 保留为生成时事实，新增 CI closure 结果绑定 run `41667548702`
+（code SHA `294dcd5`，evidence HEAD `9384eb9`）；A 组 test case 数按源码核对为 5。
+详见 `docs/reports/stage-4-evidence-consistency-closeout.md`。
