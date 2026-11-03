@@ -131,3 +131,19 @@ finding 进入 `pending_user` 路由，等待用户确认是否值得继续。
   已在注释与验收矩阵标注，建议后续仅保留 `decide`。
 - open_question producer 只覆盖单会话 knowledge gap；更多问题类型仍属未来工作，
   不在本任务扩大。
+
+## 8. Issue #43 最终收口（追加章节，历史保留）
+
+- 代码 SHA：`294dcd50c64ee5af2d99cca47dd8a0e6669539b8`
+- **A 审计强制**：`CompanionGoalService` 的 `GoalAuditSink` 为必需构造依赖；
+  accept/reject/source_unavailable 的审计与 candidate/goal/creation key 同事务，
+  审计抛错或未写入（inserted=false 且 DB 无事件）都会回滚。所有构造点已注入真实
+  EventLogService 或显式失败 fake；`@ts-expect-error` 锁定编译期契约。
+- **B 真实 startup 装配**：新增 `src/app/startup-composition.ts`
+  （`composeStartupReflectionServices` + `runStartupReflection`），
+  `src/app/index.ts` 使用同一函数；新集成测试调用生产函数（不自行调用
+  `reflection.run`/`router.ingestRun`），用真实 SQLite 验证 finding/route/pending/
+  audit 一致、无 finding 安全、ingest 失败无部分提交。
+- 回归：111 文件 / 1042 测试；定向 85/85；Stage 5 scripted/live 12/12；Stage 3
+  15+1NOT_RUN/16；Stage 4-A 7/7；build 0。详细根因见
+  `docs/reports/stage-4-final-audit-closure.md`。

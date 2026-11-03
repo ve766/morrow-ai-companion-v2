@@ -92,3 +92,27 @@
 
 真人自然度 PENDING_HUMAN；第二 Provider NOT_RUN；真机安装/升级 PENDING_HUMAN；
 本机 Electron smoke BLOCKED（环境）。AUD-04/AUD-08 不在本任务范围。
+
+## 9. Issue #43 追加验收（A/B）
+
+### A. Goal candidate 审计强制
+
+| 要求 | 测试 | 结果 |
+|---|---|---|
+| 构造时无法省略 audit 依赖 | `goal-lifecycle.test.ts` `@ts-expect-error` 契约 | PASS（tsc） |
+| accept：goal + candidate terminal + audit | `accepted, rejected and dismissed…` / `writes exactly one audit event…` | PASS |
+| reject：candidate terminal + audit，无 goal | `reject is durable…` + audit 计数 | PASS |
+| audit 抛错：全部回滚 | `rolls accept back when the audit write throws`、`rolls reject and source-unavailable back…` | PASS |
+| audit inserted=false 且事件不存在：回滚 | `treats a duplicate audit result as written only when the event exists` | PASS |
+| replay 无重复 goal/额外审计 | `writes exactly one audit event per terminal decision…` | PASS |
+| 所有构造点注入依赖 | 全仓 `new CompanionGoalService` 搜索 | PASS |
+
+### B. 真实 startup composition
+
+| 要求 | 测试 | 结果 |
+|---|---|---|
+| 生产 composition 执行 startup→router→SQLite | `stage4-startup-composition.integration.test.ts`（调用 `composeStartupReflectionServices` + `runStartupReflection`） | PASS |
+| finding/route/pending/audit 关联一致 | 同上：findingId 贯穿、audit payload 匹配 | PASS |
+| 无 finding 的 startup 无虚假 pending | 同上第二用例 | PASS |
+| ingestion 故障无部分提交 | 同上第三用例（ABORT 触发器） | PASS |
+| 测试未手动调用 reflection.run/router.ingestRun | 测试仅调用生产函数；源码说明 | PASS |

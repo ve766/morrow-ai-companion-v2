@@ -69,3 +69,15 @@ npm run build                                                 # 0
 | 第二真实 Provider | NOT_RUN |
 | 真机安装/升级 | PENDING_HUMAN |
 | 本机 Electron smoke | BLOCKED（环境；CI 另列） |
+
+## 8. Issue #43 追加证据
+
+| 项 | 位置/结果 |
+|---|---|
+| GoalAuditSink 必需 | `src/motivation/companion-goal.ts:100`、`:248`、`:414` |
+| 审计失败/未写入回滚 | `src/motivation/goal-lifecycle.test.ts`（A 组 6 用例） |
+| startup composition | `src/app/startup-composition.ts:39`、`:69`；`src/app/index.ts:197`、`:367` |
+| startup composition 测试 | `src/app/stage4-startup-composition.integration.test.ts`（3 用例） |
+| 全量 | 111 文件 / 1042 测试；定向 85/85 |
+| CI | 更新后的 PR #40 head run（链接见 PR/Issue #43 评论） |
+| Issue #43 machine result | `evals/stage-4-companion-confirmation/results/20261103T154342Z-294dcd50c64ee5af2d99cca47dd8a0e6669539b8.json` |
