@@ -313,8 +313,8 @@ export interface MorrowBridge {
     clearHistory(): Promise<IpcResult<FeelingStateView>>
   }
   /**
-   * Phase 2.4 continuity. Read-only except `completePendingItem`, which can
-   * only mark an internal item as done: it never sends anything outward.
+   * Phase 2.4 continuity. Read-only except `decidePendingItem`, the single
+   * authoritative decision path (item + reflection route + required audit).
    */
   continuity: {
     listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>

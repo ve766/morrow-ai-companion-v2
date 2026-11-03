@@ -1294,12 +1294,6 @@ export class CompanionService {
     return this.continuity?.pending.listOpen(limit) ?? []
   }
 
-  /** Marks an item done. Returns false only when the id does not exist. */
-  completePendingItem(request: { itemId: string }): boolean {
-    if (!this.continuity) throw new ApplicationError('NOT_FOUND')
-    return this.continuity.pending.complete(normalizedUuid(request.itemId))
-  }
-
   /** The recorded context of one turn, or null when it was never written. */
   readTurnContext(request: { turnId: string }): CognitiveTurnContext | null {
     return this.continuity?.contexts.get(normalizedUuid(request.turnId)) ?? null
