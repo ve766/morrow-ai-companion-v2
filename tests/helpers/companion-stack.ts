@@ -102,7 +102,7 @@ export function buildTestStack(options: StackOptions = {}): Stack {
     clock
   )
   const exploration = new ExplorationService(database, clock)
-  const goals = new CompanionGoalService(database, clock)
+  const goals = new CompanionGoalService(database, events, clock)
 
   const companion = new CompanionService({
     database,

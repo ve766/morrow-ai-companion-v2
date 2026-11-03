@@ -307,7 +307,7 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
     return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
   })
   const exploration = new ExplorationService(database)
-  const goals = new CompanionGoalService(database, undefined, undefined, eventLog)
+  const goals = new CompanionGoalService(database, eventLog)
 
   let observedPayload = ''
   const secrets = new MemorySecretStore()

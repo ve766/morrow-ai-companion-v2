@@ -81,6 +81,26 @@ export interface CompanionGoalCandidate {
  * marks the same decision arriving twice; an opposite decision after a
  * terminal state is a conflict, never a silent overwrite.
  */
+export interface GoalCandidateAuditEvent {
+  sourceModule: 'motivation'
+  eventType: string
+  actor: 'user' | 'system'
+  subjectType: string
+  subjectId: string | null
+  correlationId: string | null
+  payload: Record<string, unknown>
+}
+
+export interface GoalAuditResult {
+  event: { id: string }
+  inserted: boolean
+}
+
+/** The candidate decision audit is a required dependency, never optional. */
+export interface GoalAuditSink {
+  recordDeterministic(key: string, event: GoalCandidateAuditEvent): GoalAuditResult
+}
+
 export type GoalCandidateDecisionResult =
   | { status: 'accepted'; goal: CompanionGoal; replayed: boolean }
   | { status: 'rejected'; candidateId: string; replayed: boolean }
@@ -227,19 +247,9 @@ export function readGoalUtterance(input: { text: string; now: string; offsetMinu
 export class CompanionGoalService {
   constructor(
     private readonly database: SqliteDatabase,
+    private readonly events: GoalAuditSink,
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly makeId: () => string = () => randomUUID(),
-    private readonly events?: {
-      recordDeterministic?(key: string, event: {
-        sourceModule: 'motivation'
-        eventType: string
-        actor: 'user' | 'system'
-        subjectType: string
-        subjectId: string | null
-        correlationId: string | null
-        payload: Record<string, unknown>
-      }): unknown
-    } | undefined
+    private readonly makeId: () => string = () => randomUUID()
   ) {}
 
   /**
@@ -402,8 +412,10 @@ export class CompanionGoalService {
   }
 
   private recordCandidateEvent(candidateId: string, outcome: string, row: { conversation_id: string; owner: string; due_at: string | null }): void {
+    const key = `goal-candidate:${candidateId}:${outcome}`
+    let result: GoalAuditResult
     try {
-      this.events?.recordDeterministic?.(`goal-candidate:${candidateId}:${outcome}`, {
+      result = this.events.recordDeterministic(key, {
         sourceModule: 'motivation',
         eventType: 'goal.candidate_decision',
         actor: 'user',
@@ -416,6 +428,13 @@ export class CompanionGoalService {
       // The audit event is inside the decision transaction; a failure here
       // rolls the decision back so the ledger cannot disagree with the state.
       throw new Error('GOAL_CANDIDATE_AUDIT_FAILED')
+    }
+    if (!result || !result.event || typeof result.event.id !== 'string') throw new Error('GOAL_CANDIDATE_AUDIT_FAILED')
+    if (result.inserted === false) {
+      // A deterministic duplicate is fine only if the event actually exists;
+      // otherwise the audit was not written and the decision must roll back.
+      const exists = this.database.connection.prepare('SELECT 1 AS ok FROM event_journal WHERE id = ?').get(result.event.id)
+      if (!exists) throw new Error('GOAL_CANDIDATE_AUDIT_FAILED')
     }
   }
 
