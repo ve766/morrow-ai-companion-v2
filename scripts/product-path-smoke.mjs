@@ -510,12 +510,20 @@ try {
   activeRun = started.run
   activeClient = started.client
   const deleted = await activeClient.evaluate(`(async () => {
-    const card = document.querySelector('[data-profile-id="${idB}"]')
+    const deadline = Date.now() + 10000
+    let card = null
+    while (Date.now() < deadline) {
+      card = document.querySelector('[data-profile-id="${idB}"]')
+      if (card) break
+      const refresh = document.querySelector('#refresh-provider-profiles')
+      if (refresh instanceof HTMLButtonElement) refresh.click()
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
     const remove = card?.querySelector('button.button-danger')
     if (!(remove instanceof HTMLButtonElement)) throw new Error('Delete control is unavailable.')
     remove.click()
-    const deadline = Date.now() + 8000
-    while (Date.now() < deadline) {
+    const deleteDeadline = Date.now() + 8000
+    while (Date.now() < deleteDeadline) {
       const list = await window.morrow.providers.listProfiles()
       if (list.ok && !list.data.some((profile) => profile.id === ${JSON.stringify(idB)})) return { deleted: true }
       await new Promise((resolve) => setTimeout(resolve, 50))
