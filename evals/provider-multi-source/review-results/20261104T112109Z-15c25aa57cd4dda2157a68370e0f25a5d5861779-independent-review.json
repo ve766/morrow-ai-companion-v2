@@ -1,0 +1,327 @@
+{
+  "runId": "20261104T112109Z-15c25aa57cd4dda2157a68370e0f25a5d5861779-independent-review",
+  "suite": "provider-multi-source-independent-review",
+  "round": 2,
+  "reviewedAt": "2026-11-04T11:21:09Z",
+  "reviewedSha": "15c25aa57cd4dda2157a68370e0f25a5d5861779",
+  "codeSha": "34098fb6698fad5a8674e8ceb2b2a4f5be819310",
+  "baseSha": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "baseRef": "release/morrow-v2-final-delivery",
+  "headRef": "feat/provider-multi-source-foundation",
+  "reviewBranch": "audit/provider-multi-source-independent-review",
+  "reviewer": {
+    "independent": true,
+    "didImplement": false,
+    "context": "Independent round-2 reviewer; conclusions come from GitHub, the checked-out PR head, the PR diff and reviewer-authored executions. The implementer's tests were not the only evidence.",
+    "environment": {
+      "os": "Windows 10.0.26200 x64",
+      "node": "v22.23.2",
+      "npm": "10.9.8",
+      "temp": ".tmp/es",
+      "keyInjection": "MORROW_TEST_API_KEY from .tmp/second-provider/key.txt, environment only; never printed or written to a file"
+    }
+  },
+  "verdict": "PASS_WITH_NON_BLOCKING_BACKLOG",
+  "implementerStatus": "PARTIAL",
+  "pr": {
+    "number": 51,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/pull/51",
+    "state": "OPEN",
+    "isDraft": false,
+    "mergeable": "MERGEABLE",
+    "baseRefOid": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+    "headRefOid": "15c25aa57cd4dda2157a68370e0f25a5d5861779"
+  },
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0,
+      "result": "no diagnostics"
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 113,
+      "tests": 1044,
+      "durationSeconds": 173.38,
+      "result": "all passed"
+    },
+    {
+      "command": "npx vitest run <13 provider-focused files>",
+      "exitCode": 0,
+      "files": 13,
+      "tests": 91,
+      "perFile": {
+        "src/app/provider-multi-source.integration.test.ts": 10,
+        "src/app/provider-multi-source-ipc.integration.test.ts": 2,
+        "src/app/provider-continuity.integration.test.ts": 1,
+        "src/app/provider-manual-chat.integration.test.ts": 8,
+        "src/app/local-provider.integration.test.ts": 4,
+        "tests/provider-profiles-ui.test.ts": 4,
+        "src/providers/endpoint-resolver.test.ts": 5,
+        "src/providers/endpoint-security.test.ts": 8,
+        "src/providers/openai-compatible.test.ts": 11,
+        "src/providers/provider-policy.test.ts": 7,
+        "src/providers/provider-registry.test.ts": 6,
+        "src/providers/provider-retry.test.ts": 13,
+        "src/app/companion-service.test.ts": 12
+      }
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "result": "main, preload and renderer bundles built"
+    },
+    {
+      "command": "npm run eval:provider-multi-source (MORROW_TEST_API_KEY from gitignored file; MORROW_SECOND_PROVIDER_URL=https://api.supxh.xin/v1; MORROW_TEST_MODEL=gemini-3-flash)",
+      "exitCode": 0,
+      "result": "BLOCKED_QUOTA"
+    }
+  ],
+  "ci": {
+    "latest": {
+      "runId": 41818784423,
+      "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41818784423",
+      "headSha": "15c25aa57cd4dda2157a68370e0f25a5d5861779",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41818784423/job/126536309129",
+          "notes": "113 test files; Electron smoke passed"
+        },
+        {
+          "name": "Typecheck, tests, build and smoke (windows-latest)",
+          "conclusion": "success",
+          "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41818784423/job/126536309282",
+          "notes": "113 test files; Electron smoke passed"
+        },
+        {
+          "name": "Windows upgrade path (schema migrations under the real app)",
+          "conclusion": "success",
+          "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41818784423/job/126536309359",
+          "notes": "7 test files"
+        }
+      ]
+    },
+    "evidenceIndexRun": {
+      "runId": 41817829775,
+      "headSha": "f92d9a04732db8737ef82950f2422998388acf18",
+      "conclusion": "success",
+      "stale": true,
+      "note": "The evidence index cites this run at f92d9a0; it is one commit behind the current head 15c25aa. The latest run 41818784423 at 15c25aa also passes."
+    }
+  },
+  "realRun": {
+    "runId": "20261104T111750Z-4a5aa1bf",
+    "status": "BLOCKED_QUOTA",
+    "codeCommit": "15c25aa57cd4dda2157a68370e0f25a5d5861779",
+    "branch": "feat/provider-multi-source-foundation",
+    "workingTree": "clean",
+    "endpoint": "https://api.supxh.xin/v1",
+    "endpointDigest": "81f2def21ea9d6eb",
+    "model": "gemini-3-flash",
+    "startedAt": "2026-11-04T11:17:50.347Z",
+    "finishedAt": "2026-11-04T11:17:52.849Z",
+    "exitCode": 0,
+    "ipc": {
+      "save": true,
+      "list": true,
+      "test": false
+    },
+    "local": {
+      "status": "BLOCKED_LOCAL_SERVICE_NOT_RUNNING",
+      "detail": "No OpenAI-compatible local service; port 8000 returns 404 for /v1/models, /models and /health; 1234/11434/5000/8080 are not listening."
+    },
+    "keyRecorded": false,
+    "authorizationRecorded": false,
+    "responseTextRecorded": false,
+    "classificationVerified": "PROVIDER_QUOTA (403 quota code path); the narrative balance ($0.04775) and provider code string are not in the machine result."
+  },
+  "implementerRealRun": {
+    "runId": "20261104T105300Z-987ad9c2",
+    "status": "BLOCKED_QUOTA",
+    "codeCommit": "34098fb6698fad5a8674e8ceb2b2a4f5be819310",
+    "workingTree": "dirty",
+    "ipc": {
+      "save": true,
+      "list": true,
+      "test": false
+    },
+    "note": "Honest BLOCKED_QUOTA, but the run was on a dirty tree and the dirty files are not identified. My clean run at 15c25aa reproduces the same status."
+  },
+  "secretScan": {
+    "keyLength": 51,
+    "trackedFilesScanned": 840,
+    "trackedFilesWithKey": 0,
+    "trackedKeyOccurrences": 0,
+    "artifactFilesScanned": 174,
+    "artifactFilesWithKey": 0,
+    "artifactKeyOccurrences": 0,
+    "ciLogCharactersScanned": 416284,
+    "ciLogKeyOccurrences": 0,
+    "ciLogAuthorizationBearerOccurrences": 0,
+    "prDiffCharactersScanned": 185226,
+    "prDiffKeyOccurrences": 0,
+    "result": "0 leaks in tracked files, results, transcripts, docs, CI logs and the PR diff"
+  },
+  "round1BlockerResolution": [
+    {
+      "id": "B1",
+      "status": "FIXED",
+      "evidence": "saveProfile rejects deepseek/spark/local-openai unless sourceKind/endpoint/model match the built-in shape; UI edit is disabled for official profiles. Service and real IPC handler: deepseek/spark/local-openai custom-proxy conversion -> INVALID_INPUT; official row unchanged; official Spark save still succeeds.",
+      "residual": "A direct service call can set endpointPath on an official profile (not IPC/UI-reachable). Changing a custom profile's endpoint keeps its key (consent-gated)."
+    },
+    {
+      "id": "B2",
+      "status": "FIXED",
+      "evidence": "discoverModels builds a discovery input for the models URL, calls consentPreview/authorize, re-checks the hash, then reads the key. Approval: 1 authorize call, Authorization header present. Denial: FORBIDDEN, 0 requests. Verified at service and IPC level.",
+      "residual": "Consent action is labelled connection-test; no assessProviderRequest validation of providerId/expiry; no profile-shape validation before discovery (defense-in-depth)."
+    },
+    {
+      "id": "B3",
+      "status": "FIXED",
+      "evidence": "SchemaIdentityError on version/name mismatch; SqliteDatabase.open rethrows and closes. A v48 DB carrying Stage-4's migration name -> 'Local storage could not be opened.'; reverse applyMigrations -> 'Unsupported database schema version.'; normal v47->v48 still works.",
+      "residual": "The reverse direction (Stage-4 code opening a provider-v48 DB) depends on PR #40 being renumbered/updated; merge-order coordination remains."
+    },
+    {
+      "id": "B4",
+      "status": "FIXED",
+      "evidence": "Acceptance row 3 and the delivery report now say IPC save/list passed and IPC test reached the provider and returned quota; the committed result has test:false, consistent with that wording.",
+      "residual": "Work-log timestamps are stale/wrong; evidence index provider suite count is 10/65 (actual 91); acceptance rows 12/13 are stale; implementer's real run is on a dirty tree."
+    }
+  ],
+  "acceptance": [
+    {
+      "id": 1,
+      "item": "Legacy DeepSeek/Spark config upgrade keeps profiles/secrets",
+      "status": "PASS",
+      "evidence": "Independent v47->v48 real SQLite upgrade: 3 rows, fields preserved, secrets readable under same ids, unique default index."
+    },
+    {
+      "id": 2,
+      "item": "UI can create two independent custom profiles with isolated endpoint/model/secret",
+      "status": "PASS",
+      "evidence": "Two profiles with distinct fake keys: isolated read-back/update/delete; IPC save/list."
+    },
+    {
+      "id": 3,
+      "item": "Custom remote OpenAI-compatible relay via the product path",
+      "status": "BLOCKED_QUOTA",
+      "evidence": "Independent run 20261104T111750Z-4a5aa1bf reached https://api.supxh.xin/v1 and classified PROVIDER_QUOTA; IPC save/list true, test false. Not PASS."
+    },
+    {
+      "id": 4,
+      "item": "Local loopback OpenAI-compatible service via the product path",
+      "status": "BLOCKED_LOCAL_SERVICE_NOT_RUNNING",
+      "evidence": "No OpenAI-compatible local service; port 8000 returns 404 for model/health paths; other common ports closed; no mock used."
+    },
+    {
+      "id": 5,
+      "item": "SSE/non-stream, retry, cancel, error classification regression",
+      "status": "PASS_MOCK_HTTP",
+      "evidence": "Full suite plus independent adapter checks; real SSE blocked by item 3."
+    },
+    {
+      "id": 6,
+      "item": "Provider/endpoint/model switch does not reset Morrow state",
+      "status": "PASS",
+      "evidence": "Independent A->reopen->B->A real SQLite; core state and counts unchanged; derived counts not reset; outage does not change core state."
+    },
+    {
+      "id": 7,
+      "item": "Consent binding to endpoint/model/payload; old consent unusable after switch",
+      "status": "PASS",
+      "evidence": "Endpoint/model/provider/expiry/sensitivity binding verified; discovery approval/denial verified (1 consent, no request on denial)."
+    },
+    {
+      "id": 8,
+      "item": "SSRF/redirect/private-network safety",
+      "status": "PASS_REQUEST_TIME",
+      "evidence": "Request-time policy blocks loopback/private/metadata/DNS-private and redirects; save-time bracket/trailing-dot gaps remain non-egress; private-network NOT_SUPPORTED."
+    },
+    {
+      "id": 9,
+      "item": "No secret leakage; tracked/log/report scans 0",
+      "status": "PASS",
+      "evidence": "840 tracked files 0; 174 artifacts 0; 416284 CI log chars 0; 185226 diff chars 0; no key/Authorization/response text in real-run files."
+    },
+    {
+      "id": 10,
+      "item": "Real relay test with credentials; otherwise BLOCKED",
+      "status": "BLOCKED_QUOTA",
+      "evidence": "Credential used only via MORROW_TEST_API_KEY; provider quota; no real-provider PASS claimed."
+    },
+    {
+      "id": 11,
+      "item": "Local service not running is explicitly BLOCKED, not mocked",
+      "status": "PASS_BLOCKED",
+      "evidence": "BLOCKED_LOCAL_SERVICE_NOT_RUNNING; no mock substituted."
+    },
+    {
+      "id": 12,
+      "item": "Typecheck/tests/build/CI pass, no test deletion",
+      "status": "PASS",
+      "evidence": "tsc 0; vitest 113 files/1044 tests; build 0; CI 41818784423 all three jobs success; 41817829775 also success."
+    },
+    {
+      "id": 13,
+      "item": "Independent reviewer reviews code and real call path",
+      "status": "COMPLETED",
+      "evidence": "Round 2; verdict PASS_WITH_NON_BLOCKING_BACKLOG; implementer did not self-approve."
+    },
+    {
+      "id": 14,
+      "item": "PR not auto-merged, not merged to main/release",
+      "status": "PASS",
+      "evidence": "PR #51 OPEN, base release; release still 3812b18; main untouched."
+    },
+    {
+      "id": 15,
+      "item": "Round-1 blockers B1/B2/B3/B4 fixed",
+      "status": "PASS",
+      "evidence": "Independent reproductions for built-in guard, discovery consent, schema fail-closed and acceptance wording; new tests added."
+    }
+  ],
+  "blockingConditions": [],
+  "remainingBacklog": [
+    "Stale health/capabilities after endpoint/model change: saveProfile preserves lastTest/capabilities unconditionally; an untested new endpoint/model still shows connected and streaming.verified. Preserve only when endpoint/model are unchanged; otherwise reset.",
+    "testConnection ignores endpointPath and a full chat URL base (connectionInput builds ${endpoint}/chat/completions); chat works through resolveChatEndpoint.",
+    "Official endpointPath guard: a direct service call can set a path on an official profile; the IPC/UI cannot. Reject non-null endpointPath for built-in official ids.",
+    "Custom-profile credential binding: changing a custom profile's endpoint keeps its stored key; consent binds the new endpoint per request, but clearing the secret on endpoint change is safer.",
+    "Discovery consent hardening: use a model-discovery action label, validate consent via assessProviderRequest, and validate the profile shape before sending the key.",
+    "Documentation corrections: work-log timestamps (security fix 10:52Z, run 10:53Z, not 10:01-10:03/10:06Z); commit table missing 493e125/f92d9a0/15c25aa; evidence index provider suite 91 (not 10/65); acceptance row 12 CI status; row 13 review status.",
+    "Real-run evidence completeness: implementer's 20261104T105300Z-987ad9c2 was on a dirty tree; identify dirty files or re-run clean; add HTTP status/latency/attempts/exit code to the BLOCKED_QUOTA failure path.",
+    "speed26.toter.me compatibility regression not run; record BLOCKED_NO_SECRET if no credential.",
+    "Real-run fidelity: eval uses MemorySecretStore and calls IPC handlers directly, not the Electron SafeStorageSecretStore or the actual renderer form.",
+    "Continuity test does not cover self-model entries or interests.",
+    "Two-profile test uses the same fake key for A and B; use distinct keys.",
+    "Profile id length mismatch: app/DB allow 1-64 chars, SafeStorageSecretStore allows at most 40.",
+    "Save-time endpoint validation accepts https://[::1], https://[::ffff:127.0.0.1] and https://localhost.; request-time policy blocks them with zero fetches. Bracket IPv6 is handled at request time.",
+    "endpointPath '/v1' with a bare base resolves to /v1 without /chat/completions; document or normalize.",
+    "Residual SSRF ranges 100.64.0.0/10 (CGNAT), 64:ff9b::/96 (NAT64) and 2002::/16 (6to4) are not classified private.",
+    "Provider error messages are DeepSeek-specific for custom profiles."
+  ],
+  "honestyReview": {
+    "round1Blockers": "B1/B2/B3/B4 fixed and independently reproduced; the new tests cover the built-in guard, discovery denial, schema identity and default/health preservation.",
+    "acceptanceMatrix": "Row 3 is now accurate (save/list pass; test reached provider and returned quota). Row 12 'CI 待 PR' and row 13 PENDING are stale.",
+    "workLog": "Timestamps are wrong: 34098fb is 10:52Z and the run is 10:53Z, not 10:01-10:03Z/10:06Z; the commit table omits the evidence commits.",
+    "evidenceIndex": "CI run 41817829775 at f92d9a0 is true but one commit behind the latest 41818784423 at 15c25aa; provider suite count 10/65 is stale (91).",
+    "realRun": "Implementer's run is BLOCKED_QUOTA but on a dirty tree; my clean run at 15c25aa reproduces BLOCKED_QUOTA. The narrative balance/code is not in the machine result.",
+    "secrets": "No key in tracked files, results, transcripts, docs, CI logs or the PR diff.",
+    "architectureClaim": "'dispatchToProvider is still the only real-request exit' remains inaccurate for discovery, which now has consent but still performs its own GET."
+  },
+  "reviewedFiles": {
+    "count": 36,
+    "allReviewed": true,
+    "matrix": "docs/audit/provider-multi-source-file-review-matrix.md"
+  },
+  "artifacts": {
+    "reviewDoc": "docs/audit/provider-multi-source-independent-review.md",
+    "fileMatrix": "docs/audit/provider-multi-source-file-review-matrix.md",
+    "round1ReviewResult": "evals/provider-multi-source/review-results/20261104T104023Z-493e125a8905892c1397b995d6fb35893f7a5f12-independent-review.json",
+    "independentHarness": ".tmp/review/ (gitignored; not part of the PR)",
+    "realRunResult": ".tmp/review/round2-real-run/20261104T111750Z-4a5aa1bf.json (gitignored; not part of the PR)"
+  }
+}
