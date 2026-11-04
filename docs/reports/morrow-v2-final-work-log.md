@@ -124,6 +124,7 @@ Windows product-path PASS run：`20261104T154241Z-1430f856`（Electron 44.9.3，
 | `d9b28ae` | Provider P1/P2 核心修复 |
 | `c1f4450` | 产品路径/CI 修复、HTTP 状态证据 |
 | `d07b3f4` | product-path 收敛（优雅退出、UI 就绪、continuity 语义） |
+| `92bc4ed` | product-path 删除步骤等待面板渲染；最终 HEAD |
 | `28665df` | 产品路径脚本、真实运行证据、CI |
 | 后续 | 文档、独立复审、最终 PR 更新 |
 

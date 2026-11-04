@@ -18,7 +18,7 @@
 | 1.6 | 迁移中断/回滚 | PASS | `migrations.test.ts` “rolls back a failed v49 rebuild…” |
 | 1.7 | 身份不匹配 fail closed | PASS | `migrations.test.ts` 外来名称；`provider-multi-source.integration.test.ts` 结构不符 |
 | 1.8 | pending/reflection/outbox 数据保留 | PASS | 全量 vitest；Stage 4 集成测试；v48/v49 迁移测试 |
-| 1.9 | Windows 升级 CI | PASS | run 41862065143：Windows upgrade job PASS（schema migrations under the real app） |
+| 1.9 | Windows 升级 CI | PASS | run 41869931767：Windows upgrade job PASS（schema migrations under the real app） |
 
 ## 2. Provider P1
 
