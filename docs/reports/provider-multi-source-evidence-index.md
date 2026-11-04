@@ -65,8 +65,8 @@ Provider 定向：13 files / 91 tests passed（endpoint/security/adapter/retry/r
 ## 5. CI
 
 - PR: https://github.com/ve766/morrow-ai-companion-v2/pull/51
-- Run: https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41818784423
-- head: 15c25aa57cd4dda2157a68370e0f25a5d5861779
+- Run: https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41823420247
+- head: 44404e086063a0a621caf4fceedb0e65bb8cce3d
 - conclusion: success
 - jobs: Ubuntu typecheck/tests/build/smoke; Windows 同; Windows upgrade path（7 files / 59 tests）
 - 未复用旧 run。
