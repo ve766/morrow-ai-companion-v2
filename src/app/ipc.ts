@@ -20,6 +20,7 @@ import type {
   ProviderConnectionResult
 } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
 import type { MemoryService } from '../memory/memory-service'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -55,7 +56,6 @@ import {
   parseSelfModelCorrectRequest,
   parseSelfModelIdRequest,
   parseReflectionFindingsRequest,
-  parsePendingItemIdRequest,
   parsePendingItemDecisionRequest,
   parseTurnContextRequest
 } from '../shared/validation'
@@ -172,6 +172,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     CONFLICT: '记录状态已变化，请刷新后重试。',
     STORAGE_ERROR: '本地数据暂不可用，请重试。',
     BACKUP_INVALID: '所选备份无效、已损坏或与当前版本不兼容；本地数据未做任何更改。',
+    SCHEMA_UPGRADE_REQUIRED: '本地数据需要完成版本升级后才能处理该事项；请重启应用以完成升级。',
     INTERNAL_ERROR: '请求无法完成。',
     PROVIDER_STORAGE_UNAVAILABLE: '系统安全存储不可用，无法确认 API 密钥状态。聊天已暂停；请重试或重启应用后检查。',
     PROVIDER_CREDENTIAL_STORE_ERROR: '本机 API 凭据无法安全读取，可能已损坏或无权访问。聊天和替换密钥已阻止；请重启应用复查，仍无法读取时可在确认后删除本机密钥并重新设置。',
@@ -193,6 +194,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
 function toFailure(error: unknown): IpcResult<never> {
   if (error instanceof InputValidationError || error instanceof GoalValidationError || error instanceof ReminderValidationError) return failure('INVALID_INPUT')
 
+  if (error instanceof PendingSchemaUnavailableError) return failure('SCHEMA_UPGRADE_REQUIRED')
   if (error instanceof ApplicationError) return failure(error.code)
   return failure('INTERNAL_ERROR')
 }

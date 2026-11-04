@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +10,9 @@ import { SqliteDatabase } from './database'
 import { isFeelingState } from '../affective-state/feeling'
 import { analyzeCognitiveTurn } from '../cognition/cognitive-turn-analyzer'
 import { isCognitiveTurnAnalysis } from '../cognition/cognition'
+import { EventLogService } from './event-log'
+import { SqlitePendingItemRepository } from './cognitive-context-repository'
+import { PendingCognitionService } from '../cognition/pending-items'
 
 const timestamp = '2026-10-24T00:00:00.000Z'
 
@@ -539,6 +543,67 @@ describe('v39 exploration states and finding routing', () => {
       ).run('2026-10-31T00:04:00.000Z')).toThrow()
     } finally {
       connection.close()
+    }
+  })
+})
+
+describe('v48 pending decision terminal state', () => {
+  it('upgrades a v47 database with pending items and keeps them decidable', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v48-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const runId = '11111111-1111-4111-8111-111111111111'
+    const findingId = '22222222-2222-4222-8222-222222222222'
+    const openId = '33333333-3333-4333-8333-333333333333'
+    const doneId = '44444444-4444-4444-8444-444444444444'
+    const statement = '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答。'
+    const digest = createHash('sha256').update(statement).digest('hex').slice(0, 16)
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 47)).toBe(47)
+      connection.prepare('INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(runId, 'manual', timestamp, timestamp, 1, 1, 1, 'completed')
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(findingId, runId, 'intent_correction', statement, 60, '[]', timestamp, 'v47-finding')
+      connection.prepare("INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'pending_user', 'routed', 'v47 route', ?, 'intent_correction', ?, ?)")
+        .run(findingId, runId, timestamp, timestamp)
+      connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'open before v48', 40, 'open', NULL, '{}', ?, ?, NULL)")
+        .run(openId, `reflection:intent_correction:${digest}`, timestamp, timestamp)
+      connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'done before v48', 40, 'done', NULL, '{}', ?, ?, ?)")
+        .run(doneId, 'reflection:intent_correction:0123456789abcdef', timestamp, timestamp, timestamp)
+
+      // v48 columns do not exist yet.
+      expect(connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)).not.toContain('finding_id')
+      expect(applyMigrations(connection)).toBe(48)
+
+      const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
+      expect(columns).toContain('finding_id')
+      expect(columns).toContain('decision')
+      expect(connection.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'cognitive_pending_items_finding_idx'").get()).toBeDefined()
+      const rows = connection.prepare('SELECT id, status, finding_id, decision, completed_at FROM cognitive_pending_items ORDER BY id').all() as Array<{ id: string; status: string; finding_id: string | null; decision: string | null; completed_at: string | null }>
+      expect(rows).toHaveLength(2)
+      expect(rows.find((row) => row.id === openId)).toMatchObject({ status: 'open', finding_id: null, decision: null, completed_at: null })
+      expect(rows.find((row) => row.id === doneId)).toMatchObject({ status: 'done', finding_id: null, decision: null, completed_at: timestamp })
+      expect(connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+      expect(connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    } finally {
+      connection.close()
+    }
+
+    // The production boundary opens the upgraded file and the old row is
+    // decidable; its route is converged by the stored concern digest.
+    const database = SqliteDatabase.open(path)
+    try {
+      const events = new EventLogService(database)
+      const pending = new PendingCognitionService(new SqlitePendingItemRepository(database, events))
+      expect(pending.decide(openId, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      expect(pending.get(openId)).toMatchObject({ status: 'done', decision: 'accepted', findingId: null })
+      expect(database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(findingId)).toEqual({ status: 'consumed' })
+      const audit = database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' AND subject_id = ?").get(openId) as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({ routeStatus: 'consumed', routeResolution: 'resolved_by_concern', routesUpdated: 1 })
+      expect(database.connection.prepare('SELECT status FROM cognitive_pending_items WHERE id = ?').get(doneId)).toEqual({ status: 'done' })
+    } finally {
+      database.close()
     }
   })
 })

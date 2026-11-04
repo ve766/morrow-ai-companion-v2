@@ -34,11 +34,10 @@ function open(): { database: SqliteDatabase; events: EventLogService } {
   return { database, events: new EventLogService(database) }
 }
 
-function seedGap(database: SqliteDatabase, events: EventLogService, label: string): void {
-  const conversationId = randomUUID()
+function seedGap(database: SqliteDatabase, events: EventLogService, label: string, conversationId: string = randomUUID()): string {
   const turnId = randomUUID()
   const now = new Date().toISOString()
-  database.connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+  database.connection.prepare('INSERT OR IGNORE INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
     .run(conversationId, 'startup', now, now)
   const recorded = events.recordDeterministic(`startup-gap:${turnId}`, {
     sourceModule: 'cognition',
@@ -57,6 +56,7 @@ function seedGap(database: SqliteDatabase, events: EventLogService, label: strin
     confidence: 0.6,
     occurredAt: now
   })
+  return conversationId
 }
 
 describe('real startup composition', () => {
@@ -115,6 +115,70 @@ describe('real startup composition', () => {
       const items = database.connection.prepare('SELECT COUNT(*) AS n FROM cognitive_pending_items').get() as { n: number }
       const routed = database.connection.prepare("SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'reflection.finding_routed'").get() as { n: number }
       expect({ routes: routes.n, items: items.n, routed: routed.n }).toEqual({ routes: 0, items: 0, routed: 0 })
+    } finally {
+      database.close()
+    }
+  })
+
+  it('a second startup gap for the same label keeps the run successful', () => {
+    const { database, events } = open()
+    try {
+      const conversationId = seedGap(database, events, '量子计算')
+      const services = composeStartupReflectionServices(database, events)
+      expect(runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter }).status).toBe('ran')
+      seedGap(database, events, '量子计算', conversationId)
+      expect(runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter }).status).toBe('ran')
+
+      const findings = database.connection.prepare("SELECT COUNT(*) AS n FROM reflection_findings WHERE kind = 'open_question'").get() as { n: number }
+      const routes = database.connection.prepare('SELECT COUNT(*) AS n FROM reflection_finding_routes').get() as { n: number }
+      const items = database.connection.prepare('SELECT COUNT(*) AS n FROM cognitive_pending_items').get() as { n: number }
+      const unrouted = database.connection.prepare(`
+        SELECT COUNT(*) AS n FROM reflection_findings f
+        LEFT JOIN reflection_finding_routes r ON r.finding_id = f.id
+        WHERE r.finding_id IS NULL
+      `).get() as { n: number }
+      expect({ findings: findings.n, routes: routes.n, items: items.n, unrouted: unrouted.n }).toEqual({
+        findings: 1,
+        routes: 1,
+        items: 1,
+        unrouted: 0
+      })
+    } finally {
+      database.close()
+    }
+  })
+
+  it('returns skipped when the service rate-limits the run and never throws', () => {
+    const { database, events } = open()
+    try {
+      const services = composeStartupReflectionServices(database, events)
+      const at = new Date().toISOString()
+      for (let index = 0; index < 6; index += 1) {
+        database.connection.prepare(
+          "INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, 'startup', ?, ?, 0, 0, 0, 'completed')"
+        ).run(`${String(index).repeat(8)}-${String(index).repeat(4)}-4${String(index).repeat(3)}-8${String(index).repeat(3)}-${String(index).repeat(12)}`, at, at)
+      }
+      const result = runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter })
+      expect(result).toMatchObject({ status: 'skipped', reason: 'rate_limited' })
+    } finally {
+      database.close()
+    }
+  })
+
+  it('reports producer failure without throwing and records the failed stage', () => {
+    const { database, events } = open()
+    try {
+      const services = composeStartupReflectionServices(database, events)
+      const failing = {
+        run: () => { throw new Error('producer down') },
+        findings: () => []
+      } as unknown as typeof services.reflection
+      const result = runStartupReflection({ reflection: failing, findingRouter: services.findingRouter })
+      expect(result).toMatchObject({ status: 'failed', reason: 'producer_failed' })
+      const audit = database.connection.prepare(
+        "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'reflection.startup_failed'"
+      ).get() as { n: number }
+      expect(audit.n).toBe(1)
     } finally {
       database.close()
     }

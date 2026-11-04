@@ -364,7 +364,14 @@ if (hasSingleInstanceLock) {
     // only, never auto-executed actions.
     // The production startup function (also used by the composition test)
     // runs reflection and routes findings through the durable ingestion path.
-    runStartupReflection({ reflection, findingRouter, logger })
+    const startupReflection = runStartupReflection({ reflection, findingRouter, logger })
+    if (startupReflection.status !== 'ran') {
+      logger.warn('self-model', 'startup reflection did not complete cleanly', {
+        status: startupReflection.status,
+        reason: startupReflection.reason ?? null,
+        recovered: startupReflection.recovered ?? 0
+      })
+    }
     const backup = new BackupService(database, databasePath)
     const backupActions = {
       exportBackup: async (): Promise<BackupExportOutcome> => {

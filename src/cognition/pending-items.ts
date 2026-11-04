@@ -13,7 +13,7 @@
  *   * no resurrection — completing an item is durable, so a resolved conflict
  *     does not reappear on the next turn.
  */
-import { createHash } from 'node:crypto'
+import { concernDigestOf, reflectionPendingKeys } from '../self-model/reflection-concern'
 
 export const PENDING_ITEM_SOURCES = ['conflict', 'evidence_gap', 'open_question', 'reflection', 'interest'] as const
 export type PendingItemSource = typeof PENDING_ITEM_SOURCES[number]
@@ -57,6 +57,32 @@ export interface PendingItemDraft {
 
 export type PendingDecision = 'accepted' | 'rejected' | 'dismissed'
 
+/** The durable audit dependency for a user decision; never optional. */
+export interface PendingAuditSink {
+  recordDeterministic(key: string, event: {
+    sourceModule: 'cognition'
+    eventType: string
+    actor: 'user' | 'system'
+    subjectType: string
+    subjectId: string | null
+    correlationId: string | null
+    payload: Record<string, unknown>
+  }): { event: { id: string }; inserted: boolean }
+}
+
+/**
+ * Raised when the database opened below v48. The Stage 4 write path must not
+ * issue SQL against columns that do not exist, and it must not look like a
+ * generic storage failure: the user needs "upgrade required", not "try again".
+ */
+export class PendingSchemaUnavailableError extends Error {
+  readonly code = 'PENDING_SCHEMA_UNAVAILABLE' as const
+  constructor() {
+    super('SCHEMA_UPGRADE_REQUIRED')
+    this.name = 'PendingSchemaUnavailableError'
+  }
+}
+
 /**
  * The durable outcome of one decision. `unchanged` is a replay of the same
  * decision; `conflict` is the opposite decision after a terminal state, which
@@ -72,9 +98,6 @@ export interface PendingItemPort {
   upsert(draft: PendingItemDraft): PendingItem
   get(id: string): PendingItem | null
   list(options?: { status?: PendingItemStatus; limit?: number }): PendingItem[]
-  complete(id: string, completedAt: string): boolean
-  /** Durable user rejection: keeps the item out of the open list forever. */
-  drop(id: string, completedAt: string): boolean
   /** One transaction for the item, its reflection route and the audit event. */
   decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult
   findByDedupeKey(dedupeKey: string): PendingItem | null
@@ -278,15 +301,25 @@ export class PendingCognitionService {
    * The finding text is hashed here and then dropped: what reaches the store is
    * a category template, the run id and a digest. The text itself stays in the
    * reflection record, which only the owner reads.
+   *
+   * The item is looked up before it is created. The normalised digest is the
+   * current key; the raw-statement key from installs written before concern
+   * identity existed is also checked, so one concern never produces two items
+   * across an upgrade.
    */
   absorbReflection(input: { runId: string; findings: ReadonlyArray<{ kind: string; statement: string; confidence: number; findingId?: string }> }): string[] {
     const at = this.clock()
     const ids: string[] = []
     for (const finding of input.findings.slice(0, MAX_PENDING_ITEMS_PER_TURN)) {
+      const existing = this.findReflectionConcern(finding.kind, finding.statement)
+      if (existing) {
+        ids.push(existing.id)
+        continue
+      }
       const stored = this.repository.upsert(pendingItemFromReflection({
         runId: input.runId,
         kind: finding.kind,
-        statementDigest: createHash('sha256').update(finding.statement).digest('hex').slice(0, 16),
+        statementDigest: concernDigestOf(finding.statement),
         confidence: finding.confidence,
         at,
         makeId: this.makeId,
@@ -295,6 +328,18 @@ export class PendingCognitionService {
       ids.push(stored.id)
     }
     return ids
+  }
+
+  /**
+   * The open/terminal item for one reflection concern, if it already exists.
+   * Reads both the current and the pre-concern dedupe key.
+   */
+  findReflectionConcern(kind: string, statement: string): PendingItem | null {
+    for (const key of reflectionPendingKeys(kind, statement)) {
+      const item = this.repository.findByDedupeKey(key)
+      if (item) return item
+    }
+    return null
   }
 
   listOpen(limit = 50): PendingItem[] {
@@ -309,16 +354,15 @@ export class PendingCognitionService {
     return this.repository.get(id)
   }
 
-  /** Returns false only when the item does not exist at all. */
-  complete(id: string): boolean {
-    return this.repository.complete(id, this.clock())
-  }
-
   /**
    * Durable user decision on one open item (D-11): accept consumes it,
    * reject/dismiss drops it. The status column is never reset by the upsert,
    * so a rejected concern cannot resurface — neither as a pending item nor
    * (for reflection kinds) as a prompt hint.
+   *
+   * This is the only public mutation. The previous `complete` primitive wrote
+   * `done` without a decision, a route terminal state or an audit event; it was
+   * removed so no business caller can bypass the decision transaction.
    */
   decide(id: string, decision: PendingDecision): PendingDecisionResult {
     return this.repository.decide(id, decision, this.clock())

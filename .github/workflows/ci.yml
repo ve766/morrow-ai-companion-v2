@@ -72,5 +72,5 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Rebuild better-sqlite3 for Node
         run: npm rebuild better-sqlite3
-      - name: Migration and persistence test pass (includes v1→v15 upgrade paths)
+      - name: Persistence and migration tests (up to the current schema, includes v47 feature paths)
         run: npx vitest run src/persistence

@@ -627,15 +627,6 @@ export class ReflectionService {
   }
 
   /**
-   * The label, if the gap ledger already holds two independent conversations
-   * for it.
-   *
-   * The batch decides *when* to look (a run must react to new experience); the
-   * ledger decides *whether* the evidence is enough (two gaps split across two
-   * batches are still two). Reading only the batch made the threshold depend on
-   * how the events happened to be paged.
-   */
-  /**
    * A gap label seen in exactly one conversation is an open question, not yet
    * an interest. The label may only come from Morrow's own knowledge-gap
    * events; the same artefact filter as the interest candidate applies.
@@ -657,6 +648,15 @@ export class ReflectionService {
     return null
   }
 
+  /**
+   * The label, if the gap ledger already holds two independent conversations
+   * for it.
+   *
+   * The batch decides *when* to look (a run must react to new experience); the
+   * ledger decides *whether* the evidence is enough (two gaps split across two
+   * batches are still two). Reading only the batch made the threshold depend on
+   * how the events happened to be paged.
+   */
   private pickMorrowGapCandidate(
     labels: ReadonlySet<string>
   ): { label: string; events: Array<{ eventId: string; conversationId: string; occurredAt: string }> } | null {

@@ -108,6 +108,7 @@ export type IpcErrorCode =
   | 'CONFLICT'
   | 'STORAGE_ERROR'
   | 'BACKUP_INVALID'
+  | 'SCHEMA_UPGRADE_REQUIRED'
   | 'INTERNAL_ERROR'
   | 'PROVIDER_STORAGE_UNAVAILABLE'
   | 'PROVIDER_CREDENTIAL_STORE_ERROR'
@@ -211,12 +212,6 @@ export interface ReflectionFindingsRequest {
   runId: string
 }
 
-/** Phase 2.4: a stored internal item, readable and completable from the shell. */
-export interface PendingItemIdRequest {
-  itemId: string
-}
-
-/** D-11: the user decision on one open internal item. */
 export interface PendingItemDecisionRequest {
   itemId: string
   decision: 'accepted' | 'rejected' | 'dismissed'

@@ -13,6 +13,7 @@ import {
 } from './pending-items'
 import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
 import { SqliteDatabase } from '../persistence/database'
+import { EventLogService } from '../persistence/event-log'
 
 const directories: string[] = []
 
@@ -126,7 +127,7 @@ describe('pending item store', () => {
   it('dedupes by concern, keeps the first id, and raises priority', () => {
     const database = openDatabase()
     try {
-      const service = new PendingCognitionService(new SqlitePendingItemRepository(database))
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database, new EventLogService(database)))
       const idsA = service.observeTurn({
         turnId: turnA, conversationId, at: '2026-01-01T00:00:00.000Z', status: 'succeeded',
         conflicts: [{ predicate: 'residence', memoryIds: ['a', 'b'] }], blockedClaimKinds: []
@@ -145,15 +146,15 @@ describe('pending item store', () => {
     }
   })
 
-  it('keeps a completed item completed when the same concern is observed again', () => {
+  it('keeps a decided item closed when the same concern is observed again', () => {
     const database = openDatabase()
     try {
-      const service = new PendingCognitionService(new SqlitePendingItemRepository(database))
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database, new EventLogService(database)))
       const [id] = service.observeTurn({
         turnId: turnA, conversationId, at: '2026-01-01T00:00:00.000Z', status: 'succeeded',
         conflicts: [{ predicate: 'residence', memoryIds: ['a', 'b'] }], blockedClaimKinds: []
       })
-      expect(service.complete(id!)).toBe(true)
+      expect(service.decide(id!, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
       expect(service.listOpen()).toHaveLength(0)
 
       service.observeTurn({
@@ -168,17 +169,17 @@ describe('pending item store', () => {
     }
   })
 
-  it('completing twice is not an error, and completing an unknown id is false', () => {
+  it('replays the same decision idempotently and reports an unknown id', () => {
     const database = openDatabase()
     try {
-      const service = new PendingCognitionService(new SqlitePendingItemRepository(database))
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database, new EventLogService(database)))
       const [id] = service.observeTurn({
         turnId: turnA, conversationId, at: '2026-01-01T00:00:00.000Z', status: 'succeeded',
         conflicts: [{ predicate: 'residence', memoryIds: ['a', 'b'] }], blockedClaimKinds: []
       })
-      expect(service.complete(id!)).toBe(true)
-      expect(service.complete(id!)).toBe(true)
-      expect(service.complete('99999999-9999-4999-8999-999999999999')).toBe(false)
+      expect(service.decide(id!, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      expect(service.decide(id!, 'accepted')).toMatchObject({ status: 'unchanged' })
+      expect(service.decide('99999999-9999-4999-8999-999999999999', 'accepted')).toEqual({ status: 'not_found' })
     } finally {
       database.close()
     }
@@ -187,7 +188,7 @@ describe('pending item store', () => {
   it('absorbs the same reflection findings once, however many runs report them', () => {
     const database = openDatabase()
     try {
-      const service = new PendingCognitionService(new SqlitePendingItemRepository(database))
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database, new EventLogService(database)))
       const findings = [{ kind: 'memory_gap', statement: '存在 2 条被撤销的记忆。', confidence: 65 }]
       const first = service.absorbReflection({ runId: turnA, findings })
       const second = service.absorbReflection({ runId: turnB, findings })
@@ -202,7 +203,7 @@ describe('pending item store', () => {
   it('never persists the text of a reflection finding, even when it quotes the user', () => {
     const database = openDatabase()
     try {
-      const service = new PendingCognitionService(new SqlitePendingItemRepository(database))
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database, new EventLogService(database)))
       // A fabricated finding that quotes sensitive personal content, the shape
       // `consistency_note` used to take before it was changed to reference ids.
       const statement = '以下关于自己的判断仍是未经确认的推断，等待用户澄清：「我对青霉素严重过敏，车牌是京A12345」'
@@ -235,7 +236,7 @@ describe('pending item store', () => {
     directories.push(directory)
     const path = join(directory, 'morrow.sqlite3')
     const first = SqliteDatabase.open(path)
-    const [id] = new PendingCognitionService(new SqlitePendingItemRepository(first)).observeTurn({
+    const [id] = new PendingCognitionService(new SqlitePendingItemRepository(first, new EventLogService(first))).observeTurn({
       turnId: turnA, conversationId, at: '2026-01-01T00:00:00.000Z', status: 'succeeded',
       conflicts: [{ predicate: 'residence', memoryIds: ['a', 'b'] }], blockedClaimKinds: []
     })
@@ -243,7 +244,7 @@ describe('pending item store', () => {
 
     const second = SqliteDatabase.open(path)
     try {
-      const reopened = new PendingCognitionService(new SqlitePendingItemRepository(second))
+      const reopened = new PendingCognitionService(new SqlitePendingItemRepository(second, new EventLogService(second)))
       expect(reopened.listOpen().map((item) => item.id)).toEqual([id])
     } finally {
       second.close()
@@ -284,5 +285,32 @@ describe('bounded internal activity', () => {
       { budgetMs: 20 }
     )
     expect(result.status).toBe('cancelled')
+  })
+})
+
+describe('pending decision boundary', () => {
+  it('cannot construct the repository without an audit sink (compile-time contract)', () => {
+    function contract(database: SqliteDatabase) {
+      // @ts-expect-error the pending audit sink is a required dependency
+      return new SqlitePendingItemRepository(database)
+    }
+    void contract
+  })
+
+  it('has no public write path that changes status without a decision', () => {
+    const database = openDatabase()
+    try {
+      const service = new PendingCognitionService(new SqlitePendingItemRepository(database, new EventLogService(database)))
+      const [id] = service.observeTurn({
+        turnId: turnA, conversationId, at: '2026-01-01T00:00:00.000Z', status: 'succeeded',
+        conflicts: [{ predicate: 'residence', memoryIds: ['a', 'b'] }], blockedClaimKinds: []
+      })
+      // @ts-expect-error complete/drop were removed; decide is the only mutation
+      expect(() => service.complete(id!)).toThrow()
+      // @ts-expect-error the repository primitive is gone as well
+      expect(() => new SqlitePendingItemRepository(database, new EventLogService(database)).complete(id!, '2026-01-01T00:00:00.000Z')).toThrow()
+    } finally {
+      database.close()
+    }
   })
 })

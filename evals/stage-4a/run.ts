@@ -15,6 +15,7 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { buildStack, head, systemText, type Stack } from '../stage-3/runner/harness'
 import { buildProviderStack, commitOrUnknown, payloadDigest, readKeyOrNull, selectProvider, writeBlockedNoSecret } from '../stage-3/shared/real-provider'
+import { readGitMetadata } from '../../src/evaluation/git-metadata'
 
 interface FixtureSession {
   id: string
@@ -104,11 +105,14 @@ async function scripted(): Promise<void> {
     stack.close()
   }
   const failed = assertions.filter((item) => !item.ok)
+  const git = readGitMetadata()
   const payload = {
     suite: 'stage-4a-scripted',
     datasetVersion: fixture.version,
     codeCommit: head(),
-    branch: 'feat/stage-4a-companion-continuity',
+    branch: git.branch,
+    branchReason: git.branchReason,
+    workingTree: git.workingTree,
     command: 'npm run eval:stage4a',
     environment: { platform: process.platform, node: process.version },
     clock: 'real',
@@ -226,12 +230,15 @@ async function live(): Promise<void> {
     const petFacts = stack.factMemory.lookupActive('pet_name')
     const petHistory = stack.factMemory.lookupActive('pet_name', { queryTime: 'past' })
     const passed = checks.filter((check) => check.ok).length
+    const git = readGitMetadata()
     const payload = {
       suite: 'live',
       datasetVersion: fixture.version,
       harnessVersion: 'stage-4a-live-v2',
       codeCommit: commitOrUnknown(),
-      branch: 'feat/stage-4a-companion-continuity',
+      branch: git.branch,
+      branchReason: git.branchReason,
+      workingTree: git.workingTree,
       command: 'npm run eval:stage4a:live',
       environment: { platform: process.platform, node: process.version },
       clock: 'real',

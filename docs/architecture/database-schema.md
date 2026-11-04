@@ -29,7 +29,7 @@ ALTER TABLE cognitive_pending_items ADD COLUMN decision TEXT
 CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(finding_id);
 ```
 
-- 历史行两列为 NULL：仍可决策，只是没有可更新的 reflection route。
+- 历史行两列为 NULL：仍可决策；决策按存储的 statement digest 收敛可证明的 route，无法证明时不猜测并如实记录 unresolved。
 - 新 reflection 项由 router 传入 findingId；决策在同一事务更新 item + route。
 - 不清空、不重写历史 finding/pending 行；升级失败保持原库可恢复。
 
