@@ -197,24 +197,34 @@ export class IntentReadingRepository {
       try {
         pending.resolveSystem(row.id, 'intent_withdrawn', at)
       } catch (error) {
-        if (!(error instanceof PendingSchemaUnavailableError)) throw error
-        // A degraded pre-v48 schema cannot store the decision. Leaving the
-        // item open is correct; a bare status update is not. Record the
-        // capability failure and let the next upgraded start recover it.
-        try {
-          this.events.recordDeterministic(`pending-schema-unavailable:${row.id}`, {
-            sourceModule: 'cognition',
-            eventType: 'pending.schema_unavailable',
-            actor: 'system',
-            subjectType: 'pending_item',
-            subjectId: row.id,
-            correlationId: null,
-            payload: { component: 'intent_withdrawal' }
-          })
-        } catch {
-          // The journal is not writable either; the intent reading still saves.
+        if (error instanceof PendingSchemaUnavailableError) {
+          // A degraded pre-v48 schema cannot store the decision. Leaving the
+          // item open is correct; a bare status update is not. Record the
+          // capability failure and let the next upgraded start recover it.
+          this.recordClosureFailure(row.id, 'pending.schema_unavailable', 'intent_withdrawal')
+          continue
         }
+        // The item stays open when its decision transaction fails; the intent
+        // reading itself must still save. Record the failure for diagnosis and
+        // let a later withdrawal/decision retry the closure.
+        this.recordClosureFailure(row.id, 'pending.system_dismiss_failed', 'intent_withdrawal')
       }
+    }
+  }
+
+  private recordClosureFailure(itemId: string, eventType: string, component: string): void {
+    try {
+      this.events.recordDeterministic(`${eventType}:${itemId}`, {
+        sourceModule: 'cognition',
+        eventType,
+        actor: 'system',
+        subjectType: 'pending_item',
+        subjectId: itemId,
+        correlationId: null,
+        payload: { component }
+      })
+    } catch {
+      // The journal is not writable either; the intent reading still saves.
     }
   }
 

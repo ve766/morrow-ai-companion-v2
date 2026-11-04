@@ -1,6 +1,6 @@
 # PR #40 审计发现修复证据索引（Issue #47）
 
-- 代码 SHA：`1f736c6b788527bbffad186267679b1df63ff0a1`
+- 代码 SHA：`16620217cd0fd1ace9598fd57c74bc6425a6b16f`
 - 修复分支：`fix/pr-40-audit-findings`
 - 实现 PR：见 Issue #47 评论 / PR 链接（base `feat/stage-4-companion-confirmation-closure`）
 - 独立复审：见 `docs/audit/pr-40-repair-*.md` 与 review PR（另行提交）
@@ -49,11 +49,12 @@
 
 | 套件 | 文件 | SHA | branch/workingTree | 结果 |
 |---|---|---|---|---|
-| Stage 5 scripted | `evals/stage-5/results/20261104T060704Z-1f736c6.json` | 1f736c6 | fix/pr-40-audit-findings / clean | 12/12 |
-| Stage 4-A scripted | `evals/stage-4a/results/20261104T060730Z-1f736c6.json` | 1f736c6 | fix/pr-40-audit-findings / dirty（Stage 5 结果未提交） | 7/7 |
-| Stage 3 | `evals/stage-3/results/20261104T060733Z-1f736c6.json` + `-summary.json` | 1f736c6 | 无 branch 字段（历史 schema） | 15 PASS + 1 NOT_RUN / 16 |
+| Stage 5 scripted | `evals/stage-5/results/20261104T065441Z-1662021.json` | 1662021 | fix/pr-40-audit-findings / clean | 12/12 |
+| Stage 4-A scripted | `evals/stage-4a/results/20261104T065456Z-1662021.json` | 1662021 | fix/pr-40-audit-findings / dirty（Stage 5 结果未提交） | 7/7 |
+| Stage 3 | `evals/stage-3/results/20261104T065500Z-1662021.json` + `-summary.json` | 1662021 | 无 branch 字段（历史 schema） | 15 PASS + 1 NOT_RUN / 16 |
 | 机器结果（第一轮） | `evals/pr-40-audit-findings/results/20261104T051210Z-dd9f59b10c7c812c3af36684a32d15193bda7d50-repair.json` | dd9f59b | — | 12 项 FIXED（历史轮次） |
-| 机器结果（复审后） | `evals/pr-40-audit-findings/results/20261104T060849Z-1f736c6b788527bbffad186267679b1df63ff0a1-repair.json` | 1f736c6 | — | 12 项 FIXED；reviewHistory 记录第一轮 DO_NOT_MERGE 与三项修复 |
+| 机器结果（复审后 R2） | `evals/pr-40-audit-findings/results/20261104T060849Z-1f736c6b788527bbffad186267679b1df63ff0a1-repair.json` | 1f736c6 | — | 12 项 FIXED；历史轮次 |
+| 机器结果（最终） | `evals/pr-40-audit-findings/results/20261104T065544Z-16620217cd0fd1ace9598fd57c74bc6425a6b16f-repair.json` | 1662021 | — | 12 项 FIXED；reviewHistory 记录两轮复审与修复 |
 
 历史 24 份 JSON（PR #40 原结果）未改写。其 `branch` 字段在 Stage 5/4-A 生成器中被硬编码
 （`feat/stage-5-relational-presence` / `feat/stage-4a-companion-continuity`），本轮已在
@@ -63,9 +64,9 @@
 
 ```bash
 npx tsc --noEmit                                             # 0
-npx vitest run                                               # 118 files / 1080 tests
-npx vitest run <Stage 4 + review 13 files>                   # 123/123
-npx vitest run src/persistence                               # 9 files / 62 tests
+npx vitest run                                               # 118 files / 1083 tests
+npx vitest run <Stage 4 + review 13 files>                   # 126/126
+npx vitest run src/persistence                               # 9 files / 63 tests
 npm run build                                                # 0
 npm run eval:stage5                                          # 12/12
 npm run eval:stage4a                                         # 7/7

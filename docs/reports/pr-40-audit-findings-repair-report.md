@@ -2,7 +2,7 @@
 
 - 仓库：`ve766/morrow-ai-companion-v2`
 - 修复分支：`fix/pr-40-audit-findings`（自 PR #40 head `052bcaa9c0320ef5e726c7bf66df85a49055628d`）
-- 代码 SHA：`1f736c6b788527bbffad186267679b1df63ff0a1`
+- 代码 SHA：`16620217cd0fd1ace9598fd57c74bc6425a6b16f`
 - base：`feat/stage-4-companion-confirmation-closure`；PR #40 仍 OPEN、未合并
 - 承接：[Issue #45](https://github.com/ve766/morrow-ai-companion-v2/issues/45) / [PR #46](https://github.com/ve766/morrow-ai-companion-v2/pull/46) 的 12 项审计发现
 - 本任务性质：生产代码、测试、迁移/兼容性、评测元数据与文档修复；不开发 Agent、不扩展产品范围
@@ -15,14 +15,14 @@
 `routeStatus: null / unresolved`；Stage 4 有真实关闭/重开数据库文件的 restart 测试；
 eval 生成器动态读取 branch；P3 全部处理。
 
-验证（代码 SHA `1f736c6`）：
+验证（代码 SHA `1662021`）：
 
 | 项 | 结果 |
 |---|---|
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | **118 files / 1080 tests passed** |
-| Stage 4 + review 定向 13 文件 | **123/123** |
-| `npx vitest run src/persistence` | **9 files / 62 tests passed** |
+| `npx vitest run` | **118 files / 1083 tests passed** |
+| Stage 4 + review 定向 13 文件 | **126/126** |
+| `npx vitest run src/persistence` | **9 files / 63 tests passed** |
 | `npm run build` | 成功 |
 | `npm run eval:stage5` | 12/12；branch/workingTree 动态 |
 | `npm run eval:stage4a` | 7/7；branch/workingTree 动态 |
@@ -61,9 +61,10 @@ finding 仍未路由。
    `REFLECTION_INGEST_FAILED:<n>`；schema 不可写则立即中止。
 6. `ReflectionFindingRouter.recoverUnrouted`：扫描“无 route 且未被 reobserved 归档”的
    finding，逐条重放 ingest；启动与限流重试都会调用，用于修复历史遗留和中断写入。
-7. outbox 投影：`reflection.run` 被限流时调用 `recoverUnrouted`；若返回 `failed > 0`
+7. outbox 投影：**成功分支和限流分支都会调用 `recoverUnrouted`**；若返回 `failed > 0`
    则抛 `REFLECTION_RECOVERY_INCOMPLETE`，outbox 行保持可重试而不是 done；schema 不可用时
    记录 `cognition.pending_schema_unavailable` 后同样抛出，findings 保留供升级后恢复。
+   手动反思同样在 run 后执行 recovery。
 
 **测试**：
 - `reflection-routing.test.ts` `ingests a second finding for the same concern without PENDING_LINK_MISMATCH`
@@ -71,7 +72,7 @@ finding 仍未路由。
 - `reflection-routing.test.ts` `recovers a finding that was stored without a route, idempotently`
 - `stage4-startup-composition.integration.test.ts` `a second startup gap for the same label keeps the run successful`
 - `stage4-reflection-producer.integration.test.ts` `a second correction event does not fail manual ingestion`
-- `stage4-outbox-reflection.integration.test.ts` `does not mark the row done while recovery still has failed findings`、`does not mark the row done when the schema cannot route findings`
+- `stage4-outbox-reflection.integration.test.ts` `does not mark the row done while recovery still has failed findings`、`does not mark the row done when the schema cannot route findings`、`recovers a finding stranded by a transient pending write on a non-rate-limited retry`
 - `reflection-concern.test.ts`（规范化/不合并否定、数量、时间、实体、kind）
 - `reflection-mapping.test.ts`（concern kind 忽略 evidence；消费 evidence 的 kind 不合并）
 
@@ -171,7 +172,8 @@ b4-crash-child、全部集成测试）。`decide` 仍保留运行期 `PENDING_AU
 `source='open_question'` 的 item 置 done。现改为 `SqlitePendingItemRepository.resolveSystem`：
 同一事务写 `decision=dismissed`、收敛同关切 route、写 `pending.system_dismissed`（actor=system），
 不再有状态-only 路径；`IntentReadingRepository` 必需注入 audit sink。
-测试：`intent-reading-pending-closure.test.ts`。
+测试：`intent-reading-pending-closure.test.ts`（成功、失败后重试、降级 schema）。非 schema 的
+决策失败不会中断 intent reading 保存：item 保持 open，记录 `pending.system_dismiss_failed`。
 
 **状态**：FIXED。
 
