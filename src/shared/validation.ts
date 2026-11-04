@@ -203,7 +203,7 @@ export function parseProviderConfigInput(value: unknown): ProviderConfigInput {
   }
 }
 
-const PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u
+const PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/u
 
 function parseProfileId(value: unknown): string {
   if (typeof value !== 'string' || !PROFILE_ID_PATTERN.test(value)) throw new InputValidationError('Provider profile id is invalid.')

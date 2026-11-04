@@ -82,6 +82,31 @@ describe('provider profile IPC', () => {
       })
       expect(unsafe).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
       expect(stack.companion.listProfiles().some((profile) => profile.displayName === 'Unsafe')).toBe(false)
+
+      const officialOverride = await handlers[IPC_CHANNELS.providerProfileSave]!(event(), {
+        profileId: 'deepseek',
+        displayName: 'DeepSeek',
+        sourceKind: 'official',
+        protocolId: 'openai-chat-completions',
+        endpoint: 'https://api.deepseek.com',
+        endpointPath: '/v1',
+        model: 'deepseek-flash',
+        enabled: true,
+        apiKey: 'test-key-ipc'
+      })
+      expect(officialOverride).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
+      expect(stack.companion.providers.get('deepseek')?.endpointPath ?? null).toBeNull()
+
+      const longId = await handlers[IPC_CHANNELS.providerProfileSave]!(event(), {
+        profileId: 'a'.repeat(41),
+        displayName: 'Too long',
+        sourceKind: 'custom-proxy',
+        protocolId: 'openai-chat-completions',
+        endpoint: 'https://relay.example.com',
+        model: 'gemini-3-flash',
+        enabled: false
+      })
+      expect(longId).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
     } finally {
       stack.close()
     }

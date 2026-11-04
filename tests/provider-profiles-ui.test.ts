@@ -139,4 +139,21 @@ describe('provider profile renderer', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(calls.setDefaultProfile).toHaveBeenCalledWith({ profileId: profile.id })
   })
+
+  it('prompts for a new key when a destination change clears the credential', async () => {
+    const calls = bridge()
+    calls.saveProfile.mockResolvedValueOnce({
+      ok: true as const,
+      data: { ...profile, enabled: false, apiKeyConfigured: false, lastTest: null, capabilities: undefined }
+    })
+    const elements = await load()
+    const card = elements['provider-profile-list']!.children[0]!
+    const edit = card.children[1]!.children[2]!
+    await edit.listeners[0]!()
+    elements['provider-profile-endpoint']!.value = 'https://relay-new.example.com'
+    await elements['provider-profile-form']!.listeners[0]!({ preventDefault: () => undefined })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(elements['provider-profile-feedback']!.textContent).toContain('旧密钥已清除')
+    expect(elements['provider-profile-enabled']!.checked).toBe(false)
+  })
 })

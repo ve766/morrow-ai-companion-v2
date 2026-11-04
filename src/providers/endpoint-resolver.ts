@@ -58,10 +58,13 @@ export function resolveChatEndpoint(baseUrl: string, endpointPath?: string | nul
       if (prefix && basePath.endsWith(prefix)) return join(base, custom.slice(prefix.length))
       return join(base, custom)
     }
-    if (custom.endsWith('/v1') && new URL(base).pathname.endsWith('/v1')) {
-      return join(base, CHAT_SUFFIX)
+    if (custom.endsWith('/v1')) {
+      const basePath = new URL(base).pathname.replace(/\/+$/u, '')
+      return basePath.endsWith('/v1') ? join(base, CHAT_SUFFIX) : join(base, `${custom}${CHAT_SUFFIX}`)
     }
-    return join(base, custom)
+    // Any other endpoint path is a prefix under the base; the operation
+    // suffix is appended once so a path can never produce an ambiguous URL.
+    return join(base, `${custom}${CHAT_SUFFIX}`)
   }
   return join(base, CHAT_SUFFIX)
 }
@@ -81,7 +84,10 @@ export function resolveModelsEndpoint(baseUrl: string, endpointPath?: string | n
       }
       return join(base, `${prefix}${MODELS_SUFFIX}`)
     }
-    if (custom.endsWith('/v1') && !new URL(base).pathname.endsWith('/v1')) return join(base, `${custom}${MODELS_SUFFIX}`)
+    if (custom.endsWith('/v1')) {
+      return new URL(base).pathname.endsWith('/v1') ? join(base, MODELS_SUFFIX) : join(base, `${custom}${MODELS_SUFFIX}`)
+    }
+    return join(base, `${custom}${MODELS_SUFFIX}`)
   }
   return join(base, MODELS_SUFFIX)
 }

@@ -208,7 +208,11 @@ async function save(): Promise<void> {
   }
   const saved = unwrap(await window.morrow.providers.saveProfile(input))
   element<HTMLInputElement>('#provider-profile-api-key').value = ''
-  feedback(`已保存「${saved.displayName ?? saved.id}」`)
+  if (!saved.enabled && !saved.apiKeyConfigured && saved.sourceKind !== 'local') {
+    feedback(`已保存「${saved.displayName ?? saved.id}」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。`)
+  } else {
+    feedback(`已保存「${saved.displayName ?? saved.id}」`)
+  }
   fillForm(saved)
   await loadProfiles()
 }

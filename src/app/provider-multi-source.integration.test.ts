@@ -11,7 +11,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { applyMigrations } from '../persistence/migrations'
 import { SqliteDatabase } from '../persistence/database'
-import { MemorySecretStore } from '../security/secrets'
+import { MemorySecretStore, type SecretStore } from '../security/secrets'
+import { SecretStoreError } from '../security/secret-store-error'
 import { ProviderConfigService } from './companion-service'
 import { OpenAICompatibleProvider } from '../providers/openai-compatible'
 import { createEndpointPolicy } from '../providers/endpoint-security'
@@ -36,16 +37,16 @@ function approve(preview: ProviderConsentPreview) {
   }
 }
 
-function openService(): {
+function openService(secretStore: SecretStore = new MemorySecretStore()): {
   database: SqliteDatabase
   service: ProviderConfigService
-  secrets: MemorySecretStore
+  secrets: SecretStore
   previews: ProviderConsentPreview[]
   fetcher: ReturnType<typeof vi.fn>
 } {
   directory = mkdtempSync(join(tmpdir(), 'morrow-multi-provider-'))
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
-  const secrets = new MemorySecretStore()
+  const secrets = secretStore
   const previews: ProviderConsentPreview[] = []
   const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}')) as { stream?: boolean }
@@ -344,5 +345,225 @@ describe('provider schema identity', () => {
       raw.close()
     }
     expect(() => SqliteDatabase.open(path)).toThrow('Local storage could not be opened.')
+  })
+})
+
+describe('provider profile change semantics', () => {
+  it('invalidates health and verified capabilities for each connection-semantic change', async () => {
+    const { database, service, secrets } = openService()
+    try {
+      const saved = service.saveProfile(profileA)
+      await service.testConnection({ providerId: saved.id })
+      expect(service.get(saved.id)).toMatchObject({
+        lastTest: { status: 'connected' },
+        capabilities: { streaming: { verified: true } }
+      })
+      const { apiKey: _key, ...base } = profileA
+      const renamed = service.saveProfile({ ...base, profileId: saved.id, displayName: 'Relay A renamed' })
+      expect(renamed.lastTest?.status).toBe('connected')
+      expect(renamed.capabilities?.streaming.verified).toBe(true)
+
+      const modelChanged = service.saveProfile({ ...base, profileId: saved.id, model: 'claude-sonnet-4-5' })
+      expect(modelChanged.lastTest).toBeNull()
+      expect(modelChanged.capabilities?.streaming.verified).toBe(false)
+      expect(modelChanged.apiKeyConfigured).toBe(true)
+
+      await service.testConnection({ providerId: saved.id })
+      expect(service.get(saved.id)?.lastTest?.status).toBe('connected')
+      const endpointChanged = service.saveProfile({
+        ...base,
+        profileId: saved.id,
+        model: 'claude-sonnet-4-5',
+        endpoint: 'https://relay-c.example.com'
+      })
+      expect(endpointChanged.lastTest).toBeNull()
+      expect(endpointChanged.capabilities?.streaming.verified).toBe(false)
+      expect(endpointChanged.enabled).toBe(false)
+      expect(endpointChanged.apiKeyConfigured).toBe(false)
+      expect(secrets.get(saved.id)).toBeUndefined()
+
+      const rekeyed = service.saveProfile({
+        ...base,
+        profileId: saved.id,
+        model: 'claude-sonnet-4-5',
+        endpoint: 'https://relay-c.example.com',
+        apiKey: 'test-key-a'
+      })
+      expect(rekeyed.enabled).toBe(true)
+      await service.testConnection({ providerId: saved.id })
+      const pathChanged = service.saveProfile({
+        ...base,
+        profileId: saved.id,
+        model: 'claude-sonnet-4-5',
+        endpoint: 'https://relay-c.example.com',
+        endpointPath: '/v1',
+        apiKey: 'test-key-a'
+      })
+      expect(pathChanged.lastTest).toBeNull()
+      expect(pathChanged.apiKeyConfigured).toBe(true)
+      expect(secrets.get(saved.id)).toBe(profileA.apiKey)
+
+      await service.testConnection({ providerId: saved.id })
+      const localChanged = service.saveProfile({
+        ...base,
+        profileId: saved.id,
+        model: 'local-model',
+        sourceKind: 'local',
+        endpoint: 'http://127.0.0.1:1234'
+      })
+      expect(localChanged.lastTest).toBeNull()
+      expect(localChanged.apiKeyConfigured).toBe(false)
+      expect(secrets.get(saved.id)).toBeUndefined()
+
+      await service.testConnection({ providerId: saved.id })
+      const newKey = service.saveProfile({
+        ...base,
+        profileId: saved.id,
+        model: 'gemini-3-flash',
+        endpoint: 'https://relay-d.example.com',
+        apiKey: 'key-0123456789abcdef'
+      })
+      expect(newKey.lastTest).toBeNull()
+      expect(newKey.capabilities?.streaming.verified).toBe(false)
+      expect(secrets.get(saved.id)).toBe('key-0123456789abcdef')
+    } finally {
+      database.close()
+    }
+  })
+
+  it('sends the connection test to the exact chat URL for every supported shape', async () => {
+    const { database, service, fetcher } = openService()
+    try {
+      const cases = [
+        { endpoint: 'https://relay.example.com', expected: 'https://relay.example.com/chat/completions' },
+        { endpoint: 'https://relay.example.com/v1', expected: 'https://relay.example.com/v1/chat/completions' },
+        { endpoint: 'https://relay.example.com/v1/chat/completions', expected: 'https://relay.example.com/v1/chat/completions' },
+        { endpoint: 'https://relay.example.com', endpointPath: '/v1/chat/completions', expected: 'https://relay.example.com/v1/chat/completions' },
+        { endpoint: 'https://relay.example.com', endpointPath: '/v1', expected: 'https://relay.example.com/v1/chat/completions' },
+        { endpoint: 'https://relay.example.com/v1/', endpointPath: '/v1', expected: 'https://relay.example.com/v1/chat/completions' }
+      ]
+      for (const [index, item] of cases.entries()) {
+        const { expected, ...shape } = item
+        const saved = service.saveProfile({ ...profileA, ...shape, displayName: `Shape ${index}`, apiKey: 'test-key-a' })
+        await service.testConnection({ providerId: saved.id })
+        expect(fetcher.mock.calls.at(-1)?.[0]).toBe(expected)
+      }
+    } finally {
+      database.close()
+    }
+  })
+
+  it('rejects official profile overrides at the service layer', () => {
+    const { database, service } = openService()
+    try {
+      const official = {
+        profileId: 'deepseek',
+        displayName: 'DeepSeek',
+        sourceKind: 'official' as const,
+        protocolId: 'openai-chat-completions' as const,
+        endpoint: 'https://api.deepseek.com',
+        model: 'deepseek-flash',
+        enabled: true,
+        apiKey: 'test-key-a'
+      }
+      expect(service.saveProfile(official).id).toBe('deepseek')
+      expect(() => service.saveProfile({ ...official, endpointPath: '/v1' })).toThrow()
+      expect(() => service.saveProfile({ ...official, endpoint: 'https://evil.example.com' })).toThrow()
+      expect(() => service.saveProfile({ ...official, sourceKind: 'local' })).toThrow()
+      expect(() => service.saveProfile({ ...official, model: 'spark-x2.6' })).toThrow()
+      expect(() => service.saveProfile({ ...official, profileId: 'local-openai' })).toThrow()
+      expect(() => service.saveProfile({
+        ...official,
+        profileId: 'spark',
+        endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2',
+        model: 'spark-x2.6'
+      })).not.toThrow()
+      expect(service.get('deepseek')?.endpointPath).toBeNull()
+    } finally {
+      database.close()
+    }
+  })
+
+  it('restores the previous secret when the replacement write fails', async () => {
+    const delegate = new MemorySecretStore()
+    let failNextSet = false
+    const flaky: SecretStore = {
+      isAvailable: () => delegate.isAvailable(),
+      get: (id) => delegate.get(id),
+      delete: (id) => delegate.delete(id),
+      set: (id, value) => {
+        if (failNextSet) {
+          failNextSet = false
+          throw new SecretStoreError('write_failed')
+        }
+        delegate.set(id, value)
+      }
+    }
+    const { database, service } = openService(flaky)
+    try {
+      const saved = service.saveProfile(profileA)
+      await service.testConnection({ providerId: saved.id })
+      failNextSet = true
+      expect(() => service.saveProfile({
+        ...profileA,
+        profileId: saved.id,
+        endpoint: 'https://relay-z.example.com',
+        apiKey: 'test-key-b'
+      })).toThrow('PROVIDER_STORAGE_UNAVAILABLE')
+      expect(delegate.get(saved.id)).toBe(profileA.apiKey)
+      expect(service.get(saved.id)).toMatchObject({
+        endpoint: profileA.endpoint,
+        lastTest: { status: 'connected' }
+      })
+    } finally {
+      database.close()
+    }
+  })
+})
+
+describe('model discovery hardening', () => {
+  it('uses a dedicated discovery consent action', async () => {
+    const { database, service, previews, fetcher } = openService()
+    try {
+      const saved = service.saveProfile(profileA)
+      fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'gemini-3-flash' }] }), { status: 200 }))
+      await service.discoverModels({ profileId: saved.id })
+      expect(previews.at(-1)?.action).toBe('model-discovery')
+    } finally {
+      database.close()
+    }
+  })
+
+  it('blocks before consent and fetch when the endpoint policy rejects', async () => {
+    const { database, secrets, fetcher } = openService()
+    try {
+      const previews: ProviderConsentPreview[] = []
+      const blocked = new ProviderConfigService(
+        database,
+        secrets,
+        async (preview) => { previews.push(preview); return approve(preview) },
+        () => '2026-11-04T00:00:00.000Z',
+        () => { throw new Error('provider factory must not run') },
+        fetcher as never,
+        createEndpointPolicy(async () => { throw new Error('dns down') })
+      )
+      const saved = blocked.saveProfile(profileA)
+      await expect(blocked.discoverModels({ profileId: saved.id })).rejects.toMatchObject({ code: 'PROVIDER_ENDPOINT_BLOCKED' })
+      expect(previews).toHaveLength(0)
+      expect(fetcher).not.toHaveBeenCalled()
+    } finally {
+      database.close()
+    }
+  })
+
+  it('refuses an oversized discovery body', async () => {
+    const { database, service, fetcher } = openService()
+    try {
+      const saved = service.saveProfile(profileA)
+      fetcher.mockResolvedValueOnce(new Response('{}', { status: 200, headers: { 'content-length': '1000001' } }))
+      await expect(service.discoverModels({ profileId: saved.id })).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE' })
+    } finally {
+      database.close()
+    }
   })
 })

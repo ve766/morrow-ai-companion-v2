@@ -34,7 +34,8 @@ export interface RemoteProviderSpec {
 }
 
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u
-const PROFILE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u
+// The profile id is also the OS secret-store key, whose limit is 40 bytes.
+const PROFILE_ID = /^[a-z0-9][a-z0-9-]{0,39}$/u
 
 export const REMOTE_PROVIDER_SPECS: Readonly<Record<RemoteProviderSpec['id'], RemoteProviderSpec>> = Object.freeze({
   [DEEPSEEK_PROVIDER_ID]: {

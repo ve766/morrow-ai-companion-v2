@@ -47,8 +47,8 @@ import { isIntentReading, type IntentReading } from '../cognition/intent-reading
 import { policyForIntent, unrestrictedPolicy } from '../memory/retrieval-policy'
 import { guardAnswerFacts } from '../cognition/answer-fact-guard'
 import { readFactSlot } from '../memory/fact-slot'
-import { isBuiltinProviderId, isModelId, isProfileId, normalizeProviderConfig, remoteSpecFor, validateProviderConfig } from '../providers/provider-registry'
-import { resolveChatEndpoint, resolveModelsEndpoint } from '../providers/endpoint-resolver'
+import { isBuiltinProviderId, isModelId, isProfileId, hasProtocolAdapter, normalizeProviderConfig, remoteSpecFor, validateProviderConfig } from '../providers/provider-registry'
+import { resolveChatEndpoint, resolveModelsEndpoint, normalizeBaseUrl } from '../providers/endpoint-resolver'
 import { defaultEndpointPolicy, endpointDigest, type EndpointPolicy } from '../providers/endpoint-security'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
@@ -418,7 +418,9 @@ function connectionInput(config: ProviderConfigRecord): ProviderInput {
   return {
     prompt,
     context: { text: '', selected: [], omitted: 0, characterCount: 0 },
-    endpoint: `${config.endpoint}/chat/completions`,
+    // The connection test must hit the same URL the adapter uses for chat;
+    // endpointPath and full chat URLs are resolved by one shared resolver.
+    endpoint: resolveChatEndpoint(config.endpoint, config.endpointPath),
     maximumSensitivity: 'normal',
     // 256 rather than 32: a reasoning model spends its first tokens on a
     // preamble, and a 32-token budget returns an empty answer that looks like a
@@ -426,6 +428,17 @@ function connectionInput(config: ProviderConfigRecord): ProviderInput {
     requestPayload: makeRequestPayload(config.model, [{ role: 'user', content: prompt }], true, 256, config.id === DEEPSEEK_PROVIDER_ID)
   }
 }
+
+function comparableEndpoint(endpoint: string): string {
+  try {
+    return normalizeBaseUrl(endpoint)
+  } catch {
+    return endpoint.trim()
+  }
+}
+
+/** Model lists are small; a relay streaming an unbounded body is refused. */
+const MAX_DISCOVERY_BODY_BYTES = 1_000_000
 
 export class ProviderConfigService {
   constructor(
@@ -508,9 +521,11 @@ export class ProviderConfigService {
 
   /**
    * Creates or updates one user profile. The id is opaque; the endpoint and
-   * model are independent of it. Secrets are isolated by profile id and written
-   * only after the profile row is accepted; a failed credential write restores
-   * the row's previous secret.
+   * model are independent of it. A change to the destination (source kind,
+   * protocol, endpoint or endpoint path) invalidates the old credential and
+   * every health/capability claim tied to it: the secret is cleared before the
+   * row is written and the profile becomes unconfigured until the user enters
+   * the key again. A failed write restores the previous secret.
    */
   saveProfile(input: ProviderProfileSaveInput): ProviderConfigRecord {
     if (!input || typeof input !== 'object') throw new ApplicationError('INVALID_INPUT')
@@ -525,17 +540,67 @@ export class ProviderConfigService {
     const profileId = (input.profileId?.trim().toLowerCase() || randomUUID().toLowerCase())
     if (!isProfileId(profileId)) throw new ApplicationError('INVALID_INPUT')
     if (input.sourceKind === 'official' && !isBuiltinProviderId(profileId)) throw new ApplicationError('INVALID_INPUT')
+    const endpointPath = input.endpointPath?.trim() || null
     if (isBuiltinProviderId(profileId)) {
       const spec = remoteSpecFor(profileId)
       if (profileId === LOCAL_PROVIDER_ID) {
         if (input.sourceKind !== 'local') throw new ApplicationError('INVALID_INPUT')
-      } else if (input.sourceKind !== 'official' || !spec || input.endpoint.trim() !== spec.baseUrl || !spec.modelPattern.test(input.model.trim())) {
+      } else if (
+        input.sourceKind !== 'official' ||
+        !spec ||
+        input.endpoint.trim() !== spec.baseUrl ||
+        !spec.modelPattern.test(input.model.trim()) ||
+        endpointPath !== null
+      ) {
         throw new ApplicationError('INVALID_INPUT')
       }
     }
     if (!isModelId(input.model.trim())) throw new ApplicationError('INVALID_INPUT')
-    const endpointPath = input.endpointPath?.trim() || null
     const existing = this.get(profileId)
+
+    let apiKey: string | undefined
+    if (input.apiKey !== undefined) {
+      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) {
+        throw new ApplicationError('INVALID_INPUT')
+      }
+      apiKey = input.apiKey.trim() || undefined
+    }
+    let previousSecret: string | undefined
+    try {
+      if (apiKey !== undefined) {
+        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+        previousSecret = this.secrets.get(profileId)
+      } else if (existing?.apiKeyConfigured) {
+        previousSecret = this.secrets.get(profileId)
+      }
+    } catch (error) {
+      throw mapProviderSecretError(error)
+    }
+
+    const destinationChanged = existing !== null && (
+      existing.sourceKind !== input.sourceKind ||
+      existing.protocolId !== input.protocolId ||
+      comparableEndpoint(existing.endpoint) !== comparableEndpoint(input.endpoint.trim()) ||
+      (existing.endpointPath ?? null) !== endpointPath
+    )
+    const credentialChanged = apiKey !== undefined && apiKey !== previousSecret
+    const modelChanged = existing !== null && existing.model !== input.model.trim()
+    const connectionSemanticsChanged = destinationChanged || modelChanged || credentialChanged
+    // A destination change without a replacement key must not reuse the old
+    // secret at the new host. Remote profiles also become disabled so the
+    // default/profile selection cannot send an unauthenticated request.
+    const willClearCredential = destinationChanged && apiKey === undefined && previousSecret !== undefined
+    const effectiveEnabled = input.enabled && !(willClearCredential && input.sourceKind !== 'local')
+    const credentialConfigured = apiKey !== undefined
+      ? true
+      : willClearCredential
+        ? false
+        : Boolean(previousSecret) || existing?.apiKeyConfigured === true
+    if (effectiveEnabled && input.sourceKind !== 'local' && !credentialConfigured) {
+      throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    }
+
+    const isDefault = input.isDefault === undefined ? existing?.isDefault === true : input.isDefault
     const candidate: ProviderConfigRecord = normalizeProviderConfig({
       id: profileId,
       displayName: input.displayName.trim(),
@@ -545,39 +610,43 @@ export class ProviderConfigService {
       endpoint: input.endpoint.trim(),
       endpointPath,
       model: input.model.trim(),
-      enabled: input.enabled,
-      isDefault: input.isDefault === undefined ? existing?.isDefault === true : input.isDefault,
-      apiKeyConfigured: this.hasCredential(profileId),
-      capabilities: existing?.capabilities ?? defaultCapabilities(),
-      lastTest: existing?.lastTest ?? null,
+      enabled: effectiveEnabled,
+      isDefault,
+      apiKeyConfigured: credentialConfigured,
+      capabilities: connectionSemanticsChanged ? defaultCapabilities() : existing?.capabilities ?? defaultCapabilities(),
+      lastTest: connectionSemanticsChanged ? null : existing?.lastTest ?? null,
       updatedAt: this.clock()
     })
     const validation = validateProviderConfig(candidate)
     if (!validation.ok) throw new ApplicationError('INVALID_INPUT')
 
-    let apiKey: string | undefined
-    if (input.apiKey !== undefined) {
-      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) {
-        throw new ApplicationError('INVALID_INPUT')
-      }
-      apiKey = input.apiKey.trim() || undefined
-    }
-    if (candidate.enabled && candidate.sourceKind !== 'local' && !apiKey && !this.hasCredential(profileId)) {
-      throw new ApplicationError('PROVIDER_UNCONFIGURED')
-    }
     const now = safeTimestamp(this.clock())
     const capabilities = candidate.capabilities ?? defaultCapabilities()
-    let previousSecret: string | undefined
-    if (apiKey) {
-      try {
-        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        previousSecret = this.secrets.get(profileId)
-      } catch (error) {
-        throw mapProviderSecretError(error)
-      }
-    }
-    const isDefault = input.isDefault === undefined ? existing?.isDefault === true : input.isDefault
+    let secretTouched = false
     try {
+      // Secret first, row second. A row failure is compensated by restoring the
+      // previous secret; a secret failure writes no row at all.
+      if (apiKey !== undefined) {
+        secretTouched = true
+        try {
+          this.secrets.set(profileId, apiKey)
+          if (!this.secrets.isAvailable() || this.secrets.get(profileId) !== apiKey) {
+            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+          }
+        } catch (error) {
+          throw mapProviderSecretError(error)
+        }
+      } else if (willClearCredential) {
+        secretTouched = true
+        try {
+          this.secrets.delete(profileId)
+          if (this.secrets.get(profileId) !== undefined) {
+            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+          }
+        } catch (error) {
+          throw mapProviderSecretError(error)
+        }
+      }
       this.database.transaction(() => {
         if (isDefault) {
           this.database.connection.prepare('UPDATE provider_profiles SET is_default = 0 WHERE is_default = 1 AND id <> ?').run(profileId)
@@ -598,6 +667,7 @@ export class ProviderConfigService {
             enabled = excluded.enabled,
             is_default = excluded.is_default,
             capabilities_json = excluded.capabilities_json,
+            last_test_json = excluded.last_test_json,
             updated_at = excluded.updated_at
         `).run(
           profileId,
@@ -615,19 +685,9 @@ export class ProviderConfigService {
           now,
           now
         )
-        if (apiKey) {
-          try {
-            this.secrets.set(profileId, apiKey)
-            if (!this.secrets.isAvailable() || this.secrets.get(profileId) !== apiKey) {
-              throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-            }
-          } catch (error) {
-            throw mapProviderSecretError(error)
-          }
-        }
       })
     } catch (error) {
-      if (apiKey) {
+      if (secretTouched) {
         try {
           if (previousSecret === undefined) this.secrets.delete(profileId)
           else this.secrets.set(profileId, previousSecret)
@@ -723,20 +783,26 @@ export class ProviderConfigService {
 
   /** Optional `GET /models`; failure never prevents manual model entry. */
   async discoverModels(request: ProviderModelsRequest): Promise<ProviderModelsResult> {
-    const config = this.get(request.profileId)
-    if (!config) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    const stored = this.get(request.profileId)
+    if (!stored) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    const config = normalizeProviderConfig(stored)
+    // Discovery must use the same profile shape rules as chat; a stored row
+    // that predates a rule change may not be sent to the network.
+    if (!hasProtocolAdapter(config.protocolId) || !validateProviderConfig(config).ok) {
+      throw new ApplicationError('INVALID_INPUT')
+    }
     this.assertUsable(config)
     const url = resolveModelsEndpoint(config.endpoint, config.endpointPath)
-    if (config.sourceKind === 'custom-proxy') {
-      try {
-        await this.endpointPolicy.assertAllowed(url, 'custom-proxy')
-      } catch {
-        throw new ApplicationError('PROVIDER_ENDPOINT_BLOCKED')
-      }
+    // The same endpoint policy as chat: HTTPS-only for remote, loopback-only
+    // for local, DNS checked before any authenticated request.
+    try {
+      await this.endpointPolicy.assertAllowed(url, config.sourceKind)
+    } catch {
+      throw new ApplicationError('PROVIDER_ENDPOINT_BLOCKED')
     }
     // Discovery sends the profile credential to the endpoint. It has no user
-    // content, but it is still an authenticated egress and requires the same
-    // profile/endpoint consent as a connection test.
+    // content, but it is still an authenticated egress and requires its own
+    // profile/endpoint consent action.
     const discoveryInput: ProviderInput = {
       prompt: '',
       context: { text: '', selected: [], omitted: 0, characterCount: 0 },
@@ -744,13 +810,19 @@ export class ProviderConfigService {
       maximumSensitivity: 'normal',
       requestPayload: { models: true }
     }
-    const preview = consentPreview('connection-test', config, discoveryInput)
+    const preview = consentPreview('model-discovery', config, discoveryInput)
     const consent = await this.authorize(preview)
     if (!consent) throw new ApplicationError('FORBIDDEN')
-    if (consentPreview('connection-test', config, discoveryInput).payloadSha256 !== preview.payloadSha256) {
+    if (consentPreview('model-discovery', config, discoveryInput).payloadSha256 !== preview.payloadSha256) {
       throw new ApplicationError('CONFLICT')
     }
-    const key = this.secrets.get(config.id)
+    let key: string | undefined
+    try {
+      key = this.secrets.get(config.id)
+    } catch (error) {
+      throw mapProviderSecretError(error)
+    }
+    if (config.providerClass === 'remote' && !key) throw new ApplicationError('PROVIDER_UNCONFIGURED')
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 20_000)
     try {
@@ -763,8 +835,24 @@ export class ProviderConfigService {
         redirect: 'error',
         signal: controller.signal
       })
-      if (!response.ok) throw new ApplicationError(response.status === 401 || response.status === 403 ? 'PROVIDER_AUTH' : 'PROVIDER_NETWORK')
-      const parsed = await response.json() as { data?: Array<{ id?: unknown }>; models?: Array<{ id?: unknown; name?: unknown }> }
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
+        if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT')
+        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')
+        throw new ApplicationError('PROVIDER_NETWORK')
+      }
+      const declaredLength = Number(response.headers.get('content-length') ?? '0')
+      if (Number.isFinite(declaredLength) && declaredLength > MAX_DISCOVERY_BODY_BYTES) {
+        throw new ApplicationError('PROVIDER_RESPONSE')
+      }
+      const text = await response.text()
+      if (text.length > MAX_DISCOVERY_BODY_BYTES) throw new ApplicationError('PROVIDER_RESPONSE')
+      let parsed: { data?: Array<{ id?: unknown }>; models?: Array<{ id?: unknown; name?: unknown }> }
+      try {
+        parsed = JSON.parse(text) as typeof parsed
+      } catch {
+        throw new ApplicationError('PROVIDER_RESPONSE')
+      }
       const list: Array<{ id?: unknown; name?: unknown }> = Array.isArray(parsed.data) ? parsed.data : Array.isArray(parsed.models) ? parsed.models : []
       const models = [...new Set(list.map((item) => typeof item.id === 'string' ? item.id : typeof item.name === 'string' ? item.name : '').filter((id) => id.length > 0 && id.length <= 128))].slice(0, 200)
       return { profileId: config.id, models, source: 'discovered', discoveredAt: safeTimestamp(this.clock()) }

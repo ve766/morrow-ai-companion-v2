@@ -316,10 +316,11 @@
               <input id="provider-profile-endpoint" type="text" maxlength="2000" required spellcheck="false" placeholder="https://relay.example.com/v1" />
               <label for="provider-profile-endpoint-path">Endpoint path（可选）</label>
               <input id="provider-profile-endpoint-path" type="text" maxlength="300" spellcheck="false" placeholder="留空自动补 /chat/completions" />
+              <p class="companion-muted">Base URL 可填站点根地址、以 <code>/v1</code> 结尾的地址或完整 chat-completions 地址。Base URL 已包含 <code>/v1</code> 时，Endpoint path 填 <code>/v1</code> 不会重复拼接；填 <code>/v1/chat/completions</code> 也只会解析为一个请求地址。</p>
               <label for="provider-profile-model">模型 ID</label>
               <input id="provider-profile-model" type="text" maxlength="128" required spellcheck="false" placeholder="例如 gemini-3-flash" />
               <label for="provider-profile-api-key">API Key（保存后清空输入框）</label>
-              <input id="provider-profile-api-key" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="编辑时留空表示保留现有密钥" />
+              <input id="provider-profile-api-key" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="编辑时留空表示保留现有密钥；接入地址变更时必须重新输入" />
               <label class="companion-toggle"><input id="provider-profile-enabled" type="checkbox" /><span>启用此配置</span></label>
               <label class="companion-toggle"><input id="provider-profile-default" type="checkbox" /><span>设为默认对话 Provider</span></label>
               <div class="companion-actions">

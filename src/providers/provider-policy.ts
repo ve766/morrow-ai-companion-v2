@@ -3,7 +3,7 @@ import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 
 export type ProviderClass = 'mock' | 'local' | 'remote'
-export type ProviderAction = 'chat' | 'connection-test' | 'memory-proposal'
+export type ProviderAction = 'chat' | 'connection-test' | 'model-discovery' | 'memory-proposal'
 
 export interface ProviderProfile {
   id: string

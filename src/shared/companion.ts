@@ -231,7 +231,7 @@ export interface ChatRequest {
 }
 
 export interface ChatPreview {
-  action: 'chat' | 'connection-test' | 'memory-proposal'
+  action: 'chat' | 'connection-test' | 'model-discovery' | 'memory-proposal'
   providerId: ProviderProfileId
   endpoint: string
   model: string
