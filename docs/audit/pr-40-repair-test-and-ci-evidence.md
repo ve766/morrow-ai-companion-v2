@@ -96,3 +96,23 @@ The exact JSON lines are in `.tmp/review3/logs/repro.log`.
 | Stage 5 live | NOT_RUN | Provider cost/time; no new live claim. |
 | Local Electron smoke | NOT_RUN locally | CI ran the real app smoke on Ubuntu and Windows for `9aff042`; both passed. |
 | Human review, second provider, real-machine install | PENDING_HUMAN / NOT_RUN | External, unchanged. |
+
+## 6. Final head after merge (PR #40 `4284cb1`)
+
+- PR #40 head: `4284cb1b6856faf27f5a43dd4980a2c11404b4db`; base
+  `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9` (unchanged).
+- PR #48 MERGED at 2026-11-04T07:35:28Z; merge commit `4284cb1`; final PR #48 head `bb9e409`.
+- Merge tree: `4284cb1^{tree}` = `7b2f5391402a241ee8c79c62853b028696af981b` = `bb9e409^{tree}`;
+  parents `052bcaa` + `bb9e409`; no merge-resolution change.
+- Delta `9aff042..bb9e409`: 3 docs/evidence files only (evidence index, repair report correction,
+  CI closure JSON); no source/test/migration change.
+- CI run [41793346804](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41793346804) on
+  `4284cb1`, conclusion success:
+  - Ubuntu `126451574972`: 118 files / 1083 tests; Electron smoke passed
+  - Windows `126451574936`: 118 files / 1083 tests; Electron smoke passed
+  - Windows upgrade `126451574534`: 9 files / 63 tests; `upgrades a v47 database with pending items
+    and keeps them decidable` observed at 07:36:33 (2005ms)
+- Independent runs on `4284cb1`: `npx tsc --noEmit` exit 0; `npx vitest run` exit 0,
+  **118 files / 1083 tests**; `npx vitest run src/persistence` exit 0, **9/63**; targeted 13 files
+  exit 0, **13 files / 126 tests**; `npm run build` exit 0; reviewer probes A1/A2/B/C/D/E1-E3/X/S/G/
+  O/H/O2/H2/H3 all pass (`SUMMARY failures=0`), including O2.

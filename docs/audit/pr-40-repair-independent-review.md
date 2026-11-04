@@ -83,10 +83,48 @@ None of these is a P1 or required P2, so the verdict is PASS_WITH_NON_BLOCKING_B
 | Local Electron smoke | NOT_RUN locally | CI ran the real smoke on Ubuntu and Windows for `9aff042`; both passed |
 | Full `npm ci` | NOT_RUN | `npm ci --dry-run` exit 0; CI ran `npm ci` on both platforms |
 
-## 5. Constraints observed
+## 5. Constraints observed at round 3
 
-- PR #48 remains OPEN; PR #40 and PR #46 remain OPEN; PR #40 head is still `052bcaa`; PR #49 remains
-  a Draft with base `fix/pr-40-audit-findings`.
+- At round-3 review time PR #48 was OPEN and PR #40 head was `052bcaa`; PR #49 remains a Draft with
+  base `fix/pr-40-audit-findings`.
 - No production code, tests, migrations or historical result files were modified by this review.
-- The review branch merged `origin/fix/pr-40-audit-findings`; only the five review files are changed
-  by the review commits.
+- The review branch merged `origin/fix/pr-40-audit-findings`; only the review files are changed by
+  the review commits.
+
+## 6. Final review after merge (PR #40 head `4284cb1`)
+
+- PR #40: **OPEN**, base `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
+  (unchanged), head `4284cb1b6856faf27f5a43dd4980a2c11404b4db`.
+- PR #48: **MERGED** at 2026-11-04T07:35:28Z, merge commit `4284cb1`; final PR #48 head
+  `bb9e409c7b4fda5c03d3180254363ec66b8cb929` (code `1662021`, plus the round-3 CI-closure evidence).
+- Merge tree verification: `4284cb1^{tree}` = `7b2f5391402a241ee8c79c62853b028696af981b` =
+  `bb9e409^{tree}`. The merge parents are `052bcaa` (PR #40 previous head) and `bb9e409` (PR #48).
+  No merge resolution changed the PR #48 tree.
+- Delta from the round-3 reviewed head `9aff042` to the final PR #48 head `bb9e409` is 3 files only:
+  `docs/reports/pr-40-audit-findings-evidence-index.md` (+1 CI closure row),
+  `docs/reports/pr-40-audit-findings-repair-report.md` (intent-degraded coverage corrected), and the
+  new `evals/pr-40-audit-findings/results/20261104T072000Z-1662021...-ci-closure.json`.
+  No `src/**`, `tests/**`, migration, schema or historical result file changed.
+- Final head contains all 12 fixes: `REFLECTION_RECOVERY_INCOMPLETE` on both outbox branches and
+  manual reflection, `SCHEMA_UPGRADE_REQUIRED` manual mapping, sibling route convergence
+  (`linked_with_siblings`), `resolveSystem`/`pending.system_dismiss_failed`, `git-metadata`, the
+  v47 migration test, the schema gate, and the pending UI result branches.
+- CI: run [41793346804](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41793346804) on
+  `4284cb1`, conclusion success:
+  - Ubuntu `126451574972`: 118 files / 1083 tests; Electron smoke passed
+  - Windows `126451574936`: 118 files / 1083 tests; Electron smoke passed
+  - Windows upgrade `126451574534`: 9 files / 63 tests; `upgrades a v47 database with pending items
+    and keeps them decidable` observed at 07:36:33 (2005ms)
+- Independent runs on `4284cb1`: `npx tsc --noEmit` exit 0; `npx vitest run` exit 0, **118 files /
+  1083 tests passed**; `npx vitest run src/persistence` exit 0, **9/63**; targeted 13 files exit 0,
+  **13 files / 126 tests**; `npm run build` exit 0. Reviewer probes A1/A2/B/C/D/E1-E3/X/S/G/O/H/O2/
+  H2/H3 all pass, including O2 (row pending -> done only after the stranded finding is routed).
+- Release/main and other PRs: `release/morrow-v2-final-delivery` is still
+  `3812b185398c0442fcc0d0ba5b180713cafee1d9`; `main` is still `8b207b7d7b80b91ed4369d02fd6ef7e170b81133`;
+  PR #35, #38 and #41 remain OPEN and were not modified. PR #40 was not merged to release/main.
+- **Final verdict: PASS_WITH_NON_BLOCKING_BACKLOG.** All 12 findings remain VERIFIED_FIXED; no
+  regression found. Remaining backlog: P3-08 DB-not-ready/timeout tests; P3-11 has no direct test of
+  the `index.ts` schema mapping; the degraded intent-withdrawal behavior is covered by reviewer probe
+  H2 rather than a repository test (the repair report no longer claims the intent test file contains
+  it, though it still points at the startup degraded test); the historical round-3 machine result
+  still records `ci.status=PENDING`, now superseded by the CI-closure JSON.

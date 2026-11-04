@@ -164,3 +164,14 @@ intent-closure failures non-fatal. All 16 files were reviewed.
 | `evals/stage-5/results/20261104T065441Z-1662021.json` | New result | OK: 12/12; branch clean. | P2-05 |
 
 No pre-existing historical result file was modified; all round-3 result files are additions.
+
+## I. Final merge delta (PR #40 head `4284cb1`)
+
+- `4284cb1^{tree}` = `7b2f5391402a241ee8c79c62853b028696af981b` = `bb9e409^{tree}`; the merge parents
+  are `052bcaa` and `bb9e409`, so the merge introduced no tree changes beyond PR #48.
+- Delta from the round-3 reviewed head `9aff042` to the final PR #48 head `bb9e409` is 3 files:
+  `docs/reports/pr-40-audit-findings-evidence-index.md` (+1 CI closure row),
+  `docs/reports/pr-40-audit-findings-repair-report.md` (intent-degraded coverage corrected), and
+  `evals/pr-40-audit-findings/results/20261104T072000Z-1662021...-ci-closure.json`.
+- Final PR #48/PR #40 diff: 75 files, +6789 / -207 (74 at `9aff042` + the one closure JSON).
+- No `src/**`, `tests/**`, migration, schema or historical result change; all 12 fixes remain present.
