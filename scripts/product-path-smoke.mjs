@@ -148,7 +148,15 @@ async function waitForBridge(client) {
 }
 
 async function stop(run, client) {
-  client?.close()
+  // A graceful close lets Electron flush its OS-crypt key material; a forced
+  // kill can leave the next process unable to decrypt secrets it just wrote.
+  if (client) {
+    try { await client.evaluate('window.close()') } catch {}
+    client.close()
+  }
+  if (run.child.exitCode === null) {
+    await Promise.race([run.exited, delay(10000)])
+  }
   if (run.child.exitCode === null) {
     if (process.platform === 'win32') {
       spawnSync('taskkill', ['/pid', String(run.child.pid), '/T', '/F'], { stdio: 'ignore' })
