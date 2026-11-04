@@ -55,6 +55,7 @@
 | 机器结果（第一轮） | `evals/pr-40-audit-findings/results/20261104T051210Z-dd9f59b10c7c812c3af36684a32d15193bda7d50-repair.json` | dd9f59b | — | 12 项 FIXED（历史轮次） |
 | 机器结果（复审后 R2） | `evals/pr-40-audit-findings/results/20261104T060849Z-1f736c6b788527bbffad186267679b1df63ff0a1-repair.json` | 1f736c6 | — | 12 项 FIXED；历史轮次 |
 | 机器结果（最终） | `evals/pr-40-audit-findings/results/20261104T065544Z-16620217cd0fd1ace9598fd57c74bc6425a6b16f-repair.json` | 1662021 | — | 12 项 FIXED；reviewHistory 记录两轮复审与修复 |
+| CI closure | `evals/pr-40-audit-findings/results/20261104T072000Z-16620217cd0fd1ace9598fd57c74bc6425a6b16f-ci-closure.json` | 1662021 / evidence 9aff042 | — | run 41789069806 三 job success；初审 12/12 VERIFIED_FIXED，复审 PASS_WITH_NON_BLOCKING_BACKLOG |
 
 历史 24 份 JSON（PR #40 原结果）未改写。其 `branch` 字段在 Stage 5/4-A 生成器中被硬编码
 （`feat/stage-5-relational-presence` / `feat/stage-4a-companion-continuity`），本轮已在

@@ -172,8 +172,9 @@ b4-crash-child、全部集成测试）。`decide` 仍保留运行期 `PENDING_AU
 `source='open_question'` 的 item 置 done。现改为 `SqlitePendingItemRepository.resolveSystem`：
 同一事务写 `decision=dismissed`、收敛同关切 route、写 `pending.system_dismissed`（actor=system），
 不再有状态-only 路径；`IntentReadingRepository` 必需注入 audit sink。
-测试：`intent-reading-pending-closure.test.ts`（成功、失败后重试、降级 schema）。非 schema 的
-决策失败不会中断 intent reading 保存：item 保持 open，记录 `pending.system_dismiss_failed`。
+测试：`intent-reading-pending-closure.test.ts`（成功、失败后重试）。降级 schema 的行为由
+`pending-schema-gate.test.ts` 的 startup degraded 用例覆盖；本文件不声称该用例包含降级路径。
+非 schema 的决策失败不会中断 intent reading 保存：item 保持 open，记录 `pending.system_dismiss_failed`。
 
 **状态**：FIXED。
 

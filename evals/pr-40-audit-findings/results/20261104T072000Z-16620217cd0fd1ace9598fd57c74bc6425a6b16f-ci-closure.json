@@ -1,0 +1,64 @@
+{
+  "suite": "pr-40-audit-findings-ci-closure",
+  "task": "Issue #47",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "pr": 48,
+  "branch": "fix/pr-40-audit-findings",
+  "baseBranch": "feat/stage-4-companion-confirmation-closure",
+  "baseCommit": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "implementationBase": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "codeSha": "16620217cd0fd1ace9598fd57c74bc6425a6b16f",
+  "evidenceHeadSha": "9aff0424606c89dbf9924e2e831015a11b1b58f4",
+  "generatedAt": "2026-11-04T07:20:00Z",
+  "historicalResult": {
+    "file": "evals/pr-40-audit-findings/results/20261104T065544Z-16620217cd0fd1ace9598fd57c74bc6425a6b16f-repair.json",
+    "note": "Its ci.status=PENDING is the state when it was generated, before this run completed. It is preserved; this closure file is the post-CI fact."
+  },
+  "ci": {
+    "runId": 41789069806,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41789069806",
+    "headSha": "9aff0424606c89dbf9924e2e831015a11b1b58f4",
+    "conclusion": "success",
+    "collectedAt": "2026-11-04T07:20:00Z",
+    "jobs": [
+      {
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "id": 126437950251,
+        "conclusion": "success",
+        "tests": { "files": 118, "tests": 1083 }
+      },
+      {
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "id": 126437950111,
+        "conclusion": "success",
+        "tests": { "files": 118, "tests": 1083 }
+      },
+      {
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "id": 126437949884,
+        "conclusion": "success",
+        "tests": { "files": 9, "tests": 63 },
+        "migrationTestObserved": "upgrades a v47 database with pending items and keeps them decidable"
+      }
+    ]
+  },
+  "independentReview": {
+    "pr": 49,
+    "reviewCommit": "4f1db3a12d1e8dd6784ff61b54a29e4ced473087",
+    "reviewedSha": "9aff0424606c89dbf9924e2e831015a11b1b58f4",
+    "verdict": "PASS_WITH_NON_BLOCKING_BACKLOG",
+    "verifiedFixed": 12,
+    "backlog": [
+      "P3-08 DB-not-ready/timeout tests absent",
+      "P3-11 manual-reflection SCHEMA_UPGRADE_REQUIRED is source-verified, no direct closure test",
+      "acceptance/repair docs corrected for intent degraded coverage"
+    ]
+  },
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "stage5LiveRerun": "NOT_RUN",
+    "localElectronSmoke": "NOT_RUN (CI double-platform smoke)"
+  }
+}
