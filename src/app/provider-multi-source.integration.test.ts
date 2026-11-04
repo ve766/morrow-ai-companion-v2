@@ -276,6 +276,10 @@ describe('provider health classification', () => {
       expect(service.get(saved.id)?.lastTest).toMatchObject({ status: 'auth_failed' })
       expect(JSON.stringify(service.get(saved.id)?.lastTest)).not.toContain('bad key')
 
+      fetcher.mockResolvedValueOnce(new Response('{"error":{"code":"pre_consume_token_quota_failed","type":"new_api_error"}}', { status: 403 }))
+      await expect(service.testConnection({ providerId: saved.id })).rejects.toMatchObject({ code: 'PROVIDER_QUOTA' })
+      expect(service.get(saved.id)?.lastTest).toMatchObject({ status: 'quota' })
+
       fetcher.mockResolvedValueOnce(new Response('{"error":{"message":"no model"}}', { status: 404 }))
       await expect(service.testConnection({ providerId: saved.id })).rejects.toMatchObject({ code: 'PROVIDER_MODEL' })
       expect(service.get(saved.id)?.lastTest).toMatchObject({ status: 'model_not_found' })

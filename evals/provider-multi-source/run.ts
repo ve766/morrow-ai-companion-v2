@@ -44,7 +44,7 @@ interface RunResult {
   endpoint: string
   endpointDigest: string
   model: string
-  status: 'REAL_PROVIDER_PASS' | 'REAL_PROVIDER_FAIL' | 'BLOCKED_NO_SECRET'
+  status: 'REAL_PROVIDER_PASS' | 'REAL_PROVIDER_FAIL' | 'BLOCKED_NO_SECRET' | 'BLOCKED_QUOTA'
   checks: Array<{ name: string; ok: boolean; detail: string }>
   nonStream?: { ok: boolean; latencyMs: number; attempts: number; replyLength: number; modelId: string }
   stream?: { ok: boolean; latencyMs: number; attempts: number; deltaCount: number; replyLength: number; textMatchesDeltas: boolean }
@@ -236,8 +236,9 @@ async function run(): Promise<void> {
     const allOk = result.checks.every((check) => check.ok) && result.local.status !== 'FAIL'
     result.status = allOk ? 'REAL_PROVIDER_PASS' : 'REAL_PROVIDER_FAIL'
   } catch (error) {
-    result.status = 'REAL_PROVIDER_FAIL'
-    result.error = error instanceof Error ? error.message.slice(0, 160).split(key).join('***') : 'unknown'
+    const code = error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code) : 'unknown'
+    result.status = code === 'PROVIDER_QUOTA' ? 'BLOCKED_QUOTA' : 'REAL_PROVIDER_FAIL'
+    result.error = code === 'PROVIDER_QUOTA' ? 'PROVIDER_QUOTA: provider account quota is below the minimum pre-consume threshold' : code
     result.checks.push({ name: 'real provider run', ok: false, detail: result.error })
   } finally {
     database.close()
@@ -246,7 +247,7 @@ async function run(): Promise<void> {
   result.finishedAt = new Date().toISOString()
   write(result)
   process.stdout.write(`${JSON.stringify({ runId, status: result.status, file: join(resultsDir, `${runId}.json`) })}\n`)
-  if (result.status !== 'REAL_PROVIDER_PASS') process.exitCode = 1
+  if (result.status === 'REAL_PROVIDER_FAIL') process.exitCode = 1
 }
 
 void run()
