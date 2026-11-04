@@ -1,9 +1,12 @@
 # PR #48 changed-file review matrix
 
-- Reviewed head: `e4aad40a6f08300704a07a7d74303bfb2b7c2dd0`
+- Reviewed head: `e1219dc07d52c4458d27c9ec2b9adabb6ff2e173`
+- Code commit under test: `1f736c6b788527bbffad186267679b1df63ff0a1`
 - Base: `052bcaa9c0320ef5e726c7bf66df85a49055628d` (`feat/stage-4-companion-confirmation-closure`)
-- Diff: 57 files, +3507 / -190 (matches `gh pr view 48 --json files` and local `git diff --stat`)
-- Every changed file is listed below. "Finding IDs" refer to the audit findings in Issue #45 / Issue #47.
+- Diff: 68 files, +5245 / -207 (round 1: 57 files at `e4aad40`; round 2 adds/changes 25 files at `e1219dc`)
+- Every changed file is listed below. Sections A-F are the round-1 file review (still valid for files
+  unchanged in round 2); section G is the round-2 delta and covers every file changed between
+  `e4aad40` and `e1219dc`. "Finding IDs" refer to Issue #45 / Issue #47.
 - Status vocabulary: OK / OK-WITH-NOTE / DEFECT (reviewer did not fix defects).
 
 ## A. Production source
@@ -88,12 +91,47 @@
 `git diff --name-status 052bcaa..e4aad40` shows only `A` (added) for all `evals/**/results/**` entries;
 no pre-existing result JSON was modified. The 24 historical Stage 5/4-A/3 results are untouched.
 
-## F. Summary
+## F. Round-1 summary (historical; superseded by section G)
 
-- 57/57 changed files reviewed.
+- 57/57 changed files reviewed at `e4aad40`.
 - 2 files carry the blocking defects: `src/app/companion-service.ts` (outbox completion) and
   `src/cognition/reflection-routing.ts` + `src/persistence/cognitive-context-repository.ts`
   (legacy adoption route convergence).
 - 1 additional production status-only path outside the diff: `src/persistence/intent-reading-repository.ts`
-  (P3-07 acceptance gap).
+  (P3-07 acceptance gap; fixed in round 2).
 - No test was weakened; all one-line integration-test changes are required constructor injection.
+
+## G. Round-2 delta (`e4aad40` -> `e1219dc`, 25 files)
+
+Section A-F remains the round-1 review. The 14 files below that were also in round 1 have changed
+conclusions here; the 11 new files are added to the final PR #48 review coverage (68 unique files).
+
+| File | Round-2 change | Conclusion | Finding IDs |
+|---|---|---|---|
+| `src/app/companion-service.ts` | Outbox recovery now throws on `failed>0`; schema failures rethrow after recording | **DEFECT (partial)**: rate-limited path fixed (probe O), but the success branch still does not call recovery, so a non-rate-limited retry completes while the finding is unrouted (probe O2). | P1-01 |
+| `src/app/index.ts` | Imports `PendingSchemaUnavailableError`; passes `eventLog` to `IntentReadingRepository` | OK-WITH-NOTE: constructor wiring correct; the imported schema error is unused and manual reflection still throws `STORAGE_ERROR`. | P3-11 |
+| `src/cognition/reflection-routing.ts` | `recoverUnrouted` rethrows `PendingSchemaUnavailableError` | OK. Makes the schema failure visible to startup/outbox callers. | P1-01, P3-11 |
+| `src/cognition/pending-items.ts` | `resolveSystem` port/service; `runBounded` preserves `error` | OK. System closure still writes decision/route/audit; error kind preserved for IPC mapping. | P3-07, P3-11 |
+| `src/persistence/cognitive-context-repository.ts` | Sibling route convergence for every decision; `resolveSystem` transaction; audit `linked_with_siblings` | OK. Probe X passes: F1+F2 both consumed, `routesUpdated:2`. `resolveSystem` writes dismissed/route/audit. | P2-03, P3-07 |
+| `src/persistence/intent-reading-repository.ts` | Requires audit sink; `closeOpenItems` calls `resolveSystem`; catches schema and records `pending.schema_unavailable` | OK-WITH-NOTE. No status-only path remains; non-schema closure errors now fail the intent save (fail-closed, untested). | P3-07 |
+| `src/app/stage4-outbox-reflection.integration.test.ts` | New: real outbox/ledger + fake `recover` function; rate-limit failure/success and schema case | OK-WITH-NOTE. Covers the projector branch, but not a real-router transient route failure; probe O2 is the missing case. | P1-01 |
+| `src/persistence/intent-reading-pending-closure.test.ts` | New: real save -> resolveSystem -> route dismissed + `pending.system_dismissed` actor system | OK. No degraded-schema test here; probe H2 covers that. | P3-07 |
+| `src/app/stage4-startup-composition.integration.test.ts` | +2: lifecycle audit failure; repeated startup with no findings | OK-WITH-NOTE. Audit failure is swallowed; the repeated-startup test has no findings, so it is weak (the existing second-gap test is the meaningful duplicate check). | P3-08 |
+| `src/cognition/pending-items.test.ts` | +1: `runBounded` preserves the original error | OK. | P3-11 |
+| `src/cognition/reflection-routing.test.ts` | +1: adopted legacy item converges original+new routes | OK. Real SQLite; exact sibling assertion. | P2-03 |
+| `evals/stage-3/runner/harness.ts` | `IntentReadingRepository(database, eventLog)` | OK; constructor wiring only. | P3-06 |
+| `evals/stage-3/shared/real-provider.ts` | Same constructor wiring | OK. | P3-06 |
+| `tests/c1-mainchain.test.ts` | Same constructor wiring | OK. | P3-06 |
+| `tests/helpers/companion-stack.ts` | Same constructor wiring | OK. | P3-06 |
+| `docs/reports/pr-40-audit-findings-evidence-index.md` | Updated SHA/round-2 results | OK-WITH-NOTE: records the round-2 machine result as 12 FIXED; that file still says CI PENDING. | All |
+| `docs/reports/pr-40-audit-findings-repair-report.md` | Updated SHA and round-2 claims | **DEFECT (evidence)**: claims manual reflection maps schema to `SCHEMA_UPGRADE_REQUIRED`; code does not (`index.ts:457-467`). Outbox claim is scoped to the rate-limited branch. | P1-01, P3-11 |
+| `docs/reports/pr-40-audit-findings-work-log.md` | Updated timeline | OK. | All |
+| `docs/reports/stage-4-migration-verification.md` | Updated test row | OK. | P2-02 |
+| `docs/testing/pr-40-audit-findings-acceptance-matrix.md` | Updated round-2 counts/claims | OK-WITH-NOTE: row 2 still says `8 files / 61 tests` (actual 9/62); row 11 claims manual schema mapping not implemented. | P2-02, P3-11 |
+| `evals/pr-40-audit-findings/results/20261104T060849Z-1f736c6b788527bbffad186267679b1df63ff0a1-repair.json` | New machine result | OK-WITH-NOTE: commands/counts match my runs; all 12 marked FIXED, which the independent review does not share for P1-01; `ci.status=PENDING`. | All |
+| `evals/stage-3/results/20261104T060733Z-1f736c6.json` | New result | OK: 15 PASS + 1 NOT_RUN / 16; no branch field (historical schema). | P2-05 |
+| `evals/stage-3/results/20261104T060733Z-1f736c6-summary.json` | New summary | OK. | P2-05 |
+| `evals/stage-4a/results/20261104T060730Z-1f736c6.json` | New result | OK: 7/7; branch `fix/pr-40-audit-findings`, tree dirty (Stage 5 result uncommitted) — documented. | P2-05 |
+| `evals/stage-5/results/20261104T060704Z-1f736c6.json` | New result | OK: 12/12; branch clean. | P2-05 |
+
+No pre-existing historical result file was modified; all round-2 result files are additions.

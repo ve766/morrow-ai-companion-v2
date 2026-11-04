@@ -1,124 +1,77 @@
-# PR #40 repair — independent review (Issue #47 / PR #48)
+# PR #40 repair — independent review, round 2 (Issue #47 / PR #48)
 
 - Repository: `ve766/morrow-ai-companion-v2`
 - Reviewed implementation PR: [#48](https://github.com/ve766/morrow-ai-companion-v2/pull/48) — OPEN, not merged
-- Reviewed head SHA: `e4aad40a6f08300704a07a7d74303bfb2b7c2dd0` (confirmed with `git ls-remote` via SSH and GitHub)
-- Implementation code SHA inside the PR: `dd9f59b10c7c812c3af36684a32d15193bda7d50`
+- Reviewed head SHA: `e1219dc07d52c4458d27c9ec2b9adabb6ff2e173` (confirmed with `git ls-remote` via SSH and GitHub)
+- Implementation code commit: `1f736c6b788527bbffad186267679b1df63ff0a1`; evidence commit: `e1219dc`
 - Base branch / base SHA: `feat/stage-4-companion-confirmation-closure` @ `052bcaa9c0320ef5e726c7bf66df85a49055628d`
-- Review branch: `audit/pr-40-repair-independent-review` (created from the actual reviewed head)
-- Review time (UTC): 2026-11-04T05:44:25Z
-- Reviewer: independent review context (different agent/context from the implementer); did not write the implementation
-- Reference audit: [PR #46](https://github.com/ve766/morrow-ai-companion-v2/pull/46), Issue #45
-- Reference repair reports: `docs/reports/pr-40-audit-findings-repair-report.md`, `docs/testing/pr-40-audit-findings-acceptance-matrix.md`, `docs/architecture/pr-40-audit-findings-runtime-and-state-machine.md`, `docs/reports/pr-40-audit-findings-evidence-index.md`, `evals/pr-40-audit-findings/results/20261104T051210Z-dd9f59b10c7c812c3af36684a32d15193bda7d50-repair.json`
+- Review branch: `audit/pr-40-repair-independent-review` (round-1 commit `db8b2412d37ef454ce4e1c3e7f297c357a7b0589`; round-2 review commit is the commit containing this file)
+- Round-2 review time (UTC): 2026-11-04T06:35:02Z
+- Reviewer: independent context; did not implement the changes and did not modify production code, tests, migrations or historical results
+- Round-1 review: `docs/audit/pr-40-repair-independent-review.md` at `e4aad40` (DO_NOT_MERGE); the three round-1 blockers were P1-01 outbox, P2-03 legacy adoption and P3-07 status-only intent close
 
 ## 1. Verdict
 
 **DO_NOT_MERGE**
 
-The main P1 mechanisms are real and mostly fixed: a second concern observation no longer throws
-`PENDING_LINK_MISMATCH`; the concern identity and normalization exist and are versioned; a stranded
-finding can be recovered; the v47→v48 upgrade works on a real database; the real close/reopen test
-exists; the eval branch metadata is dynamic. The full local suite (116 files / 1073 tests), persistence
-suite (8/61), targeted 11-file suite (11/116), typecheck and build all pass, and the PR #48 CI run on
-`e4aad40` is green on all three jobs.
+The three round-1 findings I reproduced are fixed at this head:
 
-However, two required contracts are not closed:
+- **O** (rate-limited outbox + recovery failure): the row now stays `pending` with `failed` count and completes only after recovery succeeds; schema failures rethrow after recording `cognition.pending_schema_unavailable`.
+- **X** (legacy item adopted by a post-upgrade observation): both the original and new routes are now `consumed`, with audit `routeResolution: linked_with_siblings` and `routesUpdated: 2`.
+- **H / H2** (intent withdrawal): the item is closed as a system `dismissed` decision, the same-concern route is `dismissed`, `pending.system_dismissed` is written with actor `system`, and the degraded schema leaves the item open with `pending.schema_unavailable`.
 
-1. **AUD45-P1-01 (P1) — rate-limited outbox can still be completed while a finding remains unrouted.**
-   `buildCognitiveProjectors` calls `recoverUnrouted()` and discards its `{repaired, failed}` result
-   (`src/app/companion-service.ts:1006-1043`). `recoverUnrouted` deliberately catches per-finding
-   failures and returns `failed > 0` instead of throwing (`src/cognition/reflection-routing.ts:186-219`).
-   Therefore, when recovery itself fails once (a transient write failure), the projector returns
-   normally and `CognitionOutbox.drain` marks the projection `done` (`src/app/cognitive-outbox.ts:264-284`).
-   My independent reproduction `O` produced: outbox `status=done, attempts=0`, finding route `null`,
-   and only a later manual `recoverUnrouted()` repaired it. This is exactly the prohibited
-   "rate-limit/skip marks the projection done while a finding is unrouted" case, and the required
-   outbox regression test was not added. The finding has a durable `reflection.finding_ingest_failed`
-   event, so it is not silently lost, but the outbox completion semantics are wrong and no retry is
-   scheduled by the outbox.
-2. **AUD45-P2-03 (P2) — a legacy item adopted by a post-upgrade re-observation leaves the original
-   route stranded.** When a v47 item is upgraded with `finding_id=NULL` and, before the user decides,
-   a new observation of the same concern creates finding F2, `ingestFinding` adopts F2 as the item's
-   finding (`src/cognition/reflection-routing.ts:285`). `decide` then takes the `finding_id`-non-null
-   branch and converges only F2 (`src/persistence/cognitive-context-repository.ts:233-267`). The
-   original F1 route (the route that belonged to the item before the upgrade) remains `routed` after the
-   item is terminal, and no `finding_reobserved`/`unresolved` audit explains it. My reproduction `X`
-   confirms: item `done/accepted`, new route `consumed`, original route `routed`, audit
-   `routeResolution: linked`. This is the same "item terminal + route left routed without explanation"
-   state the finding required to eliminate.
+The full local suite (118 files / 1080 tests), persistence suite (9/62), targeted 13-file suite (13/123), typecheck and build all pass; CI run 41783721663 on `e1219dc` is green on Ubuntu, Windows and the Windows upgrade job.
 
-A third required boundary is also not fully met (non-blocking, P3): the intent-reading business path
-closes `source='open_question'` pending rows with raw SQL (`src/persistence/intent-reading-repository.ts:181-187`),
-setting `status='done'` without `decision`, route terminal state or audit. The old `complete`/`drop`
-primitives are gone, but the Issue's required "no public entry can change status only" property does
-not hold for this path. Reproduction `H`: item `done`, `decision=null`, route `routed`, zero
-`pending.decision` audit rows, and a subsequent `decide` returns `conflict` with `current=null`.
+One P1-class retry path is still open, and I reproduced it with the real outbox, real reflection service and real router:
 
-Because any unresolved P1 blocks a PASS under Issue #47 §5, the verdict is **DO_NOT_MERGE**. The
-implementation is close; the blocking items are narrow and independently reproducible.
+- **Outbox retry when the reflection run is NOT rate-limited.** First drain: a real transient route/pending write failure makes the projector throw; the row stays `pending` (`attempts=1`), and the finding has no route. Second drain: `reflection.run('post_conversation')` runs again, finds no new findings (the cursor advanced), `ingestRun([])` succeeds, and the projector returns. The outbox marks the row `done` (`attempts=1`) while the finding's route is still `null`. The finding has a durable `reflection.finding_ingest_failed` record and can be repaired by a later startup or a rate-limited recovery, but the outbox obligation is already `done` and no outbox retry occurs. This is the required "routing temporarily fails, then retry" case; the new `stage4-outbox-reflection` test only simulates the rate-limited branch with a fake `recover` function and does not exercise this real-router path. Source: `src/app/companion-service.ts` success branch at lines 1030-1044 does not call `recoverUnrouted`; recovery is only in the skipped branch at 1022-1028.
 
-## 2. Per-finding matrix
+Two P3-level items also remain: the round-2 claim that manual reflection maps schema errors to `SCHEMA_UPGRADE_REQUIRED` is not implemented (`src/app/index.ts:457-467` still throws `ApplicationError('STORAGE_ERROR')`; the imported `PendingSchemaUnavailableError` is unused), and the repair report/acceptance matrix claim that mapping. These are non-blocking but the evidence is inaccurate.
 
-| ID | Severity | Status | Source / symbol | Tests and evidence | Reviewer note |
+## 2. Round-1 finding outcomes at `e1219dc`
+
+| ID | Severity | Status | Evidence |
+|---|---|---|---|
+| AUD45-P1-01 | P1 | **STILL_OPEN (partial)** | Rate-limited recovery path fixed (probe O: pending -> done, route routed); re-observation/second-gap path fixed (A1/A2/B); **non-rate-limited outbox retry still completes with an unrouted finding (probe O2)**. Required real-router outbox regression absent. |
+| AUD45-P2-03 | P2 | **VERIFIED_FIXED** | Probe X: legacy item adopted by F2; decide consumes F1 and F2; audit `linked_with_siblings/routesUpdated:2`; test `converges every route of a legacy concern adopted by a later observation`. |
+| AUD45-P3-07 | P3 | **VERIFIED_FIXED** | Probe H: item `dropped/dismissed`, route `dismissed`, `pending.system_dismissed` actor `system`, no forged `pending.decision`; probe H2: degraded schema leaves item open and records `pending.schema_unavailable`; `IntentReadingRepository` now requires the audit sink and all construction sites inject it. |
+
+## 3. Full per-finding matrix (all 12)
+
+| ID | Severity | Status | Source / symbol | Tests and independent evidence | Note |
 |---|---|---|---|---|---|
-| AUD45-P1-01 | P1 | **STILL_OPEN** (core fixed; outbox contract not) | `src/self-model/reflection-concern.ts` (`normalizeConcern`, `concernKeyOf`, `concernDigestOf`, `legacyConcernDigestOf`, `reflectionPendingKeys`); `src/self-model/reflection-mapping.ts:79-84`; `src/cognition/pending-items.ts:310-343`; `src/cognition/reflection-routing.ts:157-178,186-219,255-298`; `src/app/companion-service.ts:1006-1043`; `src/app/startup-composition.ts:90-160` | `reflection-routing.test.ts` `ingests a second finding for the same concern without PENDING_LINK_MISMATCH`, `routes later findings when one finding cannot be routed, and records the failure`, `recovers a finding that was stored without a route, idempotently`; `stage4-startup-composition.integration.test.ts` `a second startup gap for the same label keeps the run successful`; `stage4-reflection-producer.integration.test.ts` `a second correction event does not fail manual ingestion`; `reflection-concern.test.ts` 4; `reflection-mapping.test.ts` 2. My probes A1/A2/B pass; probe O fails the outbox contract | Second gap/correction now succeed; one pending item; no stranded finding in the normal path; recovery is idempotent. **Blocking residual:** rate-limited projector marks outbox done when `recoverUnrouted()` returns `failed>0`; the required outbox regression (`route temporarily fails -> retry -> not done`) is absent. |
-| AUD45-P2-02 | P2 | **VERIFIED_FIXED** | `src/persistence/migrations.test.ts:549-610` (`upgrades a v47 database with pending items and keeps them decidable`); `.github/workflows/ci.yml:75`; `docs/reports/stage-4-migration-verification.md:24` | Local `npx vitest run src/persistence` = 8 files / 61 tests, exit 0; CI Windows upgrade job `126403196244` log at 05:17:08 contains the exact v47 test name and `8 passed / 61 passed` | CI step name now matches actual coverage; the doc's unsupported "previous schema→current PASS" row was replaced with the real test. |
-| AUD45-P2-03 | P2 | **STILL_OPEN** (direct legacy decision fixed; adoption edge not) | `src/persistence/cognitive-context-repository.ts:233-267,302-331`; `src/cognition/reflection-routing.ts:285` | `migrations.test.ts` v47 case; `reflection-routing.test.ts` `converges a legacy item route by its stored concern digest`, `does not guess a legacy route when the concern cannot be proven`, legacy compatibility audit case. My probes C/D pass; probe X fails the terminal-route invariant | Direct upgrade→decide is correct (route consumed, audit `resolved_by_concern`; unprovable stays `routed` with `routeStatus:null/unresolved`). **Blocking residual:** post-upgrade re-observation adopts the legacy item to F2, so only F2 is consumed; original F1 route remains `routed` with no explaining audit. |
-| AUD45-P2-04 | P2 | **VERIFIED_FIXED** | `src/app/stage4-restart-consistency.integration.test.ts`; `docs/testing/stage-4-companion-confirmation-acceptance-matrix.md:33`; `docs/testing/stage-4-final-repair-acceptance-matrix.md:59` | Local targeted suite passes; my probe E1/E2/E3 closes the real SQLite file, reopens it, verifies candidate/goal/creation key/pending/route/audit, then decides after reopen and reopens again | Real file close/reopen, not same-connection re-select. P09 remains described as memory/address/personality only. |
-| AUD45-P2-05 | P2 | **VERIFIED_FIXED** | `src/evaluation/git-metadata.ts`; `evals/stage-5/run.ts:169-177,230-240`; `evals/stage-4a/run.ts:108-116,233-241` | `git-metadata.test.ts` 5 (branch/clean, detached, ENOENT, command failure, override, empty); local new result files: Stage 5 `branch=fix/pr-40-audit-findings,branchReason=ok,workingTree=clean`; Stage 4-A same branch, `workingTree=dirty` with the documented reason; historical result files are only added, none modified (`git diff --name-status` shows `A` only) | Dynamic branch/null+reason; old 24 result files untouched; evidence index documents the historical mislabel. |
-| AUD45-P3-06 | P3 | **VERIFIED_FIXED** | `src/cognition/pending-items.ts:60-71` (`PendingAuditSink`); `src/persistence/cognitive-context-repository.ts:132-136`; all production/eval/test constructors grep-checked | `pending-items.test.ts` `@ts-expect-error` constructor contract + `requires a durable audit sink for decisions`; `npx tsc --noEmit` exit 0 | One-argument construction exists only inside the intentional `@ts-expect-error` test. Runtime `PENDING_AUDIT_UNAVAILABLE` guard retained; no no-op sink in production. |
-| AUD45-P3-07 | P3 | **STILL_OPEN** (original primitives removed; another status-only path remains) | `src/cognition/pending-items.ts` (complete/drop removed); `src/persistence/cognitive-context-repository.ts` (complete/drop removed); **residual:** `src/persistence/intent-reading-repository.ts:181-187` | `pending-items.test.ts` `has no public write path that changes status without a decision` (but only asserts the removed methods); `ipc.test.ts` removed-channel test. My probe H | `complete`/`drop` have no callers, but `IntentReadingRepository.closeOpenItems()` updates `cognitive_pending_items SET status='done'` for legacy `source='open_question'` rows with no decision/route/audit. This violates the Issue's required "no public entry can change status only" property. |
-| AUD45-P3-08 | P3 | **VERIFIED_FIXED** (behavior; test coverage partial) | `src/app/startup-composition.ts:42-160`; `src/app/index.ts:367-375` | `stage4-startup-composition.integration.test.ts` `returns skipped...`, `reports producer failure...`, existing abort test; `pending-schema-gate.test.ts` degraded case | Returns `ran/skipped/failed/degraded`; never blocks window; durable lifecycle events. Missing required tests for audit-write failure, DB-not-ready, repeated startup and timeout (non-blocking backlog). |
-| AUD45-P3-09 | P3 | **VERIFIED_FIXED** | `src/self-model/reflection-service.ts:629-670` | Source review + `npx tsc --noEmit` | `pickOpenQuestionCandidate` and `pickMorrowGapCandidate` now each own the correct docstring; algorithm unchanged. |
-| AUD45-P3-10 | P3 | **VERIFIED_FIXED** | `src/shared/validation.ts`; `src/shared/contracts.ts`; `src/app/ipc.ts`; `src/preload/index.ts` | Repository grep: no `parsePendingItemIdRequest` / `PendingItemIdRequest` outside the repair report; tsc 0 | No dangling references. |
-| AUD45-P3-11 | P3 | **VERIFIED_FIXED** (core; residual mapping/test gaps) | `src/persistence/cognitive-context-repository.ts:139-141`; `src/cognition/pending-items.ts:77-84`; `src/app/ipc.ts:175,197`; `src/app/companion-service.ts:2406-2420`; `src/app/startup-composition.ts:135-160` | `pending-schema-gate.test.ts` (real v47 degraded DB; upsert/decide throw; read safe; startup degraded); `ipc.test.ts` schema mapping; my probe G | Fail-closed `SCHEMA_UPGRADE_REQUIRED`, no SQL against missing columns, main chat continues, degradation recorded. Residual: manual reflection wraps the schema error into `STORAGE_ERROR` (`src/app/index.ts:457-467`), and there is no ChatService-finalization/recovery-retry test. |
-| AUD45-P3-12 | P3 | **VERIFIED_FIXED** | `src/renderer/src/pending-ui.ts:52-119`; `src/renderer/index.html:159` | `tests/pending-ui.test.ts` accepted, conflict, not_found, IPC failure, unchanged (5) | result.status is rendered; conflict/not_found refresh; failure re-enables buttons; `#pending-feedback` is `role=status aria-live=polite`. |
+| AUD45-P1-01 | P1 | **STILL_OPEN** | `reflection-concern.ts`; `reflection-mapping.ts:79-84`; `pending-items.ts:310-343`; `reflection-routing.ts:157-219,255-298`; `companion-service.ts:1006-1044` | A1/A2/B pass; O passes (rate-limited recovery keeps row pending then repairs); **O2 fails** (non-rate-limited retry marks done, route null). Tests: `reflection-routing` second-concern/failure-isolation/recovery; `stage4-startup-composition` second gap; `stage4-reflection-producer` second correction; `stage4-outbox-reflection` two projector-level tests (fake `recover`) | Core second-gap/correction and rate-limited path are fixed. Remaining P1: successful retry does not run recovery, so a durable failed finding can stay unrouted while the row is done until a later startup/rate-limited pass. |
+| AUD45-P2-02 | P2 | **VERIFIED_FIXED** | `migrations.test.ts:549-610`; `.github/workflows/ci.yml:75`; `stage-4-migration-verification.md:24` | Local persistence 9 files / 62 tests; CI job 126420936201 at 06:10:50 has the exact v47 test (1972ms), 9 files / 62 tests | v47 fixture with open/done rows, run/finding/route; upgrade and production decide. |
+| AUD45-P2-03 | P2 | **VERIFIED_FIXED** | `cognitive-context-repository.ts:233-281,382-411`; `reflection-routing.ts:285` | Probe C/D still pass; probe X now passes: original and new routes consumed, audit `linked_with_siblings`, `routesUpdated:2`; test `converges every route of a legacy concern adopted by a later observation` | Sibling convergence is applied to every decision; exact route first, then provable same-concern routes. |
+| AUD45-P2-04 | P2 | **VERIFIED_FIXED** | `stage4-restart-consistency.integration.test.ts`; two acceptance matrices | Probe E1/E2/E3 close/reopen real file, candidate/goal/creation key/pending/route/audit; decide after reopen; second reopen | No regression. |
+| AUD45-P2-05 | P2 | **VERIFIED_FIXED** | `git-metadata.ts`; stage-5/4a run | New round-2 results: Stage 5 `branch=fix/pr-40-audit-findings, ok, clean`; Stage 4-A same branch, `dirty` documented; Stage 3 no branch field; historical result files only added | No regression; old results untouched. |
+| AUD45-P3-06 | P3 | **VERIFIED_FIXED** | `PendingAuditSink` required; all construction sites | `tsc --noEmit` 0; `pending-items.test.ts` compile/runtime; `IntentReadingRepository` also now requires the sink | No no-op sink found in production. |
+| AUD45-P3-07 | P3 | **VERIFIED_FIXED** | `pending-items.ts:97-105,373-384`; `cognitive-context-repository.ts:307-380`; `intent-reading-repository.ts:186-220` | Probe H/H2; `intent-reading-pending-closure.test.ts`; `pending-items.test.ts` boundary tests | Status-only path removed; system closure writes decision/route/audit. Note: non-schema closure errors now abort the intent-reading save (fail-closed; no test). |
+| AUD45-P3-08 | P3 | **VERIFIED_FIXED** (coverage gaps) | `startup-composition.ts:42-160`; `index.ts:367-375` | skipped/producer-failure/partial-ingest/schema tests; new lifecycle-audit-failure and repeated-startup tests | Repeated-startup test uses a no-finding DB (weak); DB-not-ready and timeout tests still absent. |
+| AUD45-P3-09 | P3 | **VERIFIED_FIXED** | `reflection-service.ts:629-670` | Source review + tsc | Correct docstrings, no algorithm change. |
+| AUD45-P3-10 | P3 | **VERIFIED_FIXED** | `validation.ts`; `contracts.ts`; `ipc.ts`; `preload/index.ts` | Repository grep; tsc 0 | No references remain. |
+| AUD45-P3-11 | P3 | **VERIFIED_FIXED** (claimed extra absent) | `cognitive-context-repository.ts:139-141`; `pending-items.ts:77-84`; `ipc.ts:175,197`; `companion-service.ts:2406-2420` | Probe G; `pending-schema-gate.test.ts`; `ipc.test.ts`; probe H2 | Repository gate/IPC/ChatService/startup/outbox are fixed. **Round-2 claim not implemented:** manual reflection still throws `ApplicationError('STORAGE_ERROR')` (`index.ts:457-467`); the imported `PendingSchemaUnavailableError` is unused, and the repair report/acceptance matrix claim the mapping. |
+| AUD45-P3-12 | P3 | **VERIFIED_FIXED** | `pending-ui.ts:52-119`; `index.html:159` | `tests/pending-ui.test.ts` 5 branches | No regression. |
 
-## 3. Blocking conditions
+## 4. Blocking condition
 
-1. **AUD45-P1-01 outbox completion.** When `recoverUnrouted()` returns `failed > 0`, the reflection
-   projector must not return success. Throw (so `CognitionOutbox` retries/parks the row) or mark the
-   projection failed/degraded explicitly. Add the required regression test: a route failure injection
-   plus a rate-limited run, asserting the outbox row is not `done`, no pending/audit duplicate on
-   replay, and a later retry routes the finding. File: `src/app/companion-service.ts:1006-1043`.
-2. **AUD45-P2-03 legacy adoption.** When `ingestFinding` adopts a legacy `finding_id=NULL` item to a
-   new finding, converge every provable route for that concern (same statement digest, same kind) or
-   record an explicit archival/unresolved audit for the original route. Add a test: v47 open item + F1
-   route → upgrade → second gap (F2) → decide; assert the item, F1 route and F2 route are consistent
-   and the audit explains the history. Files: `src/cognition/reflection-routing.ts:255-298`,
-   `src/persistence/cognitive-context-repository.ts:233-267`.
+1. **P1-01 outbox retry, non-rate-limited path.** Call `recoverUnrouted()` after every successful reflection run (not only on a rate-limit skip), and throw `REFLECTION_RECOVERY_INCOMPLETE` if it returns `failed > 0`. Add a real-router/real-SQLite regression: transient pending/route write failure on the first drain, drop the failure, second drain must not complete the row until `recoverUnrouted()` has routed the finding. Current source: `src/app/companion-service.ts:1030-1044`; probe O2.
 
-## 4. Non-blocking backlog observed
+The remaining P3 items do not block on their own: manual-reflection schema mapping (P3-11 claim), missing DB-not-ready/timeout tests (P3-08), and the stale `8 files / 61 tests` row in the acceptance matrix (actual 9/62).
 
-- **P3-07**: remove/route the `IntentReadingRepository.closeOpenItems()` status-only update through the
-  decision path (or record an explicit implicit-decision audit). It currently affects only legacy
-  `source='open_question'` rows, which the current producer no longer creates, but the invariant is
-  stated absolutely in Issue #47.
-- **P3-08**: add the missing failure tests (audit write failure, DB not ready, repeated startup, timeout).
-- **P3-11**: map `PendingSchemaUnavailableError` in the manual reflection IPC path to
-  `SCHEMA_UPGRADE_REQUIRED` instead of `STORAGE_ERROR`; add a ChatService finalization test and a
-  post-upgrade recovery retry test.
-- **Documentation**: `docs/reports/stage-4-migration-verification.md:28` still cites
-  `stage4-goal-candidate-e2e.test.ts` / `reflection-routing.test.ts` as "restart" evidence; those do
-  not close/reopen a database. Point this row at `stage4-restart-consistency.integration.test.ts` too.
-- **Evidence freshness**: the machine result at `evals/pr-40-audit-findings/results/...-repair.json`
-  says `ci.status = PENDING`; the actual CI run on `e4aad40` is green (run 41778144360). The PR body
-  also points readers to a comment; record the run in the final evidence if the file is refreshed
-  (do not rewrite history silently).
-
-## 5. External / not-run items
+## 5. External items
 
 | Item | Status | Reason |
 |---|---|---|
-| Human naturalness review | PENDING_HUMAN | External review |
-| Second real provider | NOT_RUN | No second provider credentials in this environment |
+| Human naturalness review | PENDING_HUMAN | External |
+| Second real provider | NOT_RUN | No credentials |
 | Real-machine install/upgrade | PENDING_HUMAN | External |
-| Stage 5 live rerun | NOT_RUN | Paid/time-bounded provider; no new live claim made |
-| Local Electron smoke | NOT_RUN locally | CI ran the real Electron smoke on ubuntu-latest and windows-latest for `e4aad40`; both passed |
-| Full `npm ci` | NOT_RUN | `npm ci --dry-run` exit 0 (only 50 optional cross-platform packages would be added); the installed tree already runs the full suite/build. A destructive reinstall was not needed |
+| Stage 5 live rerun | NOT_RUN | Paid/time-bounded; no new live claim |
+| Local Electron smoke | NOT_RUN locally | CI ran the real smoke on Ubuntu and Windows for `e1219dc`; both passed |
+| Full `npm ci` | NOT_RUN | `npm ci --dry-run` exit 0; CI ran `npm ci` on both platforms |
 
 ## 6. Constraints observed
 
-- PR #48 remains OPEN; PR #40 and PR #46 remain OPEN; PR #40 head is still `052bcaa` (not moved).
+- PR #48 remains OPEN; PR #40 and PR #46 remain OPEN; PR #40 head is still `052bcaa`; PR #49 remains a Draft with base `fix/pr-40-audit-findings`.
 - No production code, tests, migrations or historical result files were modified by this review.
-- This branch adds only the five review deliverables; review scripts/logs live under gitignored `.tmp/`.
+- The review branch merged `origin/fix/pr-40-audit-findings`; only the five review files are changed by the review commits.

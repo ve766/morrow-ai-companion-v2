@@ -1,0 +1,317 @@
+{
+  "suite": "pr-40-repair-independent-review-round2",
+  "task": "Issue #47",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "implementationPr": 48,
+  "implementationPrState": "OPEN",
+  "implementationPrMerged": false,
+  "implementationPrUrl": "https://github.com/ve766/morrow-ai-companion-v2/pull/48",
+  "auditPr": 46,
+  "auditPrState": "OPEN",
+  "pr40State": "OPEN",
+  "pr40HeadSha": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "reviewedSha": "e1219dc07d52c4458d27c9ec2b9adabb6ff2e173",
+  "implementationCodeSha": "1f736c6b788527bbffad186267679b1df63ff0a1",
+  "evidenceCommitSha": "e1219dc07d52c4458d27c9ec2b9adabb6ff2e173",
+  "round1ReviewedSha": "e4aad40a6f08300704a07a7d74303bfb2b7c2dd0",
+  "round1ReviewCommit": "db8b2412d37ef454ce4e1c3e7f297c357a7b0589",
+  "implementationBranch": "fix/pr-40-audit-findings",
+  "baseBranch": "feat/stage-4-companion-confirmation-closure",
+  "baseSha": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "reviewBranch": "audit/pr-40-repair-independent-review",
+  "reviewPr": 49,
+  "reviewPrState": "OPEN_DRAFT",
+  "reviewTimestampUtc": "2026-11-04T06:35:02Z",
+  "reviewer": {
+    "identity": "independent review context",
+    "context": "Different agent/context from the implementer; reviewed the actual GitHub head e1219dc, including the round-2 commits 1f736c6 and e1219dc. Did not modify production code, tests, migrations or historical results.",
+    "model": "magpie/workbuddy/deepseek-v4.1-flash"
+  },
+  "environment": {
+    "platform": "win32",
+    "osVersion": "10.0.26200",
+    "node": "v22.23.2",
+    "npm": "10.9.8",
+    "vitest": "5.0.5",
+    "electron": "44.9.3"
+  },
+  "verdict": "DO_NOT_MERGE",
+  "verdictReason": "The three round-1 blockers are fixed (P2-03 adoption, P3-07 intent close, and the rate-limited P1-01 branch), but P1-01 still has a non-rate-limited outbox retry path: a successful retry marks the projection done while the failed finding remains unrouted. Probe O2 reproduces it with the real outbox, reflection service and router. The round-2 claim that manual reflection maps schema errors to SCHEMA_UPGRADE_REQUIRED is also not implemented (P3-level evidence defect).",
+  "findings": [
+    {
+      "id": "AUD45-P1-01",
+      "severity": "P1",
+      "status": "STILL_OPEN",
+      "statusScope": "second gap/correction, rate-limited outbox recovery and recovery idempotence VERIFIED_FIXED; non-rate-limited outbox retry STILL_OPEN",
+      "fixedEvidence": [
+        "reviewer probe A1: two startup gaps -> ran/ran, 1 finding, 1 route, 1 item, 0 stranded",
+        "reviewer probe A2: two manual corrections -> both completed, 1 item, 1 route, 1 finding, 0 stranded",
+        "reviewer probe B: stranded finding recovered, idempotent",
+        "reviewer probe O: rate-limited projection with recovery failure -> row pending/attempts=1, then done after recovery succeeds",
+        "src/app/companion-service.ts:1022-1028 throws REFLECTION_RECOVERY_INCOMPLETE when recoverUnrouted() returns failed>0",
+        "src/cognition/reflection-routing.ts:212-216 rethrows PendingSchemaUnavailableError"
+      ],
+      "openEvidence": [
+        "src/app/companion-service.ts:1030-1044: the successful ingest branch does not call recoverUnrouted()",
+        "reviewer probe O2: real transient pending-insert failure on the first drain; row pending/attempts=1, finding route null; after the failure is removed, second drain runs reflection again (not rate-limited), finds no new findings, and marks the row done while the route is still null",
+        "the finding has reflection.finding_ingest_failed and can be repaired by a later startup/rate-limited pass, but the outbox obligation is already done and no outbox retry occurs",
+        "the new stage4-outbox-reflection test uses a fake findingRouter/recover function and does not exercise a real transient route failure"
+      ],
+      "missingRequiredTests": [
+        "real-router outbox regression: routing temporarily fails, then retry; assert the row is not done until recoverUnrouted() routes the finding (and replay does not duplicate pending/audit)"
+      ],
+      "reproduction": "probe O2 in .tmp/review2/repro.ts; log .tmp/review2/logs/repro.log",
+      "notes": "The specific rate-limited/skip case named in Issue #47 is fixed. The broader outbox retry contract from the same finding remains open."
+    },
+    {
+      "id": "AUD45-P2-02",
+      "severity": "P2",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/persistence/migrations.test.ts:549-610",
+        ".github/workflows/ci.yml:75",
+        "local npx vitest run src/persistence -> 9 files / 62 tests, exit 0",
+        "CI job 126420936201 Windows upgrade log at 2026-11-04T06:10:50Z contains the exact v47 test (1972ms) and 9 files / 62 tests",
+        "reviewer probe C: v47 open/done rows -> v48, rows preserved, integrity/FK ok, production decide converges route"
+      ]
+    },
+    {
+      "id": "AUD45-P2-03",
+      "severity": "P2",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/persistence/cognitive-context-repository.ts:233-281,382-411: exact route + sibling routes by current/legacy statement digest",
+        "src/cognition/reflection-routing.ts:285: legacy item adopted by a later finding",
+        "reviewer probe X: v47 legacy item + F1 route -> upgrade -> F2 -> decide; item done, F1 and F2 both consumed, audit linked_with_siblings and routesUpdated 2",
+        "test converges every route of a legacy concern adopted by a later observation",
+        "reviewer probes C/D still pass for direct legacy decision and unresolved audit"
+      ]
+    },
+    {
+      "id": "AUD45-P2-04",
+      "severity": "P2",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/app/stage4-restart-consistency.integration.test.ts",
+        "docs/testing/stage-4-companion-confirmation-acceptance-matrix.md:33 and stage-4-final-repair-acceptance-matrix.md:59",
+        "reviewer probes E1/E2/E3 close/reopen the real file, verify candidate/goal/creation key/pending/route/audit, decide after reopen, and reopen again"
+      ]
+    },
+    {
+      "id": "AUD45-P2-05",
+      "severity": "P2",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/evaluation/git-metadata.ts",
+        "new results: stage-5 branch=fix/pr-40-audit-findings, branchReason=ok, workingTree=clean; stage-4a same branch, workingTree=dirty (documented); stage-3 has no branch field (historical schema)",
+        "src/evaluation/git-metadata.test.ts 5 tests",
+        "only result additions; historical result files unchanged"
+      ]
+    },
+    {
+      "id": "AUD45-P3-06",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "PendingAuditSink required in src/cognition/pending-items.ts:60-71 and SqlitePendingItemRepository constructor",
+        "IntentReadingRepository now also requires the sink; all construction sites inject EventLogService",
+        "pending-items.test.ts compile-time and runtime tests; npx tsc --noEmit exit 0"
+      ]
+    },
+    {
+      "id": "AUD45-P3-07",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/persistence/intent-reading-repository.ts:186-220: closeOpenItems -> resolveSystem",
+        "src/persistence/cognitive-context-repository.ts:307-380: resolveSystem writes dropped/dismissed, converges exact+sibling routes, audits pending.system_dismissed (actor system)",
+        "reviewer probe H: item dropped/dismissed, route dismissed, system audit, zero pending.decision; decide afterwards conflict/current dismissed",
+        "reviewer probe H2: degraded v47 leaves item open and records pending.schema_unavailable",
+        "intent-reading-pending-closure.test.ts"
+      ],
+      "notes": "Non-schema closure errors now abort the intent-reading save (fail-closed); no dedicated test for that edge."
+    },
+    {
+      "id": "AUD45-P3-08",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "coverageGaps": [
+        "repeated-startup test uses a database with no findings (weak); DB-not-ready and timeout tests are still absent"
+      ],
+      "evidence": [
+        "src/app/startup-composition.ts:42-160 returns ran/skipped/failed/degraded and never throws",
+        "new lifecycle-audit-failure test and repeated-startup test; existing skipped/producer-failure/abort/schema tests",
+        "src/app/index.ts:367-375 logs non-ran status"
+      ]
+    },
+    {
+      "id": "AUD45-P3-09",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/self-model/reflection-service.ts:629-670 docstrings correctly placed",
+        "no algorithm change; tsc exit 0"
+      ]
+    },
+    {
+      "id": "AUD45-P3-10",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "parsePendingItemIdRequest, PendingItemIdRequest and unused imports removed",
+        "repository-wide grep finds no references outside the repair report",
+        "npx tsc --noEmit exit 0"
+      ]
+    },
+    {
+      "id": "AUD45-P3-11",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "residual": [
+        "the round-2 claim that manual reflection maps PendingSchemaUnavailableError to SCHEMA_UPGRADE_REQUIRED is not implemented: src/app/index.ts:457-467 still throws ApplicationError('STORAGE_ERROR'); the imported PendingSchemaUnavailableError is unused",
+        "the repair report and acceptance matrix claim the mapping"
+      ],
+      "evidence": [
+        "src/persistence/cognitive-context-repository.ts:139-141 assertStage4Writable",
+        "src/app/ipc.ts:175,197 SCHEMA_UPGRADE_REQUIRED mapping",
+        "src/app/companion-service.ts:2406-2420 finalization skip/degradation",
+        "reviewer probe G: schema 47 fail-closed write; reviewer probe H2: degraded intent withdrawal leaves item open and records pending.schema_unavailable",
+        "pending-schema-gate.test.ts; ipc.test.ts"
+      ]
+    },
+    {
+      "id": "AUD45-P3-12",
+      "severity": "P3",
+      "status": "VERIFIED_FIXED",
+      "evidence": [
+        "src/renderer/src/pending-ui.ts:52-119",
+        "src/renderer/index.html:159",
+        "tests/pending-ui.test.ts 5 result branches"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0,
+      "log": ".tmp/review2/logs/tsc.log"
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 118,
+      "tests": 1080,
+      "passed": 1080,
+      "failed": 0,
+      "durationSeconds": 237.39,
+      "log": ".tmp/review2/logs/vitest-full.log"
+    },
+    {
+      "command": "npx vitest run src/persistence",
+      "exitCode": 0,
+      "files": 9,
+      "tests": 62,
+      "passed": 62,
+      "failed": 0,
+      "log": ".tmp/review2/logs/vitest-persistence.log"
+    },
+    {
+      "command": "npx vitest run (Stage 4 + review targeted 13 files)",
+      "exitCode": 0,
+      "files": 13,
+      "tests": 123,
+      "passed": 123,
+      "failed": 0,
+      "log": ".tmp/review2/logs/vitest-targeted.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": ".tmp/review2/logs/build.log"
+    },
+    {
+      "command": "reviewer reproduction: esbuild bundle .tmp/review2/repro.ts -> .tmp/review2/repro.cjs; node repro.cjs",
+      "exitCode": 0,
+      "result": "SUMMARY failures=0; probes A1,A2,B,C,D,E1-E3,X,S,G,O,H,O2,H2 executed; O2 reproduces the remaining outbox defect",
+      "log": ".tmp/review2/logs/repro.log"
+    }
+  ],
+  "ci": {
+    "runId": 41783721663,
+    "runUrl": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41783721663",
+    "headSha": "e1219dc07d52c4458d27c9ec2b9adabb6ff2e173",
+    "headBranch": "fix/pr-40-audit-findings",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-11-04T06:10:01Z",
+    "jobs": [
+      {
+        "id": 126420936201,
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "conclusion": "success",
+        "tests": 62,
+        "files": 9,
+        "v47TestSeen": "upgrades a v47 database with pending items and keeps them decidable at 2026-11-04T06:10:50Z",
+        "log": ".tmp/review2/logs/ci-job-126420936201.log"
+      },
+      {
+        "id": 126420936558,
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "conclusion": "success",
+        "tests": 1080,
+        "files": 118,
+        "log": ".tmp/review2/logs/ci-job-126420936558.log"
+      },
+      {
+        "id": 126420936571,
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "conclusion": "success",
+        "tests": 1080,
+        "files": 118,
+        "log": ".tmp/review2/logs/ci-job-126420936571.log"
+      }
+    ],
+    "olderRunReused": false
+  },
+  "blockingConditions": [
+    "AUD45-P1-01: the reflection projector marks a successful outbox retry done without calling recoverUnrouted(); a finding that failed transiently on the first attempt remains unrouted while the row is done. Call recovery after every successful ingest and throw if failed>0; add the real-router transient-failure regression."
+  ],
+  "nonBlockingBacklog": [
+    "P3-11 claimed extra: manual reflection still maps schema failures to STORAGE_ERROR (src/app/index.ts:457-467); the repair report and acceptance matrix claim SCHEMA_UPGRADE_REQUIRED.",
+    "P3-08: repeated-startup test has no findings; DB-not-ready and timeout tests absent.",
+    "Acceptance matrix row 2 still says 8 files / 61 tests for persistence; actual is 9/62.",
+    "P3-07: non-schema intent-closure errors abort the intent-reading save (fail-closed, untested)."
+  ],
+  "round1Outcome": {
+    "P1-01": "rate-limited/recovery branch fixed; non-rate-limited retry remains (this review)",
+    "P2-03": "fixed (probe X)",
+    "P3-07": "fixed (probes H/H2)"
+  },
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "stage5LiveRerun": "NOT_RUN",
+    "localElectronSmoke": "NOT_RUN (CI Ubuntu and Windows smoke passed for the reviewed SHA)",
+    "fullNpmCi": "NOT_RUN (npm ci --dry-run exit 0; CI ran npm ci)"
+  },
+  "constraints": {
+    "implementationPr48Modified": false,
+    "implementationPr48Merged": false,
+    "pr40Modified": false,
+    "pr46Modified": false,
+    "productionCodeModified": false,
+    "testsModified": false,
+    "migrationsModified": false,
+    "historicalResultsModified": false,
+    "reviewFilesOnly": [
+      "docs/audit/pr-40-repair-independent-review.md",
+      "docs/audit/pr-40-repair-file-review-matrix.md",
+      "docs/audit/pr-40-repair-runtime-and-transaction-trace.md",
+      "docs/audit/pr-40-repair-test-and-ci-evidence.md",
+      "evals/pr-40-audit-findings/review-results/20261104T063502Z-e1219dc07d52c4458d27c9ec2b9adabb6ff2e173-independent-review.json"
+    ]
+  },
+  "reviewCommit": "commit containing this file; see git log on audit/pr-40-repair-independent-review"
+}
