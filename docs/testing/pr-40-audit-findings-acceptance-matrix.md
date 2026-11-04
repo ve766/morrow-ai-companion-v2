@@ -1,6 +1,6 @@
 # PR #40 审计发现修复验收矩阵（Issue #47）
 
-- 代码 SHA：`dd9f59b10c7c812c3af36684a32d15193bda7d50`
+- 代码 SHA：`1f736c6b788527bbffad186267679b1df63ff0a1`
 - 分支：`fix/pr-40-audit-findings`
 - 最终全量/定向数字见 §13；CI 见 evidence index
 
@@ -24,9 +24,9 @@
 | 命令 | 退出码 | 结果 |
 |---|---|---|
 | `npx tsc --noEmit` | 0 | 无错误 |
-| `npx vitest run` | 0 | **116 files / 1073 tests passed** |
-| Stage 4 定向 11 文件 | 0 | **116/116** |
-| `npx vitest run src/persistence` | 0 | **8 files / 61 tests passed** |
+| `npx vitest run` | 0 | **118 files / 1080 tests passed** |
+| Stage 4 + review 定向 13 文件 | 0 | **123/123** |
+| `npx vitest run src/persistence` | 0 | **9 files / 62 tests passed** |
 | `npm run build` | 0 | 成功 |
 | `npm run eval:stage5` | 0 | 12/12，branch/workingTree 动态 |
 | `npm run eval:stage4a` | 0 | 7/7，branch/workingTree 动态 |
@@ -40,9 +40,9 @@ pending-ui、pending-schema-gate。
 
 | 套件 | 文件 | branch | workingTree | 结果 |
 |---|---|---|---|---|
-| Stage 5 scripted | `evals/stage-5/results/20261104T050753Z-dd9f59b.json` | `fix/pr-40-audit-findings` | clean | 12/12 |
-| Stage 4-A scripted | `evals/stage-4a/results/20261104T050814Z-dd9f59b.json` | `fix/pr-40-audit-findings` | dirty（Stage 5 结果尚未提交） | 7/7 |
-| Stage 3 | `evals/stage-3/results/20261104T050848Z-dd9f59b.json` + summary | 无 branch 字段（历史 schema） | — | 15+1NOT_RUN/16 |
+| Stage 5 scripted | `evals/stage-5/results/20261104T060704Z-1f736c6.json` | `fix/pr-40-audit-findings` | clean | 12/12 |
+| Stage 4-A scripted | `evals/stage-4a/results/20261104T060730Z-1f736c6.json` | `fix/pr-40-audit-findings` | dirty（Stage 5 结果尚未提交） | 7/7 |
+| Stage 3 | `evals/stage-3/results/20261104T060733Z-1f736c6.json` + summary | 无 branch 字段（历史 schema） | — | 15+1NOT_RUN/16 |
 
 历史 24 份结果 JSON 未改写；旧 `branch` 字段的误标在 evidence index 说明。
 

@@ -7,7 +7,7 @@
 | 仓库 | `ve766/morrow-ai-companion-v2` |
 | 实现分支 | `fix/pr-40-audit-findings` |
 | 实现基线 | `052bcaa9c0320ef5e726c7bf66df85a49055628d`（PR #40 head） |
-| 代码提交 | `dd9f59b10c7c812c3af36684a32d15193bda7d50` |
+| 代码提交 | `1f736c6b788527bbffad186267679b1df63ff0a1` |
 | 执行者 | ZCode（magpie/workbuddy/deepseek-v4.1-flash） |
 | OS | Windows 10.0.26200 x64 |
 | Node / npm | v22.23.2 / 10.9.8 |
@@ -22,7 +22,10 @@
 | 2026-11-04T04:44Z | 读取 Issue #47、审计证据、PR/Issue 状态；核实 PR #40 head 仍为 `052bcaa`，`fix/pr-40-audit-findings` 不存在 |
 | 2026-11-04T04:45Z | 从 `052bcaa` 创建修复分支 |
 | 04:45–05:07Z | 实现 P1-01、P2-02～05、P3-06～12；边写边跑定向测试 |
-| 2026-11-04T05:07:43Z | 代码提交 `dd9f59b` |
+| 2026-11-04T05:07:43Z | 第一轮代码提交 `dd9f59b` |
+| 2026-11-04T05:44Z | 独立复审返回 DO_NOT_MERGE（3 项：outbox 完成、legacy adoption route、intent-reading 状态-only） |
+| 05:45–06:06Z | 针对性修复：outbox 失败抛出、sibling route 收敛、system dismissal、schema 错误映射；新增 outbox/intent/startup 测试 |
+| 2026-11-04T06:06Z | 第二轮代码提交 `1f736c6` |
 | 05:07–05:09Z | 干净工作树运行 `eval:stage5`、`eval:stage4a`、`eval:stage3` |
 | 05:10–05:20Z | 最终全量测试、定向测试、persistence、build；写六份交付物 |
 | 待定 | 推送、实现 PR、CI、独立复审、合并到 PR #40 分支、PR #40 CI、PR #40 head 最终复核 |
@@ -32,13 +35,13 @@
 | 命令 | 退出码 | 结果 | 日志 |
 |---|---|---|---|
 | `npx tsc --noEmit` | 0 | 无错误 | 终端 |
-| `npx vitest run` | 0 | 116 files / 1073 tests | `.tmp/audit/fix-final-full.log` |
-| `npx vitest run`（Stage 4 11 文件） | 0 | 116/116 | 终端 |
-| `npx vitest run src/persistence` | 0 | 8 files / 61 tests | 终端 |
+| `npx vitest run` | 0 | 118 files / 1080 tests | `.tmp/audit/fix2-final-full.log` |
+| `npx vitest run`（Stage 4 + review 13 文件） | 0 | 123/123 | 终端 |
+| `npx vitest run src/persistence` | 0 | 9 files / 62 tests | 终端 |
 | `npm run build` | 0 | electron-vite build 成功 | 终端 |
-| `npm run eval:stage5` | 0 | 12/12 | `evals/stage-5/results/20261104T050753Z-dd9f59b.json` |
-| `npm run eval:stage4a` | 0 | 7/7 | `evals/stage-4a/results/20261104T050814Z-dd9f59b.json` |
-| `npm run eval:stage3` | 0 | 15+1NOT_RUN/16 | `evals/stage-3/results/20261104T050848Z-dd9f59b*.json` |
+| `npm run eval:stage5` | 0 | 12/12 | `evals/stage-5/results/20261104T060704Z-1f736c6.json` |
+| `npm run eval:stage4a` | 0 | 7/7 | `evals/stage-4a/results/20261104T060730Z-1f736c6.json` |
+| `npm run eval:stage3` | 0 | 15+1NOT_RUN/16 | `evals/stage-3/results/20261104T060733Z-1f736c6*.json` |
 | `npm ci` | NOT_RUN | 未执行完整重装；安装树与 lockfile 一致 | 见 §5 |
 
 ## 4. 设计决策与取舍

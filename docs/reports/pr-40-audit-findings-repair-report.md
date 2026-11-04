@@ -2,7 +2,7 @@
 
 - 仓库：`ve766/morrow-ai-companion-v2`
 - 修复分支：`fix/pr-40-audit-findings`（自 PR #40 head `052bcaa9c0320ef5e726c7bf66df85a49055628d`）
-- 代码 SHA：`dd9f59b10c7c812c3af36684a32d15193bda7d50`
+- 代码 SHA：`1f736c6b788527bbffad186267679b1df63ff0a1`
 - base：`feat/stage-4-companion-confirmation-closure`；PR #40 仍 OPEN、未合并
 - 承接：[Issue #45](https://github.com/ve766/morrow-ai-companion-v2/issues/45) / [PR #46](https://github.com/ve766/morrow-ai-companion-v2/pull/46) 的 12 项审计发现
 - 本任务性质：生产代码、测试、迁移/兼容性、评测元数据与文档修复；不开发 Agent、不扩展产品范围
@@ -15,14 +15,14 @@
 `routeStatus: null / unresolved`；Stage 4 有真实关闭/重开数据库文件的 restart 测试；
 eval 生成器动态读取 branch；P3 全部处理。
 
-验证（代码 SHA `dd9f59b`）：
+验证（代码 SHA `1f736c6`）：
 
 | 项 | 结果 |
 |---|---|
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | **116 files / 1073 tests passed** |
-| Stage 4 定向 11 文件 | **116/116** |
-| `npx vitest run src/persistence` | **8 files / 61 tests passed** |
+| `npx vitest run` | **118 files / 1080 tests passed** |
+| Stage 4 + review 定向 13 文件 | **123/123** |
+| `npx vitest run src/persistence` | **9 files / 62 tests passed** |
 | `npm run build` | 成功 |
 | `npm run eval:stage5` | 12/12；branch/workingTree 动态 |
 | `npm run eval:stage4a` | 7/7；branch/workingTree 动态 |
