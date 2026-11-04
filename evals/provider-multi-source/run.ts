@@ -132,7 +132,19 @@ async function run(): Promise<void> {
     const handlers = createIpcHandlers(
       { getAppInfo: () => ({ name: 'Morrow', version: '0.0.0', platform: process.platform, electronVersion: 'test', dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders' }) },
       trusted,
-      { memories: {} as never, goals: {} as never, reminders: {} as never, companion: service as never }
+      {
+        memories: {} as never,
+        goals: {} as never,
+        reminders: {} as never,
+        companion: {
+          testProviderConnection: (request: { providerId: string }) => service.testConnection(request),
+          listProfiles: () => service.listProfiles(),
+          saveProfile: (request: never) => service.saveProfile(request),
+          deleteProfile: (request: { profileId: string }) => service.deleteProfile(request.profileId),
+          setDefaultProfile: (request: { profileId: string }) => service.setDefaultProfile(request.profileId),
+          discoverModels: (request: { profileId: string }) => service.discoverModels(request)
+        } as never
+      }
     )
     const savedViaIpc = await handlers[IPC_CHANNELS.providerProfileSave]!(event, {
       profileId: profile.id,
@@ -149,6 +161,7 @@ async function run(): Promise<void> {
     const listViaIpc = await handlers[IPC_CHANNELS.providerProfilesList]!(event, {})
     const testViaIpc = await handlers[IPC_CHANNELS.providerTestConnection]!(event, { providerId: profile.id })
     result.ipc = { save: savedViaIpc.ok, list: listViaIpc.ok, test: testViaIpc.ok }
+    if (!testViaIpc.ok) result.checks.push({ name: 'IPC test error', ok: false, detail: testViaIpc.error.code + ': ' + testViaIpc.error.message })
     result.checks.push({ name: 'IPC path (trusted sender, schema, service)', ok: savedViaIpc.ok && listViaIpc.ok && testViaIpc.ok, detail: JSON.stringify(result.ipc) })
     const connection = await service.testConnection({ providerId: profile.id })
     result.checks.push({
