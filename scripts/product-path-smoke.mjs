@@ -45,6 +45,10 @@ function record(name, ok, detail) {
 function hash(value) {
   return createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex')
 }
+function differingKeys(before, after) {
+  return Object.keys(before).filter((key) => hash(before[key]) !== hash(after[key]))
+}
+
 function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms))
 }
@@ -406,7 +410,7 @@ try {
   const restartedB = afterRestart.profiles.find((profile) => profile.id === idB)
   record('profiles and OS secrets survive restart', restartedA?.apiKeyConfigured === true && restartedB?.apiKeyConfigured === true, 'both profiles read back configured after restart')
   const continuityAfterRestart = await activeClient.evaluate(continuityScript)
-  record('continuity unchanged across restart', hash(continuityAfterRestart) === hash(continuityBefore), `before=${hash(continuityBefore).slice(0, 16)} after=${hash(continuityAfterRestart).slice(0, 16)}`)
+  record('continuity unchanged across restart', hash(continuityAfterRestart) === hash(continuityBefore), `differing=${differingKeys(continuityBefore, continuityAfterRestart).join(',') || 'none'}`)
   const dbAfterRestart = snapshotDatabase()
   record('SQLite row counts unchanged across restart', hash(dbAfterRestart.snapshot) === hash(dbBefore.snapshot), 'all continuity table counts match')
 
@@ -460,7 +464,7 @@ try {
   })()`)
   record('switch A → B → A through the product bridge', switched.find((profile) => profile.id === idA)?.isDefault === true, 'A is default again')
   const continuityAfterSwitch = await activeClient.evaluate(continuityScript)
-  record('continuity unchanged across provider switch', hash(continuityAfterSwitch) === hash(continuityBefore), `before=${hash(continuityBefore).slice(0, 16)} after=${hash(continuityAfterSwitch).slice(0, 16)}`)
+  record('continuity unchanged across provider switch', hash(continuityAfterSwitch) === hash(continuityBefore), `differing=${differingKeys(continuityBefore, continuityAfterSwitch).join(',') || 'none'}`)
   await stop(activeRun, activeClient)
   await delay(750)
   activeRun = undefined
@@ -505,7 +509,7 @@ try {
     }
   })()`)
   record('final restart keeps only A configured', finalState.profiles.length === 1 && finalState.profiles[0].id === idA && finalState.profiles[0].apiKeyConfigured === true, 'one configured profile remains')
-  record('final continuity unchanged', hash(finalState.continuity) === hash(continuityBefore), `before=${hash(continuityBefore).slice(0, 16)} after=${hash(finalState.continuity).slice(0, 16)}`)
+  record('final continuity unchanged', hash(finalState.continuity) === hash(continuityBefore), `differing=${differingKeys(continuityBefore, finalState.continuity).join(',') || 'none'}`)
 
   result.status = 'PASS'
   result.continuity = {
