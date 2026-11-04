@@ -171,6 +171,19 @@ async function waitForBridge(client) {
   throw new Error('The built renderer did not expose its typed preload bridge.')
 }
 
+async function waitForProviderUi(client) {
+  const ready = await client.evaluate(`(async () => {
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline) {
+      const list = document.querySelector('#provider-profile-list')
+      if (list && list.getAttribute('aria-busy') === 'false') return true
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    return false
+  })()`)
+  if (!ready) throw new Error('Provider profile panel did not finish initializing.')
+}
+
 async function stop(run, client) {
   // A graceful close lets Electron flush its OS-crypt key material; a forced
   // kill can leave the next process unable to decrypt secrets it just wrote.
@@ -197,6 +210,7 @@ async function start() {
   try {
     client = await connect(await findPage(run))
     await waitForBridge(client)
+    await waitForProviderUi(client)
     return { run, client }
   } catch (error) {
     await stop(run, client)
