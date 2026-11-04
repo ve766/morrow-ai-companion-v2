@@ -4,7 +4,7 @@
 - 分支：`feat/provider-multi-source-foundation`
 - base：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 代码 SHA：`34098fb6698fad5a8674e8ceb2b2a4f5be819310`
-- 最终状态：**PARTIAL**（代码/迁移/UI/安全完成；真实 remote 额度阻塞、local 未运行、独立复审待完成）
+- 最终状态：**PARTIAL**（代码/迁移/UI/安全完成；真实 remote 额度阻塞、local 未运行；独立复审 round 2 PASS_WITH_NON_BLOCKING_BACKLOG）
 
 ## 1. 实施范围
 
@@ -32,7 +32,7 @@
 ### 真实测试
 
 - `eval:provider-multi-source`：key 只从 `MORROW_TEST_API_KEY`；临时 SQLite + custom profile + IPC save/list + IPC test（真实请求）+ consent + adapter 非流式/流式；sanitized JSON/transcript。
-- 本次运行：`20261104T105300Z-987ad9c2`，`BLOCKED_QUOTA`（provider 余额 $0.04775 < 最低预扣 $0.05）；IPC save/list 通过、IPC test 到达 provider 后返回 quota、错误分类为 `PROVIDER_QUOTA`。
+- 本次运行：`20261104T114033Z-10e4a3e2`（clean worktree，代码 34098fb），`BLOCKED_QUOTA`（provider 余额 $0.04775 < 最低预扣 $0.05）；IPC save/list 通过、IPC test 到达 provider 后返回 quota、错误分类为 `PROVIDER_QUOTA`。
 - local：`BLOCKED_LOCAL_SERVICE_NOT_RUNNING`（无服务，不用 mock）。
 
 ## 2. 测试
@@ -43,7 +43,7 @@
 | `npx vitest run` | 见 evidence index（最终运行） |
 | `npm run build` | 成功 |
 | `npm run eval:provider-multi-source` | BLOCKED_QUOTA（外部额度） |
-| Provider 定向 | 10 files / 65 tests（含 endpoint/security/adapter/retry/registry/UI/IPC/continuity） |
+| Provider 定向 | 13 files / 91 tests（含 endpoint/security/adapter/retry/registry/UI/IPC/continuity/manual-chat/local） |
 
 新增测试：
 
@@ -74,11 +74,11 @@
 - private-network 明确 NOT_SUPPORTED；未开放。
 - DNS rebinding 残余风险：请求前解析 + redirect:error + 每次尝试校验；未声称完全消除。
 - v48 与 Stage 4 v48 版本冲突：合并顺序需协调，已在迁移注释登记。
-- 独立复审待独立上下文提交。
+- 独立复审：PR #52 round 2 `PASS_WITH_NON_BLOCKING_BACKLOG`；B1/B2/B3/B4 已复验修复。
 
 ## 6. 结论
 
-产品代码、迁移、UI、安全与自动化测试已交付；真实 remote 因外部账号额度阻塞，local 因无服务阻塞，独立复审未完成。因此 **PARTIAL**，不是 COMPLETE。
+产品代码、迁移、UI、安全与自动化测试已交付；真实 remote 因外部账号额度阻塞，local 因无服务阻塞；独立复审 round 2 为 PASS_WITH_NON_BLOCKING_BACKLOG。因此 **PARTIAL**，不是 COMPLETE。
 
 ## 7. 独立复审后的安全修复（代码 SHA `34098fb`）
 

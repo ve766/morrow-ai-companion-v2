@@ -45,15 +45,15 @@ npm run build                        # success
 npm run eval:provider-multi-source   # BLOCKED_QUOTA (external)
 ```
 
-Provider 定向：10 files / 65 tests passed（endpoint/security/adapter/retry/registry/UI/IPC/continuity/multi-source）。
+Provider 定向：13 files / 91 tests passed（endpoint/security/adapter/retry/registry/UI/IPC/continuity/multi-source/manual-chat/local）。
 
 ## 4. 真实运行
 
 | 项 | 值 |
 |---|---|
-| Run ID | `20261104T105300Z-987ad9c2` |
-| Result | `evals/provider-multi-source/results/20261104T105300Z-987ad9c2.json` |
-| Transcript | `evals/provider-multi-source/transcripts/20261104T105300Z-987ad9c2.md` |
+| Run ID | `20261104T114033Z-10e4a3e2` |
+| Result | `evals/provider-multi-source/results/20261104T114033Z-10e4a3e2.json` |
+| Transcript | `evals/provider-multi-source/transcripts/20261104T114033Z-10e4a3e2.md` |
 | Status | **BLOCKED_QUOTA** |
 | Endpoint | `https://api.supxh.xin/v1`（digest `81f2def21ea9d6eb`） |
 | Model | `gemini-3-flash` |
@@ -65,11 +65,12 @@ Provider 定向：10 files / 65 tests passed（endpoint/security/adapter/retry/r
 ## 5. CI
 
 - PR: https://github.com/ve766/morrow-ai-companion-v2/pull/51
-- Run: https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41817829775
-- head: f92d9a04732db8737ef82950f2422998388acf18
+- Run: https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41818784423
+- head: 15c25aa57cd4dda2157a68370e0f25a5d5861779
 - conclusion: success
 - jobs: Ubuntu typecheck/tests/build/smoke; Windows 同; Windows upgrade path（7 files / 59 tests）
 - 未复用旧 run。
+- 独立复审：PR #52，review commit `626a3cf4b80bde4598b22a2732037b534a863fa4`，round 2 `PASS_WITH_NON_BLOCKING_BACKLOG`。
 
 ## 6. 安全扫描
 
@@ -81,5 +82,5 @@ Provider 定向：10 files / 65 tests passed（endpoint/security/adapter/retry/r
 
 - 真实第二 Provider：BLOCKED_QUOTA。
 - 本地服务：BLOCKED_LOCAL_SERVICE_NOT_RUNNING。
-- 独立复审：PENDING（独立上下文）。
+- 独立复审：PASS_WITH_NON_BLOCKING_BACKLOG（PR #52 round 2；B1/B2/B3/B4 已复验修复）。
 - v48 与 Stage 4 v48 版本冲突：合并前需重编号为 v49（若无已发布 provider v48 DB）。

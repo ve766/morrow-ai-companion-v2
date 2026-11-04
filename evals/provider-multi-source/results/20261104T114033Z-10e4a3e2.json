@@ -1,12 +1,12 @@
 {
-  "runId": "20261104T105300Z-987ad9c2",
+  "runId": "20261104T114033Z-10e4a3e2",
   "suite": "provider-multi-source",
-  "startedAt": "2026-11-04T10:53:00.831Z",
-  "finishedAt": "2026-11-04T10:53:07.214Z",
+  "startedAt": "2026-11-04T11:40:33.198Z",
+  "finishedAt": "2026-11-04T11:40:37.035Z",
   "codeCommit": "34098fb6698fad5a8674e8ceb2b2a4f5be819310",
-  "branch": "feat/provider-multi-source-foundation",
-  "branchReason": "ok",
-  "workingTree": "dirty",
+  "branch": null,
+  "branchReason": "detached",
+  "workingTree": "clean",
   "endpoint": "https://api.supxh.xin/v1",
   "endpointDigest": "81f2def21ea9d6eb",
   "model": "gemini-3-flash",
@@ -15,7 +15,7 @@
     {
       "name": "profile saved",
       "ok": true,
-      "detail": "profile 7c877482-4a5e-416d-bf11-4463dced905c · key isolated"
+      "detail": "profile c42f8e36-2be5-4829-b4d9-a0a230d78150 · key isolated"
     },
     {
       "name": "IPC test error",
