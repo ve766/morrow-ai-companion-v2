@@ -13,6 +13,8 @@ import { EventLogService } from '../persistence/event-log'
 import { CognitionOutbox } from './cognitive-outbox'
 import { buildCognitiveProjectors, type SelfModelLoopServices } from './companion-service'
 import { PendingSchemaUnavailableError } from '../cognition/pending-items'
+import { KnowledgeGapService } from '../self-model/knowledge-gap-service'
+import { composeStartupReflectionServices } from './startup-composition'
 
 let directory = ''
 afterEach(() => {
@@ -111,6 +113,77 @@ describe('reflection outbox under a rate-limited run', () => {
         "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'cognition.pending_schema_unavailable'"
       ).get() as { n: number }
       expect(audit.n).toBe(1)
+    } finally {
+      database.close()
+    }
+  })
+})
+
+describe('real-router outbox retry', () => {
+  it('recovers a finding stranded by a transient pending write on a non-rate-limited retry', () => {
+    const { database, events, conversationId, messageId } = world()
+    try {
+      const turnId = randomUUID()
+      const label = '量子计算'
+      const recorded = events.recordDeterministic(`outbox-gap:${turnId}`, {
+        sourceModule: 'cognition',
+        eventType: 'cognition.knowledge_gap',
+        actor: 'system',
+        subjectType: 'interest',
+        subjectId: label,
+        correlationId: conversationId,
+        payload: { label, owner: 'morrow', turnId }
+      })
+      new KnowledgeGapService(database).record({
+        eventId: recorded.event.id,
+        conversationId,
+        turnId,
+        label,
+        confidence: 0.6,
+        occurredAt: new Date().toISOString()
+      })
+      const services = composeStartupReflectionServices(database, events)
+      const projector = buildCognitiveProjectors({
+        events,
+        interests: services.interests,
+        selfModel: services.selfModel,
+        reflection: services.reflection,
+        findingRouter: services.findingRouter
+      } as unknown as SelfModelLoopServices).find((item) => item.module === 'reflection')!
+      const outbox = new CognitionOutbox(database)
+      outbox.enqueue({
+        turnId: randomUUID(),
+        conversationId,
+        userMessageId: messageId,
+        occurredAt: new Date().toISOString(),
+        analysis: null,
+        modules: ['reflection']
+      })
+
+      database.connection.exec("CREATE TRIGGER outbox_pending_abort BEFORE INSERT ON cognitive_pending_items BEGIN SELECT RAISE(ABORT, 'transient'); END;")
+      const first = outbox.drain([projector])
+      database.connection.exec('DROP TRIGGER outbox_pending_abort')
+      expect(first.failed).toBe(1)
+      const rowAfterFirst = database.connection.prepare("SELECT status, attempts FROM cognitive_outbox WHERE module = 'reflection'").get() as { status: string; attempts: number }
+      expect(rowAfterFirst).toEqual({ status: 'pending', attempts: 1 })
+      expect(database.connection.prepare(`
+        SELECT COUNT(*) AS n FROM reflection_findings f
+        LEFT JOIN reflection_finding_routes r ON r.finding_id = f.id
+        WHERE r.finding_id IS NULL
+      `).get()).toEqual({ n: 1 })
+
+      // Not rate-limited: the run sees no new findings, but recovery must route
+      // the finding stranded by the first attempt before the row is done.
+      const second = outbox.drain([projector])
+      expect(second.done).toBe(1)
+      expect(database.connection.prepare("SELECT status FROM cognitive_outbox WHERE module = 'reflection'").get()).toEqual({ status: 'done' })
+      const unrouted = database.connection.prepare(`
+        SELECT COUNT(*) AS n FROM reflection_findings f
+        LEFT JOIN reflection_finding_routes r ON r.finding_id = f.id
+        WHERE r.finding_id IS NULL
+      `).get() as { n: number }
+      expect(unrouted.n).toBe(0)
+      expect(database.connection.prepare("SELECT COUNT(*) AS n FROM cognitive_pending_items").get()).toEqual({ n: 1 })
     } finally {
       database.close()
     }

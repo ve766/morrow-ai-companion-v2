@@ -459,11 +459,16 @@ if (hasSingleInstanceLock) {
             if (!('skipped' in summary)) {
               findingRouter.ingestRun(summary.id, reflection.findings(summary.id))
             }
+            const recovered = findingRouter.recoverUnrouted()
+            if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
             return summary
           }, { budgetMs: 2_000 })
           if (outcome.status === 'completed' && outcome.value) return outcome.value
           // The pass never started, so reporting it as completed would be a lie.
           if (outcome.status === 'skipped') return { skipped: 'budget_exhausted' as const }
+          if (outcome.status === 'failed' && outcome.error instanceof PendingSchemaUnavailableError) {
+            throw new ApplicationError('SCHEMA_UPGRADE_REQUIRED')
+          }
           throw new ApplicationError('STORAGE_ERROR')
         },
         listReflectionRuns: () => reflection.listRuns(),

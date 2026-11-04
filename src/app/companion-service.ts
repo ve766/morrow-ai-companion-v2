@@ -1045,6 +1045,11 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
           // retry (or park the row) rather than report a completed projection.
           throw error
         }
+        // A normal (non-rate-limited) retry can find a previous attempt's
+        // stranded finding even though this run produced no new ones. The
+        // success branch must recover it before the row is marked done.
+        const recovered = recover()
+        if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
       }
     }
   ]

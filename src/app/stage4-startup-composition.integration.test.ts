@@ -213,3 +213,24 @@ describe('real startup composition', () => {
     }
   })
 })
+
+describe('startup composition repetition with findings', () => {
+  it('does not duplicate a finding, route or item across repeated startups', () => {
+    const { database, events } = open()
+    try {
+      seedGap(database, events, '重复启动')
+      const services = composeStartupReflectionServices(database, events)
+      expect(runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter }).status).toBe('ran')
+      expect(runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter }).status).toBe('ran')
+      const counts = database.connection.prepare(`
+        SELECT
+          (SELECT COUNT(*) FROM reflection_findings) AS findings,
+          (SELECT COUNT(*) FROM reflection_finding_routes) AS routes,
+          (SELECT COUNT(*) FROM cognitive_pending_items) AS items
+      `).get() as { findings: number; routes: number; items: number }
+      expect(counts).toEqual({ findings: 1, routes: 1, items: 1 })
+    } finally {
+      database.close()
+    }
+  })
+})
