@@ -8,7 +8,7 @@
 - Reviewed at: 2026-11-04T11:21:09Z
 - Environment: Windows 10.0.26200 x64, Node v22.23.2, npm 10.9.8; `TEMP`/`TMP` under `.tmp/es`
 - Implementer's status: **PARTIAL** (external real-provider and local-service blockers remain)
-- Round-2 verdict: **PASS_WITH_NON_BLOCKING_BACKLOG** — the four round-1 blockers are independently verified fixed; no P1 security blocker remains. The PR is still PARTIAL and must stay OPEN until the external blockers and the backlog are addressed.
+- Round-2 verdict: **PASS_WITH_NON_BLOCKING_BACKLOG** — the four round-1 blockers are independently verified fixed; no P1 security blocker remains. The stale health/capabilities item and the `testConnection` endpoint-path item are P2 correctness/UX backlog, not security or core-requirement blockers for the foundation. The PR is still PARTIAL and must stay OPEN until the external blockers and the backlog are addressed.
 
 ## 1. Round-1 blockers: independent re-verification
 
