@@ -2559,6 +2559,68 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 48,
+    name: 'provider-multi-source-profiles',
+    up(database) {
+      // Provider is a source, protocol is a wire contract, endpoint is an
+      // address and model is a name. The old table conflated the first and the
+      // third: an id implied a provider and the endpoint had to equal that
+      // provider's base URL. The rebuilt table separates them and keeps every
+      // legacy row (and its secret, which lives in the OS store under the id).
+      //
+      // Version note: this branch is based on release v47. If the Stage 4 v48
+      // (pending-decision-terminal-state) is merged first, renumber this
+      // migration to v49 before rebasing; no released database has this row.
+      database.exec(`
+        CREATE TABLE provider_profiles_v48 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (
+            length(id) BETWEEN 1 AND 64 AND id NOT GLOB '*[^a-z0-9-]*'
+          ),
+          display_name TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 1 AND 80),
+          source_kind TEXT NOT NULL CHECK (source_kind IN ('official', 'custom-proxy', 'local', 'private-network')),
+          protocol_id TEXT NOT NULL CHECK (protocol_id IN ('openai-chat-completions', 'anthropic-messages', 'ollama-native')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 8 AND 2000),
+          endpoint_path TEXT CHECK (
+            endpoint_path IS NULL OR (length(endpoint_path) BETWEEN 1 AND 300 AND substr(endpoint_path, 1, 1) = '/')
+          ),
+          model TEXT NOT NULL CHECK (length(model) BETWEEN 1 AND 128),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+          capabilities_json TEXT NOT NULL,
+          last_test_json TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        INSERT INTO provider_profiles_v48(
+          id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+          model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+        )
+          SELECT id,
+                 CASE id WHEN 'deepseek' THEN 'DeepSeek'
+                         WHEN 'spark' THEN 'iFlytek Spark'
+                         ELSE 'Local OpenAI' END,
+                 CASE id WHEN 'local-openai' THEN 'local' ELSE 'official' END,
+                 'openai-chat-completions',
+                 provider_class,
+                 endpoint,
+                 NULL,
+                 model,
+                 enabled,
+                 0,
+                 '{"streaming":{"declared":true,"probed":false,"verified":false},"vision":{"declared":false,"probed":false,"verified":false},"toolCalling":{"declared":false,"probed":false,"verified":false},"jsonMode":{"declared":false,"probed":false,"verified":false},"systemRole":{"declared":true,"probed":false,"verified":false}}',
+                 NULL,
+                 updated_at,
+                 updated_at
+          FROM provider_profiles;
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v48 RENAME TO provider_profiles;
+        CREATE UNIQUE INDEX provider_profiles_default_uq
+          ON provider_profiles(is_default) WHERE is_default = 1;
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
@@ -2568,6 +2630,14 @@ export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
 // cognitive tables. This is a named anchor, not a relative offset, so adding
 // future migrations can never lock an already-degraded database out.
 export const DEGRADED_OPEN_MINIMUM_VERSION = 9
+
+/** A database carrying another implementation line's version/name identity. */
+export class SchemaIdentityError extends Error {
+  constructor() {
+    super('Unsupported database schema version.')
+    this.name = 'SchemaIdentityError'
+  }
+}
 
 export function applyMigrations(
   database: DatabaseSync,
@@ -2585,7 +2655,7 @@ export function applyMigrations(
   const current = Number(database.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get()?.version ?? 0)
   const newestKnown = migrationSet.at(-1)?.version ?? 0
   if (current > newestKnown || targetVersion > newestKnown || targetVersion < current) {
-    throw new Error('Unsupported database schema version.')
+    throw new SchemaIdentityError()
   }
   // Version numbers alone are not an identity: a database produced by a
   // different implementation line can carry the same versions with entirely
@@ -2595,7 +2665,7 @@ export function applyMigrations(
   for (const row of recorded) {
     const expected = migrationSet.find((migration) => migration.version === row.version)
     if (!expected || expected.name !== row.name) {
-      throw new Error('Unsupported database schema version.')
+      throw new SchemaIdentityError()
     }
   }
 
