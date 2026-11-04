@@ -102,7 +102,7 @@ export function buildTestStack(options: StackOptions = {}): Stack {
     clock
   )
   const exploration = new ExplorationService(database, clock)
-  const goals = new CompanionGoalService(database, clock)
+  const goals = new CompanionGoalService(database, events, clock)
 
   const companion = new CompanionService({
     database,
@@ -135,10 +135,10 @@ export function buildTestStack(options: StackOptions = {}): Stack {
     ...(clock ? { clock } : {}),
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database, events)),
       finalizations: new SqliteTurnFinalizationRepository(database),
       states: new SqliteTurnStateRepository(database),
-      readings: new IntentReadingRepository(database, clock)
+      readings: new IntentReadingRepository(database, events, clock)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })
@@ -147,7 +147,7 @@ export function buildTestStack(options: StackOptions = {}): Stack {
   return {
     companion,
     database,
-    readings: new IntentReadingRepository(database, clock),
+    readings: new IntentReadingRepository(database, events, clock),
     events,
     memories,
     interests,

@@ -112,7 +112,7 @@ function openWorld(
     providerFactory,
     continuity: {
       contexts: overrides.contexts ?? new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database, events)),
       finalizations: new SqliteTurnFinalizationRepository(database)
     }
   })

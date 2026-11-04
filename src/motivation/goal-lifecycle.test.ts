@@ -14,7 +14,8 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '../persistence/database'
-import { CompanionGoalService, readGoalUtterance } from './companion-goal'
+import { CompanionGoalService, readGoalUtterance, type GoalAuditSink } from './companion-goal'
+import { EventLogService } from '../persistence/event-log'
 import { resolveDueAt } from './goal-time'
 
 let databases: SqliteDatabase[] = []
@@ -128,7 +129,7 @@ describe('goal candidate reading', () => {
 
   it('creates a candidate with the raw horizon when the date cannot be resolved', () => {
     const database = open()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const { conversationId, messageId } = seedMessage(database)
     const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
     expect(result.goalId).toBeNull()
@@ -143,7 +144,7 @@ describe('goal candidate reading', () => {
 describe('goal creation and lifecycle', () => {
   it('writes the resolved deadline onto the created goal', () => {
     const database = open()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const { conversationId, messageId } = seedMessage(database)
     const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
     expect(result.goalId).not.toBeNull()
@@ -156,7 +157,7 @@ describe('goal creation and lifecycle', () => {
 
   it('is idempotent on the source message: a replay creates one goal', () => {
     const database = open()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const { conversationId, messageId } = seedMessage(database)
     const text = '我打算在明年三月之前完成 Morrow 的第一阶段。'
     const first = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text })
@@ -167,7 +168,7 @@ describe('goal creation and lifecycle', () => {
 
   it('accepts a candidate atomically and exposes it to the next prompt with its deadline', () => {
     const database = open()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const { conversationId, messageId } = seedMessage(database)
     goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
     const candidate = goals.listCandidates()[0]!
@@ -181,7 +182,7 @@ describe('goal creation and lifecycle', () => {
 
   it('cancels the goal and expires the candidate when the source message is deleted', () => {
     const database = open()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const { conversationId, messageId } = seedMessage(database)
     const created = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
     goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
@@ -195,7 +196,7 @@ describe('goal creation and lifecycle', () => {
 
   it('drops a completed or expired goal from the next prompt', () => {
     const database = open()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const { conversationId, messageId } = seedMessage(database)
     const created = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
     expect(goals.activeForContext(5)).toHaveLength(1)
@@ -206,5 +207,138 @@ describe('goal creation and lifecycle', () => {
     const second = goals.create({ title: '第二个目标', dueAt: '2026-10-01T00:00:00.000Z' })
     expect(goals.activeForContext(5).some((item) => item.id === second.id)).toBe(false)
     expect(goals.get(second.id)?.status).toBe('expired')
+  })
+})
+
+describe('goal candidate confirmation closure (BL-02 / goal UI contract)', () => {
+  function withCandidate(database: SqliteDatabase): { goals: CompanionGoalService; candidateId: string; events: EventLogService } {
+    const events = new EventLogService(database, clock)
+    const goals = new CompanionGoalService(database, events, clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    expect(result.candidateId).not.toBeNull()
+    return { goals, candidateId: result.candidateId!, events }
+  }
+
+  it('reject is durable, audited, idempotent and conflicts with accept', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'rejected', replayed: false })
+    expect(goals.listCandidates()).toHaveLength(0)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'rejected', replayed: true })
+    expect(goals.decideCandidate(candidateId, 'accept')).toMatchObject({ status: 'conflict', current: 'rejected' })
+    const event = database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'goal.candidate_decision' ORDER BY rowid DESC LIMIT 1").get() as { payload_json: string }
+    expect(event.payload_json).toContain('rejected')
+    expect(event.payload_json).not.toContain('多读点书')
+  })
+
+  it('accept then reject is a conflict, and a repeated accept returns the same goal', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    const first = goals.decideCandidate(candidateId, 'accept')
+    expect(first.status).toBe('accepted')
+    if (first.status !== 'accepted') throw new Error('expected accepted')
+    const replay = goals.acceptCandidate(candidateId)
+    expect(replay.id).toBe(first.goal.id)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'conflict', current: 'accepted' })
+    expect(goals.list()).toHaveLength(1)
+  })
+
+  it('a disappeared source persists expired instead of rolling back the marker', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    database.connection.prepare("UPDATE goal_candidates SET source_state = 'source_deleted' WHERE id = ?").run(candidateId)
+    expect(() => goals.acceptCandidate(candidateId)).toThrow(/source is no longer available/)
+    const row = database.connection.prepare('SELECT status, source_state FROM goal_candidates WHERE id = ?').get(candidateId) as { status: string; source_state: string }
+    expect(row).toMatchObject({ status: 'expired', source_state: 'source_deleted' })
+    expect(goals.list()).toHaveLength(0)
+  })
+
+  it('accept vs reject leaves exactly one terminal state', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    const accept = goals.decideCandidate(candidateId, 'accept')
+    const reject = goals.rejectCandidate(candidateId)
+    expect(accept.status).toBe('accepted')
+    expect(reject).toMatchObject({ status: 'conflict', current: 'accepted' })
+    const row = database.connection.prepare('SELECT status FROM goal_candidates WHERE id = ?').get(candidateId) as { status: string }
+    expect(row.status).toBe('accepted')
+  })
+})
+
+describe('goal candidate audit is a required dependency', () => {
+  function auditFailure(database: SqliteDatabase): GoalAuditSink {
+    return {
+      recordDeterministic: () => {
+        throw new Error('audit down')
+      }
+    }
+  }
+
+  function auditMissing(database: SqliteDatabase): GoalAuditSink {
+    return {
+      recordDeterministic: () => ({ event: { id: '99999999-9999-4999-8999-999999999999' }, inserted: false })
+    }
+  }
+
+  function seed(database: SqliteDatabase): { goals: CompanionGoalService; candidateId: string } {
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    return { goals, candidateId: result.candidateId! }
+  }
+
+  it('rolls accept back when the audit write throws', () => {
+    const database = open()
+    const { goals, candidateId } = seed(database)
+    const broken = new CompanionGoalService(database, auditFailure(database), clock)
+    expect(() => broken.acceptCandidate(candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    expect(goals.listCandidates()).toHaveLength(1)
+    expect(goals.list()).toHaveLength(0)
+    const keys = database.connection.prepare('SELECT COUNT(*) AS n FROM goal_creation_keys').get() as { n: number }
+    expect(keys.n).toBe(0)
+  })
+
+  it('rolls reject and source-unavailable back when the audit write throws', () => {
+    const database = open()
+    const first = seed(database)
+    const broken = new CompanionGoalService(database, auditFailure(database), clock)
+    expect(() => broken.rejectCandidate(first.candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    expect(first.goals.listCandidates()).toHaveLength(1)
+
+    const second = seed(database)
+    database.connection.prepare("UPDATE goal_candidates SET source_state = 'source_deleted' WHERE id = ?").run(second.candidateId)
+    expect(() => broken.acceptCandidate(second.candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    const row = database.connection.prepare('SELECT status FROM goal_candidates WHERE id = ?').get(second.candidateId) as { status: string }
+    expect(row.status).toBe('pending')
+  })
+
+  it('treats a duplicate audit result as written only when the event exists', () => {
+    const database = open()
+    const { goals, candidateId } = seed(database)
+    const broken = new CompanionGoalService(database, auditMissing(database), clock)
+    expect(() => broken.acceptCandidate(candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    expect(goals.listCandidates()).toHaveLength(1)
+    expect(goals.list()).toHaveLength(0)
+  })
+
+  it('writes exactly one audit event per terminal decision, not one per replay', () => {
+    const database = open()
+    const { goals, candidateId } = seed(database)
+    const accepted = goals.acceptCandidate(candidateId)
+    goals.acceptCandidate(candidateId)
+    expect(goals.get(accepted.id)).not.toBeNull()
+    const events = database.connection.prepare(
+      "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'goal.candidate_decision' AND subject_id = ?"
+    ).get(candidateId) as { n: number }
+    expect(events.n).toBe(1)
+  })
+
+  it('cannot be constructed without the audit sink (compile-time contract)', () => {
+    function contract(database: SqliteDatabase, clockFn: () => string) {
+      // @ts-expect-error the goal audit dependency is required
+      return new CompanionGoalService(database, clockFn)
+    }
+    void contract
   })
 })

@@ -91,7 +91,7 @@ describe('B5 reflection cannot block a turn', () => {
       },
       continuity: {
         contexts: new SqliteTurnContextRepository(database),
-        pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+        pending: new PendingCognitionService(new SqlitePendingItemRepository(database, events)),
         finalizations: new SqliteTurnFinalizationRepository(database),
         states: new SqliteTurnStateRepository(database)
       }

@@ -2559,6 +2559,21 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 48,
+    name: 'pending-decision-terminal-state',
+    up(database) {
+      // BL-02: a pending decision must be durable on both the item and its
+      // reflection route. finding_id links the item to the route; decision
+      // records which terminal choice the user made, so a replay is idempotent
+      // and an opposite decision is a conflict rather than a silent overwrite.
+      database.exec(`
+        ALTER TABLE cognitive_pending_items ADD COLUMN finding_id TEXT CHECK (finding_id IS NULL OR length(finding_id) = 36);
+        ALTER TABLE cognitive_pending_items ADD COLUMN decision TEXT CHECK (decision IS NULL OR decision IN ('accepted', 'rejected', 'dismissed'));
+        CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(finding_id);
+      `)
+    }
+  },
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

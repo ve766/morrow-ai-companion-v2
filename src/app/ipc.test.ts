@@ -4,7 +4,8 @@ import type { AppInfo, GoalCreateRequest } from '../shared/contracts'
 import { IPC_CHANNELS } from '../shared/contracts'
 import { GOAL_DEFAULT_CONSTRAINTS, GOAL_SUCCESS_CRITERION, SUPPORTED_GOAL_INTENT } from '../motivation/goals'
 import { GoalService } from '../motivation/goal-service'
-import { createIpcHandlers, type CompanionActions, type ContinuityActions, type IpcEventLike, type IpcHandler } from './ipc'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
+import { createIpcHandlers, type CompanionActions, type CompanionGoalActions, type ContinuityActions, type IpcEventLike, type IpcHandler } from './ipc'
 import { MemoryService } from '../memory/memory-service'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteGoalRepository } from '../persistence/goal-repository'
@@ -34,7 +35,8 @@ function createHarness(
   service?: MemoryService,
   provider: { getAppInfo(): AppInfo } = { getAppInfo: () => appInfo },
   companion?: CompanionActions,
-  continuity?: ContinuityActions
+  continuity?: ContinuityActions,
+  companionGoals?: CompanionGoalActions
 ) {
   const database = SqliteDatabase.open(':memory:')
   const memories = service ?? new MemoryService(
@@ -51,7 +53,7 @@ function createHarness(
   )
   const goals = new GoalService(goalRepository, memories, { reminderLifecycle: reminders })
   return {
-    handlers: createIpcHandlers(provider, trustedUrl, { memories, goals, reminders, ...(companion ? { companion } : {}), ...(continuity ? { continuity } : {}) }),
+    handlers: createIpcHandlers(provider, trustedUrl, { memories, goals, reminders, ...(companion ? { companion } : {}), ...(continuity ? { continuity } : {}), ...(companionGoals ? { companionGoals } : {}) }),
     reminders,
     close: () => {
       reminders.shutdown()
@@ -396,13 +398,9 @@ describe('Phase 2.4 continuity surface', () => {
     const completed: string[] = []
     const actions: ContinuityActions = {
       listPendingItems: () => [],
-      decidePendingItem: ({ itemId }) => {
-        completed.push(itemId)
-        return true
-      },
-      completePendingItem: ({ itemId }) => {
-        completed.push(itemId)
-        return true
+      decidePendingItem: (request) => {
+        completed.push(request.itemId)
+        return { status: 'decided', decision: request.decision, itemStatus: request.decision === 'accepted' ? 'done' : 'dropped' }
       },
       readTurnContext: () => null
     }
@@ -418,13 +416,15 @@ describe('Phase 2.4 continuity surface', () => {
     }
   })
 
-  it('routes a valid completion through the typed action', async () => {
+  it('routes accepted and rejected decisions through the single decide action', async () => {
     const { harness, completed } = continuityHarness()
     try {
       const itemId = randomUUID()
-      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, trustedEvent(), { itemId })
-      expect(result).toEqual({ ok: true, data: true })
-      expect(completed).toEqual([itemId])
+      const accepted = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId, decision: 'accepted' })
+      expect(accepted).toMatchObject({ ok: true, data: { status: 'decided', decision: 'accepted', itemStatus: 'done' } })
+      const rejected = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId, decision: 'rejected' })
+      expect(rejected).toMatchObject({ ok: true, data: { status: 'decided', decision: 'rejected', itemStatus: 'dropped' } })
+      expect(completed).toEqual([itemId, itemId])
     } finally {
       harness.close()
     }
@@ -433,11 +433,35 @@ describe('Phase 2.4 continuity surface', () => {
   it('rejects an unknown field or a malformed id before calling the action', async () => {
     const { harness, completed } = continuityHarness()
     try {
-      const withExtra = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, trustedEvent(), { itemId: randomUUID(), status: 'done' })
+      const withExtra = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId: randomUUID(), decision: 'accepted', status: 'done' })
       expect(withExtra).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
-      const badId = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, trustedEvent(), { itemId: 'not-a-uuid' })
+      const badId = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId: 'not-a-uuid', decision: 'accepted' })
       expect(badId).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
       expect(completed).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('maps a schema capability failure to SCHEMA_UPGRADE_REQUIRED', async () => {
+    const actions: ContinuityActions = {
+      listPendingItems: () => [],
+      decidePendingItem: () => { throw new PendingSchemaUnavailableError() },
+      readTurnContext: () => null
+    }
+    const harness = createHarness(undefined, undefined, undefined, actions)
+    try {
+      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId: randomUUID(), decision: 'accepted' })
+      expect(result).toMatchObject({ ok: false, error: { code: 'SCHEMA_UPGRADE_REQUIRED' } })
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('keeps the removed complete channel unregistered', async () => {
+    const { harness } = continuityHarness()
+    try {
+      expect(harness.handlers['morrow:continuity:pending:complete']).toBeUndefined()
     } finally {
       harness.close()
     }
@@ -454,11 +478,11 @@ describe('Phase 2.4 continuity surface', () => {
     }
   })
 
-  it('rejects an untrusted frame before it can complete an item', async () => {
+  it('rejects an untrusted frame before it can decide an item', async () => {
     const { harness, completed } = continuityHarness()
     try {
       const frame = { url: 'https://attacker.invalid/' }
-      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, { sender: { mainFrame: frame }, senderFrame: frame }, { itemId: randomUUID() })
+      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, { sender: { mainFrame: frame }, senderFrame: frame }, { itemId: randomUUID(), decision: 'accepted' })
       expect(result).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
       expect(completed).toEqual([])
     } finally {
@@ -471,6 +495,47 @@ describe('Phase 2.4 continuity surface', () => {
     try {
       expect(harness.handlers[IPC_CHANNELS.pendingItemsList]).toBeUndefined()
       expect(harness.handlers[IPC_CHANNELS.turnContextRead]).toBeUndefined()
+    } finally {
+      harness.close()
+    }
+  })
+})
+
+describe('companion goal candidate IPC', () => {
+  const candidate = {
+    id: '11111111-1111-4111-8111-111111111111',
+    title: '完成 Morrow 的第一阶段',
+    conversationId: '22222222-2222-4222-8222-222222222222',
+    createdAt: '2026-11-01T08:00:00.000Z',
+    dueAt: null,
+    dueExpression: '以后',
+    owner: 'user' as const,
+    sourceState: 'live'
+  }
+
+  it('lists candidates and forwards accept/reject decisions with validation', async () => {
+    const calls: string[] = []
+    const goal = { id: '33333333-3333-4333-8333-333333333333', title: candidate.title, detail: '', owner: 'user' as const, status: 'active' as const, priority: 50, dueAt: null, sourceMessageId: null, createdAt: candidate.createdAt, updatedAt: candidate.createdAt, revision: 1 }
+    const companionGoals: CompanionGoalActions = {
+      list: () => [],
+      listCandidates: () => [candidate],
+      decideCandidate: (candidateId, decision) => {
+        calls.push(`${candidateId}:${decision}`)
+        if (decision === 'accept') return { status: 'accepted', goal, replayed: false }
+        return { status: 'rejected', candidateId, replayed: false }
+      }
+    }
+    const harness = createHarness(undefined, undefined, undefined, undefined, companionGoals)
+    try {
+      const list = await call(harness.handlers, IPC_CHANNELS.companionGoalCandidatesList, trustedEvent())
+      expect(list).toMatchObject({ ok: true, data: [candidate] })
+      const accepted = await call(harness.handlers, IPC_CHANNELS.companionGoalCandidateAccept, trustedEvent(), { candidateId: candidate.id })
+      expect(accepted).toMatchObject({ ok: true, data: { status: 'accepted' } })
+      const rejected = await call(harness.handlers, IPC_CHANNELS.companionGoalCandidateReject, trustedEvent(), { candidateId: candidate.id })
+      expect(rejected).toMatchObject({ ok: true, data: { status: 'rejected' } })
+      expect(calls).toEqual([`${candidate.id}:accept`, `${candidate.id}:reject`])
+      const invalid = await call(harness.handlers, IPC_CHANNELS.companionGoalCandidateAccept, trustedEvent(), { candidateId: 'not-a-uuid' })
+      expect(invalid).toMatchObject({ ok: false })
     } finally {
       harness.close()
     }

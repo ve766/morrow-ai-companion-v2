@@ -1,4 +1,5 @@
-import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, ProviderGetRequest } from '../shared/contracts'
+import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, PendingDecisionResult, ProviderGetRequest } from '../shared/contracts'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -19,6 +20,7 @@ import type {
   ProviderConnectionResult
 } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
 import type { MemoryService } from '../memory/memory-service'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -54,11 +56,11 @@ import {
   parseSelfModelCorrectRequest,
   parseSelfModelIdRequest,
   parseReflectionFindingsRequest,
-  parsePendingItemIdRequest,
   parsePendingItemDecisionRequest,
   parseTurnContextRequest
 } from '../shared/validation'
 import {
+  parseGoalCandidateIdRequest,
   parseGoalCreateRequest,
   parseGoalIdRequest,
   parseGoalPrepareRequest,
@@ -135,14 +137,20 @@ export interface SelfModelActions {
  */
 export interface ContinuityActions {
   listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
-  completePendingItem(request: { itemId: string }): boolean
-  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): boolean
+  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): PendingDecisionResult
   readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
+}
+
+export interface CompanionGoalActions {
+  list(): CompanionGoal[]
+  listCandidates(): CompanionGoalCandidate[]
+  decideCandidate(candidateId: string, decision: 'accept' | 'reject'): GoalCandidateDecisionResult
 }
 
 export interface ApplicationActions {
   memories: MemoryService
   goals: GoalService
+  companionGoals?: CompanionGoalActions
   reminders: ReminderActions
   companion?: CompanionActions
   backup?: BackupActions
@@ -164,6 +172,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     CONFLICT: '记录状态已变化，请刷新后重试。',
     STORAGE_ERROR: '本地数据暂不可用，请重试。',
     BACKUP_INVALID: '所选备份无效、已损坏或与当前版本不兼容；本地数据未做任何更改。',
+    SCHEMA_UPGRADE_REQUIRED: '本地数据需要完成版本升级后才能处理该事项；请重启应用以完成升级。',
     INTERNAL_ERROR: '请求无法完成。',
     PROVIDER_STORAGE_UNAVAILABLE: '系统安全存储不可用，无法确认 API 密钥状态。聊天已暂停；请重试或重启应用后检查。',
     PROVIDER_CREDENTIAL_STORE_ERROR: '本机 API 凭据无法安全读取，可能已损坏或无权访问。聊天和替换密钥已阻止；请重启应用复查，仍无法读取时可在确认后删除本机密钥并重新设置。',
@@ -185,6 +194,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
 function toFailure(error: unknown): IpcResult<never> {
   if (error instanceof InputValidationError || error instanceof GoalValidationError || error instanceof ReminderValidationError) return failure('INVALID_INPUT')
 
+  if (error instanceof PendingSchemaUnavailableError) return failure('SCHEMA_UPGRADE_REQUIRED')
   if (error instanceof ApplicationError) return failure(error.code)
   return failure('INTERNAL_ERROR')
 }
@@ -235,6 +245,12 @@ export function createIpcHandlers(
     [IPC_CHANNELS.goalsCancelTask]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTaskIdRequest, ({ taskId }) => actions.goals.cancelTask(taskId)),
     [IPC_CHANNELS.goalsStop]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.stop(goalId)),
     [IPC_CHANNELS.goalsDelete]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.delete(goalId)),
+    ...(actions.companionGoals ? {
+      [IPC_CHANNELS.companionGoalsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.list()),
+      [IPC_CHANNELS.companionGoalCandidatesList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.listCandidates()),
+      [IPC_CHANNELS.companionGoalCandidateAccept]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'accept')),
+      [IPC_CHANNELS.companionGoalCandidateReject]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'reject'))
+    } : {}),
     [IPC_CHANNELS.remindersSnapshot]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.reminders.snapshot()),
     [IPC_CHANNELS.remindersSaveSettings]: (event, payload) => execute(event, trustedRendererUrl, payload, parseReminderSettingsRequest, (request) => actions.reminders.saveSettings(request)),
     [IPC_CHANNELS.remindersPause]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.reminders.pause()),
@@ -262,7 +278,6 @@ export function createIpcHandlers(
     } : {}),
     ...(actions.continuity ? {
       [IPC_CHANNELS.pendingItemsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.continuity!.listPendingItems()),
-      [IPC_CHANNELS.pendingItemsComplete]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemIdRequest, (request) => actions.continuity!.completePendingItem(request)),
       [IPC_CHANNELS.pendingItemsDecide]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemDecisionRequest, (request) => actions.continuity!.decidePendingItem(request)),
       [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
     } : {}),

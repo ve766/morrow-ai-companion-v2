@@ -1,0 +1,90 @@
+{
+  "suite": "stage-4-ci-closure",
+  "task": "Issue #44",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "feat/stage-4-companion-confirmation-closure",
+  "base": "release/morrow-v2-final-delivery",
+  "baseCommit": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "pr": 40,
+  "codeSha": "294dcd50c64ee5af2d99cca47dd8a0e6669539b8",
+  "evidenceHeadSha": "9384eb9781341c8434605f2e15bd1a3cbb2ef615",
+  "relationship": "codeSha is the commit under test; evidenceHeadSha is the documentation/evidence head after the CI run. They differ only by the docs commit.",
+  "generatedAt": "2026-11-03T16:25:20Z",
+  "historicalResult": {
+    "file": "evals/stage-4-companion-confirmation/results/20261103T154342Z-294dcd50c64ee5af2d99cca47dd8a0e6669539b8.json",
+    "note": "Its ci.status=PENDING is the state when it was generated, before CI finished. It is preserved unchanged; this closure record is the post-CI fact."
+  },
+  "ci": {
+    "runId": 41667548702,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41667548702",
+    "headSha": "9384eb9781341c8434605f2e15bd1a3cbb2ef615",
+    "conclusion": "success",
+    "collectedAt": "2026-11-03T16:25:20Z",
+    "jobs": [
+      {
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "testEvidence": {
+    "codeSha": "294dcd50c64ee5af2d99cca47dd8a0e6669539b8",
+    "full": {
+      "command": "npx vitest run",
+      "files": 111,
+      "tests": 1042,
+      "passed": 1042,
+      "failed": 0
+    },
+    "targeted": {
+      "command": "targeted 7 files",
+      "tests": 85,
+      "passed": 85,
+      "failed": 0
+    },
+    "note": "Test counts belong to codeSha 294dcd5; CI above ran on evidenceHeadSha 9384eb9 (code + docs only)."
+  },
+  "findings": {
+    "A-required-goal-audit": {
+      "status": "FIXED",
+      "testCaseCount": 5,
+      "tests": [
+        "rolls accept back when the audit write throws",
+        "rolls reject and source-unavailable back when the audit write throws",
+        "treats a duplicate audit result as written only when the event exists",
+        "writes exactly one audit event per terminal decision, not one per replay",
+        "cannot be constructed without the audit sink (compile-time contract)"
+      ]
+    },
+    "B-real-startup-composition": {
+      "status": "FIXED",
+      "testCaseCount": 3,
+      "tests": [
+        "runs the production startup reflection and routes its finding to SQLite",
+        "does not create a pending item when startup produces no finding",
+        "leaves no route/pending/audit partial state when startup ingestion fails"
+      ]
+    }
+  },
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "localElectronSmoke": "BLOCKED_ENV",
+    "note": "CI smoke succeeded on ubuntu/windows; this does not replace real-machine install/upgrade or human review."
+  },
+  "notRun": [],
+  "notes": [
+    "No production code, tests, schema or algorithm changed in Issue #44.",
+    "PR #40 remains OPEN and unmerged.",
+    "Old machine results and historical sections remain unchanged."
+  ]
+}

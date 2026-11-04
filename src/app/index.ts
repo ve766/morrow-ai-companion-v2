@@ -6,10 +6,8 @@ import type { ApprovalChallenge } from '../motivation/goals'
 import type { ProviderConsent, ProviderConsentPreview } from '../providers/provider-policy'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
-import { MemoryService } from '../memory/memory-service'
-import { MemoryImportanceService, ARCHIVE_THRESHOLD } from '../memory/memory-importance'
+import { ARCHIVE_THRESHOLD } from '../memory/memory-importance'
 import { MemoryMaintenanceScheduler } from '../memory/memory-maintenance'
-import { FactMemoryService } from '../memory/fact-memory'
 import { RelationshipThreadService } from '../relationship/relationship-threads'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
@@ -20,21 +18,17 @@ import { EventLogService } from '../persistence/event-log'
 import { SqliteGoalRepository } from '../persistence/goal-repository'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteConversationRepository } from '../persistence/conversation-repository'
-import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
-import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
-import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
 import { PersonalizationService } from '../personalization/personalization-service'
 import { PersonalityGrowthService } from '../personalization/personality-growth'
-import { ReflectionFindingRouter } from '../cognition/reflection-routing'
+import { composeStartupReflectionServices, runStartupReflection } from './startup-composition'
 import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
 import { CompanionGoalService } from '../motivation/companion-goal'
 import { UserInteractionProfileService } from '../personalization/interaction-profile'
-import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
-import { PendingCognitionService, runBounded } from '../cognition/pending-items'
-import { SqlitePendingItemRepository, SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
+import { PendingSchemaUnavailableError, runBounded } from '../cognition/pending-items'
+import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../persistence/turn-state-repository'
 import { IntentReadingRepository } from '../persistence/intent-reading-repository'
 import { ApplicationError } from '../shared/errors'
@@ -197,19 +191,18 @@ if (hasSingleInstanceLock) {
     database = SqliteDatabase.open(databasePath)
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
-    // Stage 3 §2A: importance is recomputed on every memory change; decay only
-    // archives memories that are both low-importance and 180 days untouched, so
-    // a recently used memory is never pushed out by age alone.
-    const memoryImportance = new MemoryImportanceService(database)
+    // Issue #43: the reflection dependency graph is composed by the same
+    // production function the startup integration test calls. This is the real
+    // bootstrap boundary, not a test-only copy.
+    const startup = composeStartupReflectionServices(database, eventLog)
+    const { memoryImportance, factMemory, memories, interests, selfModel, reflection, pendingItems, findingRouter } = startup
     // P0-A: the addressable fact layer, rebuilt from the memories at start
     // (idempotent) and kept current by the MemoryService lifecycle hooks.
-    const factMemory = new FactMemoryService({ database })
     try {
       factMemory.reindexAll()
     } catch {
       logger.warn('memory', 'fact index catch-up failed; attribute lookups degrade until the next pass')
     }
-    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog, { importance: memoryImportance, factIndex: factMemory })
     // D-12: a lifecycle-controlled scheduler replaces the startup-only pass.
     // It catches up now (the old behaviour), then runs on an interval decided
     // by absolute time — a long-running process keeps its importance scores
@@ -225,8 +218,6 @@ if (hasSingleInstanceLock) {
     })
     memoryMaintenance.start()
     const conversations = new ConversationService(new SqliteConversationRepository(database))
-    const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
-    const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
     const personalization = new PersonalizationService(database)
     // Stage 3: bounded personality drift and constrained self-initiated topics.
     // Both are evidence-led and reversible; neither can write the baseline the
@@ -246,18 +237,9 @@ if (hasSingleInstanceLock) {
     )
     // §2D: companionship goals live beside the task-execution GoalService, not
     // inside it; see the migration comment for why the two are not merged.
-    const companionGoals = new CompanionGoalService(database)
-    const reflection = new ReflectionService(
-      new SqliteReflectionRepository(database),
-      { memories, interests, selfModel, events: eventLog },
-      eventLog
-    )
+    const companionGoals = new CompanionGoalService(database, eventLog)
     // Phase 2.4: the turn context and the open internal items are persisted
     // beside the conversation, so continuity survives a restart.
-    const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database))
-    // D-10: one ingestion path for reflection findings, shared by the
-    // automatic projector and the manual run below.
-    const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events: eventLog })
     const turnContexts = new SqliteTurnContextRepository(database)
     const finalizations = new SqliteTurnFinalizationRepository(database)
     // Stage 5: relationship continuity threads (user-stated continuity notes).
@@ -292,7 +274,7 @@ if (hasSingleInstanceLock) {
         pending: pendingItems,
         finalizations,
         states: new SqliteTurnStateRepository(database),
-        readings: new IntentReadingRepository(database)
+        readings: new IntentReadingRepository(database, eventLog)
       }
     })
     // Settle any turn that was interrupted between its finalization intent and
@@ -380,8 +362,16 @@ if (hasSingleInstanceLock) {
     reminders.startScheduler()
     // Bounded startup reflection: rate-limited inside the service, findings
     // only, never auto-executed actions.
-    const startupReflection = reflection.run('startup')
-    if ('skipped' in startupReflection) logger.debug('self-model', 'startup reflection skipped', { reason: startupReflection.skipped })
+    // The production startup function (also used by the composition test)
+    // runs reflection and routes findings through the durable ingestion path.
+    const startupReflection = runStartupReflection({ reflection, findingRouter, logger })
+    if (startupReflection.status !== 'ran') {
+      logger.warn('self-model', 'startup reflection did not complete cleanly', {
+        status: startupReflection.status,
+        reason: startupReflection.reason ?? null,
+        recovered: startupReflection.recovered ?? 0
+      })
+    }
     const backup = new BackupService(database, databasePath)
     const backupActions = {
       exportBackup: async (): Promise<BackupExportOutcome> => {
@@ -439,6 +429,7 @@ if (hasSingleInstanceLock) {
     unregisterIpc = registerIpcHandlers({ getAppInfo }, trustedRendererUrl, {
       memories,
       goals,
+      companionGoals,
       reminders,
       companion,
       backup: backupActions,
@@ -446,7 +437,6 @@ if (hasSingleInstanceLock) {
       // each turn actually read. Marking an item done is the only mutation.
       continuity: {
         listPendingItems: () => pendingItems.listOpen(),
-        completePendingItem: (request) => pendingItems.complete(request.itemId),
         decidePendingItem: (request) => pendingItems.decide(request.itemId, request.decision),
         readTurnContext: (request) => turnContexts.get(request.turnId)
       },
@@ -469,11 +459,16 @@ if (hasSingleInstanceLock) {
             if (!('skipped' in summary)) {
               findingRouter.ingestRun(summary.id, reflection.findings(summary.id))
             }
+            const recovered = findingRouter.recoverUnrouted()
+            if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
             return summary
           }, { budgetMs: 2_000 })
           if (outcome.status === 'completed' && outcome.value) return outcome.value
           // The pass never started, so reporting it as completed would be a lie.
           if (outcome.status === 'skipped') return { skipped: 'budget_exhausted' as const }
+          if (outcome.status === 'failed' && outcome.error instanceof PendingSchemaUnavailableError) {
+            throw new ApplicationError('SCHEMA_UPGRADE_REQUIRED')
+          }
           throw new ApplicationError('STORAGE_ERROR')
         },
         listReflectionRuns: () => reflection.listRuns(),

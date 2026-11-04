@@ -25,8 +25,9 @@ import {
   type SelfModelCorrectRequest,
   type SelfModelIdRequest,
   type ReflectionFindingsRequest,
-  type PendingItemIdRequest,
   type PendingItemDecisionRequest,
+  type GoalCandidateIdRequest,
+  type PendingDecisionResult,
   type ProviderGetRequest,
   type TurnContextRequest
 } from '../shared/contracts'
@@ -49,6 +50,7 @@ import type {
   ProviderConnectionResult
 } from '../shared/companion'
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
@@ -100,8 +102,7 @@ const bridge: MorrowBridge = Object.freeze({
   }),
   continuity: Object.freeze({
     listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),
-    completePendingItem: (request: PendingItemIdRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsComplete, request),
-    decidePendingItem: (request: PendingItemDecisionRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsDecide, request),
+    decidePendingItem: (request: PendingItemDecisionRequest) => invoke<PendingDecisionResult>(IPC_CHANNELS.pendingItemsDecide, request),
     readTurnContext: (request: TurnContextRequest) => invoke<CognitiveTurnContext | null>(IPC_CHANNELS.turnContextRead, request)
   }),
   chat: Object.freeze({
@@ -139,6 +140,12 @@ const bridge: MorrowBridge = Object.freeze({
     cancelTask: (request: TaskIdRequest) => invoke<TaskRecord>(IPC_CHANNELS.goalsCancelTask, request),
     stop: (request: GoalIdRequest) => invoke<GoalRecord>(IPC_CHANNELS.goalsStop, request),
     delete: (request: GoalIdRequest) => invoke<void>(IPC_CHANNELS.goalsDelete, request)
+  }),
+  companionGoals: Object.freeze({
+    listGoals: () => invoke<CompanionGoal[]>(IPC_CHANNELS.companionGoalsList),
+    listCandidates: () => invoke<CompanionGoalCandidate[]>(IPC_CHANNELS.companionGoalCandidatesList),
+    acceptCandidate: (request: GoalCandidateIdRequest) => invoke<GoalCandidateDecisionResult>(IPC_CHANNELS.companionGoalCandidateAccept, request),
+    rejectCandidate: (request: GoalCandidateIdRequest) => invoke<GoalCandidateDecisionResult>(IPC_CHANNELS.companionGoalCandidateReject, request)
   }),
   reminders: Object.freeze({
     getSnapshot: () => invoke<ReminderSnapshot>(IPC_CHANNELS.remindersSnapshot),

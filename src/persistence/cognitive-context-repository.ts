@@ -7,7 +7,9 @@
  */
 import type { SqliteDatabase } from './database'
 import type { CognitiveTurnContext } from '../cognition/turn-context'
-import type { PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
+import type { PendingAuditSink, PendingDecision, PendingDecisionResult, PendingItem, PendingItemDraft, PendingItemStatus } from '../cognition/pending-items'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
+import { concernDigestOf, legacyConcernDigestOf } from '../self-model/reflection-concern'
 import { isCognitiveTurnContext, normalizeTurnContext } from '../cognition/turn-context'
 export interface TurnContextPort {
   /** Insert, or replace a record that did not reach a successful outcome. */
@@ -21,8 +23,8 @@ export interface PendingItemPort {
   upsert(draft: PendingItemDraft): PendingItem
   get(id: string): PendingItem | null
   list(options?: { status?: PendingItemStatus; limit?: number }): PendingItem[]
-  /** Marks an item done. Returns false when it does not exist. */
-  complete(id: string, completedAt: string): boolean
+  decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult
+  resolveSystem(id: string, reason: string, at: string): PendingDecisionResult
   findByDedupeKey(dedupeKey: string): PendingItem | null
 }
 
@@ -94,6 +96,8 @@ interface PendingRow {
   summary: string
   priority: number
   status: string
+  finding_id: string | null
+  decision: string | null
   conversation_id: string | null
   detail_json: string
   created_at: string
@@ -117,6 +121,8 @@ function mapPending(row: PendingRow): PendingItem {
     summary: row.summary,
     priority: row.priority,
     status: row.status as PendingItemStatus,
+    findingId: row.finding_id ?? null,
+    decision: (row.decision as PendingItem['decision']) ?? null,
     conversationId: row.conversation_id,
     detail,
     createdAt: row.created_at,
@@ -126,14 +132,23 @@ function mapPending(row: PendingRow): PendingItem {
 }
 
 export class SqlitePendingItemRepository implements PendingItemPort {
-  constructor(private readonly database: SqliteDatabase) {}
+  constructor(
+    private readonly database: SqliteDatabase,
+    private readonly events: PendingAuditSink
+  ) {}
+
+  /** v48 added the columns the Stage 4 writes need. */
+  private assertStage4Writable(): void {
+    if (this.database.schemaVersion < 48) throw new PendingSchemaUnavailableError()
+  }
 
   upsert(draft: PendingItemDraft): PendingItem {
+    this.assertStage4Writable()
     // A finished item stays finished: re-observing the same concern must not
     // reopen it, otherwise a resolved conflict would reappear every turn.
     this.database.connection.prepare(`
-      INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL)
+      INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, finding_id, conversation_id, detail_json, created_at, updated_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(dedupe_key) DO UPDATE SET
         updated_at = excluded.updated_at,
         priority = CASE WHEN cognitive_pending_items.status = 'done'
@@ -152,6 +167,7 @@ export class SqlitePendingItemRepository implements PendingItemPort {
       draft.kind,
       draft.summary,
       draft.priority,
+      draft.findingId ?? null,
       draft.conversationId,
       JSON.stringify(draft.detail),
       draft.createdAt,
@@ -184,21 +200,214 @@ export class SqlitePendingItemRepository implements PendingItemPort {
     return rows.map(mapPending)
   }
 
-  complete(id: string, completedAt: string): boolean {
-    const updated = this.database.connection.prepare(
-      "UPDATE cognitive_pending_items SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
-    ).run(completedAt, completedAt, id)
-    // Idempotent: completing an already-done item is not an error.
-    if (updated.changes === 1) return true
-    return this.get(id)?.status === 'done'
+  /**
+   * BL-02: one transaction updates the item, its reflection route terminal
+   * state and the audit event. A same-decision replay is unchanged; the
+   * opposite decision after a terminal state is a conflict, never a silent
+   * overwrite.
+   *
+   * New items carry finding_id and MUST have a mutable route: a missing or
+   * already-terminal route fails the transaction (item and audit roll back).
+   *
+   * Legacy items (finding_id NULL, written before v48) are resolved by concern:
+   * the item's stored statement digest is matched against the findings behind
+   * mutable routes. A unique/complete match converges those routes; no match is
+   * recorded honestly as `routeResolution: 'unresolved'` with
+   * `routeStatus: null` instead of pretending a route was consumed. Nothing is
+   * guessed from an ambiguous statement.
+   */
+  decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult {
+    const audit = this.events?.recordDeterministic?.bind(this.events)
+    if (!audit) throw new Error('PENDING_AUDIT_UNAVAILABLE')
+    this.assertStage4Writable()
+    return this.database.transaction(() => {
+      const item = this.get(id)
+      if (!item) return { status: 'not_found' as const }
+      const itemStatus = decision === 'accepted' ? 'done' as const : 'dropped' as const
+      if (item.status !== 'open') {
+        if (item.decision === decision) return { status: 'unchanged' as const, decision }
+        return { status: 'conflict' as const, current: item.decision }
+      }
+
+      const routeStatus: 'consumed' | 'rejected' | 'dismissed' =
+        decision === 'accepted' ? 'consumed' : decision === 'rejected' ? 'rejected' : 'dismissed'
+      if (item.findingId) {
+        const route = this.database.connection.prepare(
+          'SELECT status FROM reflection_finding_routes WHERE finding_id = ?'
+        ).get(item.findingId) as { status: string } | undefined
+        if (!route) throw new Error('PENDING_ROUTE_MISSING')
+        if (!['routed', 'injected', 'used_observed', 'not_observed'].includes(route.status)) {
+          throw new Error('PENDING_ROUTE_STATE_CONFLICT')
+        }
+      }
+
+      const updated = this.database.connection.prepare(
+        "UPDATE cognitive_pending_items SET status = ?, decision = ?, completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
+      ).run(itemStatus, decision, at, at, id)
+      if (updated.changes !== 1) {
+        const current = this.get(id)
+        if (current?.decision === decision) return { status: 'unchanged' as const, decision }
+        return { status: 'conflict' as const, current: current?.decision ?? null }
+      }
+
+      let routesUpdated = 0
+      let routeResolution: 'linked' | 'linked_with_siblings' | 'resolved_by_concern' | 'unresolved' = 'unresolved'
+      if (item.findingId) {
+        const routeUpdated = this.database.connection.prepare(
+          "UPDATE reflection_finding_routes SET status = ?, reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected', 'used_observed', 'not_observed')"
+        ).run(routeStatus, `user decision: ${decision}`.slice(0, 200), at, item.findingId)
+        if (Number(routeUpdated.changes) !== 1) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated = 1
+        routeResolution = 'linked'
+      }
+      // A legacy item adopted by a post-upgrade re-observation points at the
+      // newest finding, while the original finding's route still exists. Both
+      // routes describe the same concern and must reach the same terminal
+      // state; the audit records how many were converged.
+      const siblings = this.resolveLegacyRoutes(item, routeStatus, decision, at)
+      if (siblings.matched > 0) {
+        if (siblings.updated !== siblings.matched) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated += siblings.updated
+        if (siblings.updated > 0) {
+          routeResolution = item.findingId ? 'linked_with_siblings' : 'resolved_by_concern'
+        }
+      }
+
+      // The audit event is inside the same transaction: a failure rolls back
+      // the item and the route with it. Payload carries ids and states only.
+      // `routeStatus` is null when no route could be proven; the event must not
+      // claim a convergence that did not happen.
+      audit(`pending-decision:${id}:${decision}`, {
+        sourceModule: 'cognition',
+        eventType: 'pending.decision',
+        actor: 'user',
+        subjectType: 'pending_item',
+        subjectId: id,
+        correlationId: item.findingId,
+        payload: {
+          decision,
+          itemStatus,
+          routeStatus: routesUpdated > 0 ? routeStatus : null,
+          routeResolution,
+          routesUpdated,
+          source: item.source
+        }
+      })
+      return { status: 'decided' as const, decision, itemStatus }
+    })
   }
 
-  drop(id: string, completedAt: string): boolean {
-    const updated = this.database.connection.prepare(
-      "UPDATE cognitive_pending_items SET status = 'dropped', completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
-    ).run(completedAt, completedAt, id)
-    if (updated.changes === 1) return true
-    return this.get(id)?.status === 'dropped'
+  /**
+   * System-driven closure of an open item (the user withdrew the request that
+   * created it). This is still a decision, not a status edit: it writes
+   * `decision='dismissed'`, converges the same concern's routes and records
+   * `pending.system_dismissed` with actor `system`. No caller may close an item
+   * without this transaction.
+   */
+  resolveSystem(id: string, reason: string, at: string): PendingDecisionResult {
+    const audit = this.events?.recordDeterministic?.bind(this.events)
+    if (!audit) throw new Error('PENDING_AUDIT_UNAVAILABLE')
+    this.assertStage4Writable()
+    return this.database.transaction(() => {
+      const item = this.get(id)
+      if (!item) return { status: 'not_found' as const }
+      if (item.status !== 'open') {
+        if (item.decision === 'dismissed') return { status: 'unchanged' as const, decision: 'dismissed' as const }
+        return { status: 'conflict' as const, current: item.decision }
+      }
+      if (item.findingId) {
+        const route = this.database.connection.prepare(
+          'SELECT status FROM reflection_finding_routes WHERE finding_id = ?'
+        ).get(item.findingId) as { status: string } | undefined
+        if (!route) throw new Error('PENDING_ROUTE_MISSING')
+        if (!['routed', 'injected', 'used_observed', 'not_observed'].includes(route.status)) {
+          throw new Error('PENDING_ROUTE_STATE_CONFLICT')
+        }
+      }
+
+      const updated = this.database.connection.prepare(
+        "UPDATE cognitive_pending_items SET status = 'dropped', decision = 'dismissed', completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
+      ).run(at, at, id)
+      if (updated.changes !== 1) throw new Error('PENDING_DECISION_CONFLICT')
+
+      let routesUpdated = 0
+      let routeResolution: 'linked' | 'linked_with_siblings' | 'resolved_by_concern' | 'unresolved' = 'unresolved'
+      if (item.findingId) {
+        const routeUpdated = this.database.connection.prepare(
+          "UPDATE reflection_finding_routes SET status = 'dismissed', reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected', 'used_observed', 'not_observed')"
+        ).run(`system decision: ${reason}`.slice(0, 200), at, item.findingId)
+        if (Number(routeUpdated.changes) !== 1) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated = 1
+        routeResolution = 'linked'
+      }
+      const siblings = this.resolveLegacyRoutes(item, 'dismissed', 'dismissed', at)
+      if (siblings.matched > 0) {
+        if (siblings.updated !== siblings.matched) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated += siblings.updated
+        if (siblings.updated > 0) {
+          routeResolution = item.findingId ? 'linked_with_siblings' : 'resolved_by_concern'
+        }
+      }
+
+      audit(`pending-system-dismissed:${id}`, {
+        sourceModule: 'cognition',
+        eventType: 'pending.system_dismissed',
+        actor: 'system',
+        subjectType: 'pending_item',
+        subjectId: id,
+        correlationId: item.findingId,
+        payload: {
+          decision: 'dismissed',
+          itemStatus: 'dropped',
+          reason: reason.slice(0, 120),
+          routeStatus: routesUpdated > 0 ? 'dismissed' : null,
+          routeResolution,
+          routesUpdated,
+          source: item.source
+        }
+      })
+      return { status: 'decided' as const, decision: 'dismissed' as const, itemStatus: 'dropped' as const }
+    })
+  }
+
+  /**
+   * Resolves the routes of a pre-v48 item from the concern it stored.
+   *
+   * The item key is `reflection:<kind>:<16-hex digest>`; the digest is matched
+   * against the statement behind each mutable route. Multiple matches are all
+   * the same concern (same statement) and are all converged; zero matches stay
+   * untouched and are reported as unresolved. A key that is not a reflection
+   * key is never guessed.
+   */
+  private resolveLegacyRoutes(
+    item: PendingItem,
+    routeStatus: 'consumed' | 'rejected' | 'dismissed',
+    decision: PendingDecision,
+    at: string
+  ): { matched: number; updated: number } {
+    const parsed = /^reflection:(.+):([0-9a-f]{16})$/u.exec(item.dedupeKey)
+    if (!parsed) return { matched: 0, updated: 0 }
+    const kind = parsed[1]!
+    const digest = parsed[2]!
+    const rows = this.database.connection.prepare(`
+      SELECT r.finding_id, f.statement
+      FROM reflection_finding_routes r
+      JOIN reflection_findings f ON f.id = r.finding_id
+      WHERE f.kind = ?
+        AND r.status IN ('routed', 'injected', 'used_observed', 'not_observed')
+      ORDER BY r.finding_id
+    `).all(kind) as Array<{ finding_id: string; statement: string }>
+    const matches = rows.filter((row) =>
+      concernDigestOf(row.statement) === digest || legacyConcernDigestOf(row.statement) === digest
+    )
+    let updated = 0
+    for (const row of matches) {
+      const result = this.database.connection.prepare(
+        "UPDATE reflection_finding_routes SET status = ?, reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected', 'used_observed', 'not_observed')"
+      ).run(routeStatus, `user decision: ${decision}`.slice(0, 200), at, row.finding_id)
+      updated += Number(result.changes)
+    }
+    return { matched: matches.length, updated }
   }
 }
 

@@ -157,10 +157,10 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     clock
   )
   const exploration = new ExplorationService(database, clock)
-  const goals = new CompanionGoalService(database, clock)
+  const goals = new CompanionGoalService(database, eventLog, clock)
   // D-10: the harness wires the same finding router the app does, so an
   // automatic run and a manual run leave the same durable traces.
-  const findingRouter = new ReflectionFindingRouter({ database, pending: new PendingCognitionService(new SqlitePendingItemRepository(database)), events: eventLog, clock: clock ?? undefined })
+  const findingRouter = new ReflectionFindingRouter({ database, pending: new PendingCognitionService(new SqlitePendingItemRepository(database, eventLog)), events: eventLog, clock: clock ?? undefined })
   const relationships = new RelationshipThreadService({ database, clock: clock ?? undefined, events: eventLog })
   const companion = new CompanionService({
     database,
@@ -200,10 +200,10 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     ...(clock ? { clock } : {}),
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database, eventLog)),
       finalizations: new SqliteTurnFinalizationRepository(database),
       states: new SqliteTurnStateRepository(database),
-      readings: new IntentReadingRepository(database)
+      readings: new IntentReadingRepository(database, eventLog)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })
@@ -212,7 +212,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     companion,
     memories,
     provider,
-    readings: new IntentReadingRepository(database),
+    readings: new IntentReadingRepository(database, eventLog),
     database,
     interests,
     reflection,
