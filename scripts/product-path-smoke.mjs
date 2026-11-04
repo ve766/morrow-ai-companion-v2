@@ -521,7 +521,7 @@ try {
   activeClient = started.client
   const finalState = await activeClient.evaluate(`(async () => {
     const list = await window.morrow.providers.listProfiles()
-    const continuity = ${continuityScript}
+    const continuity = await ${continuityScript}
     if (!list.ok) throw new Error('Final profile list failed.')
     return {
       profiles: list.data.map((profile) => ({ id: profile.id, enabled: profile.enabled, apiKeyConfigured: profile.apiKeyConfigured })),
