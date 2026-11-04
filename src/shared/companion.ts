@@ -21,7 +21,63 @@ export const SPARK_PROVIDER_ID = 'spark' as const
 export const SPARK_MAAS_BASE_URL = 'https://maas-api.cn-huabei-1.xf-yun.com/v2'
 
 export type ProviderId = typeof DEEPSEEK_PROVIDER_ID | typeof LOCAL_PROVIDER_ID | typeof SPARK_PROVIDER_ID
+/** A user-created profile id; built-in ids keep their legacy values. */
+export type ProviderProfileId = string
 export type ProviderClassKind = 'remote' | 'local'
+export type ProviderSourceKind = 'official' | 'custom-proxy' | 'local' | 'private-network'
+export type ProviderProtocolId = 'openai-chat-completions' | 'anthropic-messages' | 'ollama-native'
+export type ProviderHealthStatus =
+  | 'connected'
+  | 'auth_failed'
+  | 'model_not_found'
+  | 'quota'
+  | 'timeout'
+  | 'network'
+  | 'protocol'
+  | 'unknown'
+
+/** declared ≠ probed ≠ verified; only a real request may set verified. */
+export interface ProviderCapability {
+  declared: boolean
+  probed: boolean
+  verified: boolean
+}
+
+export interface ProviderCapabilities {
+  streaming: ProviderCapability
+  vision: ProviderCapability
+  toolCalling: ProviderCapability
+  jsonMode: ProviderCapability
+  systemRole: ProviderCapability
+}
+
+export interface ProviderHealth {
+  status: ProviderHealthStatus
+  testedAt: string
+  latencyMs: number
+  /** Stable digest of the endpoint; never the full URL with query data. */
+  endpointDigest: string
+  model: string
+  httpStatus: number | null
+  attempts: number | null
+}
+
+export interface ProviderConfigRecord {
+  id: ProviderProfileId
+  displayName?: string
+  sourceKind?: ProviderSourceKind
+  protocolId?: ProviderProtocolId
+  providerClass: ProviderClassKind
+  endpoint: string
+  endpointPath?: string | null
+  model: string
+  enabled: boolean
+  isDefault?: boolean
+  apiKeyConfigured: boolean
+  capabilities?: ProviderCapabilities
+  lastTest?: ProviderHealth | null
+  updatedAt: string
+}
 
 export type Sensitivity = 'normal' | 'personal' | 'sensitive'
 export type PersonalityDisagreementStyle = 'gentle' | 'balanced' | 'direct'
@@ -85,16 +141,6 @@ export interface AssembledMemoryContext {
   conflicts?: ContextConflict[]
 }
 
-export interface ProviderConfigRecord {
-  id: ProviderId
-  providerClass: ProviderClassKind
-  endpoint: string
-  model: string
-  enabled: boolean
-  apiKeyConfigured: boolean
-  updatedAt: string
-}
-
 export interface DeepSeekProviderConfigInput {
   providerId: ProviderId
   model: string
@@ -120,8 +166,37 @@ export interface SparkProviderConfigInput {
 
 export type ProviderConfigInput = DeepSeekProviderConfigInput | LocalProviderConfigInput | SparkProviderConfigInput
 
+/** Create or update a user-defined profile (custom remote or local). */
+export interface ProviderProfileSaveInput {
+  profileId?: ProviderProfileId
+  displayName: string
+  sourceKind: ProviderSourceKind
+  protocolId: 'openai-chat-completions'
+  endpoint: string
+  endpointPath?: string | null
+  model: string
+  enabled: boolean
+  isDefault?: boolean
+  apiKey?: string
+}
+
+export interface ProviderProfileIdRequest {
+  profileId: ProviderProfileId
+}
+
+export interface ProviderModelsRequest {
+  profileId: ProviderProfileId
+}
+
+export interface ProviderModelsResult {
+  profileId: ProviderProfileId
+  models: string[]
+  source: 'discovered' | 'manual'
+  discoveredAt: string
+}
+
 export interface ProviderConnectionRequest {
-  providerId: ProviderId
+  providerId: ProviderProfileId
 }
 
 export interface PersonalityInput {
@@ -157,7 +232,7 @@ export interface ChatRequest {
 
 export interface ChatPreview {
   action: 'chat' | 'connection-test' | 'memory-proposal'
-  providerId: ProviderId
+  providerId: ProviderProfileId
   endpoint: string
   model: string
   payloadSha256: string
@@ -170,7 +245,7 @@ export interface MemoryProposalPreview {
   action: 'memory-proposal'
   conversationId: string
   sourceMessageId: string
-  providerId: ProviderId
+  providerId: ProviderProfileId
   endpoint: string
   model: string
   payloadSha256: string
@@ -193,9 +268,13 @@ export interface ChatStreamEvent {
 }
 
 export interface ProviderConnectionResult {
-  providerId: ProviderId
+  providerId: ProviderProfileId
   model: string
   connected: boolean
+  status?: ProviderHealthStatus
+  latencyMs?: number
+  attempts?: number
+  endpointDigest?: string
 }
 
 

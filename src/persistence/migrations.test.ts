@@ -574,7 +574,7 @@ describe('v48 pending decision terminal state', () => {
 
       // v48 columns do not exist yet.
       expect(connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)).not.toContain('finding_id')
-      expect(applyMigrations(connection)).toBe(48)
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
 
       const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
       expect(columns).toContain('finding_id')
@@ -604,6 +604,206 @@ describe('v48 pending decision terminal state', () => {
       expect(database.connection.prepare('SELECT status FROM cognitive_pending_items WHERE id = ?').get(doneId)).toEqual({ status: 'done' })
     } finally {
       database.close()
+    }
+  })
+})
+
+
+describe('v49 provider multi-source profiles final', () => {
+  const capabilities = '{"streaming":{"declared":true,"probed":false,"verified":false},"vision":{"declared":false,"probed":false,"verified":false},"toolCalling":{"declared":false,"probed":false,"verified":false},"jsonMode":{"declared":false,"probed":false,"verified":false},"systemRole":{"declared":true,"probed":false,"verified":false}}'
+
+  function seedReleaseProviders(connection: DatabaseSync): void {
+    connection.prepare("INSERT OR REPLACE INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('deepseek', 'remote', 'https://api.deepseek.com', 'deepseek-flash', 1, ?)").run(timestamp)
+    connection.prepare("INSERT OR REPLACE INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('spark', 'remote', 'https://maas-api.cn-huabei-1.xf-yun.com/v2', 'spark-x2', 0, ?)").run(timestamp)
+    connection.prepare("INSERT OR REPLACE INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('local-openai', 'local', 'http://127.0.0.1:1234/v1', 'local-model', 1, ?)").run(timestamp)
+  }
+
+  function applyProviderV48(connection: DatabaseSync): void {
+    connection.exec(`
+      CREATE TABLE provider_profiles_v48 (
+        id TEXT PRIMARY KEY NOT NULL CHECK (
+          length(id) BETWEEN 1 AND 64 AND id NOT GLOB '*[^a-z0-9-]*'
+        ),
+        display_name TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 1 AND 80),
+        source_kind TEXT NOT NULL CHECK (source_kind IN ('official', 'custom-proxy', 'local', 'private-network')),
+        protocol_id TEXT NOT NULL CHECK (protocol_id IN ('openai-chat-completions', 'anthropic-messages', 'ollama-native')),
+        provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+        endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 8 AND 2000),
+        endpoint_path TEXT CHECK (
+          endpoint_path IS NULL OR (length(endpoint_path) BETWEEN 1 AND 300 AND substr(endpoint_path, 1, 1) = '/')
+        ),
+        model TEXT NOT NULL CHECK (length(model) BETWEEN 1 AND 128),
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+        capabilities_json TEXT NOT NULL,
+        last_test_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO provider_profiles_v48(
+        id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+        model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+      )
+        SELECT id,
+               CASE id WHEN 'deepseek' THEN 'DeepSeek'
+                       WHEN 'spark' THEN 'iFlytek Spark'
+                       ELSE 'Local OpenAI' END,
+               CASE id WHEN 'local-openai' THEN 'local' ELSE 'official' END,
+               'openai-chat-completions',
+               provider_class,
+               endpoint,
+               NULL,
+               model,
+               enabled,
+               0,
+               '${capabilities}',
+               NULL,
+               updated_at,
+               updated_at
+        FROM provider_profiles;
+      DROP TABLE provider_profiles;
+      ALTER TABLE provider_profiles_v48 RENAME TO provider_profiles;
+      CREATE UNIQUE INDEX provider_profiles_default_uq
+        ON provider_profiles(is_default) WHERE is_default = 1;
+      INSERT INTO schema_migrations(version, name, applied_at)
+        VALUES (48, 'provider-multi-source-profiles', '2026-11-04T00:00:00.000Z');
+    `)
+    connection.prepare(`INSERT INTO provider_profiles(
+      id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+      model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+    ) VALUES ('custom-proxy-a', 'Custom A', 'custom-proxy', 'openai-chat-completions', 'remote',
+      'https://relay.example.com', '/v1', 'relay-model', 1, 1, ?, ?, ?, ?)`).run(capabilities, JSON.stringify({ status: 'connected', at: timestamp }), timestamp, timestamp)
+  }
+
+  it('upgrades a release v47 database and preserves every built-in profile', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-release-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 47)).toBe(47)
+      seedReleaseProviders(connection)
+      expect(applyMigrations(connection)).toBe(49)
+
+      const rows = connection.prepare('SELECT id, display_name, source_kind, protocol_id, endpoint, endpoint_path, model, enabled, is_default FROM provider_profiles ORDER BY id').all() as Array<Record<string, unknown>>
+      expect(rows).toEqual([
+        { id: 'deepseek', display_name: 'DeepSeek', source_kind: 'official', protocol_id: 'openai-chat-completions', endpoint: 'https://api.deepseek.com', endpoint_path: null, model: 'deepseek-flash', enabled: 1, is_default: 0 },
+        { id: 'local-openai', display_name: 'Local OpenAI', source_kind: 'local', protocol_id: 'openai-chat-completions', endpoint: 'http://127.0.0.1:1234/v1', endpoint_path: null, model: 'local-model', enabled: 1, is_default: 0 },
+        { id: 'spark', display_name: 'iFlytek Spark', source_kind: 'official', protocol_id: 'openai-chat-completions', endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2', endpoint_path: null, model: 'spark-x2', enabled: 0, is_default: 0 }
+      ])
+      const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
+      expect(columns).toContain('finding_id')
+      expect(columns).toContain('decision')
+      expect(connection.prepare('SELECT name FROM schema_migrations WHERE version = 48').get()).toEqual({ name: 'pending-decision-terminal-state' })
+      expect(connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('upgrades a Stage 4 v48 database without losing pending or provider data', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-stage4-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      expect(applyMigrations(connection, 48)).toBe(48)
+      connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage4:key', 'reflection', 'intent_correction', 'kept', 40, 'open', NULL, '{}', ?, ?, NULL)").run(timestamp, timestamp)
+
+      expect(applyMigrations(connection)).toBe(49)
+      expect(connection.prepare('SELECT status, summary FROM cognitive_pending_items WHERE id = ?').get('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).toEqual({ status: 'open', summary: 'kept' })
+      expect(connection.prepare("SELECT display_name, source_kind FROM provider_profiles WHERE id = 'deepseek'").get()).toEqual({ display_name: 'DeepSeek', source_kind: 'official' })
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations WHERE version IN (48, 49)').get()).toEqual({ count: 2 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('upgrades a standalone Provider v48 database through the integration bridge', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-provider-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      applyProviderV48(connection)
+      expect(connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)).not.toContain('finding_id')
+
+      expect(applyMigrations(connection)).toBe(49)
+      const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
+      expect(columns).toContain('finding_id')
+      expect(connection.prepare('SELECT name FROM schema_migrations WHERE version = 48').get()).toEqual({ name: 'pending-decision-terminal-state' })
+      expect(connection.prepare("SELECT display_name, endpoint_path, model, is_default FROM provider_profiles WHERE id = 'custom-proxy-a'").get()).toEqual({ display_name: 'Custom A', endpoint_path: '/v1', model: 'relay-model', is_default: 1 })
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 4 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('is idempotent across repeated startups and bridge retries', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-repeat-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      applyProviderV48(connection)
+      expect(applyMigrations(connection)).toBe(49)
+      expect(applyMigrations(connection)).toBe(49)
+      connection.close()
+
+      const reopened = SqliteDatabase.open(path)
+      try {
+        expect(reopened.schemaVersion).toBe(49)
+        expect(reopened.connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 49 })
+        expect(reopened.connection.prepare("SELECT COUNT(*) AS count FROM provider_profiles WHERE id = 'custom-proxy-a'").get()).toEqual({ count: 1 })
+      } finally {
+        reopened.close()
+      }
+    } finally {
+      try { connection.close() } catch { /* already closed */ }
+    }
+  })
+
+  it('rolls back a failed v49 rebuild and can retry after the conflict is removed', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-rollback-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      applyProviderV48(connection)
+      // Remove the provider branch's uniqueness guard and create a second
+      // default: v49's unique index must fail, roll back, and leave v48 intact.
+      connection.exec('DROP INDEX provider_profiles_default_uq')
+      connection.prepare("INSERT INTO provider_profiles(id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path, model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at) VALUES ('custom-proxy-b', 'Custom B', 'custom-proxy', 'openai-chat-completions', 'remote', 'https://relay-b.example.com', NULL, 'relay-b', 1, 1, ?, NULL, ?, ?)").run(capabilities, timestamp, timestamp)
+
+      expect(() => applyMigrations(connection)).toThrow('Database migration failed.')
+      expect(connection.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 48 })
+      expect(connection.prepare('PRAGMA table_info(provider_profiles)').all().map((row) => row.name)).toContain('display_name')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 5 })
+
+      connection.prepare("UPDATE provider_profiles SET is_default = 0 WHERE id = 'custom-proxy-b'").run()
+      expect(applyMigrations(connection)).toBe(49)
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles WHERE is_default = 1').get()).toEqual({ count: 1 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('rejects a provider id longer than the secret store limit at the database boundary', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-id-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection)
+      expect(() => connection.prepare("INSERT INTO provider_profiles(id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path, model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at) VALUES (?, 'Long', 'custom-proxy', 'openai-chat-completions', 'remote', 'https://relay.example.com', NULL, 'm', 1, 0, ?, NULL, ?, ?)").run('a'.repeat(41), capabilities, timestamp, timestamp)).toThrow()
+      expect(connection.prepare("INSERT INTO provider_profiles(id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path, model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at) VALUES (?, 'Ok', 'custom-proxy', 'openai-chat-completions', 'remote', 'https://relay.example.com', NULL, 'm', 1, 0, ?, NULL, ?, ?)").run('a'.repeat(40), capabilities, timestamp, timestamp)).toBeDefined()
+    } finally {
+      connection.close()
     }
   })
 })

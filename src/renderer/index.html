@@ -285,6 +285,52 @@
 
         <!-- 设置视图：Provider/认知/备份。配置与安全集中在这里，不挤占陪伴界面。 -->
         <section class="view" data-view="settings" id="settings-view">
+          <div class="provider-panel panel" id="provider-profiles-card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">MULTI-SOURCE PROVIDERS</p>
+                <h2>模型接入配置</h2>
+              </div>
+              <button id="refresh-provider-profiles" class="button button-quiet button-small" type="button">刷新</button>
+            </div>
+            <p class="companion-disclosure">Provider 是服务来源，协议是通信方式，端点是地址，模型是标识。这里可以添加任意 HTTPS OpenAI-compatible 中转站，或本机回环服务；切换 Provider 不会改变人格、记忆或对话历史。私有网络地址本阶段不开放。</p>
+            <div id="provider-profile-list" class="provider-profile-list" aria-live="polite" aria-busy="false"></div>
+            <p id="provider-profile-empty" class="feedback" hidden>还没有自定义接入配置。</p>
+            <form id="provider-profile-form" class="provider-form">
+              <input id="provider-profile-id" type="hidden" />
+              <label for="provider-profile-name">配置名称</label>
+              <input id="provider-profile-name" type="text" maxlength="80" required placeholder="例如：我的中转站" />
+              <label for="provider-profile-source">来源类型</label>
+              <select id="provider-profile-source">
+                <option value="custom-proxy">自定义 HTTPS 中转站</option>
+                <option value="local">本机回环服务</option>
+                <option value="private-network" disabled>私有网络（本阶段不开放）</option>
+              </select>
+              <label for="provider-profile-protocol">通信协议</label>
+              <select id="provider-profile-protocol">
+                <option value="openai-chat-completions">OpenAI Chat Completions</option>
+                <option value="anthropic-messages" disabled>Anthropic Messages（未实现）</option>
+                <option value="ollama-native" disabled>Ollama native（未实现）</option>
+              </select>
+              <label for="provider-profile-endpoint">Base URL</label>
+              <input id="provider-profile-endpoint" type="text" maxlength="2000" required spellcheck="false" placeholder="https://relay.example.com/v1" />
+              <label for="provider-profile-endpoint-path">Endpoint path（可选）</label>
+              <input id="provider-profile-endpoint-path" type="text" maxlength="300" spellcheck="false" placeholder="留空自动补 /chat/completions" />
+              <label for="provider-profile-model">模型 ID</label>
+              <input id="provider-profile-model" type="text" maxlength="128" required spellcheck="false" placeholder="例如 gemini-3-flash" />
+              <label for="provider-profile-api-key">API Key（保存后清空输入框）</label>
+              <input id="provider-profile-api-key" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="编辑时留空表示保留现有密钥" />
+              <label class="companion-toggle"><input id="provider-profile-enabled" type="checkbox" /><span>启用此配置</span></label>
+              <label class="companion-toggle"><input id="provider-profile-default" type="checkbox" /><span>设为默认对话 Provider</span></label>
+              <div class="companion-actions">
+                <button class="button button-primary button-small" type="submit">保存配置</button>
+                <button id="provider-profile-reset" class="button button-quiet button-small" type="button">新建配置</button>
+                <button id="provider-profile-discover" class="button button-secondary button-small" type="button">发现模型</button>
+              </div>
+            </form>
+            <p id="provider-profile-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
+          </div>
+
           <div class="provider-panel panel" id="provider-card">
             <div class="section-heading">
               <div>

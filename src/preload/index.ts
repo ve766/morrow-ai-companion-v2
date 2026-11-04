@@ -29,6 +29,10 @@ import {
   type GoalCandidateIdRequest,
   type PendingDecisionResult,
   type ProviderGetRequest,
+  type ProviderModelsRequest,
+  type ProviderModelsResult,
+  type ProviderProfileIdRequest,
+  type ProviderProfileSaveInput,
   type TurnContextRequest
 } from '../shared/contracts'
 import type {
@@ -68,7 +72,12 @@ const bridge: MorrowBridge = Object.freeze({
     get: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet, request),
     save: (request: ProviderConfigInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerSave, request),
     clearCredential: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential, request),
-    testConnection: (request: ProviderConnectionRequest) => invoke<ProviderConnectionResult>(IPC_CHANNELS.providerTestConnection, request)
+    testConnection: (request: ProviderConnectionRequest) => invoke<ProviderConnectionResult>(IPC_CHANNELS.providerTestConnection, request),
+    listProfiles: () => invoke<ProviderConfigRecord[]>(IPC_CHANNELS.providerProfilesList),
+    saveProfile: (request: ProviderProfileSaveInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerProfileSave, request),
+    deleteProfile: (request: ProviderProfileIdRequest) => invoke<void>(IPC_CHANNELS.providerProfileDelete, request),
+    setDefaultProfile: (request: ProviderProfileIdRequest) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerProfileSetDefault, request),
+    discoverModels: (request: ProviderModelsRequest) => invoke<ProviderModelsResult>(IPC_CHANNELS.providerProfileDiscoverModels, request)
   }),
   conversations: Object.freeze({
     create: () => invoke<ConversationRecord>(IPC_CHANNELS.conversationsCreate),

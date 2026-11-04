@@ -15,10 +15,18 @@ import type {
   PersonalityInput,
   PersonalityProfile,
   PersonalityRevision,
+  ProviderCapabilities,
   ProviderConfigRecord,
   ProviderConnectionRequest,
   ProviderConnectionResult,
-  ProviderId,
+  ProviderHealth,
+  ProviderHealthStatus,
+  ProviderModelsRequest,
+  ProviderModelsResult,
+  ProviderProfileId,
+  ProviderProfileSaveInput,
+  ProviderProtocolId,
+  ProviderSourceKind,
   Sensitivity
 } from '../shared/companion'
 import { DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, SPARK_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput, type SparkProviderConfigInput } from '../shared/companion'
@@ -39,7 +47,9 @@ import { isIntentReading, type IntentReading } from '../cognition/intent-reading
 import { policyForIntent, unrestrictedPolicy } from '../memory/retrieval-policy'
 import { guardAnswerFacts } from '../cognition/answer-fact-guard'
 import { readFactSlot } from '../memory/fact-slot'
-import { remoteSpecFor } from '../providers/provider-registry'
+import { isBuiltinProviderId, isModelId, isProfileId, normalizeProviderConfig, remoteSpecFor, validateProviderConfig } from '../providers/provider-registry'
+import { resolveChatEndpoint, resolveModelsEndpoint } from '../providers/endpoint-resolver'
+import { defaultEndpointPolicy, endpointDigest, type EndpointPolicy } from '../providers/endpoint-security'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
 import { buildTurnEvaluation, turnEvaluationEventPayload, type TurnEvaluation } from '../cognition/turn-evaluation'
@@ -290,10 +300,17 @@ export type ProviderConsentAuthorizer = (preview: ProviderConsentPreview) => Pro
 
 interface ProviderRow {
   id: string
+  display_name: string
+  source_kind: string
+  protocol_id: string
   provider_class: 'remote' | 'local'
   endpoint: string
+  endpoint_path: string | null
   model: string
   enabled: number
+  is_default: number
+  capabilities_json: string
+  last_test_json: string | null
   updated_at: string
 }
 
@@ -416,145 +433,204 @@ export class ProviderConfigService {
     private readonly secrets: SecretStore,
     private readonly authorize: ProviderConsentAuthorizer,
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => new OpenAICompatibleProvider(config, secrets)
+    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => new OpenAICompatibleProvider(config, secrets),
+    private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
+    private readonly endpointPolicy: EndpointPolicy = defaultEndpointPolicy
   ) {}
 
-  get(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
-    const row = this.database.connection.prepare('SELECT id, provider_class, endpoint, model, enabled, updated_at FROM provider_profiles WHERE id = ?')
-      .get(providerId) as unknown as ProviderRow | undefined
+  /** Every profile, default first; secrets are never included. */
+  listProfiles(): ProviderConfigRecord[] {
+    const rows = this.database.connection.prepare(`
+      SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+             model, enabled, is_default, capabilities_json, last_test_json, updated_at
+      FROM provider_profiles
+      ORDER BY is_default DESC, display_name, id
+    `).all() as unknown as ProviderRow[]
+    return rows.map((row) => this.toRecord(row))
+  }
+
+  get(providerId: ProviderProfileId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
+    const row = this.database.connection.prepare(`
+      SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+             model, enabled, is_default, capabilities_json, last_test_json, updated_at
+      FROM provider_profiles WHERE id = ?
+    `).get(providerId) as unknown as ProviderRow | undefined
     return row ? this.toRecord(row) : null
   }
 
+  getDefault(): ProviderConfigRecord | null {
+    const row = this.database.connection.prepare(`
+      SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+             model, enabled, is_default, capabilities_json, last_test_json, updated_at
+      FROM provider_profiles WHERE is_default = 1 AND enabled = 1 LIMIT 1
+    `).get() as unknown as ProviderRow | undefined
+    return row ? this.toRecord(row) : null
+  }
+
+  /** Legacy typed inputs stay supported; they write the same profile table. */
   save(input: ProviderConfigInput): ProviderConfigRecord {
     switch (input.providerId) {
-      case LOCAL_PROVIDER_ID: return this.saveLocal(input as LocalProviderConfigInput)
+      case LOCAL_PROVIDER_ID: {
+        const local = input as LocalProviderConfigInput
+        return this.saveProfile({
+          profileId: LOCAL_PROVIDER_ID,
+          displayName: 'Local OpenAI',
+          sourceKind: 'local',
+          protocolId: 'openai-chat-completions',
+          endpoint: local.endpoint,
+          endpointPath: null,
+          model: local.model,
+          enabled: local.enabled,
+          ...(local.apiKey !== undefined ? { apiKey: local.apiKey } : {})
+        })
+      }
       case DEEPSEEK_PROVIDER_ID:
-      case SPARK_PROVIDER_ID: return this.saveRemote(input as DeepSeekProviderConfigInput | SparkProviderConfigInput)
-      default: throw new ApplicationError('INVALID_INPUT')
+      case SPARK_PROVIDER_ID: {
+        const remote = input as DeepSeekProviderConfigInput | SparkProviderConfigInput
+        const spec = remoteSpecFor(remote.providerId)
+        if (!spec) throw new ApplicationError('INVALID_INPUT')
+        return this.saveProfile({
+          profileId: remote.providerId,
+          displayName: spec.label,
+          sourceKind: 'official',
+          protocolId: 'openai-chat-completions',
+          endpoint: spec.baseUrl,
+          endpointPath: null,
+          model: remote.model,
+          enabled: remote.enabled,
+          ...(remote.apiKey !== undefined ? { apiKey: remote.apiKey } : {})
+        })
+      }
+      default:
+        throw new ApplicationError('INVALID_INPUT')
     }
   }
 
-  private saveRemote(input: DeepSeekProviderConfigInput | SparkProviderConfigInput): ProviderConfigRecord {
-    const spec = remoteSpecFor(input.providerId)
-    if (!spec || !spec.modelPattern.test(input.model) || typeof input.enabled !== 'boolean') throw new ApplicationError('INVALID_INPUT')
-    let apiKey: string | undefined
-    if (input.apiKey !== undefined) {
-      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
-      apiKey = input.apiKey.trim() || undefined
+  /**
+   * Creates or updates one user profile. The id is opaque; the endpoint and
+   * model are independent of it. Secrets are isolated by profile id and written
+   * only after the profile row is accepted; a failed credential write restores
+   * the row's previous secret.
+   */
+  saveProfile(input: ProviderProfileSaveInput): ProviderConfigRecord {
+    if (!input || typeof input !== 'object') throw new ApplicationError('INVALID_INPUT')
+    if (input.sourceKind === 'private-network') throw new ApplicationError('INVALID_INPUT')
+    if (input.protocolId !== 'openai-chat-completions') throw new ApplicationError('INVALID_INPUT')
+    if (typeof input.displayName !== 'string' || input.displayName.trim().length === 0 || input.displayName.length > 80) {
+      throw new ApplicationError('INVALID_INPUT')
     }
-    let existingCredential: string | undefined
-    if (apiKey || input.enabled) {
-      try {
-        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        existingCredential = this.secrets.get(input.providerId)
-      } catch (error) {
-        throw mapProviderSecretError(error)
+    if (typeof input.endpoint !== 'string' || typeof input.model !== 'string' || typeof input.enabled !== 'boolean') {
+      throw new ApplicationError('INVALID_INPUT')
+    }
+    const profileId = (input.profileId?.trim().toLowerCase() || randomUUID().toLowerCase())
+    if (!isProfileId(profileId)) throw new ApplicationError('INVALID_INPUT')
+    if (input.sourceKind === 'official' && !isBuiltinProviderId(profileId)) throw new ApplicationError('INVALID_INPUT')
+    if (isBuiltinProviderId(profileId)) {
+      const spec = remoteSpecFor(profileId)
+      if (profileId === LOCAL_PROVIDER_ID) {
+        if (input.sourceKind !== 'local') throw new ApplicationError('INVALID_INPUT')
+      } else if (input.sourceKind !== 'official' || !spec || input.endpoint.trim() !== spec.baseUrl || !spec.modelPattern.test(input.model.trim())) {
+        throw new ApplicationError('INVALID_INPUT')
       }
     }
-    if (input.enabled && !apiKey && !existingCredential) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    if (!isModelId(input.model.trim())) throw new ApplicationError('INVALID_INPUT')
+    const endpointPath = input.endpointPath?.trim() || null
+    const existing = this.get(profileId)
+    const candidate: ProviderConfigRecord = normalizeProviderConfig({
+      id: profileId,
+      displayName: input.displayName.trim(),
+      sourceKind: input.sourceKind,
+      protocolId: input.protocolId,
+      providerClass: input.sourceKind === 'local' ? 'local' : 'remote',
+      endpoint: input.endpoint.trim(),
+      endpointPath,
+      model: input.model.trim(),
+      enabled: input.enabled,
+      isDefault: input.isDefault === undefined ? existing?.isDefault === true : input.isDefault,
+      apiKeyConfigured: this.hasCredential(profileId),
+      capabilities: existing?.capabilities ?? defaultCapabilities(),
+      lastTest: existing?.lastTest ?? null,
+      updatedAt: this.clock()
+    })
+    const validation = validateProviderConfig(candidate)
+    if (!validation.ok) throw new ApplicationError('INVALID_INPUT')
+
+    let apiKey: string | undefined
+    if (input.apiKey !== undefined) {
+      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) {
+        throw new ApplicationError('INVALID_INPUT')
+      }
+      apiKey = input.apiKey.trim() || undefined
+    }
+    if (candidate.enabled && candidate.sourceKind !== 'local' && !apiKey && !this.hasCredential(profileId)) {
+      throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    }
     const now = safeTimestamp(this.clock())
-    let transactionStarted = false
-    let credentialWriteCompleted = false
-    try {
-      this.database.connection.exec('BEGIN IMMEDIATE')
-      transactionStarted = true
-      this.database.connection.prepare(`
-        INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at)
-        VALUES (?, 'remote', ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
-          model = excluded.model, enabled = excluded.enabled, updated_at = excluded.updated_at
-      `).run(input.providerId, spec.baseUrl, input.model, input.enabled ? 1 : 0, now)
-      if (apiKey) {
-        try {
-          this.secrets.set(input.providerId, apiKey)
-          credentialWriteCompleted = true
-          if (!this.secrets.isAvailable() || this.secrets.get(input.providerId) !== apiKey) {
-            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-          }
-        } catch (error) {
-          throw mapProviderSecretError(error)
-        }
-      }
-      this.database.connection.exec('COMMIT')
-      transactionStarted = false
-    } catch (error) {
-      if (transactionStarted) {
-        try {
-          this.database.connection.exec('ROLLBACK')
-        } catch {
-          transactionStarted = false
-        }
-      }
-      if (credentialWriteCompleted) {
-        try {
-          if (existingCredential === undefined) this.secrets.delete(input.providerId)
-          else this.secrets.set(input.providerId, existingCredential)
-        } catch {
-          throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        }
-      }
-      if (error instanceof ApplicationError) throw error
-      throw new ApplicationError('STORAGE_ERROR')
-    }
-    const result = this.get(input.providerId)
-    if (!result) throw new ApplicationError('STORAGE_ERROR')
-    if ((apiKey || input.enabled) && !result.apiKeyConfigured) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-    return result
-  }
-
-  private saveLocal(input: LocalProviderConfigInput): ProviderConfigRecord {
-    if (!isLoopbackEndpoint(input.endpoint) || !isValidLocalModelName(input.model)) throw new ApplicationError('INVALID_INPUT')
-    let apiKey: string | undefined
-    if (input.apiKey !== undefined) {
-      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
-      apiKey = input.apiKey.trim() || undefined
-    }
-    let existingCredential: string | undefined
+    const capabilities = candidate.capabilities ?? defaultCapabilities()
+    let previousSecret: string | undefined
     if (apiKey) {
       try {
         if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        existingCredential = this.secrets.get(LOCAL_PROVIDER_ID)
+        previousSecret = this.secrets.get(profileId)
       } catch (error) {
         throw mapProviderSecretError(error)
       }
     }
-    const now = safeTimestamp(this.clock())
-    let transactionStarted = false
-    let credentialWriteCompleted = false
+    const isDefault = input.isDefault === undefined ? existing?.isDefault === true : input.isDefault
     try {
-      this.database.connection.exec('BEGIN IMMEDIATE')
-      transactionStarted = true
-      this.database.connection.prepare(`
-        INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at)
-        VALUES (?, 'local', ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
-          model = excluded.model, enabled = excluded.enabled, updated_at = excluded.updated_at
-      `).run(LOCAL_PROVIDER_ID, input.endpoint, input.model, input.enabled ? 1 : 0, now)
+      this.database.transaction(() => {
+        if (isDefault) {
+          this.database.connection.prepare('UPDATE provider_profiles SET is_default = 0 WHERE is_default = 1 AND id <> ?').run(profileId)
+        }
+        this.database.connection.prepare(`
+          INSERT INTO provider_profiles(
+            id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+            model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            display_name = excluded.display_name,
+            source_kind = excluded.source_kind,
+            protocol_id = excluded.protocol_id,
+            provider_class = excluded.provider_class,
+            endpoint = excluded.endpoint,
+            endpoint_path = excluded.endpoint_path,
+            model = excluded.model,
+            enabled = excluded.enabled,
+            is_default = excluded.is_default,
+            capabilities_json = excluded.capabilities_json,
+            updated_at = excluded.updated_at
+        `).run(
+          profileId,
+          candidate.displayName!,
+          candidate.sourceKind!,
+          candidate.protocolId!,
+          candidate.providerClass,
+          candidate.endpoint,
+          candidate.endpointPath ?? null,
+          candidate.model,
+          candidate.enabled ? 1 : 0,
+          isDefault ? 1 : 0,
+          JSON.stringify(capabilities),
+          JSON.stringify(candidate.lastTest ?? null),
+          now,
+          now
+        )
+        if (apiKey) {
+          try {
+            this.secrets.set(profileId, apiKey)
+            if (!this.secrets.isAvailable() || this.secrets.get(profileId) !== apiKey) {
+              throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+            }
+          } catch (error) {
+            throw mapProviderSecretError(error)
+          }
+        }
+      })
+    } catch (error) {
       if (apiKey) {
         try {
-          this.secrets.set(LOCAL_PROVIDER_ID, apiKey)
-          credentialWriteCompleted = true
-          if (!this.secrets.isAvailable() || this.secrets.get(LOCAL_PROVIDER_ID) !== apiKey) {
-            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-          }
-        } catch (error) {
-          throw mapProviderSecretError(error)
-        }
-      }
-      this.database.connection.exec('COMMIT')
-      transactionStarted = false
-    } catch (error) {
-      if (transactionStarted) {
-        try {
-          this.database.connection.exec('ROLLBACK')
-        } catch {
-          transactionStarted = false
-        }
-      }
-      if (credentialWriteCompleted) {
-        try {
-          if (existingCredential === undefined) this.secrets.delete(LOCAL_PROVIDER_ID)
-          else this.secrets.set(LOCAL_PROVIDER_ID, existingCredential)
+          if (previousSecret === undefined) this.secrets.delete(profileId)
+          else this.secrets.set(profileId, previousSecret)
         } catch {
           throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
         }
@@ -562,12 +638,47 @@ export class ProviderConfigService {
       if (error instanceof ApplicationError) throw error
       throw new ApplicationError('STORAGE_ERROR')
     }
-    const result = this.get(LOCAL_PROVIDER_ID)
+    const result = this.get(profileId)
     if (!result) throw new ApplicationError('STORAGE_ERROR')
     return result
   }
 
-  clearCredential(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
+  deleteProfile(profileId: ProviderProfileId): void {
+    if (isBuiltinProviderId(profileId)) throw new ApplicationError('FORBIDDEN')
+    const existing = this.get(profileId)
+    if (!existing) throw new ApplicationError('NOT_FOUND')
+    let previousSecret: string | undefined
+    try {
+      previousSecret = this.secrets.get(profileId)
+      this.secrets.delete(profileId)
+      if (this.secrets.get(profileId) !== undefined) throw new Error('secret_delete_failed')
+    } catch (error) {
+      throw mapProviderSecretError(error)
+    }
+    try {
+      this.database.connection.prepare('DELETE FROM provider_profiles WHERE id = ?').run(profileId)
+    } catch {
+      if (previousSecret !== undefined) {
+        try { this.secrets.set(profileId, previousSecret) } catch {}
+      }
+      throw new ApplicationError('STORAGE_ERROR')
+    }
+  }
+
+  setDefaultProfile(profileId: ProviderProfileId): ProviderConfigRecord {
+    const profile = this.get(profileId)
+    if (!profile) throw new ApplicationError('NOT_FOUND')
+    if (!profile.enabled) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    this.database.transaction(() => {
+      this.database.connection.prepare('UPDATE provider_profiles SET is_default = 0 WHERE is_default = 1').run()
+      this.database.connection.prepare('UPDATE provider_profiles SET is_default = 1, updated_at = ? WHERE id = ?').run(safeTimestamp(this.clock()), profileId)
+    })
+    const updated = this.get(profileId)
+    if (!updated) throw new ApplicationError('STORAGE_ERROR')
+    return updated
+  }
+
+  clearCredential(providerId: ProviderProfileId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
     try {
       this.secrets.delete(providerId)
       if (this.secrets.get(providerId) !== undefined) {
@@ -589,28 +700,101 @@ export class ProviderConfigService {
     if (!consent) throw new ApplicationError('FORBIDDEN')
     const verified = consentPreview('connection-test', config, input)
     if (verified.payloadSha256 !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
-    const output = await dispatchToProvider(this.providerFactory(config), input, consent)
-    return { providerId: config.id, model: output.modelId, connected: output.text.trim().length > 0 }
+    const started = Date.now()
+    try {
+      const output = await dispatchToProvider(this.providerFactory(config), input, consent)
+      const latencyMs = Date.now() - started
+      this.recordHealth(config, 'connected', latencyMs, null, output.attempts ?? 1, true)
+      return {
+        providerId: config.id,
+        model: output.modelId,
+        connected: output.text.trim().length > 0,
+        status: 'connected',
+        latencyMs,
+        attempts: output.attempts ?? 1,
+        endpointDigest: endpointDigest(config.endpoint)
+      }
+    } catch (error) {
+      const health = healthForError(error)
+      this.recordHealth(config, health.status, Date.now() - started, health.httpStatus, null, false)
+      throw error
+    }
   }
 
-  // The local provider wins when both are enabled: it keeps data on the
-  // machine and costs nothing; the consent dialog shows the exact endpoint
-  // for every request so the choice stays visible.
+  /** Optional `GET /models`; failure never prevents manual model entry. */
+  async discoverModels(request: ProviderModelsRequest): Promise<ProviderModelsResult> {
+    const config = this.get(request.profileId)
+    if (!config) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    this.assertUsable(config)
+    const url = resolveModelsEndpoint(config.endpoint, config.endpointPath)
+    if (config.sourceKind === 'custom-proxy') {
+      try {
+        await this.endpointPolicy.assertAllowed(url, 'custom-proxy')
+      } catch {
+        throw new ApplicationError('PROVIDER_ENDPOINT_BLOCKED')
+      }
+    }
+    // Discovery sends the profile credential to the endpoint. It has no user
+    // content, but it is still an authenticated egress and requires the same
+    // profile/endpoint consent as a connection test.
+    const discoveryInput: ProviderInput = {
+      prompt: '',
+      context: { text: '', selected: [], omitted: 0, characterCount: 0 },
+      endpoint: url,
+      maximumSensitivity: 'normal',
+      requestPayload: { models: true }
+    }
+    const preview = consentPreview('connection-test', config, discoveryInput)
+    const consent = await this.authorize(preview)
+    if (!consent) throw new ApplicationError('FORBIDDEN')
+    if (consentPreview('connection-test', config, discoveryInput).payloadSha256 !== preview.payloadSha256) {
+      throw new ApplicationError('CONFLICT')
+    }
+    const key = this.secrets.get(config.id)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20_000)
+    try {
+      const response = await this.fetcher(url, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          ...(key ? { authorization: `Bearer ${key}` } : {})
+        },
+        redirect: 'error',
+        signal: controller.signal
+      })
+      if (!response.ok) throw new ApplicationError(response.status === 401 || response.status === 403 ? 'PROVIDER_AUTH' : 'PROVIDER_NETWORK')
+      const parsed = await response.json() as { data?: Array<{ id?: unknown }>; models?: Array<{ id?: unknown; name?: unknown }> }
+      const list: Array<{ id?: unknown; name?: unknown }> = Array.isArray(parsed.data) ? parsed.data : Array.isArray(parsed.models) ? parsed.models : []
+      const models = [...new Set(list.map((item) => typeof item.id === 'string' ? item.id : typeof item.name === 'string' ? item.name : '').filter((id) => id.length > 0 && id.length <= 128))].slice(0, 200)
+      return { profileId: config.id, models, source: 'discovered', discoveredAt: safeTimestamp(this.clock()) }
+    } catch (error) {
+      if (error instanceof ApplicationError) throw error
+      throw new ApplicationError('PROVIDER_NETWORK')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  // The explicit default wins. Otherwise the legacy priority is preserved
+  // (local before spark before deepseek), then the first enabled custom profile.
   requireConfigured(): ProviderConfigRecord {
-    const local = this.get(LOCAL_PROVIDER_ID)
-    if (local && local.enabled) {
-      this.assertUsable(local)
-      return local
+    const explicit = this.getDefault()
+    if (explicit) {
+      this.assertUsable(explicit)
+      return explicit
     }
-    const spark = this.get(SPARK_PROVIDER_ID)
-    if (spark && spark.enabled) {
-      this.assertUsable(spark)
-      return spark
+    for (const id of [LOCAL_PROVIDER_ID, SPARK_PROVIDER_ID, DEEPSEEK_PROVIDER_ID]) {
+      const config = this.get(id)
+      if (config && config.enabled) {
+        this.assertUsable(config)
+        return config
+      }
     }
-    const deepseek = this.get(DEEPSEEK_PROVIDER_ID)
-    if (deepseek && deepseek.enabled) {
-      this.assertUsable(deepseek)
-      return deepseek
+    const custom = this.listProfiles().find((profile) => profile.enabled && profile.sourceKind !== 'official')
+    if (custom) {
+      this.assertUsable(custom)
+      return custom
     }
     throw new ApplicationError('PROVIDER_UNCONFIGURED')
   }
@@ -625,28 +809,96 @@ export class ProviderConfigService {
     return this.providerFactory(config)
   }
 
+  private recordHealth(
+    config: ProviderConfigRecord,
+    status: ProviderHealthStatus,
+    latencyMs: number,
+    httpStatus: number | null,
+    attempts: number | null,
+    streamingVerified: boolean
+  ): void {
+    const health: ProviderHealth = {
+      status,
+      testedAt: safeTimestamp(this.clock()),
+      latencyMs: Math.max(0, Math.round(latencyMs)),
+      endpointDigest: endpointDigest(config.endpoint),
+      model: config.model,
+      httpStatus,
+      attempts
+    }
+    const capabilities = { ...(config.capabilities ?? defaultCapabilities()) }
+    capabilities.streaming = {
+      declared: true,
+      probed: true,
+      verified: streamingVerified
+    }
+    try {
+      this.database.connection.prepare(
+        'UPDATE provider_profiles SET capabilities_json = ?, last_test_json = ?, updated_at = ? WHERE id = ?'
+      ).run(JSON.stringify(capabilities), JSON.stringify(health), safeTimestamp(this.clock()), config.id)
+    } catch {
+      // Health is diagnostic; a failed write must not undo a successful request.
+    }
+  }
+
   private toRecord(row: ProviderRow): ProviderConfigRecord {
-    const providerId = row.id === LOCAL_PROVIDER_ID
-      ? LOCAL_PROVIDER_ID
-      : row.id === SPARK_PROVIDER_ID ? SPARK_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
+    let capabilities: ProviderCapabilities = defaultCapabilities()
+    try {
+      const parsed = JSON.parse(row.capabilities_json) as ProviderCapabilities
+      if (parsed && typeof parsed === 'object' && parsed.streaming) capabilities = parsed
+    } catch {}
+    let lastTest: ProviderHealth | null = null
+    try {
+      const parsed = row.last_test_json ? JSON.parse(row.last_test_json) as ProviderHealth : null
+      if (parsed && typeof parsed === 'object' && typeof parsed.status === 'string') lastTest = parsed
+    } catch {}
     return {
-      id: providerId,
-      providerClass: row.provider_class === 'local' ? 'local' : 'remote',
+      id: row.id,
+      displayName: row.display_name,
+      sourceKind: row.source_kind as ProviderSourceKind,
+      protocolId: row.protocol_id as ProviderProtocolId,
+      providerClass: row.provider_class,
       endpoint: row.endpoint,
+      endpointPath: row.endpoint_path,
       model: row.model,
       enabled: row.enabled === 1,
-      apiKeyConfigured: this.hasCredential(providerId),
+      isDefault: row.is_default === 1,
+      apiKeyConfigured: this.hasCredential(row.id),
+      capabilities,
+      lastTest,
       updatedAt: row.updated_at
     }
   }
 
-  private hasCredential(providerId: ProviderId): boolean {
+  private hasCredential(providerId: string): boolean {
     try {
       return Boolean(this.secrets.get(providerId))
     } catch (error) {
       throw mapProviderSecretError(error)
     }
   }
+}
+
+function defaultCapabilities(): ProviderCapabilities {
+  return {
+    streaming: { declared: true, probed: false, verified: false },
+    vision: { declared: false, probed: false, verified: false },
+    toolCalling: { declared: false, probed: false, verified: false },
+    jsonMode: { declared: false, probed: false, verified: false },
+    systemRole: { declared: true, probed: false, verified: false }
+  }
+}
+
+function healthForError(error: unknown): { status: ProviderHealthStatus; httpStatus: number | null } {
+  if (error instanceof ApplicationError) {
+    if (error.code === 'PROVIDER_AUTH') return { status: 'auth_failed', httpStatus: 401 }
+    if (error.code === 'PROVIDER_MODEL') return { status: 'model_not_found', httpStatus: 404 }
+    if (error.code === 'PROVIDER_QUOTA') return { status: 'quota', httpStatus: 403 }
+    if (error.code === 'PROVIDER_TIMEOUT' || error.code === 'PROVIDER_DEADLINE') return { status: 'timeout', httpStatus: 408 }
+    if (error.code === 'PROVIDER_ENDPOINT_BLOCKED') return { status: 'network', httpStatus: null }
+    if (error.code === 'PROVIDER_RESPONSE') return { status: 'protocol', httpStatus: null }
+  }
+  return { status: 'network', httpStatus: null }
 }
 
 export class PersonalityService {
@@ -1300,15 +1552,20 @@ export class CompanionService {
     return this.chat.outboxStats()
   }
 
-  getProvider(request?: { providerId?: ProviderId }): ProviderConfigRecord | null {
+  getProvider(request?: { providerId?: ProviderProfileId }): ProviderConfigRecord | null {
     if (request?.providerId) return this.providers.get(request.providerId)
     const local = this.providers.get(LOCAL_PROVIDER_ID)
     if (local?.enabled) return local
     return this.providers.get(DEEPSEEK_PROVIDER_ID) ?? local
   }
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord { return this.providers.save(request) }
-  clearProviderCredential(request?: { providerId?: ProviderId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
+  clearProviderCredential(request?: { providerId?: ProviderProfileId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult> { return this.providers.testConnection(request) }
+  listProfiles(): ProviderConfigRecord[] { return this.providers.listProfiles() }
+  saveProfile(request: ProviderProfileSaveInput): ProviderConfigRecord { return this.providers.saveProfile(request) }
+  deleteProfile(request: { profileId: ProviderProfileId }): void { this.providers.deleteProfile(request.profileId) }
+  setDefaultProfile(request: { profileId: ProviderProfileId }): ProviderConfigRecord { return this.providers.setDefaultProfile(request.profileId) }
+  discoverModels(request: ProviderModelsRequest): Promise<ProviderModelsResult> { return this.providers.discoverModels(request) }
   createConversation(): ConversationRecord { return this.chat.createConversation() }
   listConversations(): ConversationRecord[] { return this.chat.listConversations() }
   readConversation(request: { conversationId: string }): ReturnType<ConversationService['read']> { return this.chat.readConversation(request.conversationId) }
@@ -2238,7 +2495,7 @@ export class ChatService {
       input: {
         prompt: content,
         context: memory,
-        endpoint: `${config.endpoint}/chat/completions`,
+        endpoint: resolveChatEndpoint(config.endpoint, config.endpointPath),
         maximumSensitivity: max,
         requestPayload
       }
@@ -2694,7 +2951,7 @@ export class MemorySuggestionService {
     const input: ProviderInput = {
       prompt: source.body,
       context: { text: '', selected: [], omitted: 0, characterCount: 0 },
-      endpoint: `${provider.endpoint}/chat/completions`,
+      endpoint: resolveChatEndpoint(provider.endpoint, provider.endpointPath),
       maximumSensitivity: 'sensitive',
       requestPayload: makeRequestPayload(provider.model, [
         { role: 'system', content: system },

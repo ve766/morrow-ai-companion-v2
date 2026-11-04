@@ -203,18 +203,58 @@ export function parseProviderConfigInput(value: unknown): ProviderConfigInput {
   }
 }
 
-export function parseProviderGetRequest(value: unknown): { providerId?: ProviderId } {
+const PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u
+
+function parseProfileId(value: unknown): string {
+  if (typeof value !== 'string' || !PROFILE_ID_PATTERN.test(value)) throw new InputValidationError('Provider profile id is invalid.')
+  return value
+}
+
+export function parseProviderGetRequest(value: unknown): { providerId?: string } {
   if (value === undefined) return {}
   const input = parseObject(value, ['providerId'], 'Provider request')
   if (input.providerId === undefined) return {}
-  if (input.providerId !== 'deepseek' && input.providerId !== 'local-openai' && input.providerId !== 'spark') throw new InputValidationError('Provider is unsupported.')
-  return { providerId: input.providerId }
+  return { providerId: parseProfileId(input.providerId) }
 }
 
-export function parseProviderConnectionRequest(value: unknown): { providerId: ProviderId } {
+export function parseProviderConnectionRequest(value: unknown): { providerId: string } {
   const input = parseObject(value, ['providerId'], 'Provider connection test')
-  if (input.providerId !== 'deepseek' && input.providerId !== 'local-openai' && input.providerId !== 'spark') throw new InputValidationError('Provider is unsupported.')
-  return { providerId: input.providerId }
+  return { providerId: parseProfileId(input.providerId) }
+}
+
+export function parseProviderProfileIdRequest(value: unknown): { profileId: string } {
+  const input = parseObject(value, ['profileId'], 'Provider profile request')
+  return { profileId: parseProfileId(input.profileId) }
+}
+
+export function parseProviderModelsRequest(value: unknown): { profileId: string } {
+  const input = parseObject(value, ['profileId'], 'Provider model discovery')
+  return { profileId: parseProfileId(input.profileId) }
+}
+
+export function parseProviderProfileSaveInput(value: unknown): import('../shared/companion').ProviderProfileSaveInput {
+  const input = parseObject(value, ['profileId', 'displayName', 'sourceKind', 'protocolId', 'endpoint', 'endpointPath', 'model', 'enabled', 'isDefault', 'apiKey'], 'Provider profile')
+  if (input.sourceKind !== 'custom-proxy' && input.sourceKind !== 'local') throw new InputValidationError('Provider source kind is not supported.')
+  if (input.protocolId !== 'openai-chat-completions') throw new InputValidationError('Provider protocol is not supported.')
+  if (typeof input.displayName !== 'string' || input.displayName.trim().length === 0 || input.displayName.length > 80) throw new InputValidationError('Provider display name is invalid.')
+  if (typeof input.endpoint !== 'string' || input.endpoint.length < 8 || input.endpoint.length > 2000) throw new InputValidationError('Provider endpoint is invalid.')
+  if (input.endpointPath !== undefined && input.endpointPath !== null && (typeof input.endpointPath !== 'string' || input.endpointPath.length > 300 || !input.endpointPath.startsWith('/') || input.endpointPath.includes('..'))) throw new InputValidationError('Provider endpoint path is invalid.')
+  if (typeof input.model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(input.model)) throw new InputValidationError('Provider model is invalid.')
+  if (typeof input.enabled !== 'boolean') throw new InputValidationError('Provider enabled flag is invalid.')
+  if (input.isDefault !== undefined && typeof input.isDefault !== 'boolean') throw new InputValidationError('Provider default flag is invalid.')
+  if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 10000 || /[ -]/u.test(input.apiKey))) throw new InputValidationError('Provider API key is invalid.')
+  return {
+    ...(input.profileId === undefined ? {} : { profileId: parseProfileId(input.profileId) }),
+    displayName: input.displayName.trim(),
+    sourceKind: input.sourceKind,
+    protocolId: input.protocolId,
+    endpoint: input.endpoint.trim(),
+    ...(input.endpointPath === undefined ? {} : { endpointPath: input.endpointPath as string | null }),
+    model: input.model.trim(),
+    enabled: input.enabled,
+    ...(input.isDefault === undefined ? {} : { isDefault: input.isDefault }),
+    ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey })
+  }
 }
 
 export function parseInterestIdRequest(value: unknown): { interestId: string } {

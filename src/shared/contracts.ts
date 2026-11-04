@@ -21,16 +21,25 @@ import type {
   PersonalityRevision,
   ProviderConfigInput,
   ProviderConfigRecord,
-  ProviderId,
   ProviderConnectionRequest,
-  ProviderConnectionResult
+  ProviderConnectionResult,
+  ProviderModelsRequest,
+  ProviderModelsResult,
+  ProviderProfileIdRequest,
+  ProviderProfileSaveInput
 } from './companion'
+export type { ProviderModelsRequest, ProviderModelsResult, ProviderProfileIdRequest, ProviderProfileSaveInput } from './companion'
 
 export const IPC_CHANNELS = {
   appInfo: 'morrow:app:info',
   memoryCreate: 'morrow:memory:create',
   providerGet: 'morrow:provider:get',
   providerSave: 'morrow:provider:save',
+  providerProfilesList: 'morrow:provider:profiles:list',
+  providerProfileSave: 'morrow:provider:profiles:save',
+  providerProfileDelete: 'morrow:provider:profiles:delete',
+  providerProfileSetDefault: 'morrow:provider:profiles:set-default',
+  providerProfileDiscoverModels: 'morrow:provider:profiles:discover-models',
   providerClearCredential: 'morrow:provider:clear-credential',
   providerTestConnection: 'morrow:provider:test-connection',
   conversationsCreate: 'morrow:conversations:create',
@@ -122,6 +131,7 @@ export type IpcErrorCode =
   | 'PROVIDER_TIMEOUT'
   | 'PROVIDER_DEADLINE'
   | 'PROVIDER_NETWORK'
+  | 'PROVIDER_ENDPOINT_BLOCKED'
   | 'PROVIDER_CANCELLED'
 
 export type IpcResult<T> =
@@ -183,7 +193,7 @@ export interface GoalCandidateIdRequest {
 }
 
 export interface ProviderGetRequest {
-  providerId?: ProviderId
+  providerId?: string
 }
 
 export interface InterestIdRequest {
@@ -276,6 +286,11 @@ export interface MorrowBridge {
     save(request: ProviderConfigInput): Promise<IpcResult<ProviderConfigRecord>>
     clearCredential(request?: ProviderGetRequest): Promise<IpcResult<ProviderConfigRecord | null>>
     testConnection(request: ProviderConnectionRequest): Promise<IpcResult<ProviderConnectionResult>>
+    listProfiles(): Promise<IpcResult<ProviderConfigRecord[]>>
+    saveProfile(request: ProviderProfileSaveInput): Promise<IpcResult<ProviderConfigRecord>>
+    deleteProfile(request: ProviderProfileIdRequest): Promise<IpcResult<void>>
+    setDefaultProfile(request: ProviderProfileIdRequest): Promise<IpcResult<ProviderConfigRecord>>
+    discoverModels(request: ProviderModelsRequest): Promise<IpcResult<ProviderModelsResult>>
   }
   conversations: {
     create(): Promise<IpcResult<ConversationRecord>>

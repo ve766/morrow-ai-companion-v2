@@ -18,6 +18,7 @@ export type ApplicationErrorCode =
   | 'PROVIDER_TIMEOUT'
   | 'PROVIDER_DEADLINE'
   | 'PROVIDER_NETWORK'
+  | 'PROVIDER_ENDPOINT_BLOCKED'
   | 'PROVIDER_CANCELLED'
 
 export class ApplicationError extends Error {

@@ -11,6 +11,7 @@ import { initializeGoals } from './goals-ui'
 import { initializeGoalCandidates } from './goal-candidates-ui'
 import { initializeReminders } from './reminders-ui'
 import { initializeCompanion } from './companion-ui'
+import { initializeProviderProfiles } from './provider-profiles-ui'
 
 class UiError extends Error {}
 
@@ -337,5 +338,6 @@ initializeGoals()
 initializeGoalCandidates()
 initializeReminders()
 initializeCompanion()
+initializeProviderProfiles()
 initializeBackup()
 initializePendingPanel()

@@ -1,9 +1,10 @@
 import type { ProviderConfigRecord } from '../shared/companion'
-import { isRemoteConfigValid } from './provider-registry'
+import { isProviderConfigValid, normalizeProviderConfig } from './provider-registry'
+import { resolveChatEndpoint } from './endpoint-resolver'
+import { defaultEndpointPolicy, type EndpointPolicy } from './endpoint-security'
 import { DEFAULT_PROVIDER_TOTAL_BUDGET_MS } from './provider-policy'
 import { ApplicationError, type ApplicationErrorCode } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
-import { isLoopbackEndpoint, isValidLocalModelName } from '../security/url-gate'
 import type { SecretStore } from '../security/secrets'
 import type { ProviderDeltaHandler, ProviderInput, ProviderOutput, ProviderPort, ProviderProfile } from './provider-policy'
 
@@ -73,14 +74,31 @@ function parseStreamChunk(data: string): StreamChunk {
  * Reads a bounded part of an error body and returns the provider's numeric code
  * when it has one. The body itself is discarded: it can contain request data.
  */
-async function readProviderErrorCode(response: Response): Promise<number | null> {
+interface ProviderErrorHint {
+  code: number | null
+  codeText: string | null
+  type: string | null
+}
+
+/**
+ * Reads a bounded error hint. Only the numeric code, the string code and the
+ * type are kept; the message can contain request data and is never returned.
+ */
+async function readProviderErrorHint(response: Response): Promise<ProviderErrorHint> {
   try {
     const text = (await response.text()).slice(0, 4096)
-    const parsed = JSON.parse(text) as { code?: unknown; error?: { code?: unknown } } | null
+    const parsed = JSON.parse(text) as { code?: unknown; error?: { code?: unknown; type?: unknown } } | null
     const raw = parsed?.error && typeof parsed.error === 'object' ? parsed.error.code : parsed?.code
-    return typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+    const type = parsed?.error && typeof parsed.error === 'object' && typeof parsed.error.type === 'string'
+      ? parsed.error.type
+      : null
+    return {
+      code: typeof raw === 'number' && Number.isFinite(raw) ? raw : null,
+      codeText: typeof raw === 'string' ? raw.slice(0, 120) : null,
+      type
+    }
   } catch {
-    return null
+    return { code: null, codeText: null, type: null }
   }
 }
 
@@ -155,28 +173,27 @@ export class OpenAICompatibleProvider implements ProviderPort {
   readonly profile: ProviderProfile
 
   constructor(
-    private readonly config: ProviderConfigRecord,
+    private readonly rawConfig: ProviderConfigRecord,
     private readonly secrets: SecretStore,
     private readonly fetcher: FetchLike = (input, init) => fetch(input, init),
     private readonly timeoutMs = 45_000,
-    private readonly retry: RetryOptions = {}
+    private readonly retry: RetryOptions = {},
+    private readonly endpointPolicy: EndpointPolicy = defaultEndpointPolicy
   ) {
     this.profile = {
-      id: config.id,
-      providerClass: config.providerClass,
-      configured: config.enabled && this.isConfigShapeValid()
+      id: rawConfig.id,
+      providerClass: rawConfig.providerClass,
+      configured: rawConfig.enabled && this.isConfigShapeValid() &&
+        (rawConfig.providerClass === 'local' || rawConfig.apiKeyConfigured)
     }
   }
 
+  private get config(): ProviderConfigRecord {
+    return normalizeProviderConfig(this.rawConfig)
+  }
+
   private isConfigShapeValid(): boolean {
-    if (this.config.providerClass === 'remote') {
-      // Registry-based: the host must be allow-listed and the model id must
-      // match the provider's shape, so a second OpenAI-compatible provider can
-      // be configured without opening the URL check.
-      return this.config.apiKeyConfigured &&
-        isRemoteConfigValid(this.config.id, this.config.endpoint, this.config.model)
-    }
-    return isLoopbackEndpoint(this.config.endpoint) && isValidLocalModelName(this.config.model)
+    return isProviderConfigValid(this.rawConfig)
   }
 
   /** Bounded retry: only transient failures, never auth/quota/model/cancel. */
@@ -242,12 +259,12 @@ export class OpenAICompatibleProvider implements ProviderPort {
   /** One HTTP attempt. Throws a classified ApplicationError on failure. */
   private async generateOnce(input: ProviderInput, onDelta?: ProviderDeltaHandler, budgetMs?: number): Promise<ProviderOutput> {
     const payload = input.requestPayload as OpenAIChatPayload
+    const config = this.config
     if (
       !this.isConfigShapeValid() ||
-      input.endpoint !== `${this.config.endpoint}/chat/completions` ||
-      (this.config.providerClass === 'local' && !isLoopbackEndpoint(input.endpoint)) ||
+      input.endpoint !== resolveChatEndpoint(config.endpoint, config.endpointPath) ||
       !payload ||
-      payload.model !== this.config.model ||
+      payload.model !== config.model ||
       !Array.isArray(payload.messages) ||
       payload.messages.length === 0
     ) throw new ApplicationError('INVALID_INPUT')
@@ -271,7 +288,14 @@ export class OpenAICompatibleProvider implements ProviderPort {
       } catch (error) {
         throw mapProviderSecretError(error)
       }
-      if (!key && this.config.providerClass === 'remote') throw new ApplicationError('PROVIDER_UNCONFIGURED')
+      if (!key && config.providerClass === 'remote') throw new ApplicationError('PROVIDER_UNCONFIGURED')
+      if (config.sourceKind === 'custom-proxy') {
+        try {
+          await this.endpointPolicy.assertAllowed(input.endpoint, 'custom-proxy')
+        } catch {
+          throw new ApplicationError('PROVIDER_ENDPOINT_BLOCKED')
+        }
+      }
       const headers: Record<string, string> = { 'content-type': 'application/json' }
       if (key) headers.authorization = `Bearer ${key}`
       const response = await this.fetcher(input.endpoint, {
@@ -285,9 +309,12 @@ export class OpenAICompatibleProvider implements ProviderPort {
         // The body carries a provider error code; it separates "bad key" from
         // "no order/quota" and "no such model". Only the code is read, never
         // the whole body, and it is never echoed back to the caller.
-        const providerCode = await readProviderErrorCode(response)
-        if (response.status === 400 && providerCode === 10404) throw new ApplicationError('PROVIDER_MODEL')
-        if (response.status === 403 && providerCode === 11200) throw new ApplicationError('PROVIDER_QUOTA')
+        const hint = await readProviderErrorHint(response)
+        if (response.status === 400 && hint.code === 10404) throw new ApplicationError('PROVIDER_MODEL')
+        // A relay can signal exhausted quota with 403 as well; the string code
+        // is the only stable signal, and it must not be reported as bad auth.
+        const quotaSignal = /quota|insufficient|balance/i.test(`${hint.codeText ?? ''} ${hint.type ?? ''}`)
+        if (response.status === 403 && (hint.code === 11200 || quotaSignal)) throw new ApplicationError('PROVIDER_QUOTA')
         if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
         if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')
         const retryAfter = parseRetryAfter(response.headers.get('retry-after'))
