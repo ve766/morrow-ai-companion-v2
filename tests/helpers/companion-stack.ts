@@ -119,7 +119,10 @@ export function buildTestStack(options: StackOptions = {}): Stack {
         includeSensitive: preview.maximumSensitivity === 'sensitive'
       }
     },
-    providerFactory: () => provider,
+    providerFactory: (config) => ({
+      profile: { id: config.id, providerClass: 'mock', configured: true },
+      generate: (input) => provider.generate(input)
+    }),
     selfModelLoop: {
       events,
       interests,

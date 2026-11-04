@@ -10,6 +10,7 @@ import { createRequestGuard } from '../../security/request-guard'
 import { initializeGoals } from './goals-ui'
 import { initializeReminders } from './reminders-ui'
 import { initializeCompanion } from './companion-ui'
+import { initializeProviderProfiles } from './provider-profiles-ui'
 
 class UiError extends Error {}
 
@@ -335,5 +336,6 @@ void loadMemories()
 initializeGoals()
 initializeReminders()
 initializeCompanion()
+initializeProviderProfiles()
 initializeBackup()
 initializePendingPanel()

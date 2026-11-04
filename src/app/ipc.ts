@@ -41,6 +41,9 @@ import {
   parseProviderConfigInput,
   parseProviderConnectionRequest,
   parseProviderGetRequest,
+  parseProviderProfileIdRequest,
+  parseProviderProfileSaveInput,
+  parseProviderModelsRequest,
   parseChatRequest,
   parsePersonalityInput,
   parsePersonalityRestoreRequest,
@@ -87,6 +90,11 @@ export interface CompanionActions {
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord
   clearProviderCredential(request?: ProviderGetRequest): ProviderConfigRecord | null
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult>
+  listProfiles?(): ProviderConfigRecord[]
+  saveProfile?(request: import('../shared/companion').ProviderProfileSaveInput): ProviderConfigRecord
+  deleteProfile?(request: import('../shared/companion').ProviderProfileIdRequest): void
+  setDefaultProfile?(request: import('../shared/companion').ProviderProfileIdRequest): ProviderConfigRecord
+  discoverModels?(request: import('../shared/companion').ProviderModelsRequest): Promise<import('../shared/companion').ProviderModelsResult>
   createConversation(): ConversationRecord
   listConversations(): ConversationRecord[]
   readConversation(request: { conversationId: string }): ConversationWithMessages
@@ -176,7 +184,8 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     PROVIDER_DEADLINE: '本次请求的总时限已用完，已停止重试；请稍后再试或检查网络。',
     PROVIDER_MODEL: 'DeepSeek 未找到所选模型。',
     PROVIDER_TIMEOUT: 'DeepSeek 请求超时，可重试。',
-    PROVIDER_NETWORK: '无法连接 DeepSeek，请检查网络后重试。',
+    PROVIDER_NETWORK: '无法连接模型服务，请检查网络后重试。',
+    PROVIDER_ENDPOINT_BLOCKED: '该模型接入地址被安全策略阻止（内网、回环或非 HTTPS）。',
     PROVIDER_CANCELLED: '请求已取消。'
   }
   return { ok: false, error: { code, message: messages[code] } }
@@ -271,6 +280,13 @@ export function createIpcHandlers(
       [IPC_CHANNELS.providerSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConfigInput, (request) => companion.saveProvider(request)),
       [IPC_CHANNELS.providerClearCredential]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderGetRequest, (request) => companion.clearProviderCredential(request)),
       [IPC_CHANNELS.providerTestConnection]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConnectionRequest, (request) => companion.testProviderConnection(request)),
+      ...(companion.listProfiles ? {
+        [IPC_CHANNELS.providerProfilesList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listProfiles!()),
+        [IPC_CHANNELS.providerProfileSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderProfileSaveInput, (request) => companion.saveProfile!(request)),
+        [IPC_CHANNELS.providerProfileDelete]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderProfileIdRequest, (request) => companion.deleteProfile!(request)),
+        [IPC_CHANNELS.providerProfileSetDefault]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderProfileIdRequest, (request) => companion.setDefaultProfile!(request)),
+        [IPC_CHANNELS.providerProfileDiscoverModels]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderModelsRequest, (request) => companion.discoverModels!(request))
+      } : {}),
       [IPC_CHANNELS.conversationsCreate]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.createConversation()),
       [IPC_CHANNELS.conversationsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listConversations()),
       [IPC_CHANNELS.conversationsRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.readConversation(request)),
