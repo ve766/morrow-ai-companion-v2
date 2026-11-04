@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION } from './migrations'
+import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION, SchemaIdentityError } from './migrations'
 
 function currentVersion(connection: DatabaseSync): number {
   const schemaTable = connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get()
@@ -106,7 +106,8 @@ export class SqliteDatabase {
       let version: number
       try {
         version = applyMigrations(connection)
-      } catch {
+      } catch (error) {
+        if (error instanceof SchemaIdentityError) throw new Error('Local storage could not be opened.')
         version = currentVersion(connection)
         if (version < DEGRADED_OPEN_MINIMUM_VERSION) throw new Error('Database migration failed.')
       }

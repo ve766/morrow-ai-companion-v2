@@ -31,8 +31,8 @@
 
 ### 真实测试
 
-- `eval:provider-multi-source`：key 只从 `MORROW_TEST_API_KEY`；临时 SQLite + custom profile + IPC save/list/test + consent + adapter 非流式/流式；sanitized JSON/transcript。
-- 本次运行：`20261104T100603Z-b3b82e61`，`BLOCKED_QUOTA`（provider 余额 $0.04775 < 最低预扣 $0.05）；IPC save/list 通过、真实请求到达 provider、错误分类为 `PROVIDER_QUOTA`。
+- `eval:provider-multi-source`：key 只从 `MORROW_TEST_API_KEY`；临时 SQLite + custom profile + IPC save/list + IPC test（真实请求）+ consent + adapter 非流式/流式；sanitized JSON/transcript。
+- 本次运行：`20261104T100603Z-b3b82e61`，`BLOCKED_QUOTA`（provider 余额 $0.04775 < 最低预扣 $0.05）；IPC save/list 通过、IPC test 到达 provider 后返回 quota、错误分类为 `PROVIDER_QUOTA`。
 - local：`BLOCKED_LOCAL_SERVICE_NOT_RUNNING`（无服务，不用 mock）。
 
 ## 2. 测试

@@ -2631,6 +2631,14 @@ export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
 // future migrations can never lock an already-degraded database out.
 export const DEGRADED_OPEN_MINIMUM_VERSION = 9
 
+/** A database carrying another implementation line's version/name identity. */
+export class SchemaIdentityError extends Error {
+  constructor() {
+    super('Unsupported database schema version.')
+    this.name = 'SchemaIdentityError'
+  }
+}
+
 export function applyMigrations(
   database: DatabaseSync,
   targetVersion = CURRENT_SCHEMA_VERSION,
@@ -2647,7 +2655,7 @@ export function applyMigrations(
   const current = Number(database.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get()?.version ?? 0)
   const newestKnown = migrationSet.at(-1)?.version ?? 0
   if (current > newestKnown || targetVersion > newestKnown || targetVersion < current) {
-    throw new Error('Unsupported database schema version.')
+    throw new SchemaIdentityError()
   }
   // Version numbers alone are not an identity: a database produced by a
   // different implementation line can carry the same versions with entirely
@@ -2657,7 +2665,7 @@ export function applyMigrations(
   for (const row of recorded) {
     const expected = migrationSet.find((migration) => migration.version === row.version)
     if (!expected || expected.name !== row.name) {
-      throw new Error('Unsupported database schema version.')
+      throw new SchemaIdentityError()
     }
   }
 

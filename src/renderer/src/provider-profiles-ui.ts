@@ -98,6 +98,7 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
   edit.type = 'button'
   edit.className = 'button button-quiet button-small'
   edit.textContent = '编辑'
+  edit.disabled = profile.sourceKind === 'official'
   const makeDefault = document.createElement('button')
   makeDefault.type = 'button'
   makeDefault.className = 'button button-quiet button-small'
@@ -120,6 +121,7 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
       for (const button of [test, discover, edit, makeDefault, remove]) button.disabled = false
       makeDefault.disabled = profile.isDefault === true || !profile.enabled
       remove.disabled = profile.sourceKind === 'official'
+      edit.disabled = profile.sourceKind === 'official'
     }
   }
 
