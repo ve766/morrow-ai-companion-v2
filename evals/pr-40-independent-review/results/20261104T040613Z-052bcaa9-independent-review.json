@@ -1,0 +1,340 @@
+{
+  "suite": "pr-40-independent-review",
+  "task": "Issue #45",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "pr": 40,
+  "prState": "OPEN",
+  "prMerged": false,
+  "headBranch": "feat/stage-4-companion-confirmation-closure",
+  "baseBranch": "release/morrow-v2-final-delivery",
+  "baseSha": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "auditBaselineSha": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "prHeadAtStart": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "prHeadAtEnd": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "auditBranch": "audit/pr-40-independent-review",
+  "auditCommitPolicy": "the commit containing this file; the final audit commit SHA is reported in the Draft PR and Issue #45 comment",
+  "generatedAt": "2026-11-04T04:06:13Z",
+  "auditor": {
+    "tool": "ZCode",
+    "model": "magpie/workbuddy/deepseek-v4.1-flash",
+    "mode": "read-only independent audit",
+    "note": "No production code, tests, migrations, algorithms or historical results were modified."
+  },
+  "scope": {
+    "changedFiles": 63,
+    "additions": 8300,
+    "deletions": 179,
+    "commits": 8,
+    "filesReviewed": 63,
+    "domains": [
+      "A reflection",
+      "B pending decisions",
+      "C goal candidates",
+      "D startup composition",
+      "E IPC/preload/renderer",
+      "F schema v48/migration",
+      "G stage-3/5 eval",
+      "H other files/regression"
+    ]
+  },
+  "verdict": "MERGE_AFTER_FIXES",
+  "blockingConditions": [
+    "AUD45-P1-01: repeated concern (same statement, new evidence) raises PENDING_LINK_MISMATCH, strands the new finding and returns STORAGE_ERROR on manual reflection; fix plus three regression tests required",
+    "AUD45-P2-02: migration verification claims v47->v48 PASS without a v47 fixture; add the upgrade test and correct the CI step name and the report"
+  ],
+  "findings": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 4,
+    "P3": 7,
+    "ids": [
+      "AUD45-P1-01",
+      "AUD45-P2-02",
+      "AUD45-P2-03",
+      "AUD45-P2-04",
+      "AUD45-P2-05",
+      "AUD45-P3-06",
+      "AUD45-P3-07",
+      "AUD45-P3-08",
+      "AUD45-P3-09",
+      "AUD45-P3-10",
+      "AUD45-P3-11",
+      "AUD45-P3-12"
+    ],
+    "summary": {
+      "AUD45-P1-01": "reflection-routing.ingestRun throws PENDING_LINK_MISMATCH when a second finding has the same statement but different evidence; route/pending/audit rolled back, cursor already advanced, finding permanently unrouted; manual reflection returns STORAGE_ERROR; post-conversation outbox module retries and fails after 5 attempts (or is marked done when reflection is rate-limited while the finding stays unrouted)",
+      "AUD45-P2-02": "no v47->v48 upgrade test; CI step label says v1->v15 although it runs npx vitest run src/persistence (7 files/59 tests); migration-verification.md overstates the evidence",
+      "AUD45-P2-03": "pre-v48 pending rows have finding_id NULL after upgrade; a decision updates only the item and the existing route stays 'routed' forever (documented but not backfilled)",
+      "AUD45-P2-04": "acceptance matrices claim restart coverage by P09, but P09 only covers memory/address/personality; no process-level restart test for candidate/pending/route/audit",
+      "AUD45-P2-05": "eval results inherit a hardcoded branch field (feat/stage-5-relational-presence / feat/stage-4a-companion-continuity) while codeCommit SHA is correct",
+      "AUD45-P3-06": "pending repository audit sink remains optional at construction; stage-2 harnesses and companion-stack construct it without events (fail-closed only at decide time)",
+      "AUD45-P3-07": "PendingCognitionService.complete/drop and repository complete/drop remain public, writing item state without decision/route/audit; no production caller",
+      "AUD45-P3-08": "reflection.run('startup') is outside the try in runStartupReflection; ingest failures only log a warning with no audit event",
+      "AUD45-P3-09": "pickMorrowGapCandidate docstring now sits above pickOpenQuestionCandidate",
+      "AUD45-P3-10": "parsePendingItemIdRequest/PendingItemIdRequest and an ipc import are dead after the complete channel removal",
+      "AUD45-P3-11": "on a degraded schema < 48, pending upsert/decide reference columns that do not exist; finalization catch silently drops pending drafts",
+      "AUD45-P3-12": "pending-ui ignores conflict/not_found statuses of PendingDecisionResult (ok:true) and shows no feedback"
+    }
+  },
+  "domains": {
+    "A_reflection": {
+      "status": "PASS_WITH_P1",
+      "evidence": [
+        "single canonical kind list from src/self-model/self-model-domain.ts",
+        "FINDING_ROUTES covers 8/8 kinds; unknown kind writes required reflection.finding_unroutable",
+        "open_question producer reads only cognition.knowledge_gap; ordinary statements/questions/preferences do not produce it",
+        "P1-01 reproduction in .tmp/audit/repro-duplicate-label.ts"
+      ]
+    },
+    "B_pending_decisions": {
+      "status": "PASS_NEW_RECORDS",
+      "evidence": [
+        "decide() one SqliteDatabase.transaction: item + route + required audit",
+        "same decision unchanged; opposite conflict; route missing/immutable/changes!=1 roll back",
+        "old complete IPC/preload/action/service removed; ipc.test asserts channel unregistered",
+        "legacy finding_id NULL path updates item only (P2-03)"
+      ]
+    },
+    "C_goal_candidates": {
+      "status": "PASS",
+      "evidence": [
+        "decideCandidate single transaction; required GoalAuditSink",
+        "audit throw / unwritten duplicate rolls back goal, candidate, creation key",
+        "accept/reject mutual exclusion; replay returns same goal; source deleted persists expired/source_deleted"
+      ]
+    },
+    "D_startup_composition": {
+      "status": "PASS",
+      "evidence": [
+        "src/app/index.ts:197 and :367 call the production functions",
+        "stage4-startup-composition.integration.test.ts uses a real SQLite file and does not call reflection.run or ingestRun itself",
+        "no-finding startup creates no pending; ABORT trigger leaves zero route/pending/audit rows"
+      ]
+    },
+    "E_ipc_renderer": {
+      "status": "PASS",
+      "evidence": [
+        "trusted sender + strict schema on all new channels",
+        "renderer uses only the preload bridge; textContent rendering",
+        "candidate list and decisions come from SQLite; accept refreshes candidates, formal goals and goals view"
+      ]
+    },
+    "F_migration": {
+      "status": "IMPLEMENTATION_PASS_EVIDENCE_PARTIAL",
+      "evidence": [
+        "v48 additive ALTERs + index; CURRENT_SCHEMA_VERSION=48",
+        "independent v47->v48 upgrade of a real database succeeded and preserved rows",
+        "CI windows upgrade job runs npx vitest run src/persistence: 7 files / 59 tests, includes migrations.test.ts",
+        "no v47 fixture; step name still says v1->v15; migration-verification.md overstates"
+      ]
+    },
+    "G_eval": {
+      "status": "PASS_WITH_EVIDENCE_ISSUES",
+      "evidence": [
+        "24 result files are additions; 24/24 filenames match their codeCommit/codeSha",
+        "historical results not rewritten; PENDING_HUMAN/NOT_RUN/AWAITING_MANUAL_REVIEW preserved",
+        "harness/real-provider changes are constructor arguments and whitespace only",
+        "hardcoded branch field in stage-5/stage-4a generators"
+      ]
+    },
+    "H_regression": {
+      "status": "PASS",
+      "evidence": [
+        "63/63 files reviewed",
+        "full suite 111 files / 1042 tests passed",
+        "targeted 8 files / 96 tests and claimed 7 files / 85 tests passed",
+        "build and typecheck exit 0"
+      ]
+    }
+  },
+  "tests": {
+    "executedAt": "2026-11-04T03:50:00Z..04:00:00Z",
+    "environment": {
+      "platform": "win32",
+      "osVersion": "10.0.26200",
+      "node": "v22.23.2",
+      "npm": "10.9.8",
+      "vitest": "5.0.5",
+      "electron": "44.9.3",
+      "worktree": "clean"
+    },
+    "commands": [
+      {
+        "command": "npx tsc --noEmit",
+        "exitCode": 0,
+        "result": "no errors"
+      },
+      {
+        "command": "npx vitest run",
+        "exitCode": 0,
+        "files": 111,
+        "tests": 1042,
+        "passed": 1042,
+        "failed": 0,
+        "durationSeconds": 150.89
+      },
+      {
+        "command": "npx vitest run (8 stage-4 files)",
+        "exitCode": 0,
+        "files": 8,
+        "tests": 96,
+        "passed": 96,
+        "failed": 0,
+        "durationSeconds": 19.82
+      },
+      {
+        "command": "npx vitest run (claimed 7-file set)",
+        "exitCode": 0,
+        "files": 7,
+        "tests": 85,
+        "passed": 85,
+        "failed": 0
+      },
+      {
+        "command": "npx vitest run src/persistence",
+        "exitCode": 0,
+        "files": 7,
+        "tests": 59,
+        "passed": 59,
+        "failed": 0,
+        "durationSeconds": 30.36
+      },
+      {
+        "command": "npm run build",
+        "exitCode": 0,
+        "result": "electron-vite build success"
+      },
+      {
+        "command": "npm ci --dry-run --ignore-scripts --no-audit --no-fund",
+        "exitCode": 0,
+        "result": "lockfile consistent; installed tree matches 403 dependency entries"
+      }
+    ],
+    "notRun": [
+      {
+        "item": "npm ci (full reinstall)",
+        "status": "NOT_RUN",
+        "reason": "dry-run passed and installed tree matches the lockfile; CI performs npm ci on both platforms"
+      },
+      {
+        "item": "local Electron smoke",
+        "status": "NOT_RUN",
+        "reason": "host cannot run the Electron GUI; CI ubuntu/windows smoke both succeeded"
+      },
+      {
+        "item": "stage-3/4A/5 eval re-run",
+        "status": "NOT_RUN",
+        "reason": "result files verified by SHA/status; harness changes are constructor-only; re-running does not change the code verdict"
+      },
+      {
+        "item": "stage-5 live re-run",
+        "status": "NOT_RUN",
+        "reason": "real provider cost/latency; result metadata and genuine replies inspected, filename suffix not treated as proof"
+      }
+    ]
+  },
+  "ci": {
+    "runId": 41675813211,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41675813211",
+    "headSha": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+    "event": "pull_request",
+    "conclusion": "success",
+    "createdAt": "2026-11-03T16:35:47Z",
+    "jobs": [
+      {
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "id": 126055986559,
+        "conclusion": "success",
+        "keySteps": [
+          "Typecheck",
+          "Unit and integration tests",
+          "Offline evaluations",
+          "Build application bundles",
+          "Electron smoke"
+        ]
+      },
+      {
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "id": 126055986851,
+        "conclusion": "success",
+        "keySteps": [
+          "Typecheck",
+          "Unit and integration tests",
+          "Offline evaluations",
+          "Build application bundles",
+          "Electron smoke"
+        ],
+        "skippedSteps": [
+          "Install xvfb (Linux only)"
+        ]
+      },
+      {
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "id": 126055986219,
+        "conclusion": "success",
+        "keySteps": [
+          "Install dependencies",
+          "Rebuild better-sqlite3 for Node",
+          "Migration and persistence test pass (npx vitest run src/persistence)"
+        ],
+        "observed": "Test Files 7 passed (7); Tests 59 passed (59); includes src/persistence/migrations.test.ts"
+      }
+    ],
+    "migrationCoverage": {
+      "v48SqlExecutedInCi": true,
+      "evidence": "migrations.test.ts calls applyMigrations(connection) with default target CURRENT_SCHEMA_VERSION=48 from fresh/v1/v7/v8/v9/v17/v24/v25/v26/v38 fixtures",
+      "v47ToV48Fixture": false,
+      "existingPendingRowsUpgradeTest": false,
+      "ciStepName": "Migration and persistence test pass (includes v1→v15 upgrade paths)",
+      "verdict": "PARTIAL; finding AUD45-P2-02"
+    },
+    "earlierRuns": [
+      {
+        "runId": 41667548702,
+        "headSha": "9384eb9781341c8434605f2e15bd1a3cbb2ef615",
+        "conclusion": "success",
+        "note": "referenced by the PR evidence; same code as 052bcaa except the docs commit"
+      },
+      {
+        "runId": 41580711704,
+        "headSha": "75a3d5517bc77cdfcd5cb0ea96e2439e7d542017",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "reproductions": {
+    "p1DuplicateConcern": {
+      "script": ".tmp/audit/repro-duplicate-label.ts (audit-local, not committed)",
+      "run1": "ran",
+      "run2": "failed",
+      "unroutedFinding": true,
+      "manualSecondRun": "PENDING_LINK_MISMATCH",
+      "findingId": "AUD45-P1-01"
+    },
+    "v48Upgrade": {
+      "script": ".tmp/audit/repro-v48-upgrade.ts (audit-local, not committed)",
+      "from": 47,
+      "to": 48,
+      "rowsPreserved": true,
+      "legacyItemDecidable": true,
+      "routeAfterDecision": "routed",
+      "findingId": "AUD45-P2-03"
+    }
+  },
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "localElectronSmoke": "BLOCKED_ENV (CI smoke succeeded)",
+    "stage5LiveRerun": "NOT_RUN"
+  },
+  "constraintsRespected": {
+    "pr40Unmerged": true,
+    "pr40Unmodified": true,
+    "releaseBranchUnmodified": true,
+    "mainUnmodified": true,
+    "productionCodeUnmodified": true,
+    "testsUnmodified": true,
+    "historicalResultsUnmodified": true
+  }
+}
