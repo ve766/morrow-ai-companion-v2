@@ -182,7 +182,7 @@
     {
       "id": "B3",
       "status": "FIXED",
-      "evidence": "SchemaIdentityError on version/name mismatch; SqliteDatabase.open rethrows and closes. A full Stage-4 v48 DB -> 'Local storage could not be opened.'; reverse applyMigrations -> 'Unsupported database schema version.'; normal v47->v48 still works.",
+      "evidence": "SchemaIdentityError on version/name mismatch; SqliteDatabase.open rethrows and closes. A v48 DB carrying Stage-4's migration name -> 'Local storage could not be opened.'; reverse applyMigrations -> 'Unsupported database schema version.'; normal v47->v48 still works.",
       "residual": "The reverse direction (Stage-4 code opening a provider-v48 DB) depends on PR #40 being renumbered/updated; merge-order coordination remains."
     },
     {

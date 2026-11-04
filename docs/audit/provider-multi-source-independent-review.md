@@ -18,7 +18,7 @@
 
 - `deepseek`/`spark`: `sourceKind === 'official'`, exact spec base URL, model matching the spec pattern;
 - `local-openai`: `sourceKind === 'local'` (loopback is then enforced by `validateProviderConfig`);
-- the new panel disables **编辑** for `sourceKind === 'official'` (`src/renderer/src/provider-profiles-ui.ts:98,124`).
+- the new panel disables **编辑** for `sourceKind === 'official'` (`src/renderer/src/provider-profiles-ui.ts:101,124`).
 
 Independent reproductions:
 
@@ -45,7 +45,7 @@ Residual (non-blocking): the consent action is labelled `connection-test` rather
 
 Independent reproductions:
 
-- A full Stage-4 v48 database (`pending-decision-terminal-state`, real Stage-4 schema) opened by this branch → `Local storage could not be opened.`; no degraded open, no provider query.
+- A v48 database carrying Stage-4's migration name `pending-decision-terminal-state` (built from the v1–v47 schema plus a Stage-4 probe table) opened by this branch → `Local storage could not be opened.`; no degraded open, no provider query.
 - The reverse direction (`applyMigrations` with the Stage-4 migration set over a provider-v48 database) → `Unsupported database schema version.`
 - A normal v47→v48 upgrade still applies and preserves the three legacy profiles/secrets.
 
