@@ -1,6 +1,6 @@
 # 最终迁移与恢复设计（v48 冲突 → v49）
 
-- 实现 SHA：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
+- 实现 SHA：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 迁移文件：`src/persistence/migrations.ts`
 - 当前版本：`CURRENT_SCHEMA_VERSION = 49`
 

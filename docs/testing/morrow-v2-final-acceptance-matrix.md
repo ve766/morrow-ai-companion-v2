@@ -1,6 +1,6 @@
 # Morrow V2 最终验收矩阵（Issue #53）
 
-- 实现 SHA：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
+- 实现 SHA：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
@@ -50,13 +50,13 @@
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PARTIAL | 脚本 `scripts/product-path-smoke.mjs` 已实现；本机 Electron 启动被宿主阻塞，CI 双平台执行并上传 artifact |
-| 4.2 | 真实 OS SafeStorage 保存/回读/更新/删除/重启 | PARTIAL | 同上；服务层 MemorySecretStore 测试已 PASS，真实 OS 路径等待 CI |
+| 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PASS | CI Windows run `20261104T154241Z-1430f856`：真实 renderer 表单创建 A/B，OS 密文文件摘要不同 |
+| 4.2 | 真实 OS SafeStorage 保存/回读/更新/删除/重启 | PASS | 同上：保存、重启回读、endpoint 变更清除 A、rekey 轮换、删除 B 仅删 B；密文摘要见 JSON |
 | 4.3 | 拒绝 consent 时 fetch=0；切换 endpoint/model 后旧 consent 无效 | PASS（服务层） | `provider-multi-source.integration.test.ts`；`provider-manual-chat.integration.test.ts`；原生对话框无法由 CDP 驱动，已在脚本 limitation 记录 |
-| 4.4 | A→重启→B→A 连续性 | PARTIAL | 脚本实现人格/self-model/memory/interests/goals/relationship/conversations 的 DB 与 bridge 哈希对比；等待 CI 执行 |
+| 4.4 | A→重启→B→A 连续性 | PASS | 同上 run：人格 systemRules/version、self-model、interests、memory、goals、conversation 的基线 ID 与内容保留；启动新增 1 个 interest 属正常增长 |
 | 4.5 | 连接测试不进入聊天/记忆/成长 | PASS（服务层） | `provider-manual-chat.integration.test.ts` 固定 prompt、无聊天/记忆写入 |
 | 4.6 | quota/401/403/404/429/5xx/timeout/cancel/DNS/SSRF 错误状态 | PASS（服务层） | `openai-compatible.test.ts`、`provider-retry.test.ts`、`endpoint-security.test.ts`、health 分类测试 |
-| 4.7 | Windows 打包/安装/启动 smoke | PARTIAL | 本机打包见 `release/`；启动被宿主 0xC0000005 阻塞；CI `windows-package-smoke` 安装 NSIS 并运行 `--verify-upgrade` |
+| 4.7 | Windows 打包/安装/启动 smoke | PASS | CI `windows-package-smoke` 安装 NSIS 并用 `--verify-upgrade` 启动已安装程序；本机启动仍受宿主 0xC0000005 阻塞，已如实记录 |
 
 ## 5. Stage 4 回归与 Issue #47
 
@@ -78,8 +78,8 @@
 
 ## 7. 最终状态
 
-- 代码、迁移、P1/P2、Stage 4 回归、离线评估、构建：PASS。
+- 代码、迁移、P1/P2、Stage 4 回归、离线评估、构建、Windows 安装/启动、真实 Electron 产品路径（CI Windows）：PASS。
 - 真实远程 Provider：BLOCKED_QUOTA（外部账户）。
 - 本地模型：BLOCKED_LOCAL_SERVICE_NOT_RUNNING（外部服务）。
-- 真实 Electron 产品路径：本机 BLOCKED_HOST_ELECTRON_CRASH；CI 双平台步骤已加入，最终以 CI 结果为准。
+- 本机 Electron 启动：BLOCKED_HOST_ELECTRON_CRASH；同一脚本在 CI Windows run `20261104T154241Z-1430f856` PASS。
 - 因此整体状态为 **PARTIAL**，不是 COMPLETE；不得发布 Release 或合并 PR。

@@ -1,7 +1,7 @@
 # Morrow V2 最终集成架构
 
 - 分支：`feat/morrow-v2-final-closure`
-- 实现 SHA：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
+- 实现 SHA：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
 ## 1. 一条产品线

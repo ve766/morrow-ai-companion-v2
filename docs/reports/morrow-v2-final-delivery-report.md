@@ -8,7 +8,7 @@
 - Stage 4 集成：PR #40 head `4284cb1` → 合并 `a34d797`
 - Provider 集成：PR #51 head `326e68a` → 合并 `5091e02`
 - Provider P1/P2 核心修复：`d9b28aecb47ff136bbdbda492c5be20ffc53bbd4`
-- 最终收口修复（CI/harness/HTTP 状态）：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
+- 最终收口修复（CI/harness/HTTP 状态）：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 产品路径与证据提交：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 最终状态：**PARTIAL**
 
@@ -50,8 +50,8 @@
 | `npm run evaluate` | PASS：M3 检索 + M4 reminders 合成评估 |
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
-| `npm run package:win` | 本机执行；安装包产物在 `release/`（启动 smoke 受宿主阻塞，见 §3） |
-| CI | 运行 [41834663403](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41834663403)；包含 Ubuntu/Windows smoke、product-path、Windows package/install、Windows upgrade |
+| `npm run package:win` | 本机执行；安装包产物在 `release/`；CI Windows package/install smoke PASS |
+| CI | 最终运行 [41859315790](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41859315790) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
 
 测试新增覆盖：
 
@@ -70,7 +70,7 @@
 | `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`；HTTP 403，latency 586ms，attempts 1，stream deltas 0，exit 0；未写成 PASS |
 | `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json`；HTTP 403，latency 318ms，attempts 1，stream deltas 0，exit 0 |
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
-| 本机 Electron 启动 | **BLOCKED_HOST_ELECTRON_CRASH** | Electron 44 在 Windows 26200 以 0xC0000005 退出；`scripts/product-path-smoke.mjs` 已加入 CI 双平台 |
+| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path run `20261104T154241Z-1430f856` PASS（Electron 44.9.3，sandbox 启用） |
 
 运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。
 
@@ -80,11 +80,11 @@
 
 1. 真实 renderer 表单创建两个 custom profile（不同 fake key）。
 2. OS SafeStorage 密文文件按 profile id 隔离；保存、重启回读、endpoint 变更清除、重新输入 key 轮换、删除仅影响目标 profile。
-3. A → 重启 → B → A 的连续性：人格、self-model、interests、memory、goals、relationship、conversation 的 bridge 快照与 SQLite 全表哈希一致。
+3. A → 重启 → B → A 的连续性：人格 systemRules/version、self-model、interests、memory、goals、conversation 的 ID 与内容保持；基线 ID 不被删除或重建。启动时新增 1 个 interest 属正常增长，不算重置。
 4. 删除/默认切换只通过 typed bridge/UI。
 5. 不触发原生 consent 对话框；脚本明确记录该限制。consent 拒绝 0 fetch 与连接测试不进入聊天/记忆由同 SHA 的服务层集成测试证明。
 
-本机因宿主 Electron 崩溃未完成 UI 执行；CI 的 Ubuntu（xvfb）与 Windows 步骤会执行并上传 `evals/morrow-v2-final/` artifact。
+CI Windows 产品路径 **PASS**：run `20261104T154241Z-1430f856`，Electron 44.9.3，sandbox 启用，18 项检查全部通过；artifact `morrow-product-path-windows-latest` 包含 JSON + transcript。本机因宿主 Electron 崩溃未完成 UI 执行，已如实保留 `20261104T124142Z-933adad0.json` 作为宿主阻塞证据，不冒充 PASS。
 
 ## 5. Stage 4 回归
 
@@ -111,4 +111,4 @@
 
 ## 8. 最终状态
 
-**PARTIAL**。代码、迁移、P1/P2、Stage 4 回归、离线评估与构建均通过；真实远程 Provider 额度、本地模型服务与真实 Electron 产品路径仍受外部/宿主条件限制。V2 不进入发布决策，等待用户审阅 PR #54。
+**PARTIAL**。代码、迁移、P1/P2、Stage 4 回归、离线评估、构建、Windows 安装/启动 smoke 与真实 Electron 产品路径（CI Windows）均通过；真实远程 Provider 额度与本地模型服务仍受外部条件限制。V2 不进入发布决策，等待用户审阅 PR #54。

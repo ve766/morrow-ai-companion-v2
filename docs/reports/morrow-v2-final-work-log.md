@@ -98,7 +98,22 @@
 
 - 两个远程 Provider 账户均返回 403 quota；未伪造 PASS。
 - 本地 1234/8000/8080/11434 无 OpenAI-compatible `/v1/models`；8000 是非模型 Web 原型。
-- 本机 Electron 44 在 Windows 26200 启动即 0xC0000005（sandbox 开关均复现）；已把产品路径脚本加入 CI Ubuntu/Windows，并增加 Windows 打包/安装/启动 smoke。
+- 本机 Electron 44 在 Windows 26200 启动即 0xC0000005（sandbox 开关均复现）；产品路径改在 CI Windows 执行，并增加 Windows 打包/安装/启动 smoke。
+
+## 5.1 CI 收敛过程
+
+| 轮次 | 失败 | 修复 |
+| --- | --- | --- |
+| 1 | product-path seed 顶层 await 语法错误；Windows package seed 因 `--no-sandbox` 崩溃 | seed 包 async IIFE；Windows package job 去掉 sandbox 开关 |
+| 2 | Ubuntu 无 OS keyring，safeStorage 为 basic_text | product-path 仅在 Windows 执行；Ubuntu 保留 smoke |
+| 3 | 重启后 listProfiles 返回 PROVIDER_CREDENTIAL_STORE_ERROR | 关闭应用改为 `window.close()` 优雅退出，等待 key 材料落盘 |
+| 4 | 重启 continuity 因 feeling revision 变化 | 从 continuity 快照移除派生 feeling 状态 |
+| 5 | interests 正常增长导致 hash 不等 | 改为“基线 ID/内容保留、允许增长”，不要求数组完全相同 |
+| 6 | 最终 continuity 快照是未 await 的 Promise | `const continuity = await (...)` |
+| 7 | 重启后立即提交表单，UI 尚未初始化 | 等待 `#provider-profile-list[aria-busy=false]` |
+| 8 | **全部 PASS** | run `41859315790`：Ubuntu smoke、Windows smoke/product-path、Windows package/install、Windows upgrade 4/4 |
+
+Windows product-path PASS run：`20261104T154241Z-1430f856`（Electron 44.9.3，sandbox 启用，18 项检查）。
 
 ## 6. Git 记录
 
@@ -108,12 +123,12 @@
 | `5091e02` | 合并 Provider + v49 桥接 |
 | `d9b28ae` | Provider P1/P2 核心修复 |
 | `c1f4450` | 产品路径/CI 修复、HTTP 状态证据 |
+| `d07b3f4` | product-path 收敛（优雅退出、UI 就绪、continuity 语义） |
 | `28665df` | 产品路径脚本、真实运行证据、CI |
 | 后续 | 文档、独立复审、最终 PR 更新 |
 
 ## 7. 未完成/后续动作
 
-1. 等待 CI 在最终 SHA 上完成 Ubuntu/Windows product-path 与 Windows package/install smoke；把 artifact 结果回填证据索引。
-2. 独立复审报告提交到本分支。
-3. 回填 PR #54 最终 head、CI 链接、复审 verdict。
-4. 不合并、不发布、不修改 release/main。
+1. 独立复审报告提交到本分支，并复审最终 HEAD。
+2. 回填 PR #54 最终 head、CI 链接、复审 verdict。
+3. 不合并、不发布、不修改 release/main。

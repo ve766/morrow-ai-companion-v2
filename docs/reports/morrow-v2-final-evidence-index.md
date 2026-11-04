@@ -2,7 +2,7 @@
 
 - 分支：`feat/morrow-v2-final-closure`
 - PR：#54 https://github.com/ve766/morrow-ai-companion-v2/pull/54
-- 实现 SHA：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
+- 实现 SHA：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
@@ -59,11 +59,14 @@
 - 脚本：`scripts/product-path-smoke.mjs`
 - npm：`npm run smoke:product-path`
 - CI workflow：`.github/workflows/ci.yml`
-  - Ubuntu/Windows：`Electron smoke` + `Electron product-path acceptance`
+  - Ubuntu：`Electron smoke`（Linux CI 无 OS keyring，product-path 仅在 Windows 执行）
+  - Windows：`Electron smoke` + `Electron product-path acceptance`
   - Windows：`Windows package, install and installed-app smoke`
   - Windows：`Windows upgrade path (schema migrations under the real app)`
-- 本机执行结果：`evals/morrow-v2-final/results/20261104T124142Z-933adad0.json`（FAILED，宿主 Electron 0xC0000005）；不冒充 PASS。
-- CI artifact：`morrow-product-path-ubuntu-latest` / `morrow-product-path-windows-latest`，包含最终 SHA 的 JSON + transcript。
+- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41859315790（全部 job PASS）
+- PASS 证据：`evals/morrow-v2-final/results/20261104T154241Z-1430f856.json` + transcript；Electron 44.9.3，18 项检查，sandbox 启用。
+- 本机失败证据：`evals/morrow-v2-final/results/20261104T124142Z-933adad0.json`（FAILED，宿主 Electron 0xC0000005）；不冒充 PASS。
+- CI artifact：`morrow-product-path-windows-latest`，包含 JSON + transcript。
 
 ## 6. 命令与退出码
 
@@ -76,11 +79,12 @@
 | `npm run build` | 0 |
 | `npm run eval:provider-multi-source`（supuxh） | 0（脚本正常退出；结果 BLOCKED_QUOTA） |
 | `npm run eval:provider-multi-source`（speed26） | 0（结果 BLOCKED_QUOTA） |
-| `node scripts/product-path-smoke.mjs`（本机） | 1（宿主 Electron 崩溃） |
-| `npm run smoke:product-path`（CI） | 以 CI 运行结果为准 |
+| `node scripts/product-path-smoke.mjs`（本机） | 1（宿主 Electron 崩溃；已保留 FAILED 证据） |
+| `npm run smoke:product-path`（CI Windows） | 0；run `20261104T154241Z-1430f856` PASS |
+| CI run 41859315790 | 4/4 job PASS |
 
 ## 7. 一致性
 
-- 报告、矩阵、基线中的最终代码 SHA 为 `c1f4450`；Provider P1/P2 核心修复为 `d9b28ae`；证据脚本为 `28665df`。
+- 报告、矩阵、基线中的最终代码 SHA 为 `d07b3f4b951fab2bd522413c789850055a49fe61`；Provider P1/P2 核心修复为 `d9b28ae`；证据脚本起点为 `28665df`。
 - PR head 会随文档/复审提交前进；PR 描述与最终评论给出当时 head SHA。
 - 历史 PR #40/#51/#52 的 SHA 与报告未被改写。
