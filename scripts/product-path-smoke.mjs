@@ -372,6 +372,7 @@ try {
 
   const continuityBefore = await activeClient.evaluate(continuityScript)
   await stop(activeRun, activeClient)
+  await delay(750)
   activeRun = undefined
   activeClient = undefined
   const dbBefore = snapshotDatabase()
@@ -382,12 +383,24 @@ try {
   activeRun = started.run
   activeClient = started.client
   const afterRestart = await activeClient.evaluate(`(async () => {
-    const list = await window.morrow.providers.listProfiles()
-    if (!list.ok) throw new Error('Profile list failed after restart.')
-    return list.data.map((profile) => ({ id: profile.id, enabled: profile.enabled, apiKeyConfigured: profile.apiKeyConfigured, endpoint: profile.endpoint }))
+    let lastError = null
+    const deadline = Date.now() + 8000
+    while (Date.now() < deadline) {
+      const list = await window.morrow.providers.listProfiles()
+      if (list.ok) {
+        return {
+          ok: true,
+          profiles: list.data.map((profile) => ({ id: profile.id, enabled: profile.enabled, apiKeyConfigured: profile.apiKeyConfigured, endpoint: profile.endpoint }))
+        }
+      }
+      lastError = list.error
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    return { ok: false, error: lastError ? lastError.code + ': ' + lastError.message : 'unknown' }
   })()`)
-  const restartedA = afterRestart.find((profile) => profile.id === idA)
-  const restartedB = afterRestart.find((profile) => profile.id === idB)
+  if (!afterRestart.ok) record('profiles and OS secrets survive restart', false, afterRestart.error)
+  const restartedA = afterRestart.profiles.find((profile) => profile.id === idA)
+  const restartedB = afterRestart.profiles.find((profile) => profile.id === idB)
   record('profiles and OS secrets survive restart', restartedA?.apiKeyConfigured === true && restartedB?.apiKeyConfigured === true, 'both profiles read back configured after restart')
   const continuityAfterRestart = await activeClient.evaluate(continuityScript)
   record('continuity unchanged across restart', hash(continuityAfterRestart) === hash(continuityBefore), 'bridge snapshot hash matches')
@@ -406,6 +419,7 @@ try {
     changed.saved?.apiKeyConfigured === false && changed.saved.enabled === false && changed.feedback.includes('旧密钥已清除'),
     `feedback: ${changed.feedback}`)
   await stop(activeRun, activeClient)
+  await delay(750)
   activeRun = undefined
   activeClient = undefined
   const secretsAfterChange = snapshotSecrets([idA, idB])
@@ -423,6 +437,7 @@ try {
   })
   record('re-entering a key re-enables the profile', rekeyed.saved?.apiKeyConfigured === true && rekeyed.saved.enabled === true, `feedback: ${rekeyed.feedback}`)
   await stop(activeRun, activeClient)
+  await delay(750)
   activeRun = undefined
   activeClient = undefined
   const secretsAfterRekey = snapshotSecrets([idA, idB])
@@ -444,6 +459,7 @@ try {
   const continuityAfterSwitch = await activeClient.evaluate(continuityScript)
   record('continuity unchanged across provider switch', hash(continuityAfterSwitch) === hash(continuityBefore), 'bridge snapshot hash matches')
   await stop(activeRun, activeClient)
+  await delay(750)
   activeRun = undefined
   activeClient = undefined
   const dbAfterSwitch = snapshotDatabase()
@@ -467,6 +483,7 @@ try {
   })()`)
   record('delete profile B through the renderer', deleted.deleted === true, 'B removed from the list')
   await stop(activeRun, activeClient)
+  await delay(750)
   activeRun = undefined
   activeClient = undefined
   const secretsAfterDelete = snapshotSecrets([idA, idB])
