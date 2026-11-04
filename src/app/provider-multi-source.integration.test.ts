@@ -168,6 +168,8 @@ describe('multi-source provider profiles', () => {
       expect(() => service.saveProfile({ ...base, endpointPath: 'v1/chat' })).toThrow()
       expect(() => service.saveProfile({ ...base, model: 'bad model' })).toThrow()
       expect(() => service.saveProfile({ ...base, sourceKind: 'official' })).toThrow()
+      expect(() => service.saveProfile({ ...base, profileId: 'deepseek', sourceKind: 'custom-proxy', endpoint: 'https://evil.example.com' })).toThrow()
+      expect(() => service.saveProfile({ ...base, profileId: 'spark', sourceKind: 'custom-proxy', endpoint: 'https://evil.example.com' })).toThrow()
       expect(service.listProfiles()).toHaveLength(0)
     } finally {
       database.close()
@@ -186,6 +188,13 @@ describe('multi-source provider profiles', () => {
       expect(previews[0]?.model).toBe('gemini-3-flash')
       const stored = service.get(saved.id)!
       expect(stored.lastTest).toMatchObject({ status: 'connected', model: 'gemini-3-flash' })
+      service.setDefaultProfile(saved.id)
+      const { apiKey: _ignored, ...baseProfile } = profileA
+      const renamed = service.saveProfile({ ...baseProfile, profileId: saved.id, displayName: 'Relay A renamed' })
+      expect(renamed.lastTest).toMatchObject({ status: 'connected' })
+      expect(renamed.isDefault).toBe(true)
+      const undefaulted = service.saveProfile({ ...baseProfile, profileId: saved.id, isDefault: false })
+      expect(undefaulted.isDefault).toBe(false)
       expect(stored.capabilities?.streaming.verified).toBe(true)
       expect(JSON.stringify(stored.lastTest)).not.toContain(profileA.apiKey)
     } finally {
@@ -204,6 +213,26 @@ describe('multi-source provider profiles', () => {
       const result = await service.discoverModels({ profileId: saved.id })
       expect(result.models).toEqual(['gemini-3-flash', 'claude-sonnet-4-5'])
       expect(fetcher).toHaveBeenCalledWith('https://relay-a.example.com/v1/models', expect.objectContaining({ method: 'GET', redirect: 'error' }))
+    } finally {
+      database.close()
+    }
+  })
+
+  it('requires consent before model discovery', async () => {
+    const { database, secrets, fetcher } = openService()
+    try {
+      const denied = new ProviderConfigService(
+        database,
+        secrets,
+        async () => undefined,
+        () => '2026-11-04T00:00:00.000Z',
+        () => { throw new Error('provider factory must not run during denied discovery') },
+        fetcher as never,
+        createEndpointPolicy(async () => [{ address: '8.8.8.8' }])
+      )
+      const saved = denied.saveProfile(profileA)
+      await expect(denied.discoverModels({ profileId: saved.id })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      expect(fetcher).not.toHaveBeenCalled()
     } finally {
       database.close()
     }
@@ -287,5 +316,20 @@ describe('provider health classification', () => {
     } finally {
       database.close()
     }
+  })
+})
+
+describe('provider schema identity', () => {
+  it('fails closed when a v48 database has another implementation line identity', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-provider-foreign-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const raw = new DatabaseSync(path)
+    try {
+      applyMigrations(raw, 47)
+      raw.prepare("INSERT INTO schema_migrations(version, name, applied_at) VALUES (48, 'pending-decision-terminal-state', '2026-11-04T00:00:00.000Z')").run()
+    } finally {
+      raw.close()
+    }
+    expect(() => SqliteDatabase.open(path)).toThrow('Local storage could not be opened.')
   })
 })

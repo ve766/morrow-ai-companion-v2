@@ -3,7 +3,7 @@
 - 仓库：`ve766/morrow-ai-companion-v2`
 - 分支：`feat/provider-multi-source-foundation`
 - base：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
-- 代码 SHA：`24efc5cb60972f28b746779ca4f32ed37d295f57`
+- 代码 SHA：`34098fb6698fad5a8674e8ceb2b2a4f5be819310`
 - 最终状态：**PARTIAL**（代码/迁移/UI/安全完成；真实 remote 额度阻塞、local 未运行、独立复审待完成）
 
 ## 1. 实施范围
@@ -31,8 +31,8 @@
 
 ### 真实测试
 
-- `eval:provider-multi-source`：key 只从 `MORROW_TEST_API_KEY`；临时 SQLite + custom profile + IPC save/list/test + consent + adapter 非流式/流式；sanitized JSON/transcript。
-- 本次运行：`20261104T100603Z-b3b82e61`，`BLOCKED_QUOTA`（provider 余额 $0.04775 < 最低预扣 $0.05）；IPC save/list 通过、真实请求到达 provider、错误分类为 `PROVIDER_QUOTA`。
+- `eval:provider-multi-source`：key 只从 `MORROW_TEST_API_KEY`；临时 SQLite + custom profile + IPC save/list + IPC test（真实请求）+ consent + adapter 非流式/流式；sanitized JSON/transcript。
+- 本次运行：`20261104T105300Z-987ad9c2`，`BLOCKED_QUOTA`（provider 余额 $0.04775 < 最低预扣 $0.05）；IPC save/list 通过、IPC test 到达 provider 后返回 quota、错误分类为 `PROVIDER_QUOTA`。
 - local：`BLOCKED_LOCAL_SERVICE_NOT_RUNNING`（无服务，不用 mock）。
 
 ## 2. 测试
@@ -79,3 +79,14 @@
 ## 6. 结论
 
 产品代码、迁移、UI、安全与自动化测试已交付；真实 remote 因外部账号额度阻塞，local 因无服务阻塞，独立复审未完成。因此 **PARTIAL**，不是 COMPLETE。
+
+## 7. 独立复审后的安全修复（代码 SHA `34098fb`）
+
+独立复审（PR #52）发现 3 个阻断项，已在本分支修复：
+
+1. **内置 id 不能被改写为任意 endpoint**：`deepseek`/`spark` 只允许 official source、固定 endpoint 和合法 model；`local-openai` 只允许 local loopback；UI 禁止编辑 official profile。复现路径（新面板 edit 将 official 改成 custom）现在被服务层拒绝。
+2. **模型发现需要 consent**：`discoverModels` 在发送存储的 key 前，用与 connection-test 相同的 profile/endpoint consent；拒绝则 `FORBIDDEN`，不发请求。
+3. **v48 身份冲突 fail-closed**：`SqliteDatabase.open` 对“版本号相同但 migration name 属于另一实现线”的数据库直接失败，不再以 degraded 48 打开后在 provider 查询时报缺列。
+4. 同时修复：保存 profile 保留 lastTest/capabilities；`isDefault` 可显式取消；验收矩阵不再把 IPC test 写成通过（实际到达 provider 后返回 quota）。
+
+复审复审（第二轮）见 PR #52 的更新提交与 review JSON。

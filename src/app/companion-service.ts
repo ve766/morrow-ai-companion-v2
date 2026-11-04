@@ -524,8 +524,17 @@ export class ProviderConfigService {
     const profileId = (input.profileId?.trim().toLowerCase() || randomUUID().toLowerCase())
     if (!isProfileId(profileId)) throw new ApplicationError('INVALID_INPUT')
     if (input.sourceKind === 'official' && !isBuiltinProviderId(profileId)) throw new ApplicationError('INVALID_INPUT')
+    if (isBuiltinProviderId(profileId)) {
+      const spec = remoteSpecFor(profileId)
+      if (profileId === LOCAL_PROVIDER_ID) {
+        if (input.sourceKind !== 'local') throw new ApplicationError('INVALID_INPUT')
+      } else if (input.sourceKind !== 'official' || !spec || input.endpoint.trim() !== spec.baseUrl || !spec.modelPattern.test(input.model.trim())) {
+        throw new ApplicationError('INVALID_INPUT')
+      }
+    }
     if (!isModelId(input.model.trim())) throw new ApplicationError('INVALID_INPUT')
     const endpointPath = input.endpointPath?.trim() || null
+    const existing = this.get(profileId)
     const candidate: ProviderConfigRecord = normalizeProviderConfig({
       id: profileId,
       displayName: input.displayName.trim(),
@@ -536,8 +545,10 @@ export class ProviderConfigService {
       endpointPath,
       model: input.model.trim(),
       enabled: input.enabled,
-      isDefault: input.isDefault === true,
+      isDefault: input.isDefault === undefined ? existing?.isDefault === true : input.isDefault,
       apiKeyConfigured: this.hasCredential(profileId),
+      capabilities: existing?.capabilities ?? defaultCapabilities(),
+      lastTest: existing?.lastTest ?? null,
       updatedAt: this.clock()
     })
     const validation = validateProviderConfig(candidate)
@@ -550,7 +561,6 @@ export class ProviderConfigService {
       }
       apiKey = input.apiKey.trim() || undefined
     }
-    const existing = this.get(profileId)
     if (candidate.enabled && candidate.sourceKind !== 'local' && !apiKey && !this.hasCredential(profileId)) {
       throw new ApplicationError('PROVIDER_UNCONFIGURED')
     }
@@ -565,7 +575,7 @@ export class ProviderConfigService {
         throw mapProviderSecretError(error)
       }
     }
-    const isDefault = input.isDefault === true || existing?.isDefault === true
+    const isDefault = input.isDefault === undefined ? existing?.isDefault === true : input.isDefault
     try {
       this.database.transaction(() => {
         if (isDefault) {
@@ -722,6 +732,22 @@ export class ProviderConfigService {
       } catch {
         throw new ApplicationError('PROVIDER_ENDPOINT_BLOCKED')
       }
+    }
+    // Discovery sends the profile credential to the endpoint. It has no user
+    // content, but it is still an authenticated egress and requires the same
+    // profile/endpoint consent as a connection test.
+    const discoveryInput: ProviderInput = {
+      prompt: '',
+      context: { text: '', selected: [], omitted: 0, characterCount: 0 },
+      endpoint: url,
+      maximumSensitivity: 'normal',
+      requestPayload: { models: true }
+    }
+    const preview = consentPreview('connection-test', config, discoveryInput)
+    const consent = await this.authorize(preview)
+    if (!consent) throw new ApplicationError('FORBIDDEN')
+    if (consentPreview('connection-test', config, discoveryInput).payloadSha256 !== preview.payloadSha256) {
+      throw new ApplicationError('CONFLICT')
     }
     const key = this.secrets.get(config.id)
     const controller = new AbortController()
