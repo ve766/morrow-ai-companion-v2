@@ -7,6 +7,7 @@ import { EventLogService } from '../persistence/event-log'
 import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
 import { PendingCognitionService } from './pending-items'
 import { FINDING_ROUTES, MAX_PROMPT_HINTS, REFLECTION_FINDING_KINDS, ReflectionFindingRouter } from './reflection-routing'
+import { concernDigestOf } from '../self-model/reflection-concern'
 
 let directory = ''
 afterEach(() => {
@@ -284,6 +285,102 @@ describe('reflection finding routing (D-10)', () => {
       expect(world.pending.decide(ids[0]!, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
       const routeCount = world.database.connection.prepare('SELECT COUNT(*) AS n FROM reflection_finding_routes').get() as { n: number }
       expect(routeCount.n).toBe(0)
+      const audit = world.database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision'").get() as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({ routeStatus: null, routeResolution: 'unresolved', routesUpdated: 0 })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('converges a legacy item route by its stored concern digest', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const findingId = uid(8)
+      const statement = '用户纠正过助手对上一轮的理解。'
+      seedFinding(world.database, findingId, 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      world.database.connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'pending_user', 'routed', 'legacy route', ?, 'intent_correction', ?, ?)"
+      ).run(findingId, RUN, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+      const itemId = uid(9)
+      world.database.connection.prepare(
+        "INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, finding_id, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'legacy item', 40, 'open', NULL, NULL, '{}', ?, ?, NULL)"
+      ).run(itemId, `reflection:intent_correction:${concernDigestOf(statement)}`, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+
+      expect(world.pending.decide(itemId, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      expect(world.database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(findingId)).toEqual({ status: 'consumed' })
+      const audit = world.database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' AND subject_id = ?").get(itemId) as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({
+        routeStatus: 'consumed',
+        routeResolution: 'resolved_by_concern',
+        routesUpdated: 1
+      })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('converges every route of a legacy concern adopted by a later observation', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const original = uid(8)
+      const later = uid(9)
+      const statement = '用户纠正过助手对上一轮的理解。'
+      seedFinding(world.database, original, 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      seedFinding(world.database, later, 'intent_correction', statement, 60, '2026-11-01T07:10:01.000Z')
+      world.database.connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'pending_user', 'routed', 'pre-upgrade route', ?, 'intent_correction', ?, ?)"
+      ).run(original, RUN, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+      const itemId = uid(7)
+      world.database.connection.prepare(
+        "INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, finding_id, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'legacy item', 40, 'open', NULL, NULL, '{}', ?, ?, NULL)"
+      ).run(itemId, `reflection:intent_correction:${concernDigestOf(statement)}`, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+
+      // A post-upgrade observation of the same concern adopts the legacy item.
+      world.router.ingestRun(RUN, [{ id: later, kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:10:01.000Z' }])
+      const adopted = world.pending.get(itemId)!
+      expect(adopted.findingId).toBe(later)
+
+      expect(world.pending.decide(itemId, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      const routes = world.database.connection.prepare('SELECT finding_id, status FROM reflection_finding_routes ORDER BY finding_id').all() as Array<{ finding_id: string; status: string }>
+      expect(routes).toEqual([
+        { finding_id: original, status: 'consumed' },
+        { finding_id: later, status: 'consumed' }
+      ])
+      const audit = world.database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' AND subject_id = ?").get(itemId) as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({
+        routeStatus: 'consumed',
+        routeResolution: 'linked_with_siblings',
+        routesUpdated: 2
+      })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('does not guess a legacy route when the concern cannot be proven', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const findingId = uid(8)
+      seedFinding(world.database, findingId, 'intent_correction', '另一条纠正。', 60, '2026-11-01T07:00:01.000Z')
+      world.database.connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'pending_user', 'routed', 'legacy route', ?, 'intent_correction', ?, ?)"
+      ).run(findingId, RUN, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+      const itemId = uid(9)
+      world.database.connection.prepare(
+        "INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, finding_id, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'legacy item', 40, 'open', NULL, NULL, '{}', ?, ?, NULL)"
+      ).run(itemId, 'reflection:intent_correction:0000000000000000', '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+
+      expect(world.pending.decide(itemId, 'rejected')).toMatchObject({ status: 'decided', itemStatus: 'dropped' })
+      expect(world.database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(findingId)).toEqual({ status: 'routed' })
+      const audit = world.database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' AND subject_id = ?").get(itemId) as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({
+        routeStatus: null,
+        routeResolution: 'unresolved',
+        routesUpdated: 0
+      })
     } finally {
       world.close()
     }
@@ -292,7 +389,7 @@ describe('reflection finding routing (D-10)', () => {
   it('requires a durable audit sink for decisions', () => {
     const world = openWorld()
     try {
-      const legacyRepository = new SqlitePendingItemRepository(world.database)
+      const legacyRepository = new SqlitePendingItemRepository(world.database, undefined as never)
       const legacy = new PendingCognitionService(legacyRepository, () => globalThis.crypto.randomUUID(), () => world.clock.now)
       const [id] = legacy.observeTurn({
         turnId: uid(12),
@@ -303,6 +400,85 @@ describe('reflection finding routing (D-10)', () => {
         blockedClaimKinds: []
       })
       expect(() => legacy.decide(id!, 'accepted')).toThrow(/PENDING_AUDIT_UNAVAILABLE/)
+    } finally {
+      world.close()
+    }
+  })
+
+  it('ingests a second finding for the same concern without PENDING_LINK_MISMATCH', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const statement = '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答。'
+      const first = uid(3)
+      const second = uid(4)
+      seedFinding(world.database, first, 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      seedFinding(world.database, second, 'intent_correction', statement, 60, '2026-11-01T08:00:01.000Z')
+      world.router.ingestRun(RUN, [{ id: first, kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:00:01.000Z' }])
+      expect(() => world.router.ingestRun(RUN, [
+        { id: second, kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T08:00:01.000Z' }
+      ])).not.toThrow()
+
+      const routes = world.database.connection.prepare('SELECT finding_id, status FROM reflection_finding_routes ORDER BY finding_id').all() as Array<{ finding_id: string; status: string }>
+      expect(routes).toEqual([{ finding_id: first, status: 'routed' }])
+      const items = world.database.connection.prepare('SELECT finding_id FROM cognitive_pending_items').all() as Array<{ finding_id: string }>
+      expect(items).toEqual([{ finding_id: first }])
+      const archived = world.database.connection.prepare(
+        "SELECT payload_json FROM event_journal WHERE event_type = 'reflection.finding_reobserved' AND json_extract(payload_json, '$.findingId') = ?"
+      ).get(second) as { payload_json: string } | undefined
+      expect(archived).toBeDefined()
+      expect(JSON.parse(archived!.payload_json)).toMatchObject({
+        findingId: second,
+        existingFindingId: first,
+        pendingItemId: expect.any(String)
+      })
+
+      const item = world.pending.listOpen()[0]!
+      expect(world.pending.decide(item.id, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      expect(world.database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(first)).toEqual({ status: 'consumed' })
+    } finally {
+      world.close()
+    }
+  })
+
+  it('routes later findings when one finding cannot be routed, and records the failure', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const broken = uid(5)
+      const healthy = uid(6)
+      seedFinding(world.database, broken, 'open_question', '坏路由。', 50, '2026-11-01T07:00:01.000Z')
+      seedFinding(world.database, healthy, 'memory_gap', '健康路由。', 50, '2026-11-01T07:00:02.000Z')
+      // A pre-existing route with the wrong route kind makes this finding fail.
+      world.database.connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'context_hint', 'routed', 'foreign route', ?, 'open_question', ?, ?)"
+      ).run(broken, RUN, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+
+      expect(() => world.router.ingestRun(RUN, [
+        { id: broken, kind: 'open_question', statement: '坏路由。', confidence: 50, createdAt: '2026-11-01T07:00:01.000Z' },
+        { id: healthy, kind: 'memory_gap', statement: '健康路由。', confidence: 50, createdAt: '2026-11-01T07:00:02.000Z' }
+      ])).toThrow(/REFLECTION_INGEST_FAILED/)
+
+      const healthyRoute = world.database.connection.prepare('SELECT route FROM reflection_finding_routes WHERE finding_id = ?').get(healthy) as { route: string } | undefined
+      expect(healthyRoute?.route).toBe('context_hint')
+      const failure = world.database.connection.prepare(
+        "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'reflection.finding_ingest_failed' AND json_extract(payload_json, '$.findingId') = ?"
+      ).get(broken) as { n: number }
+      expect(failure.n).toBe(1)
+    } finally {
+      world.close()
+    }
+  })
+
+  it('recovers a finding that was stored without a route, idempotently', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const stranded = uid(7)
+      seedFinding(world.database, stranded, 'memory_gap', '未路由的 finding。', 50, '2026-11-01T07:00:01.000Z')
+      expect(world.router.recoverUnrouted()).toEqual({ repaired: 1, failed: 0 })
+      expect(world.database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(stranded)).toEqual({ status: 'routed' })
+      expect(world.router.recoverUnrouted()).toEqual({ repaired: 0, failed: 0 })
     } finally {
       world.close()
     }

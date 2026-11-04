@@ -27,7 +27,7 @@ import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
 import { CompanionGoalService } from '../motivation/companion-goal'
 import { UserInteractionProfileService } from '../personalization/interaction-profile'
-import { runBounded } from '../cognition/pending-items'
+import { PendingSchemaUnavailableError, runBounded } from '../cognition/pending-items'
 import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../persistence/turn-state-repository'
 import { IntentReadingRepository } from '../persistence/intent-reading-repository'
@@ -274,7 +274,7 @@ if (hasSingleInstanceLock) {
         pending: pendingItems,
         finalizations,
         states: new SqliteTurnStateRepository(database),
-        readings: new IntentReadingRepository(database)
+        readings: new IntentReadingRepository(database, eventLog)
       }
     })
     // Settle any turn that was interrupted between its finalization intent and
@@ -364,7 +364,14 @@ if (hasSingleInstanceLock) {
     // only, never auto-executed actions.
     // The production startup function (also used by the composition test)
     // runs reflection and routes findings through the durable ingestion path.
-    runStartupReflection({ reflection, findingRouter, logger })
+    const startupReflection = runStartupReflection({ reflection, findingRouter, logger })
+    if (startupReflection.status !== 'ran') {
+      logger.warn('self-model', 'startup reflection did not complete cleanly', {
+        status: startupReflection.status,
+        reason: startupReflection.reason ?? null,
+        recovered: startupReflection.recovered ?? 0
+      })
+    }
     const backup = new BackupService(database, databasePath)
     const backupActions = {
       exportBackup: async (): Promise<BackupExportOutcome> => {
@@ -452,11 +459,16 @@ if (hasSingleInstanceLock) {
             if (!('skipped' in summary)) {
               findingRouter.ingestRun(summary.id, reflection.findings(summary.id))
             }
+            const recovered = findingRouter.recoverUnrouted()
+            if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
             return summary
           }, { budgetMs: 2_000 })
           if (outcome.status === 'completed' && outcome.value) return outcome.value
           // The pass never started, so reporting it as completed would be a lie.
           if (outcome.status === 'skipped') return { skipped: 'budget_exhausted' as const }
+          if (outcome.status === 'failed' && outcome.error instanceof PendingSchemaUnavailableError) {
+            throw new ApplicationError('SCHEMA_UPGRADE_REQUIRED')
+          }
           throw new ApplicationError('STORAGE_ERROR')
         },
         listReflectionRuns: () => reflection.listRuns(),

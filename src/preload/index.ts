@@ -25,7 +25,6 @@ import {
   type SelfModelCorrectRequest,
   type SelfModelIdRequest,
   type ReflectionFindingsRequest,
-  type PendingItemIdRequest,
   type PendingItemDecisionRequest,
   type GoalCandidateIdRequest,
   type PendingDecisionResult,

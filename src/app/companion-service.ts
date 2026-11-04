@@ -48,6 +48,7 @@ import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
 import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
 import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
 import type { TurnState, TurnStatePort } from '../cognition/turn-state-machine'
 import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
@@ -993,11 +994,62 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       version: COGNITIVE_HANDLER_VERSION,
       project: () => {
         const reflection = services.reflection
-        const summary = reflection?.run('post_conversation')
+        if (!reflection) return
+        const summary = reflection.run('post_conversation')
         // D-10: the projector no longer discards its own output. Findings go
         // through the same router the manual run uses, so an automatic run and
         // a manual run leave identical durable traces.
-        if (reflection && summary && !('skipped' in summary)) services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
+        //
+        // AUD45-P1-01: a rate-limited retry must still recover findings an
+        // earlier attempt stored but could not route; otherwise the outbox row
+        // would be marked done while the findings stayed unrouted. A recovery
+        // that itself failed must throw so the outbox keeps the row retryable.
+        const recover = (): { repaired: number; failed: number } => {
+          try {
+            return services.findingRouter?.recoverUnrouted() ?? { repaired: 0, failed: 0 }
+          } catch (error) {
+            if (error instanceof PendingSchemaUnavailableError) {
+              services.events.tryRecord({
+                sourceModule: 'cognition',
+                eventType: 'cognition.pending_schema_unavailable',
+                actor: 'system',
+                subjectType: 'application',
+                subjectId: null,
+                correlationId: null,
+                payload: { component: 'reflection_projector' }
+              })
+            }
+            throw error
+          }
+        }
+        if ('skipped' in summary) {
+          const recovered = recover()
+          if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
+          return
+        }
+        try {
+          services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
+        } catch (error) {
+          if (error instanceof PendingSchemaUnavailableError) {
+            services.events.tryRecord({
+              sourceModule: 'cognition',
+              eventType: 'cognition.pending_schema_unavailable',
+              actor: 'system',
+              subjectType: 'application',
+              subjectId: null,
+              correlationId: summary.id,
+              payload: { component: 'reflection_projector' }
+            })
+          }
+          // Not done: the findings are durable but unrouted. The outbox must
+          // retry (or park the row) rather than report a completed projection.
+          throw error
+        }
+        // A normal (non-rate-limited) retry can find a previous attempt's
+        // stranded finding even though this run produced no new ones. The
+        // success branch must recover it before the row is marked done.
+        const recovered = recover()
+        if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
       }
     }
   ]
@@ -1231,7 +1283,7 @@ export class CompanionService {
     // the database can hold the outbox; offline callers keep the direct path.
     const outbox = selfModelLoop ? new CognitionOutbox(options.database, clock) : undefined
     const projectors = selfModelLoop ? buildCognitiveProjectors(selfModelLoop) : []
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors, options.database.schemaVersion)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -1445,7 +1497,9 @@ export class ChatService {
      * cannot lose them and one failing module cannot cost the others.
      */
     private readonly outbox?: CognitionOutbox,
-    private readonly projectors: readonly CognitiveProjector[] = []
+    private readonly projectors: readonly CognitiveProjector[] = [],
+    /** v48 added the pending-decision columns; older schemas cannot write them. */
+    private readonly schemaVersion: number = 48
   ) {}
 
   /**
@@ -2360,7 +2414,15 @@ export class ChatService {
    */
   private applyFinalization(record: TurnFinalizationRecord): void {
     if (!this.continuity) return
-    const pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    let pendingItemIds: string[] = []
+    if (this.schemaVersion >= 48) {
+      pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    } else if (record.pendingDrafts.length > 0) {
+      // A v47 database cannot store the Stage 4 decision columns. Keep the turn
+      // context and the committed answer, report the degraded capability, and
+      // do not retry an unwritable draft forever.
+      this.recordDegradation('pending_item_schema', record.turnId)
+    }
     const committedState = this.feelings.snapshot().state
     const applied = record.feelingEventId !== null &&
       committedState.sourceEventId === record.feelingEventId

@@ -108,4 +108,57 @@ describe('production reflection producer chain', () => {
     }
   })
 
+  it('a second correction event does not fail manual ingestion', () => {
+    const stack = buildStack({ growth: true, exploration: true, reflection: true })
+    try {
+      const conversation = stack.companion.createConversation()
+      const events = new EventLogService(stack.database)
+      const memoryId = randomUUID()
+      stack.database.connection.prepare(
+        "INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, updated_at, revision) VALUES (?, 'a', 'a', 'user_explicit_input', 'active', ?, ?, 1)"
+      ).run(memoryId, new Date().toISOString(), new Date().toISOString())
+      const pending = new PendingCognitionService(new SqlitePendingItemRepository(stack.database, events))
+      const router = new ReflectionFindingRouter({ database: stack.database, pending, events })
+      const ingest = (): void => {
+        const run = stack.reflection.run('manual')
+        if ('skipped' in run) throw new Error('reflection was rate limited')
+        router.ingestRun(run.id, stack.reflection.findings(run.id))
+      }
+      events.recordDeterministic('audit-correction:1', {
+        sourceModule: 'memory',
+        eventType: 'memory.corrected',
+        actor: 'user',
+        subjectType: 'memory',
+        subjectId: memoryId,
+        correlationId: conversation.id,
+        payload: { memoryId }
+      })
+      ingest()
+      events.recordDeterministic('audit-correction:2', {
+        sourceModule: 'memory',
+        eventType: 'memory.corrected',
+        actor: 'user',
+        subjectType: 'memory',
+        subjectId: memoryId,
+        correlationId: conversation.id,
+        payload: { memoryId }
+      })
+      expect(ingest).not.toThrow()
+      expect(pending.listOpen().filter((item) => item.kind === 'intent_correction')).toHaveLength(1)
+      const unrouted = stack.database.connection.prepare(`
+        SELECT COUNT(*) AS n FROM reflection_findings f
+        LEFT JOIN reflection_finding_routes r ON r.finding_id = f.id
+        WHERE r.finding_id IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM event_journal e
+            WHERE e.event_type = 'reflection.finding_reobserved'
+              AND json_extract(e.payload_json, '$.findingId') = f.id
+          )
+      `).get() as { n: number }
+      expect(unrouted.n).toBe(0)
+    } finally {
+      stack.close()
+    }
+  })
+
 })

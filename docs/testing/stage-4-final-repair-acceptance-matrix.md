@@ -56,7 +56,7 @@
 | reject 不创建 goal | e2e reject→candidate rejected→listGoals [] | PASS |
 | accept/reject 并发/重放 | `goal-lifecycle.test.ts` reject 幂等、accept replay、conflict | PASS |
 | 来源删除不可接受且 expired 持久 | `a disappeared source persists expired…` | PASS |
-| 重启状态一致 | SQLite 持久化 + 服务测试；重启由 P09/既有恢复覆盖 | PASS |
+| 重启状态一致 | `src/app/stage4-restart-consistency.integration.test.ts`（真实文件关闭/重开；含 open 与已决策两种状态）；P09 不覆盖 Stage 4 | PASS |
 | UI loading/成功/冲突/失败 | DOM 测试成功/拒绝；冲突/source_unavailable 由 `resultMessage` 分支 + 服务测试 | PASS（文案分支） |
 | 不自动执行目标 | 无工具/外部副作用路径；UI 只有确认/拒绝 | PASS |
 

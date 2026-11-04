@@ -13,7 +13,7 @@ ALTER TABLE cognitive_pending_items ADD COLUMN decision TEXT
 CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(finding_id);
 ```
 
-- 历史行保留，两列为 NULL；旧项仍可决策（只更新 item，不更新 route）。
+- 历史行保留，两列为 NULL；旧项仍可决策。决策时按 item 的 statement digest 匹配可证明的 route 并收敛（`routeResolution: resolved_by_concern`）；无法证明时 audit 记录 `routeStatus: null / unresolved`，不伪造 route 终态。
 - 升级失败自动 ROLLBACK；升级前 `VACUUM INTO` 快照（保留 2 份）。
 
 ## 2. 验证
@@ -21,11 +21,11 @@ CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(find
 | 项 | 命令/测试 | 结果 |
 |---|---|---|
 | 干净库 v1→current | `src/persistence/migrations.test.ts` | PASS |
-| 上一个 schema→current | 同上 | PASS |
+| v47→current（含已有 open/done pending 行、reflection run/finding/route） | `src/persistence/migrations.test.ts` → `upgrades a v47 database with pending items and keeps them decidable` | PASS（代码 SHA 见修复报告） |
 | 迁移事务失败回滚 | 同上（migration failure cases） | PASS |
 | schema 版本 | 测试断言 `CURRENT_SCHEMA_VERSION`（48） | PASS |
 | 备份恢复 | `src/persistence/backup-service.test.ts` | PASS |
-| 重启后候选/目标/pending/route/audit | `stage4-goal-candidate-e2e.test.ts`、`reflection-routing.test.ts`（持久 SQLite） | PASS |
+| 重启后候选/目标/pending/route/audit | `src/app/stage4-restart-consistency.integration.test.ts`（真实文件关闭/重开） | PASS |
 
 ## 3. 回滚
 

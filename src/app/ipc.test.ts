@@ -4,6 +4,7 @@ import type { AppInfo, GoalCreateRequest } from '../shared/contracts'
 import { IPC_CHANNELS } from '../shared/contracts'
 import { GOAL_DEFAULT_CONSTRAINTS, GOAL_SUCCESS_CRITERION, SUPPORTED_GOAL_INTENT } from '../motivation/goals'
 import { GoalService } from '../motivation/goal-service'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
 import { createIpcHandlers, type CompanionActions, type CompanionGoalActions, type ContinuityActions, type IpcEventLike, type IpcHandler } from './ipc'
 import { MemoryService } from '../memory/memory-service'
 import { SqliteDatabase } from '../persistence/database'
@@ -437,6 +438,21 @@ describe('Phase 2.4 continuity surface', () => {
       const badId = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId: 'not-a-uuid', decision: 'accepted' })
       expect(badId).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
       expect(completed).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('maps a schema capability failure to SCHEMA_UPGRADE_REQUIRED', async () => {
+    const actions: ContinuityActions = {
+      listPendingItems: () => [],
+      decidePendingItem: () => { throw new PendingSchemaUnavailableError() },
+      readTurnContext: () => null
+    }
+    const harness = createHarness(undefined, undefined, undefined, actions)
+    try {
+      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsDecide, trustedEvent(), { itemId: randomUUID(), decision: 'accepted' })
+      expect(result).toMatchObject({ ok: false, error: { code: 'SCHEMA_UPGRADE_REQUIRED' } })
     } finally {
       harness.close()
     }

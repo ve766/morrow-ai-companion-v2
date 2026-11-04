@@ -30,7 +30,7 @@
 | 双击/并发 accept 只创建一个 goal | accept 重放用例 + 唯一键 | PASS |
 | 重复 reject 幂等 | “reject is durable…replayed: true” | PASS |
 | 来源删除后不能接受为有效目标 | “a disappeared source persists expired…” | PASS：status=expired、source_state=source_deleted 持久 |
-| 重启后 candidate/goal/rejection 一致 | 服务测试 + SQLite 持久化；重启由 P09 既有覆盖 | PASS（持久状态） |
+| 重启后 candidate/goal/rejection 一致 | `src/app/stage4-restart-consistency.integration.test.ts`（真实文件关闭/重开）；P09 仅覆盖 memory/address/personality | PASS |
 | owner=user/shared 不变 | candidate/goal 断言 owner | PASS |
 | UI 真实调用 bridge | `tests/goal-candidates-ui.test.ts` 2 用例 | PASS：accept/reject 均调用 `window.morrow.companionGoals` |
 | IPC 参数校验/错误结构 | `ipc.test.ts` 候选用例 | PASS：list/accept/reject + 非 UUID 拒绝 |
