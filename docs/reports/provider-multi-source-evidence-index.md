@@ -1,6 +1,6 @@
 # Provider 多源接入证据索引（Issue #50）
 
-- 代码 SHA：`24efc5cb60972f28b746779ca4f32ed37d295f57`
+- 代码 SHA：`34098fb6698fad5a8674e8ceb2b2a4f5be819310`
 - 分支：`feat/provider-multi-source-foundation`
 - base：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 状态：PARTIAL
@@ -36,11 +36,11 @@
 | `src/providers/provider-registry.test.ts` | 官方 spec/legacy |
 | `src/app/provider-manual-chat.integration.test.ts` | 旧配置/连接测试/secret 回滚 |
 
-## 3. 命令与结果（代码 SHA `24efc5c`）
+## 3. 命令与结果（代码 SHA `34098fb`）
 
 ```bash
 npx tsc --noEmit                     # 0
-npx vitest run                       # 113 files / 1042 tests passed
+npx vitest run                       # 113 files / 1044 tests passed
 npm run build                        # success
 npm run eval:provider-multi-source   # BLOCKED_QUOTA (external)
 ```
@@ -51,9 +51,9 @@ Provider 定向：10 files / 65 tests passed（endpoint/security/adapter/retry/r
 
 | 项 | 值 |
 |---|---|
-| Run ID | `20261104T100603Z-b3b82e61` |
-| Result | `evals/provider-multi-source/results/20261104T100603Z-b3b82e61.json` |
-| Transcript | `evals/provider-multi-source/transcripts/20261104T100603Z-b3b82e61.md` |
+| Run ID | `20261104T105300Z-987ad9c2` |
+| Result | `evals/provider-multi-source/results/20261104T105300Z-987ad9c2.json` |
+| Transcript | `evals/provider-multi-source/transcripts/20261104T105300Z-987ad9c2.md` |
 | Status | **BLOCKED_QUOTA** |
 | Endpoint | `https://api.supxh.xin/v1`（digest `81f2def21ea9d6eb`） |
 | Model | `gemini-3-flash` |

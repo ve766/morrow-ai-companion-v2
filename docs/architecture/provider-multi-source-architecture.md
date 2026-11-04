@@ -1,6 +1,6 @@
 # Provider 多源接入架构（Issue #50）
 
-代码 SHA：`24efc5cb60972f28b746779ca4f32ed37d295f57`
+代码 SHA：`34098fb6698fad5a8674e8ceb2b2a4f5be819310`
 分支：`feat/provider-multi-source-foundation`（base release `3812b18`）
 
 ## 1. 领域模型

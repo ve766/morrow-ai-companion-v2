@@ -4,7 +4,7 @@
 - 分支：`feat/provider-multi-source-foundation`
 - 基线：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 审计时间：2026-11-04
-- 当前代码 SHA：`24efc5cb60972f28b746779ca4f32ed37d295f57`
+- 当前代码 SHA：`34098fb6698fad5a8674e8ceb2b2a4f5be819310`
 
 ## 1. 原实现（基线）
 

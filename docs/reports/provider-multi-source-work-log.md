@@ -7,7 +7,7 @@
 | 仓库 | `ve766/morrow-ai-companion-v2` |
 | 分支 | `feat/provider-multi-source-foundation` |
 | 基线 | release `3812b185398c0442fcc0d0ba5b180713cafee1d9` |
-| 代码 SHA | `24efc5cb60972f28b746779ca4f32ed37d295f57` |
+| 代码 SHA | `34098fb6698fad5a8674e8ceb2b2a4f5be819310` |
 | 执行者 | ZCode（magpie/workbuddy/deepseek-v4.1-flash） |
 | OS / Node | Windows 10.0.26200 / v22.23.2 |
 | 关键依赖 | vitest 5.0.5、electron 44.9.3、node:sqlite |
@@ -22,9 +22,9 @@
 | 09:40–09:55Z | ProviderConfigService 重写、IPC/preload/validation、UI 面板 |
 | 09:55–10:00Z | 多源/连续性/IPC/UI/endpoint/security 测试 |
 | 10:00Z | 首轮全量 113/1042 通过；提交 `069c1d2` |
-| 10:01–10:03Z | 真实运行暴露 IPC 方法名不匹配、quota 403 误分类；修复 `d762149`、`24efc5c` |
-| 10:06Z | 最终真实运行 `20261104T100603Z-b3b82e61` → BLOCKED_QUOTA |
-| 10:06Z | 最终全量 113 files / 1042 tests；写交付文档 |
+| 10:01–10:03Z | 真实运行暴露 IPC 方法名不匹配、quota 403 误分类；修复 `d762149`、`34098fb` |
+| 10:06Z | 最终真实运行 `20261104T105300Z-987ad9c2` → BLOCKED_QUOTA |
+| 10:06Z | 最终全量 113 files / 1044 tests；写交付文档 |
 
 ## 3. 提交
 
@@ -32,14 +32,14 @@
 |---|---|
 | `069c1d2` | 多源 provider 基础、迁移、service/UI/IPC、测试 |
 | `d762149` | 真实运行脚本增加 IPC 路径 |
-| `24efc5c` | 403 quota 字符串 code → PROVIDER_QUOTA；BLOCKED_QUOTA 状态 |
+| `34098fb` | 403 quota 字符串 code → PROVIDER_QUOTA；BLOCKED_QUOTA 状态 |
 
 ## 4. 命令与结果
 
 | 命令 | 结果 |
 |---|---|
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | 113 files / 1042 tests passed |
+| `npx vitest run` | 113 files / 1044 tests passed |
 | `npm run build` | 成功 |
 | Provider 定向 10 文件 | 65/65 |
 | `npm run eval:provider-multi-source` | BLOCKED_QUOTA（真实 provider 额度不足） |
