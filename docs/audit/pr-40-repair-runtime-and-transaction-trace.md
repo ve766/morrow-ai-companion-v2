@@ -1,9 +1,9 @@
-# PR #48 repair — runtime, state machine and transaction trace, round 2 (independent)
+# PR #48 repair — runtime, state machine and transaction trace, round 3 (independent)
 
-- Reviewed SHA: `e1219dc07d52c4458d27c9ec2b9adabb6ff2e173`
-- Code SHA: `1f736c6b788527bbffad186267679b1df63ff0a1`
+- Reviewed SHA: `9aff0424606c89dbf9924e2e831015a11b1b58f4`
+- Code SHA: `16620217cd0fd1ace9598fd57c74bc6425a6b16f`
 - Base: `052bcaa9c0320ef5e726c7bf66df85a49055628d`
-- Reviewer reproduction: `.tmp/review2/repro.ts` (own script, production modules, real SQLite files), bundled with esbuild and run with Node 22.23.2. The script and logs are under gitignored `.tmp/`; key outputs are quoted here.
+- Reviewer reproduction: `.tmp/review3/repro.ts` (own script, production modules, real SQLite files), bundled with esbuild and run with Node 22.23.2. The script and logs are under gitignored `.tmp/`; key outputs are quoted here.
 
 ## 1. Call graph (actual code at `e1219dc`)
 
@@ -40,9 +40,12 @@ runBounded(() => {
 -> failed: throw ApplicationError('STORAGE_ERROR')
 ```
 
-`runBounded` now preserves the caught error (`BoundedRunResult.error`), but `index.ts` does not
-inspect it. A `PendingSchemaUnavailableError` from the repository is therefore still reported to the
-renderer as `STORAGE_ERROR`, not `SCHEMA_UPGRADE_REQUIRED` (round-2 claim not implemented).
+After the run, manual reflection calls `findingRouter.recoverUnrouted()` and throws
+`REFLECTION_RECOVERY_INCOMPLETE` if `failed > 0`; `runBounded` preserves the caught error, and
+`index.ts:467-472` maps `PendingSchemaUnavailableError` to `ApplicationError('SCHEMA_UPGRADE_REQUIRED')`.
+The code is present in `ApplicationErrorCode` and the IPC failure map. This is source-verified; it has
+no direct test of the `index.ts` closure (the `pending-items.test.ts` test covers `runBounded` error
+preservation).
 
 ### 1.3 Post-conversation outbox
 
@@ -60,20 +63,17 @@ CognitiveOutbox.drain
           ingestRun(...)
           -> PendingSchemaUnavailableError: record cognition.pending_schema_unavailable; throw
           -> other error: throw
-          (no recoverUnrouted call on success)
+          recovered = recoverUnrouted()
+          if recovered.failed > 0 -> throw REFLECTION_RECOVERY_INCOMPLETE
 ```
 
-The rate-limited branch now keeps the outbox row retryable when recovery failed, and the schema case
-rethrows after recording. My probe O confirms: first drain `failed=1`, row `pending, attempts=1`,
-route null; second drain `done`, route `routed` after recovery.
-
-**Remaining defect (P1-01):** the success branch does not call `recoverUnrouted`. If the first
-ingest attempt failed transiently and the retry is not rate-limited, the retry's reflection run has
-no new findings because the cursor advanced; `ingestRun([])` succeeds and the outbox marks the row
-`done` while the failed finding still has no route. My probe O2 reproduces this with the real outbox,
-real reflection service and real router. The finding has a durable `reflection.finding_ingest_failed`
-record and a later startup/rate-limited recovery can repair it, but the outbox obligation is done and
-no outbox retry occurs.
+Both branches keep the outbox row retryable when recovery failed, and the schema case rethrows after
+recording. Probe O confirms the rate-limited path. Probe O2 confirms the non-rate-limited retry:
+first drain `failed=1`, row `pending/attempts=1`, route null, one stranded finding; after the trigger
+is removed, the second drain runs reflection again (no new findings), calls recovery, routes the
+finding, and only then marks the row `done`; exactly one pending item exists. The repository's new
+`recovers a finding stranded by a transient pending write on a non-rate-limited retry` test covers
+the same path with real composition.
 
 ### 1.4 Pending decision
 
@@ -115,8 +115,11 @@ resolveSystem(id, reason, at):
 
 On schema < v48, `resolveSystem` throws `PendingSchemaUnavailableError`; `closeOpenItems` catches it,
 records `pending.schema_unavailable`, and leaves the item open. My probe H2 confirms schema 47,
-item open, one capability event. A non-schema closure error (missing/terminal route) still aborts the
-intent-reading save; this is a fail-closed change without a dedicated test.
+item open, one capability event. Any other closure error (missing/terminal route, transient write
+failure) is also caught: the item stays open, `pending.system_dismiss_failed` is recorded, and the
+intent reading still saves. My probe H3 confirms the failure then retry: trigger abort on the first
+withdrawal, item open + failure event; after the trigger is dropped, the second withdrawal writes
+`dropped/dismissed` and `pending.system_dismissed`.
 
 ## 2. Identity and state machines
 
@@ -182,13 +185,12 @@ convergence with `dismissed`.
 - `reflection.run` commits its cursor with the run/findings/effects. A later router failure does not
   roll it back.
 - Startup calls `recoverUnrouted` after a normal run, a rate-limited skip, and an ingest failure.
-- Manual reflection does not call recovery; a stranded finding waits for startup or a rate-limited
-  outbox pass.
-- Outbox: rate-limited skip calls recovery and now throws if `failed>0`; schema errors record and
-  throw; other ingest errors throw immediately so the module retries.
-- **Residual:** a successful outbox retry does not call recovery. The failed finding has a durable
-  failure record, but the row is marked done while the finding has no route (probe O2). This is the
-  remaining P1 path.
+- Manual reflection calls recovery after the run and maps a schema error to
+  `SCHEMA_UPGRADE_REQUIRED`.
+- Outbox: rate-limited skip calls recovery and throws if `failed>0`; schema errors record and throw;
+  other ingest errors throw immediately so the module retries. A successful run also calls recovery
+  before returning, so a non-rate-limited retry routes a previous attempt's stranded finding before
+  the row is marked done (probe O2; new real-router test).
 
 ## 5. Schema downgrade (< v48)
 
@@ -200,9 +202,9 @@ convergence with `dismissed`.
   drafts and records `cognition.degraded`; startup returns `degraded/schema_upgrade_required`; outbox
   records `cognition.pending_schema_unavailable`; `resolveSystem` leaves the item open and records
   `pending.schema_unavailable` (probe H2).
-- **Residual (P3-11):** manual reflection's `runBounded` failed path still throws
-  `ApplicationError('STORAGE_ERROR')`; the preserved `outcome.error` is not inspected. The repair
-  report/acceptance matrix claim this mapping.
+- Manual reflection now maps a preserved `PendingSchemaUnavailableError` to
+  `ApplicationError('SCHEMA_UPGRADE_REQUIRED')` (`src/app/index.ts:467-472`). Source-verified; no
+  direct test of that closure.
 
 ## 6. Migration (v47 -> v48) and rollback
 
@@ -216,8 +218,8 @@ convergence with `dismissed`.
 
 ## 7. Independent reproduction results (round 2)
 
-Script: `.tmp/review2/repro.ts`; bundle `.tmp/review2/repro.cjs`; log `.tmp/review2/logs/repro.log`;
-exit code 0; `SUMMARY failures=0` (probe O2 intentionally asserts the reproduced defect).
+Script: `.tmp/review3/repro.ts`; bundle `.tmp/review3/repro.cjs`; log `.tmp/review3/logs/repro.log`;
+exit code 0; `SUMMARY failures=0`.
 
 | Probe | What it exercises | Result |
 |---|---|---|
@@ -232,7 +234,8 @@ exit code 0; `SUMMARY failures=0` (probe O2 intentionally asserts the reproduced
 | G | Forced v48 failure with a reserved index name | PASS: schema 47, cognitive unavailable, fail-closed writes, startup degraded |
 | O | Rate-limited outbox + recovery failure | PASS (fixed): first drain `failed=1`, row `pending/attempts=1`, route null; second drain `done`, route routed |
 | H | Intent withdrawal via `IntentReadingRepository.save` (v48) | PASS (fixed): item `dropped/dismissed`, route `dismissed`, `pending.system_dismissed` actor system, zero `pending.decision` |
-| O2 | Real outbox retry after a transient route/pending failure, not rate-limited | **DEFECT REPRODUCED**: first drain `failed=1`, row `pending/attempts=1`, route null; second drain `done`, route still null |
+| O2 | Real outbox retry after a transient route/pending failure, not rate-limited | PASS (fixed): first drain `failed=1`, row `pending/attempts=1`, route null; second drain `done`, route `routed`, exactly one pending item |
 | H2 | Intent withdrawal on a degraded v47 schema | PASS: item stays open; one `pending.schema_unavailable` event; intent reading still saves |
+| H3 | Intent closure failure then retry | PASS: first withdrawal leaves item open and records `pending.system_dismiss_failed`; second succeeds with `dropped/dismissed` + `pending.system_dismissed` |
 
-Raw outputs are in `.tmp/review2/logs/repro.log` (gitignored; not committed).
+Raw outputs are in `.tmp/review3/logs/repro.log` (gitignored; not committed).

@@ -1,12 +1,13 @@
 # PR #48 changed-file review matrix
 
-- Reviewed head: `e1219dc07d52c4458d27c9ec2b9adabb6ff2e173`
-- Code commit under test: `1f736c6b788527bbffad186267679b1df63ff0a1`
+- Reviewed head: `9aff0424606c89dbf9924e2e831015a11b1b58f4`
+- Code commit under test: `16620217cd0fd1ace9598fd57c74bc6425a6b16f`
 - Base: `052bcaa9c0320ef5e726c7bf66df85a49055628d` (`feat/stage-4-companion-confirmation-closure`)
-- Diff: 68 files, +5245 / -207 (round 1: 57 files at `e4aad40`; round 2 adds/changes 25 files at `e1219dc`)
-- Every changed file is listed below. Sections A-F are the round-1 file review (still valid for files
-  unchanged in round 2); section G is the round-2 delta and covers every file changed between
-  `e4aad40` and `e1219dc`. "Finding IDs" refer to Issue #45 / Issue #47.
+- Diff: 74 files, +6723 / -207 (round 1: 57 files at `e4aad40`; round 2: 25 files at `e1219dc`;
+  round 3: 16 files at `9aff042`)
+- Every changed file is covered below. Sections A-F are the round-1 file review (still valid for files
+  unchanged later); section G is the round-2 delta; section H is the round-3 delta and covers every
+  file changed between `e1219dc` and `9aff042`. "Finding IDs" refer to Issue #45 / Issue #47.
 - Status vocabulary: OK / OK-WITH-NOTE / DEFECT (reviewer did not fix defects).
 
 ## A. Production source
@@ -101,7 +102,7 @@ no pre-existing result JSON was modified. The 24 historical Stage 5/4-A/3 result
   (P3-07 acceptance gap; fixed in round 2).
 - No test was weakened; all one-line integration-test changes are required constructor injection.
 
-## G. Round-2 delta (`e4aad40` -> `e1219dc`, 25 files)
+## G. Round-2 delta (historical: `e4aad40` -> `e1219dc`, 25 files)
 
 Section A-F remains the round-1 review. The 14 files below that were also in round 1 have changed
 conclusions here; the 11 new files are added to the final PR #48 review coverage (68 unique files).
@@ -135,3 +136,31 @@ conclusions here; the 11 new files are added to the final PR #48 review coverage
 | `evals/stage-5/results/20261104T060704Z-1f736c6.json` | New result | OK: 12/12; branch clean. | P2-05 |
 
 No pre-existing historical result file was modified; all round-2 result files are additions.
+
+## H. Round-3 delta (`e1219dc` -> `9aff042`, 16 files)
+
+This section is authoritative for the final head. Where a file also appears in section G, the
+round-3 conclusion here supersedes the round-2 one. The round-3 changes close the round-2 P1
+(outbox success recovery), implement the claimed manual reflection schema mapping, and make
+intent-closure failures non-fatal. All 16 files were reviewed.
+
+| File | Round-3 change | Conclusion | Finding IDs |
+|---|---|---|---|
+| `src/app/companion-service.ts` | Success branch calls `recoverUnrouted()` and throws `REFLECTION_RECOVERY_INCOMPLETE` if `failed>0` | OK (fixed): probe O2 now leaves the row pending until the finding is routed; new real-router test. | P1-01 |
+| `src/app/index.ts` | Manual reflection runs recovery; maps `PendingSchemaUnavailableError` to `ApplicationError('SCHEMA_UPGRADE_REQUIRED')` | OK. Source-verified; no direct test of the `index.ts` closure. | P1-01, P3-11 |
+| `src/shared/errors.ts` | Adds `SCHEMA_UPGRADE_REQUIRED` to `ApplicationErrorCode` | OK; IPC failure map already supports the code. | P3-11 |
+| `src/persistence/intent-reading-repository.ts` | Non-schema closure failures are recorded as `pending.system_dismiss_failed` and do not abort the intent save; schema failures still record `pending.schema_unavailable` and leave the item open | OK (fixed): probe H3 and the new failure/retry test. | P3-07 |
+| `src/app/stage4-outbox-reflection.integration.test.ts` | +1 real-router transient-failure test (non-rate-limited retry) | OK: real composition/outbox/SQLite; asserts row pending then done with route routed and one item. | P1-01 |
+| `src/app/stage4-startup-composition.integration.test.ts` | +1 repeated-startup test with a seeded finding | OK: one finding/route/item across two runs (the earlier no-finding version remains). | P3-08 |
+| `src/persistence/intent-reading-pending-closure.test.ts` | +1 closure-failure/retry test | OK: trigger failure -> item open + `pending.system_dismiss_failed`; retry -> dropped/dismissed + `pending.system_dismissed`. | P3-07 |
+| `docs/reports/pr-40-audit-findings-repair-report.md` | Round-3 claims and SHA | OK-WITH-NOTE: outbox/manual/intent claims match code; says the intent test file covers degraded schema (it does not; probe H2 covers it). | All |
+| `docs/reports/pr-40-audit-findings-work-log.md` | Round-3 timeline | OK. | All |
+| `docs/reports/pr-40-audit-findings-evidence-index.md` | Round-3 results/SHA | OK-WITH-NOTE: machine result still says CI PENDING. | All |
+| `docs/testing/pr-40-audit-findings-acceptance-matrix.md` | Round-3 counts/claims | OK: row 2 corrected to 9/63; row 11 manual mapping now true. | P2-02, P3-11 |
+| `evals/pr-40-audit-findings/results/20261104T065544Z-16620217cd0fd1ace9598fd57c74bc6425a6b16f-repair.json` | New machine result | OK-WITH-NOTE: commands/counts match my runs (118/1083, 126, 9/63); all 12 marked FIXED, now consistent with this review; `ci.status=PENDING` stale. | All |
+| `evals/stage-3/results/20261104T065500Z-1662021.json` | New result | OK: 15 PASS + 1 NOT_RUN / 16; no branch field (historical schema). | P2-05 |
+| `evals/stage-3/results/20261104T065500Z-1662021-summary.json` | New summary | OK. | P2-05 |
+| `evals/stage-4a/results/20261104T065456Z-1662021.json` | New result | OK: 7/7; branch `fix/pr-40-audit-findings`, tree dirty (Stage 5 result uncommitted) — documented. | P2-05 |
+| `evals/stage-5/results/20261104T065441Z-1662021.json` | New result | OK: 12/12; branch clean. | P2-05 |
+
+No pre-existing historical result file was modified; all round-3 result files are additions.
