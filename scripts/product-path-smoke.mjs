@@ -273,10 +273,10 @@ const continuityScript = `(async () => {
   if (all.some((result) => !result.ok)) throw new Error('Continuity read failed: ' + JSON.stringify(all).slice(0, 400))
   return {
     personality: { version: personality.data.version, systemRules: personality.data.systemRules },
-    selfModel: entries.data.map((entry) => ({ id: entry.id, kind: entry.kind, statement: entry.statement, status: entry.status })),
-    interests: interests.data.map((entry) => ({ id: entry.id, label: entry.label, status: entry.status, strength: entry.strength })),
-    memories: memories.data.map((entry) => ({ id: entry.id, status: entry.status, currentText: entry.currentText })),
-    goals: goals.data.map((entry) => ({ id: entry.goal.id, status: entry.goal.status, intent: entry.goal.intent })),
+    selfModel: entries.data.map((entry) => ({ id: entry.id, kind: entry.kind, statement: entry.statement })),
+    interests: interests.data.map((entry) => ({ id: entry.id, label: entry.label })),
+    memories: memories.data.map((entry) => ({ id: entry.id, currentText: entry.currentText })),
+    goals: goals.data.map((entry) => ({ id: entry.goal.id, intent: entry.goal.intent })),
     conversations: conversations.data.map((entry) => ({ id: entry.id, title: entry.title }))
   }
 })()`
