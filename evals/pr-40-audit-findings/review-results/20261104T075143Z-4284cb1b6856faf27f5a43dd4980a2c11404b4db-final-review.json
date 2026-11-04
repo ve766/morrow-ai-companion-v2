@@ -1,0 +1,149 @@
+{
+  "suite": "pr-40-repair-final-independent-review",
+  "task": "Issue #47",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "reviewedSha": "4284cb1b6856faf27f5a43dd4980a2c11404b4db",
+  "reviewedRef": "PR #40 head (merge commit of PR #48)",
+  "pr40": {
+    "number": 40,
+    "state": "OPEN",
+    "baseBranch": "release/morrow-v2-final-delivery",
+    "baseSha": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+    "headBranch": "feat/stage-4-companion-confirmation-closure",
+    "headSha": "4284cb1b6856faf27f5a43dd4980a2c11404b4db",
+    "mergedAt": null
+  },
+  "pr48": {
+    "number": 48,
+    "state": "MERGED",
+    "mergedAt": "2026-11-04T07:35:28Z",
+    "mergeCommit": "4284cb1b6856faf27f5a43dd4980a2c11404b4db",
+    "finalHeadSha": "bb9e409c7b4fda5c03d3180254363ec66b8cb929",
+    "baseBranch": "feat/stage-4-companion-confirmation-closure",
+    "baseSha": "052bcaa9c0320ef5e726c7bf66df85a49055628d"
+  },
+  "codeSha": "16620217cd0fd1ace9598fd57c74bc6425a6b16f",
+  "round3ReviewedSha": "9aff0424606c89dbf9924e2e831015a11b1b58f4",
+  "round3ReviewCommit": "4f1db3a12d1e8dd6784ff61b54a29e4ced473087",
+  "reviewBranch": "audit/pr-40-repair-independent-review",
+  "reviewPr": 49,
+  "reviewPrState": "OPEN_DRAFT",
+  "reviewTimestampUtc": "2026-11-04T07:51:43Z",
+  "reviewer": {
+    "identity": "independent review context",
+    "context": "Different agent/context from the implementer; final post-merge review of PR #40 head 4284cb1. Did not modify production code, tests, migrations or historical results.",
+    "model": "magpie/workbuddy/deepseek-v4.1-flash"
+  },
+  "environment": {
+    "platform": "win32",
+    "osVersion": "10.0.26200",
+    "node": "v22.23.2",
+    "npm": "10.9.8",
+    "vitest": "5.0.5",
+    "electron": "44.9.3"
+  },
+  "mergeTreeVerification": {
+    "pr40HeadTree": "7b2f5391402a241ee8c79c62853b028696af981b",
+    "pr48HeadTree": "7b2f5391402a241ee8c79c62853b028696af981b",
+    "treesEqual": true,
+    "mergeParents": [
+      "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+      "bb9e409c7b4fda5c03d3180254363ec66b8cb929"
+    ],
+    "deltaFromRound3Reviewed": [
+      "docs/reports/pr-40-audit-findings-evidence-index.md",
+      "docs/reports/pr-40-audit-findings-repair-report.md",
+      "evals/pr-40-audit-findings/results/20261104T072000Z-16620217cd0fd1ace9598fd57c74bc6425a6b16f-ci-closure.json"
+    ],
+    "unreviewedSourceTestMigrationChanges": [],
+    "finalDiffStat": {
+      "base": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+      "files": 75,
+      "additions": 6789,
+      "deletions": 207
+    }
+  },
+  "verdict": "PASS_WITH_NON_BLOCKING_BACKLOG",
+  "verdictReason": "The PR #40 head tree is exactly the PR #48 head tree (no merge-resolution changes), and the only delta from the round-3 reviewed head is three documentation/evidence files. All 12 findings remain VERIFIED_FIXED on 4284cb1; local typecheck, full suite, persistence, targeted tests and build pass, and CI run 41793346804 is green on all jobs. No regression found. Remaining items are P3-level test/evidence gaps.",
+  "findings": [
+    { "id": "AUD45-P1-01", "severity": "P1", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P2-02", "severity": "P2", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P2-03", "severity": "P2", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P2-04", "severity": "P2", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P2-05", "severity": "P2", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P3-06", "severity": "P3", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P3-07", "severity": "P3", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P3-08", "severity": "P3", "status": "VERIFIED_FIXED", "note": "DB-not-ready and timeout tests still absent" },
+    { "id": "AUD45-P3-09", "severity": "P3", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P3-10", "severity": "P3", "status": "VERIFIED_FIXED" },
+    { "id": "AUD45-P3-11", "severity": "P3", "status": "VERIFIED_FIXED", "note": "manual-reflection schema mapping is source-verified; no direct test of the index.ts closure" },
+    { "id": "AUD45-P3-12", "severity": "P3", "status": "VERIFIED_FIXED" }
+  ],
+  "commands": [
+    { "command": "npx tsc --noEmit", "exitCode": 0, "log": ".tmp/final/logs/tsc.log" },
+    { "command": "npx vitest run", "exitCode": 0, "files": 118, "tests": 1083, "passed": 1083, "failed": 0, "durationSeconds": 168.67, "log": ".tmp/final/logs/vitest-full.log" },
+    { "command": "npx vitest run src/persistence", "exitCode": 0, "files": 9, "tests": 63, "passed": 63, "failed": 0, "log": ".tmp/final/logs/vitest-persistence.log" },
+    { "command": "npx vitest run (Stage 4 + review targeted 13 files)", "exitCode": 0, "files": 13, "tests": 126, "passed": 126, "failed": 0, "log": ".tmp/final/logs/vitest-targeted.log" },
+    { "command": "npm run build", "exitCode": 0, "log": ".tmp/final/logs/build.log" },
+    { "command": "reviewer reproduction on 4284cb1: esbuild .tmp/review3/repro.ts -> .tmp/final/repro.cjs; node repro.cjs", "exitCode": 0, "result": "SUMMARY failures=0; probes A1,A2,B,C,D,E1-E3,X,S,G,O,H,O2,H2,H3 pass", "log": ".tmp/final/logs/repro.log" }
+  ],
+  "ci": {
+    "runId": 41793346804,
+    "runUrl": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41793346804",
+    "headSha": "4284cb1b6856faf27f5a43dd4980a2c11404b4db",
+    "headBranch": "feat/stage-4-companion-confirmation-closure",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-11-04T07:35:35Z",
+    "jobs": [
+      { "id": 126451574972, "name": "Typecheck, tests, build and smoke (ubuntu-latest)", "conclusion": "success", "files": 118, "tests": 1083, "log": ".tmp/final/logs/ci-job-126451574972.log" },
+      { "id": 126451574936, "name": "Typecheck, tests, build and smoke (windows-latest)", "conclusion": "success", "files": 118, "tests": 1083, "log": ".tmp/final/logs/ci-job-126451574936.log" },
+      { "id": 126451574534, "name": "Windows upgrade path (schema migrations under the real app)", "conclusion": "success", "files": 9, "tests": 63, "v47TestSeen": "upgrades a v47 database with pending items and keeps them decidable at 2026-11-04T07:36:33Z", "log": ".tmp/final/logs/ci-job-126451574534.log" }
+    ],
+    "olderRunReused": false
+  },
+  "branchProtection": {
+    "releaseHead": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+    "releaseUnchanged": true,
+    "mainHead": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+    "pr35": "OPEN",
+    "pr38": "OPEN",
+    "pr41": "OPEN",
+    "note": "PR #48 was merged only into the PR #40 feature branch; release/main and PR #35/#38/#41 were not modified."
+  },
+  "blockingConditions": [],
+  "nonBlockingBacklog": [
+    "P3-08: DB-not-ready and timeout tests are still absent.",
+    "P3-11: no direct test of the manual-reflection SCHEMA_UPGRADE_REQUIRED closure; source-verified only.",
+    "The degraded intent-withdrawal behavior is covered by reviewer probe H2, not a repository test; the repair report now points at the startup degraded test instead of claiming the intent test file covers it.",
+    "The round-3 machine result still records ci.status=PENDING; the new CI-closure JSON records the green run."
+  ],
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "stage5LiveRerun": "NOT_RUN",
+    "localElectronSmoke": "NOT_RUN (CI Ubuntu and Windows smoke passed for 4284cb1)",
+    "fullNpmCi": "NOT_RUN (npm ci --dry-run exit 0; CI ran npm ci)"
+  },
+  "constraints": {
+    "pr40MergedToRelease": false,
+    "pr49Merged": false,
+    "productionCodeModified": false,
+    "testsModified": false,
+    "migrationsModified": false,
+    "historicalResultsModified": false,
+    "reviewFilesChangedInThisFinalReview": [
+      "docs/audit/pr-40-repair-independent-review.md",
+      "docs/audit/pr-40-repair-file-review-matrix.md",
+      "docs/audit/pr-40-repair-test-and-ci-evidence.md",
+      "evals/pr-40-audit-findings/review-results/20261104T075143Z-4284cb1b6856faf27f5a43dd4980a2c11404b4db-final-review.json"
+    ],
+    "unchangedReviewFiles": [
+      "docs/audit/pr-40-repair-runtime-and-transaction-trace.md",
+      "evals/pr-40-audit-findings/review-results/20261104T071350Z-9aff0424606c89dbf9924e2e831015a11b1b58f4-independent-review.json"
+    ]
+  },
+  "reviewCommit": "commit containing this file; see git log on audit/pr-40-repair-independent-review"
+}
