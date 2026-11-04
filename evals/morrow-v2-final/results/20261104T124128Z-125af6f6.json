@@ -1,0 +1,16 @@
+{
+  "runId": "20261104T124128Z-125af6f6",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-04T12:41:28.647Z",
+  "finishedAt": "2026-11-04T12:41:32.012Z",
+  "status": "FAILED",
+  "platform": "win32",
+  "electronVersion": "",
+  "sandboxDisabled": false,
+  "profile": "isolated-temporary-profile",
+  "checks": [],
+  "continuity": {},
+  "secrets": {},
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. Connection tests were not triggered here to avoid an unattended native dialog.",
+  "error": "Application exited during launch (2147483651)."
+}

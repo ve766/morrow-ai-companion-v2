@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:product-path": "node scripts/product-path-smoke.mjs",
     "evaluate": "node scripts/run-evaluation.mjs",
     "evaluate:cognition": "node scripts/run-cognitive-core-evaluation.mjs",
     "verify": "npm run typecheck && npm test && npm run evaluate && npm run evaluate:cognition && npm run build && npm run smoke",
