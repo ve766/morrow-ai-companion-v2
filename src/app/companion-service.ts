@@ -1002,44 +1002,48 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
         //
         // AUD45-P1-01: a rate-limited retry must still recover findings an
         // earlier attempt stored but could not route; otherwise the outbox row
-        // would be marked done while the findings stayed unrouted.
-        const recover = (): void => {
+        // would be marked done while the findings stayed unrouted. A recovery
+        // that itself failed must throw so the outbox keeps the row retryable.
+        const recover = (): { repaired: number; failed: number } => {
           try {
-            services.findingRouter?.recoverUnrouted()
+            return services.findingRouter?.recoverUnrouted() ?? { repaired: 0, failed: 0 }
           } catch (error) {
-            if (!(error instanceof PendingSchemaUnavailableError)) throw error
+            if (error instanceof PendingSchemaUnavailableError) {
+              services.events.tryRecord({
+                sourceModule: 'cognition',
+                eventType: 'cognition.pending_schema_unavailable',
+                actor: 'system',
+                subjectType: 'application',
+                subjectId: null,
+                correlationId: null,
+                payload: { component: 'reflection_projector' }
+              })
+            }
+            throw error
+          }
+        }
+        if ('skipped' in summary) {
+          const recovered = recover()
+          if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
+          return
+        }
+        try {
+          services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
+        } catch (error) {
+          if (error instanceof PendingSchemaUnavailableError) {
             services.events.tryRecord({
               sourceModule: 'cognition',
               eventType: 'cognition.pending_schema_unavailable',
               actor: 'system',
               subjectType: 'application',
               subjectId: null,
-              correlationId: null,
+              correlationId: summary.id,
               payload: { component: 'reflection_projector' }
             })
           }
-        }
-        if ('skipped' in summary) {
-          recover()
-          return
-        }
-        try {
-          services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
-        } catch (error) {
-          if (!(error instanceof PendingSchemaUnavailableError)) throw error
-          // The findings are durable; recovery after the schema upgrade routes
-          // them. The chat turn must not be retried for a storage capability
-          // that is unavailable until the next launch.
-          recover()
-          services.events.tryRecord({
-            sourceModule: 'cognition',
-            eventType: 'cognition.pending_schema_unavailable',
-            actor: 'system',
-            subjectType: 'application',
-            subjectId: null,
-            correlationId: summary.id,
-            payload: { component: 'reflection_projector' }
-          })
+          // Not done: the findings are durable but unrouted. The outbox must
+          // retry (or park the row) rather than report a completed projection.
+          throw error
         }
       }
     }

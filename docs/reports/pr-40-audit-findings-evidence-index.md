@@ -1,6 +1,6 @@
 # PR #40 审计发现修复证据索引（Issue #47）
 
-- 代码 SHA：`dd9f59b10c7c812c3af36684a32d15193bda7d50`
+- 代码 SHA：`1f736c6b788527bbffad186267679b1df63ff0a1`
 - 修复分支：`fix/pr-40-audit-findings`
 - 实现 PR：见 Issue #47 评论 / PR 链接（base `feat/stage-4-companion-confirmation-closure`）
 - 独立复审：见 `docs/audit/pr-40-repair-*.md` 与 review PR（另行提交）
@@ -13,13 +13,15 @@
 | finding 身份 | `src/self-model/reflection-mapping.ts:dedupeKeyOf` |
 | 重复观察/恢复 | `src/cognition/reflection-routing.ts:ingestRun/ingestFinding/recoverUnrouted/recordLifecycle` |
 | pending 去重 | `src/cognition/pending-items.ts:absorbReflection/findReflectionConcern` |
-| 唯一决策 | `src/persistence/cognitive-context-repository.ts:decide/resolveLegacyRoutes` |
+| 唯一决策 | `src/persistence/cognitive-context-repository.ts:decide/resolveLegacyRoutes/resolveSystem` |
 | 审计必需 | `src/persistence/cognitive-context-repository.ts` 构造函数 + `PendingAuditSink` |
 | 删除绕过 | `pending-items.ts`、repository 删除 `complete/drop` |
 | startup 语义 | `src/app/startup-composition.ts:runStartupReflection`；`src/app/index.ts` 日志 |
 | outbox 恢复 | `src/app/companion-service.ts` reflection projector |
 | schema 降级 | `src/persistence/cognitive-context-repository.ts:assertStage4Writable`；`src/cognition/pending-items.ts:PendingSchemaUnavailableError`；`src/app/companion-service.ts:applyFinalization`；`src/app/ipc.ts` |
 | UI 结果 | `src/renderer/src/pending-ui.ts`；`src/renderer/index.html#pending-feedback` |
+| outbox 严格完成 | `src/app/companion-service.ts` resolution 失败抛出；`src/cognition/reflection-routing.ts:recoverUnrouted` schema 抛出 |
+| 系统关闭 | `src/persistence/intent-reading-repository.ts:closeOpenItems` → `resolveSystem` |
 | eval 元数据 | `src/evaluation/git-metadata.ts`；`evals/stage-5/run.ts`；`evals/stage-4a/run.ts` |
 | CI | `.github/workflows/ci.yml:75` 步骤名 |
 
@@ -38,6 +40,8 @@
 | `src/evaluation/git-metadata.test.ts` | 新增 5 | P2-05 |
 | `src/persistence/pending-schema-gate.test.ts` | 新增 1（含 startup degraded） | P3-11 |
 | `tests/pending-ui.test.ts` | 新增 5 | P3-12 |
+| `src/app/stage4-outbox-reflection.integration.test.ts` | 新增 2 | P1-01 |
+| `src/persistence/intent-reading-pending-closure.test.ts` | 新增 1 | P3-07 |
 | `src/app/ipc.test.ts` | +1 schema 错误映射 | P3-11 |
 | 既有集成测试 | 构造点补 `EventLogService` | P3-06 |
 
@@ -45,10 +49,11 @@
 
 | 套件 | 文件 | SHA | branch/workingTree | 结果 |
 |---|---|---|---|---|
-| Stage 5 scripted | `evals/stage-5/results/20261104T050753Z-dd9f59b.json` | dd9f59b | fix/pr-40-audit-findings / clean | 12/12 |
-| Stage 4-A scripted | `evals/stage-4a/results/20261104T050814Z-dd9f59b.json` | dd9f59b | fix/pr-40-audit-findings / dirty（Stage 5 结果未提交） | 7/7 |
-| Stage 3 | `evals/stage-3/results/20261104T050848Z-dd9f59b.json` + `-summary.json` | dd9f59b | 无 branch 字段（历史 schema） | 15 PASS + 1 NOT_RUN / 16 |
-| 机器结果 | `evals/pr-40-audit-findings/results/<UTC>-<sha>-repair.json` | dd9f59b | — | 12 项状态 |
+| Stage 5 scripted | `evals/stage-5/results/20261104T060704Z-1f736c6.json` | 1f736c6 | fix/pr-40-audit-findings / clean | 12/12 |
+| Stage 4-A scripted | `evals/stage-4a/results/20261104T060730Z-1f736c6.json` | 1f736c6 | fix/pr-40-audit-findings / dirty（Stage 5 结果未提交） | 7/7 |
+| Stage 3 | `evals/stage-3/results/20261104T060733Z-1f736c6.json` + `-summary.json` | 1f736c6 | 无 branch 字段（历史 schema） | 15 PASS + 1 NOT_RUN / 16 |
+| 机器结果（第一轮） | `evals/pr-40-audit-findings/results/20261104T051210Z-dd9f59b10c7c812c3af36684a32d15193bda7d50-repair.json` | dd9f59b | — | 12 项 FIXED（历史轮次） |
+| 机器结果（复审后） | `evals/pr-40-audit-findings/results/20261104T060849Z-1f736c6b788527bbffad186267679b1df63ff0a1-repair.json` | 1f736c6 | — | 12 项 FIXED；reviewHistory 记录第一轮 DO_NOT_MERGE 与三项修复 |
 
 历史 24 份 JSON（PR #40 原结果）未改写。其 `branch` 字段在 Stage 5/4-A 生成器中被硬编码
 （`feat/stage-5-relational-presence` / `feat/stage-4a-companion-continuity`），本轮已在
@@ -58,9 +63,9 @@
 
 ```bash
 npx tsc --noEmit                                             # 0
-npx vitest run                                               # 116 files / 1073 tests
-npx vitest run <Stage 4 11 files>                            # 116/116
-npx vitest run src/persistence                               # 8 files / 61 tests
+npx vitest run                                               # 118 files / 1080 tests
+npx vitest run <Stage 4 + review 13 files>                   # 123/123
+npx vitest run src/persistence                               # 9 files / 62 tests
 npm run build                                                # 0
 npm run eval:stage5                                          # 12/12
 npm run eval:stage4a                                         # 7/7

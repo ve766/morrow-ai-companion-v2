@@ -212,7 +212,7 @@ export class ReflectionFindingRouter {
         }])
         repaired += 1
       } catch (error) {
-        if (error instanceof PendingSchemaUnavailableError) break
+        if (error instanceof PendingSchemaUnavailableError) throw error
         failed += 1
       }
     }

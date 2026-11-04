@@ -203,7 +203,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
       pending: new PendingCognitionService(new SqlitePendingItemRepository(database, eventLog)),
       finalizations: new SqliteTurnFinalizationRepository(database),
       states: new SqliteTurnStateRepository(database),
-      readings: new IntentReadingRepository(database)
+      readings: new IntentReadingRepository(database, eventLog)
     }
   })
   companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'offline-placeholder-key' })
@@ -212,7 +212,7 @@ export function buildStack(options: Options = { growth: true, exploration: true,
     companion,
     memories,
     provider,
-    readings: new IntentReadingRepository(database),
+    readings: new IntentReadingRepository(database, eventLog),
     database,
     interests,
     reflection,
