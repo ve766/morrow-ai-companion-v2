@@ -18,7 +18,7 @@
 | 1.6 | 迁移中断/回滚 | PASS | `migrations.test.ts` “rolls back a failed v49 rebuild…” |
 | 1.7 | 身份不匹配 fail closed | PASS | `migrations.test.ts` 外来名称；`provider-multi-source.integration.test.ts` 结构不符 |
 | 1.8 | pending/reflection/outbox 数据保留 | PASS | 全量 vitest；Stage 4 集成测试；v48/v49 迁移测试 |
-| 1.9 | Windows 升级 CI | PARTIAL | `windows-install-path` 已配置；结果以最终 SHA 的 CI 运行链接为准 |
+| 1.9 | Windows 升级 CI | PASS | run 41862065143：Windows upgrade job PASS（schema migrations under the real app） |
 
 ## 2. Provider P1
 
@@ -50,10 +50,10 @@
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PASS | CI Windows run `20261104T154241Z-1430f856`：真实 renderer 表单创建 A/B，OS 密文文件摘要不同 |
+| 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PASS | CI Windows run `20261104T155831Z-899f5cb0`：真实 renderer 表单创建 A/B，OS 密文文件摘要不同 |
 | 4.2 | 真实 OS SafeStorage 保存/回读/更新/删除/重启 | PASS | 同上：保存、重启回读、endpoint 变更清除 A、rekey 轮换、删除 B 仅删 B；密文摘要见 JSON |
 | 4.3 | 拒绝 consent 时 fetch=0；切换 endpoint/model 后旧 consent 无效 | PASS（服务层） | `provider-multi-source.integration.test.ts`；`provider-manual-chat.integration.test.ts`；原生对话框无法由 CDP 驱动，已在脚本 limitation 记录 |
-| 4.4 | A→重启→B→A 连续性 | PASS | 同上 run：人格 systemRules/version、self-model、interests、memory、goals、conversation 的基线 ID 与内容保留；启动新增 1 个 interest 属正常增长 |
+| 4.4 | A→重启→B→A 连续性 | PASS | 同上 run：人格 systemRules、self-model、interests、memory、goals、conversation 的基线 ID 与内容保留；启动新增 1 个 interest 属正常增长。P3：personality version/relationship/message 内容未逐项比较，仅表计数 |
 | 4.5 | 连接测试不进入聊天/记忆/成长 | PASS（服务层） | `provider-manual-chat.integration.test.ts` 固定 prompt、无聊天/记忆写入 |
 | 4.6 | quota/401/403/404/429/5xx/timeout/cancel/DNS/SSRF 错误状态 | PASS（服务层） | `openai-compatible.test.ts`、`provider-retry.test.ts`、`endpoint-security.test.ts`、health 分类测试 |
 | 4.7 | Windows 打包/安装/启动 smoke | PASS | CI `windows-package-smoke` 安装 NSIS 并用 `--verify-upgrade` 启动已安装程序；本机启动仍受宿主 0xC0000005 阻塞，已如实记录 |
@@ -64,7 +64,7 @@
 | --- | --- | --- | --- |
 | 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1129 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
-| 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS（服务层） | `provider-continuity.integration.test.ts`；产品路径脚本等待 CI |
+| 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261104T155831Z-899f5cb0`（relationship 以表计数覆盖） |
 | 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1129；全量运行 0 skipped |
 
 ## 6. 真实 Provider
@@ -81,5 +81,5 @@
 - 代码、迁移、P1/P2、Stage 4 回归、离线评估、构建、Windows 安装/启动、真实 Electron 产品路径（CI Windows）：PASS。
 - 真实远程 Provider：BLOCKED_QUOTA（外部账户）。
 - 本地模型：BLOCKED_LOCAL_SERVICE_NOT_RUNNING（外部服务）。
-- 本机 Electron 启动：BLOCKED_HOST_ELECTRON_CRASH；同一脚本在 CI Windows run `20261104T154241Z-1430f856` PASS。
+- 本机 Electron 启动：BLOCKED_HOST_ELECTRON_CRASH；同一脚本在最终 HEAD CI Windows run `20261104T155831Z-899f5cb0` PASS。
 - 因此整体状态为 **PARTIAL**，不是 COMPLETE；不得发布 Release 或合并 PR。

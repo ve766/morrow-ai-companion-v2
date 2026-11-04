@@ -8,8 +8,10 @@
 - Stage 4 集成：PR #40 head `4284cb1` → 合并 `a34d797`
 - Provider 集成：PR #51 head `326e68a` → 合并 `5091e02`
 - Provider P1/P2 核心修复：`d9b28aecb47ff136bbdbda492c5be20ffc53bbd4`
-- 最终收口修复（CI/harness/HTTP 状态）：`d07b3f4b951fab2bd522413c789850055a49fe61`
-- 产品路径与证据提交：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
+- HTTP 状态/CI/harness 修复：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
+- product-path 收敛（优雅退出、UI 就绪、continuity）：`d07b3f4b951fab2bd522413c789850055a49fe61`
+- 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
+- 最终 HEAD（复审/证据文档）：`a8458898ab8936c122aed3ba76030339fbfd94e5`
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围
@@ -51,7 +53,7 @@
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
 | `npm run package:win` | 本机执行；安装包产物在 `release/`；CI Windows package/install smoke PASS |
-| CI | 最终运行 [41859315790](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41859315790) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
+| CI | 最终运行 [41862065143](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
 
 测试新增覆盖：
 
@@ -70,9 +72,9 @@
 | `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`；HTTP 403，latency 586ms，attempts 1，stream deltas 0，exit 0；未写成 PASS |
 | `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json`；HTTP 403，latency 318ms，attempts 1，stream deltas 0，exit 0 |
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
-| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path run `20261104T154241Z-1430f856` PASS（Electron 44.9.3，sandbox 启用） |
+| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；最终 HEAD CI Windows product-path run `20261104T155831Z-899f5cb0` PASS（Electron 44.9.3，sandbox 启用） |
 
-运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。
+运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`（Provider 代码此后未变；`d07b3f4` 只改 product-path/CI 脚本）。
 
 ## 4. 产品真实路径
 
@@ -84,7 +86,7 @@
 4. 删除/默认切换只通过 typed bridge/UI。
 5. 不触发原生 consent 对话框；脚本明确记录该限制。consent 拒绝 0 fetch 与连接测试不进入聊天/记忆由同 SHA 的服务层集成测试证明。
 
-CI Windows 产品路径 **PASS**：run `20261104T154241Z-1430f856`，Electron 44.9.3，sandbox 启用，18 项检查全部通过；artifact `morrow-product-path-windows-latest` 包含 JSON + transcript。本机因宿主 Electron 崩溃未完成 UI 执行，已如实保留 `20261104T124142Z-933adad0.json` 作为宿主阻塞证据，不冒充 PASS。
+CI Windows 产品路径 **PASS**：run `20261104T155831Z-899f5cb0`，Electron 44.9.3，sandbox 启用，18 项检查全部通过；artifact `morrow-product-path-windows-latest` 包含 JSON + transcript。本机因宿主 Electron 崩溃未完成 UI 执行，已如实保留 `20261104T124142Z-933adad0.json` 作为宿主阻塞证据，不冒充 PASS。
 
 ## 5. Stage 4 回归
 

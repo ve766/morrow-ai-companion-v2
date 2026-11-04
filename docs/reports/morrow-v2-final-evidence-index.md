@@ -63,8 +63,9 @@
   - Windows：`Electron smoke` + `Electron product-path acceptance`
   - Windows：`Windows package, install and installed-app smoke`
   - Windows：`Windows upgrade path (schema migrations under the real app)`
-- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41859315790（全部 job PASS）
-- PASS 证据：`evals/morrow-v2-final/results/20261104T154241Z-1430f856.json` + transcript；Electron 44.9.3，18 项检查，sandbox 启用。
+- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143（4/4 job PASS，head `a845889`）
+- 最终 HEAD PASS 证据：`evals/morrow-v2-final/results/20261104T155831Z-899f5cb0.json` + transcript；Electron 44.9.3，18 项检查，sandbox 启用。
+- 最终代码 SHA 证据：`evals/morrow-v2-final/results/20261104T154241Z-1430f856.json` + transcript；同一脚本，18 项检查 PASS。
 - 本机失败证据：`evals/morrow-v2-final/results/20261104T124142Z-933adad0.json`（FAILED，宿主 Electron 0xC0000005）；不冒充 PASS。
 - CI artifact：`morrow-product-path-windows-latest`，包含 JSON + transcript。
 
@@ -80,8 +81,8 @@
 | `npm run eval:provider-multi-source`（supuxh） | 0（脚本正常退出；结果 BLOCKED_QUOTA） |
 | `npm run eval:provider-multi-source`（speed26） | 0（结果 BLOCKED_QUOTA） |
 | `node scripts/product-path-smoke.mjs`（本机） | 1（宿主 Electron 崩溃；已保留 FAILED 证据） |
-| `npm run smoke:product-path`（CI Windows） | 0；run `20261104T154241Z-1430f856` PASS |
-| CI run 41859315790 | 4/4 job PASS |
+| `npm run smoke:product-path`（CI Windows） | 0；最终 HEAD run `20261104T155831Z-899f5cb0` PASS，代码 SHA run `20261104T154241Z-1430f856` PASS |
+| CI run 41862065143 | 4/4 job PASS |
 
 ## 7. 一致性
 
