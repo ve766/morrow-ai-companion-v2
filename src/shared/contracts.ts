@@ -1,5 +1,8 @@
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
+import type { PendingDecisionResult } from '../cognition/pending-items'
+export type { PendingDecisionResult }
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -63,6 +66,10 @@ export const IPC_CHANNELS = {
   goalsCancelTask: 'morrow:goals:cancel-task',
   goalsStop: 'morrow:goals:stop',
   goalsDelete: 'morrow:goals:delete',
+  companionGoalsList: 'morrow:companion-goals:list',
+  companionGoalCandidatesList: 'morrow:companion-goals:candidates:list',
+  companionGoalCandidateAccept: 'morrow:companion-goals:candidates:accept',
+  companionGoalCandidateReject: 'morrow:companion-goals:candidates:reject',
   remindersSnapshot: 'morrow:reminders:snapshot',
   remindersSaveSettings: 'morrow:reminders:save-settings',
   remindersPause: 'morrow:reminders:pause',
@@ -90,7 +97,6 @@ export const IPC_CHANNELS = {
   reflectionListRuns: 'morrow:selfmodel:reflection:runs',
   reflectionFindings: 'morrow:selfmodel:reflection:findings',
   pendingItemsList: 'morrow:continuity:pending:list',
-  pendingItemsComplete: 'morrow:continuity:pending:complete',
   pendingItemsDecide: 'morrow:continuity:pending:decide',
   turnContextRead: 'morrow:continuity:turn:read'
 } as const
@@ -102,6 +108,7 @@ export type IpcErrorCode =
   | 'CONFLICT'
   | 'STORAGE_ERROR'
   | 'BACKUP_INVALID'
+  | 'SCHEMA_UPGRADE_REQUIRED'
   | 'INTERNAL_ERROR'
   | 'PROVIDER_STORAGE_UNAVAILABLE'
   | 'PROVIDER_CREDENTIAL_STORE_ERROR'
@@ -171,6 +178,10 @@ export interface ConversationIdRequest {
   conversationId: string
 }
 
+export interface GoalCandidateIdRequest {
+  candidateId: string
+}
+
 export interface ProviderGetRequest {
   providerId?: ProviderId
 }
@@ -201,12 +212,6 @@ export interface ReflectionFindingsRequest {
   runId: string
 }
 
-/** Phase 2.4: a stored internal item, readable and completable from the shell. */
-export interface PendingItemIdRequest {
-  itemId: string
-}
-
-/** D-11: the user decision on one open internal item. */
 export interface PendingItemDecisionRequest {
   itemId: string
   decision: 'accepted' | 'rejected' | 'dismissed'
@@ -303,13 +308,12 @@ export interface MorrowBridge {
     clearHistory(): Promise<IpcResult<FeelingStateView>>
   }
   /**
-   * Phase 2.4 continuity. Read-only except `completePendingItem`, which can
-   * only mark an internal item as done: it never sends anything outward.
+   * Phase 2.4 continuity. Read-only except `decidePendingItem`, the single
+   * authoritative decision path (item + reflection route + required audit).
    */
   continuity: {
     listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
-    completePendingItem(request: PendingItemIdRequest): Promise<IpcResult<boolean>>
-    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<boolean>>
+    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<PendingDecisionResult>>
     readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
   chat: {
@@ -343,6 +347,12 @@ export interface MorrowBridge {
     cancelTask(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
     stop(request: GoalIdRequest): Promise<IpcResult<GoalRecord>>
     delete(request: GoalIdRequest): Promise<IpcResult<void>>
+  }
+  companionGoals: {
+    listGoals(): Promise<IpcResult<CompanionGoal[]>>
+    listCandidates(): Promise<IpcResult<CompanionGoalCandidate[]>>
+    acceptCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
+    rejectCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
   }
   reminders: {
     getSnapshot(): Promise<IpcResult<ReminderSnapshot>>

@@ -299,7 +299,7 @@ async function loadGoals(): Promise<void> {
   }
 }
 
-async function refreshGoalViews(): Promise<void> {
+export async function refreshGoalViews(): Promise<void> {
   await loadGoals()
   await refreshReminders()
 }

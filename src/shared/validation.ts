@@ -121,6 +121,11 @@ export function parseGoalIdRequest(value: unknown): { goalId: string } {
   const input = parseObject(value, ['goalId'], 'Goal request')
   return { goalId: parseIdentifier(input.goalId) }
 }
+export function parseGoalCandidateIdRequest(value: unknown): { candidateId: string } {
+  const input = parseObject(value, ['candidateId'], 'Goal candidate request')
+  return { candidateId: parseIdentifier(input.candidateId) }
+}
+
 
 export function parseTaskIdRequest(value: unknown): { taskId: string } {
   const input = parseObject(value, ['taskId'], 'Task request')
@@ -252,11 +257,6 @@ export function parseSelfModelIdRequest(value: unknown): { entryId: string } {
 export function parseReflectionFindingsRequest(value: unknown): { runId: string } {
   const input = parseObject(value, ['runId'], 'Reflection findings request')
   return { runId: parseIdentifier(input.runId) }
-}
-
-export function parsePendingItemIdRequest(value: unknown): { itemId: string } {
-  const input = parseObject(value, ['itemId'], 'Pending item request')
-  return { itemId: parseIdentifier(input.itemId) }
 }
 
 export function parseTurnContextRequest(value: unknown): { turnId: string } {

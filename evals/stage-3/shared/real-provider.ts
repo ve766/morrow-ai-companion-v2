@@ -307,11 +307,11 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
     return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
   })
   const exploration = new ExplorationService(database)
-  const goals = new CompanionGoalService(database)
+  const goals = new CompanionGoalService(database, eventLog)
 
   let observedPayload = ''
   const secrets = new MemorySecretStore()
-  const readings = new IntentReadingRepository(database)
+  const readings = new IntentReadingRepository(database, eventLog)
 
   const companion = new CompanionService({
     database,
@@ -341,7 +341,7 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
     selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, interaction, exploration, goals, memories, relationships },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database, eventLog)),
       finalizations: new SqliteTurnFinalizationRepository(database),
       states: new SqliteTurnStateRepository(database),
       readings

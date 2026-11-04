@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '../persistence/database'
+import { EventLogService } from '../persistence/event-log'
 import { CompanionGoalService, describeGoals } from './companion-goal'
 
 let directory = ''
@@ -18,7 +19,7 @@ afterEach(() => {
 function build(now = '2026-10-30T00:00:00.000Z') {
   directory = mkdtempSync(join(tmpdir(), 'morrow-goals-'))
   database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
-  return new CompanionGoalService(database, () => now, () => randomUUID())
+  return new CompanionGoalService(database, new EventLogService(database), () => now, () => randomUUID())
 }
 
 describe('companion goals', () => {

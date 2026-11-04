@@ -8,6 +8,7 @@ import { initializeShell } from './shell-ui'
 import { buildMemoryTimeline } from '../../memory/memory-timeline'
 import { createRequestGuard } from '../../security/request-guard'
 import { initializeGoals } from './goals-ui'
+import { initializeGoalCandidates } from './goal-candidates-ui'
 import { initializeReminders } from './reminders-ui'
 import { initializeCompanion } from './companion-ui'
 
@@ -333,6 +334,7 @@ initializeShell()
 void updateRuntimeStatus()
 void loadMemories()
 initializeGoals()
+initializeGoalCandidates()
 initializeReminders()
 initializeCompanion()
 initializeBackup()
