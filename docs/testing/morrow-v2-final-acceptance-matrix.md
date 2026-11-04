@@ -65,7 +65,7 @@
 | 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1128 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
 | 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS（服务层） | `provider-continuity.integration.test.ts`；产品路径脚本等待 CI |
-| 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1128；无 skip 新增（5 个历史 skip 保留） |
+| 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1128；全量运行 0 skipped |
 
 ## 6. 真实 Provider
 

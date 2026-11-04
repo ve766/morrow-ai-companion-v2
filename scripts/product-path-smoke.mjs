@@ -227,7 +227,7 @@ function snapshotSecrets(profileIds) {
   return Object.fromEntries(profileIds.map((id) => [id, secretDigest(id)]))
 }
 
-const seedScript = `
+const seedScript = `(async () => {
   const personality = await window.morrow.personality.save({
     warmth: 61, directness: 57, humor: 33, disagreementStyle: 'balanced',
     systemRules: 'PRODUCT_PATH_PERSONALITY_MARKER'
@@ -249,7 +249,7 @@ const seedScript = `
     goalId: goal.data.id,
     conversationId: conversation.data.id
   }
-`
+})()`
 
 const continuityScript = `(async () => {
   const [personality, entries, interests, memories, goals, conversations, feeling] = await Promise.all([

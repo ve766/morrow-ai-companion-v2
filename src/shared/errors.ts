@@ -23,10 +23,13 @@ export type ApplicationErrorCode =
 
 export class ApplicationError extends Error {
   readonly code: ApplicationErrorCode
+  /** HTTP status when the failure came from a provider response; null otherwise. */
+  readonly httpStatus: number | null
 
-  constructor(code: ApplicationErrorCode) {
+  constructor(code: ApplicationErrorCode, httpStatus: number | null = null) {
     super(code)
     this.name = 'ApplicationError'
     this.code = code
+    this.httpStatus = httpStatus
   }
 }

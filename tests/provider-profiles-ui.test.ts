@@ -140,6 +140,25 @@ describe('provider profile renderer', () => {
     expect(calls.setDefaultProfile).toHaveBeenCalledWith({ profileId: profile.id })
   })
 
+  it('disables edit and delete for an official built-in profile', async () => {
+    const calls = bridge()
+    calls.listProfiles.mockResolvedValueOnce({
+      ok: true as const,
+      data: [{
+        ...profile,
+        id: 'deepseek',
+        displayName: 'DeepSeek',
+        sourceKind: 'official' as const,
+        endpoint: 'https://api.deepseek.com',
+        model: 'deepseek-flash'
+      }]
+    })
+    const elements = await load()
+    const actions = elements['provider-profile-list']!.children[0]!.children[1]!
+    expect(actions.children[2]!.disabled).toBe(true)
+    expect(actions.children[4]!.disabled).toBe(true)
+  })
+
   it('prompts for a new key when a destination change clears the credential', async () => {
     const calls = bridge()
     calls.saveProfile.mockResolvedValueOnce({

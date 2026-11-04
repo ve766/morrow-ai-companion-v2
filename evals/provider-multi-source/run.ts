@@ -50,6 +50,8 @@ interface RunResult {
   stream?: { ok: boolean; latencyMs: number; attempts: number; deltaCount: number; replyLength: number; textMatchesDeltas: boolean }
   local: { status: 'PASS' | 'BLOCKED_LOCAL_SERVICE_NOT_RUNNING' | 'FAIL'; detail: string }
   ipc?: { save: boolean; list: boolean; test: boolean }
+  failure?: { httpStatus: number | null; latencyMs: number; attempts: number; streamDeltaCount: number }
+  exitCode?: number
   error?: string
 }
 
@@ -104,6 +106,7 @@ async function run(): Promise<void> {
     return
   }
 
+  let connectionStartedAt = 0
   const directory = mkdtempSync(join(tmpdir(), 'morrow-provider-eval-'))
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const secrets = new MemorySecretStore()
@@ -163,6 +166,7 @@ async function run(): Promise<void> {
     result.ipc = { save: savedViaIpc.ok, list: listViaIpc.ok, test: testViaIpc.ok }
     if (!testViaIpc.ok) result.checks.push({ name: 'IPC test error', ok: false, detail: testViaIpc.error.code + ': ' + testViaIpc.error.message })
     result.checks.push({ name: 'IPC path (trusted sender, schema, service)', ok: savedViaIpc.ok && listViaIpc.ok && testViaIpc.ok, detail: JSON.stringify(result.ipc) })
+    connectionStartedAt = Date.now()
     const connection = await service.testConnection({ providerId: profile.id })
     result.checks.push({
       name: 'connection test (consent + adapter + SSE)',
@@ -237,6 +241,10 @@ async function run(): Promise<void> {
     result.status = allOk ? 'REAL_PROVIDER_PASS' : 'REAL_PROVIDER_FAIL'
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code) : 'unknown'
+    const httpStatus = error && typeof error === 'object' && 'httpStatus' in error && typeof (error as { httpStatus?: unknown }).httpStatus === 'number'
+      ? (error as { httpStatus: number }).httpStatus
+      : null
+    result.failure = { httpStatus, latencyMs: connectionStartedAt > 0 ? Date.now() - connectionStartedAt : 0, attempts: 1, streamDeltaCount: 0 }
     result.status = code === 'PROVIDER_QUOTA' ? 'BLOCKED_QUOTA' : 'REAL_PROVIDER_FAIL'
     result.error = code === 'PROVIDER_QUOTA' ? 'PROVIDER_QUOTA: provider account quota is below the minimum pre-consume threshold' : code
     result.checks.push({ name: 'real provider run', ok: false, detail: result.error })
@@ -245,6 +253,7 @@ async function run(): Promise<void> {
     rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })
   }
   result.finishedAt = new Date().toISOString()
+  result.exitCode = result.status === 'REAL_PROVIDER_FAIL' ? 1 : 0
   write(result)
   process.stdout.write(`${JSON.stringify({ runId, status: result.status, file: join(resultsDir, `${runId}.json`) })}\n`)
   if (result.status === 'REAL_PROVIDER_FAIL') process.exitCode = 1

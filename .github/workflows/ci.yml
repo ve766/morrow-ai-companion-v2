@@ -95,7 +95,6 @@ jobs:
           $profile = Join-Path $env:RUNNER_TEMP 'morrow-installed-profile'
           Remove-Item -Recurse -Force $profile -ErrorAction SilentlyContinue
           $env:MORROW_SMOKE_PROFILE = $profile
-          $env:MORROW_SMOKE_DISABLE_SANDBOX = '1'
           npm run smoke
       - name: Install silently and verify the installed executable starts on the same profile
         shell: pwsh
@@ -107,7 +106,6 @@ jobs:
           if (-not $exe) { throw 'Installed Morrow executable was not found.' }
           $env:MORROW_SMOKE_EXECUTABLE = $exe.FullName
           $env:MORROW_SMOKE_PROFILE = Join-Path $env:RUNNER_TEMP 'morrow-installed-profile'
-          $env:MORROW_SMOKE_DISABLE_SANDBOX = '1'
           $env:MORROW_SMOKE_EXPECT_VERSION = '2.0.0'
           node scripts/smoke.mjs --verify-upgrade
 

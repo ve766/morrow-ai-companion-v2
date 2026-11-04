@@ -41,8 +41,8 @@ const RETRYABLE_CODES: ReadonlySet<ApplicationErrorCode> = new Set(['PROVIDER_RA
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
 
 class RetryableProviderError extends ApplicationError {
-  constructor(code: ApplicationErrorCode, readonly retryAfterMs: number | null) {
-    super(code)
+  constructor(code: ApplicationErrorCode, readonly retryAfterMs: number | null, httpStatus: number | null = null) {
+    super(code, httpStatus)
     this.name = 'RetryableProviderError'
   }
 }
@@ -310,18 +310,18 @@ export class OpenAICompatibleProvider implements ProviderPort {
         // "no order/quota" and "no such model". Only the code is read, never
         // the whole body, and it is never echoed back to the caller.
         const hint = await readProviderErrorHint(response)
-        if (response.status === 400 && hint.code === 10404) throw new ApplicationError('PROVIDER_MODEL')
+        if (response.status === 400 && hint.code === 10404) throw new ApplicationError('PROVIDER_MODEL', response.status)
         // A relay can signal exhausted quota with 403 as well; the string code
         // is the only stable signal, and it must not be reported as bad auth.
         const quotaSignal = /quota|insufficient|balance/i.test(`${hint.codeText ?? ''} ${hint.type ?? ''}`)
-        if (response.status === 403 && (hint.code === 11200 || quotaSignal)) throw new ApplicationError('PROVIDER_QUOTA')
-        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
-        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')
+        if (response.status === 403 && (hint.code === 11200 || quotaSignal)) throw new ApplicationError('PROVIDER_QUOTA', response.status)
+        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH', response.status)
+        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL', response.status)
         const retryAfter = parseRetryAfter(response.headers.get('retry-after'))
-        if (response.status === 408 || response.status === 504) throw new RetryableProviderError('PROVIDER_TIMEOUT', retryAfter)
-        if (response.status === 429) throw new RetryableProviderError('PROVIDER_RATE_LIMIT', retryAfter)
-        if (RETRYABLE_STATUS.has(response.status)) throw new RetryableProviderError('PROVIDER_NETWORK', retryAfter)
-        throw new ApplicationError('PROVIDER_NETWORK')
+        if (response.status === 408 || response.status === 504) throw new RetryableProviderError('PROVIDER_TIMEOUT', retryAfter, response.status)
+        if (response.status === 429) throw new RetryableProviderError('PROVIDER_RATE_LIMIT', retryAfter, response.status)
+        if (RETRYABLE_STATUS.has(response.status)) throw new RetryableProviderError('PROVIDER_NETWORK', retryAfter, response.status)
+        throw new ApplicationError('PROVIDER_NETWORK', response.status)
       }
       if (payload.stream) {
         const output = await readStream(response, this.config.model, onDelta)

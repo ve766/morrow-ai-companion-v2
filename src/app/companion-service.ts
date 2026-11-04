@@ -836,10 +836,10 @@ export class ProviderConfigService {
         signal: controller.signal
       })
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH')
-        if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT')
-        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL')
-        throw new ApplicationError('PROVIDER_NETWORK')
+        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH', response.status)
+        if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT', response.status)
+        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL', response.status)
+        throw new ApplicationError('PROVIDER_NETWORK', response.status)
       }
       const declaredLength = Number(response.headers.get('content-length') ?? '0')
       if (Number.isFinite(declaredLength) && declaredLength > MAX_DISCOVERY_BODY_BYTES) {
@@ -979,12 +979,14 @@ function defaultCapabilities(): ProviderCapabilities {
 
 function healthForError(error: unknown): { status: ProviderHealthStatus; httpStatus: number | null } {
   if (error instanceof ApplicationError) {
-    if (error.code === 'PROVIDER_AUTH') return { status: 'auth_failed', httpStatus: 401 }
-    if (error.code === 'PROVIDER_MODEL') return { status: 'model_not_found', httpStatus: 404 }
-    if (error.code === 'PROVIDER_QUOTA') return { status: 'quota', httpStatus: 403 }
-    if (error.code === 'PROVIDER_TIMEOUT' || error.code === 'PROVIDER_DEADLINE') return { status: 'timeout', httpStatus: 408 }
+    const httpStatus = error.httpStatus
+    if (error.code === 'PROVIDER_AUTH') return { status: 'auth_failed', httpStatus: httpStatus ?? 401 }
+    if (error.code === 'PROVIDER_MODEL') return { status: 'model_not_found', httpStatus: httpStatus ?? 404 }
+    if (error.code === 'PROVIDER_QUOTA') return { status: 'quota', httpStatus: httpStatus ?? 403 }
+    if (error.code === 'PROVIDER_TIMEOUT' || error.code === 'PROVIDER_DEADLINE') return { status: 'timeout', httpStatus: httpStatus ?? 408 }
     if (error.code === 'PROVIDER_ENDPOINT_BLOCKED') return { status: 'network', httpStatus: null }
     if (error.code === 'PROVIDER_RESPONSE') return { status: 'protocol', httpStatus: null }
+    return { status: 'network', httpStatus }
   }
   return { status: 'network', httpStatus: null }
 }

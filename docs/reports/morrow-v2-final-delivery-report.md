@@ -45,7 +45,7 @@
 | 项目 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | PASS（无输出，退出码 0） |
-| `vitest run` | PASS：124 文件 / 1128 测试（5 个历史 skip 保留，无新增跳过） |
+| `vitest run` | PASS：124 文件 / 1128 测试，0 skipped |
 | `npm run evaluate` | PASS：M3 检索 + M4 reminders 合成评估 |
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
