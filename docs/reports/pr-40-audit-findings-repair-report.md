@@ -61,9 +61,9 @@ finding 仍未路由。
    `REFLECTION_INGEST_FAILED:<n>`；schema 不可写则立即中止。
 6. `ReflectionFindingRouter.recoverUnrouted`：扫描“无 route 且未被 reobserved 归档”的
    finding，逐条重放 ingest；启动与限流重试都会调用，用于修复历史遗留和中断写入。
-7. outbox 投影：`reflection.run` 被限流时调用 `recoverUnrouted`；schema 不可用时记录
-   `cognition.pending_schema_unavailable` 并保留 findings 供升级后恢复；其它错误继续抛出
-   让 outbox 重试。
+7. outbox 投影：`reflection.run` 被限流时调用 `recoverUnrouted`；若返回 `failed > 0`
+   则抛 `REFLECTION_RECOVERY_INCOMPLETE`，outbox 行保持可重试而不是 done；schema 不可用时
+   记录 `cognition.pending_schema_unavailable` 后同样抛出，findings 保留供升级后恢复。
 
 **测试**：
 - `reflection-routing.test.ts` `ingests a second finding for the same concern without PENDING_LINK_MISMATCH`
@@ -71,6 +71,7 @@ finding 仍未路由。
 - `reflection-routing.test.ts` `recovers a finding that was stored without a route, idempotently`
 - `stage4-startup-composition.integration.test.ts` `a second startup gap for the same label keeps the run successful`
 - `stage4-reflection-producer.integration.test.ts` `a second correction event does not fail manual ingestion`
+- `stage4-outbox-reflection.integration.test.ts` `does not mark the row done while recovery still has failed findings`、`does not mark the row done when the schema cannot route findings`
 - `reflection-concern.test.ts`（规范化/不合并否定、数量、时间、实体、kind）
 - `reflection-mapping.test.ts`（concern kind 忽略 evidence；消费 evidence 的 kind 不合并）
 
@@ -102,11 +103,15 @@ finding 仍未路由。
 - audit payload：`routeStatus` 仅在真实更新时写入；否则 `null`；
   `routeResolution` 为 `linked | resolved_by_concern | unresolved`；`routesUpdated` 计数。
   不再出现“item 已终态但 audit 声称 route 已 consumed”。
+- 采用“精确 route + 同关切 sibling routes”策略：item 被后到的 F2 采纳后，决策同时收敛
+  item 指向的 route 与同 statement digest 的其它可变 route，audit `routeResolution:
+  linked_with_siblings`、`routesUpdated` 为总数；不会留下无解释的 `routed`。
 - 不引入 v49：没有新增列/表，读取与匹配均在现有 v48 schema 上完成；因此无迁移回滚风险。
 
 **测试**：
 - `migrations.test.ts` 上述 v47 用例（真实 legacy open item → route consumed + audit resolved_by_concern）
 - `reflection-routing.test.ts` `converges a legacy item route by its stored concern digest`
+- `reflection-routing.test.ts` `converges every route of a legacy concern adopted by a later observation`
 - `reflection-routing.test.ts` `does not guess a legacy route when the concern cannot be proven`
 - `reflection-routing.test.ts` 原 `keeps the documented compatibility path...` 增加 audit
   `routeStatus: null / unresolved`
@@ -162,6 +167,12 @@ b4-crash-child、全部集成测试）。`decide` 仍保留运行期 `PENDING_AU
 删除 `complete`/`drop`；全仓无业务调用者；测试改为 `decide`。新增
 `@ts-expect-error` 边界测试，确认没有公开入口只改 item status。
 
+补充（独立复审发现）：`IntentReadingRepository.closeOpenItems` 原以裸 SQL 把
+`source='open_question'` 的 item 置 done。现改为 `SqlitePendingItemRepository.resolveSystem`：
+同一事务写 `decision=dismissed`、收敛同关切 route、写 `pending.system_dismissed`（actor=system），
+不再有状态-only 路径；`IntentReadingRepository` 必需注入 audit sink。
+测试：`intent-reading-pending-closure.test.ts`。
+
 **状态**：FIXED。
 
 ### AUD45-P3-08 — Startup reflection 错误处理和可观测性不足
@@ -197,6 +208,8 @@ b4-crash-child、全部集成测试）。`decide` 仍保留运行期 `PENDING_AU
 - `SqlitePendingItemRepository.assertStage4Writable()`：`schemaVersion < 48` 时抛出
   `PendingSchemaUnavailableError`（message `SCHEMA_UPGRADE_REQUIRED`），不执行引用新列的 SQL。
 - IPC `toFailure` 映射为新的 `SCHEMA_UPGRADE_REQUIRED`，用户看到“需要重启完成版本升级”。
+- 手动反思的 `runBounded` 保留原始 error，`index.ts` 将 schema 错误映射为
+  `SCHEMA_UPGRADE_REQUIRED`，不再统一报 `STORAGE_ERROR`。
 - `ChatService.applyFinalization` 在 schema < 48 时跳过 pending 草稿并
   `recordDegradation('pending_item_schema')`，不无限重试不可写草稿；主聊天继续可用。
 - startup reflection 在 schema 不可写时返回 `degraded/schema_upgrade_required`；

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   MAX_PENDING_ITEMS_PER_TURN,
   PendingCognitionService,
+  PendingSchemaUnavailableError,
   derivePendingItems,
   pendingItemFromReflection,
   reflectionSummaryFor,
@@ -312,5 +313,14 @@ describe('pending decision boundary', () => {
     } finally {
       database.close()
     }
+  })
+})
+
+describe('bounded reflection failure kinds', () => {
+  it('keeps the original error so the IPC layer can map a schema failure', async () => {
+    const failure = new PendingSchemaUnavailableError()
+    const result = await runBounded(() => { throw failure }, { budgetMs: 1_000 })
+    expect(result.status).toBe('failed')
+    expect(result.error).toBe(failure)
   })
 })

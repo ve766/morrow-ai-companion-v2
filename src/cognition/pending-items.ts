@@ -100,6 +100,8 @@ export interface PendingItemPort {
   list(options?: { status?: PendingItemStatus; limit?: number }): PendingItem[]
   /** One transaction for the item, its reflection route and the audit event. */
   decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult
+  /** System closure (intent withdrawn); still writes decision, route and audit. */
+  resolveSystem(id: string, reason: string, at: string): PendingDecisionResult
   findByDedupeKey(dedupeKey: string): PendingItem | null
 }
 
@@ -232,6 +234,8 @@ export interface BoundedRunResult<T> {
   status: 'completed' | 'cancelled' | 'failed' | 'skipped'
   value?: T
   reason?: string
+  /** The failure, when status is `failed`; lets the caller preserve its kind. */
+  error?: unknown
 }
 
 /**
@@ -257,8 +261,10 @@ export async function runBounded<T>(
   try {
     const value = await operation(controller.signal)
     return controller.signal.aborted ? { status: 'cancelled', reason: 'budget_or_abort' } : { status: 'completed', value }
-  } catch {
-    return controller.signal.aborted ? { status: 'cancelled', reason: 'budget_or_abort' } : { status: 'failed', reason: 'operation_failed' }
+  } catch (error) {
+    return controller.signal.aborted
+      ? { status: 'cancelled', reason: 'budget_or_abort' }
+      : { status: 'failed', reason: 'operation_failed', error }
   } finally {
     clearTimeout(timer)
     options.signal?.removeEventListener('abort', onAbort)
@@ -366,6 +372,15 @@ export class PendingCognitionService {
    */
   decide(id: string, decision: PendingDecision): PendingDecisionResult {
     return this.repository.decide(id, decision, this.clock())
+  }
+
+  /**
+   * Closes an item because the user withdrew the request that created it.
+   * This is a decision (dismissed) with a system audit, never a bare status
+   * update; the route of the same concern converges in the same transaction.
+   */
+  dismissSystem(id: string, reason = 'intent_withdrawn'): PendingDecisionResult {
+    return this.repository.resolveSystem(id, reason, this.clock())
   }
 }
 

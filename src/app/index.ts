@@ -27,7 +27,7 @@ import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
 import { CompanionGoalService } from '../motivation/companion-goal'
 import { UserInteractionProfileService } from '../personalization/interaction-profile'
-import { runBounded } from '../cognition/pending-items'
+import { PendingSchemaUnavailableError, runBounded } from '../cognition/pending-items'
 import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
 import { SqliteTurnStateRepository } from '../persistence/turn-state-repository'
 import { IntentReadingRepository } from '../persistence/intent-reading-repository'
@@ -274,7 +274,7 @@ if (hasSingleInstanceLock) {
         pending: pendingItems,
         finalizations,
         states: new SqliteTurnStateRepository(database),
-        readings: new IntentReadingRepository(database)
+        readings: new IntentReadingRepository(database, eventLog)
       }
     })
     // Settle any turn that was interrupted between its finalization intent and

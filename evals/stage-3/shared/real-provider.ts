@@ -311,7 +311,7 @@ export function buildProviderStack(options: ProviderStackOptions = {}): Provider
 
   let observedPayload = ''
   const secrets = new MemorySecretStore()
-  const readings = new IntentReadingRepository(database)
+  const readings = new IntentReadingRepository(database, eventLog)
 
   const companion = new CompanionService({
     database,

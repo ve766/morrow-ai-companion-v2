@@ -23,6 +23,8 @@ export interface PendingItemPort {
   upsert(draft: PendingItemDraft): PendingItem
   get(id: string): PendingItem | null
   list(options?: { status?: PendingItemStatus; limit?: number }): PendingItem[]
+  decide(id: string, decision: PendingDecision, at: string): PendingDecisionResult
+  resolveSystem(id: string, reason: string, at: string): PendingDecisionResult
   findByDedupeKey(dedupeKey: string): PendingItem | null
 }
 
@@ -229,7 +231,6 @@ export class SqlitePendingItemRepository implements PendingItemPort {
 
       const routeStatus: 'consumed' | 'rejected' | 'dismissed' =
         decision === 'accepted' ? 'consumed' : decision === 'rejected' ? 'rejected' : 'dismissed'
-      let routeResolution: 'linked' | 'resolved_by_concern' | 'unresolved' = 'unresolved'
       if (item.findingId) {
         const route = this.database.connection.prepare(
           'SELECT status FROM reflection_finding_routes WHERE finding_id = ?'
@@ -238,7 +239,6 @@ export class SqlitePendingItemRepository implements PendingItemPort {
         if (!['routed', 'injected', 'used_observed', 'not_observed'].includes(route.status)) {
           throw new Error('PENDING_ROUTE_STATE_CONFLICT')
         }
-        routeResolution = 'linked'
       }
 
       const updated = this.database.connection.prepare(
@@ -251,19 +251,26 @@ export class SqlitePendingItemRepository implements PendingItemPort {
       }
 
       let routesUpdated = 0
+      let routeResolution: 'linked' | 'linked_with_siblings' | 'resolved_by_concern' | 'unresolved' = 'unresolved'
       if (item.findingId) {
         const routeUpdated = this.database.connection.prepare(
           "UPDATE reflection_finding_routes SET status = ?, reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected', 'used_observed', 'not_observed')"
         ).run(routeStatus, `user decision: ${decision}`.slice(0, 200), at, item.findingId)
         if (Number(routeUpdated.changes) !== 1) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
         routesUpdated = 1
-      } else {
-        const resolved = this.resolveLegacyRoutes(item, routeStatus, decision, at)
-        routesUpdated = resolved.updated
-        if (resolved.matched > 0 && resolved.updated !== resolved.matched) {
-          throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routeResolution = 'linked'
+      }
+      // A legacy item adopted by a post-upgrade re-observation points at the
+      // newest finding, while the original finding's route still exists. Both
+      // routes describe the same concern and must reach the same terminal
+      // state; the audit records how many were converged.
+      const siblings = this.resolveLegacyRoutes(item, routeStatus, decision, at)
+      if (siblings.matched > 0) {
+        if (siblings.updated !== siblings.matched) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated += siblings.updated
+        if (siblings.updated > 0) {
+          routeResolution = item.findingId ? 'linked_with_siblings' : 'resolved_by_concern'
         }
-        if (resolved.updated > 0) routeResolution = 'resolved_by_concern'
       }
 
       // The audit event is inside the same transaction: a failure rolls back
@@ -287,6 +294,79 @@ export class SqlitePendingItemRepository implements PendingItemPort {
         }
       })
       return { status: 'decided' as const, decision, itemStatus }
+    })
+  }
+
+  /**
+   * System-driven closure of an open item (the user withdrew the request that
+   * created it). This is still a decision, not a status edit: it writes
+   * `decision='dismissed'`, converges the same concern's routes and records
+   * `pending.system_dismissed` with actor `system`. No caller may close an item
+   * without this transaction.
+   */
+  resolveSystem(id: string, reason: string, at: string): PendingDecisionResult {
+    const audit = this.events?.recordDeterministic?.bind(this.events)
+    if (!audit) throw new Error('PENDING_AUDIT_UNAVAILABLE')
+    this.assertStage4Writable()
+    return this.database.transaction(() => {
+      const item = this.get(id)
+      if (!item) return { status: 'not_found' as const }
+      if (item.status !== 'open') {
+        if (item.decision === 'dismissed') return { status: 'unchanged' as const, decision: 'dismissed' as const }
+        return { status: 'conflict' as const, current: item.decision }
+      }
+      if (item.findingId) {
+        const route = this.database.connection.prepare(
+          'SELECT status FROM reflection_finding_routes WHERE finding_id = ?'
+        ).get(item.findingId) as { status: string } | undefined
+        if (!route) throw new Error('PENDING_ROUTE_MISSING')
+        if (!['routed', 'injected', 'used_observed', 'not_observed'].includes(route.status)) {
+          throw new Error('PENDING_ROUTE_STATE_CONFLICT')
+        }
+      }
+
+      const updated = this.database.connection.prepare(
+        "UPDATE cognitive_pending_items SET status = 'dropped', decision = 'dismissed', completed_at = ?, updated_at = ? WHERE id = ? AND status = 'open'"
+      ).run(at, at, id)
+      if (updated.changes !== 1) throw new Error('PENDING_DECISION_CONFLICT')
+
+      let routesUpdated = 0
+      let routeResolution: 'linked' | 'linked_with_siblings' | 'resolved_by_concern' | 'unresolved' = 'unresolved'
+      if (item.findingId) {
+        const routeUpdated = this.database.connection.prepare(
+          "UPDATE reflection_finding_routes SET status = 'dismissed', reason = ?, updated_at = ? WHERE finding_id = ? AND status IN ('routed', 'injected', 'used_observed', 'not_observed')"
+        ).run(`system decision: ${reason}`.slice(0, 200), at, item.findingId)
+        if (Number(routeUpdated.changes) !== 1) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated = 1
+        routeResolution = 'linked'
+      }
+      const siblings = this.resolveLegacyRoutes(item, 'dismissed', 'dismissed', at)
+      if (siblings.matched > 0) {
+        if (siblings.updated !== siblings.matched) throw new Error('PENDING_ROUTE_UPDATE_FAILED')
+        routesUpdated += siblings.updated
+        if (siblings.updated > 0) {
+          routeResolution = item.findingId ? 'linked_with_siblings' : 'resolved_by_concern'
+        }
+      }
+
+      audit(`pending-system-dismissed:${id}`, {
+        sourceModule: 'cognition',
+        eventType: 'pending.system_dismissed',
+        actor: 'system',
+        subjectType: 'pending_item',
+        subjectId: id,
+        correlationId: item.findingId,
+        payload: {
+          decision: 'dismissed',
+          itemStatus: 'dropped',
+          reason: reason.slice(0, 120),
+          routeStatus: routesUpdated > 0 ? 'dismissed' : null,
+          routeResolution,
+          routesUpdated,
+          source: item.source
+        }
+      })
+      return { status: 'decided' as const, decision: 'dismissed' as const, itemStatus: 'dropped' as const }
     })
   }
 

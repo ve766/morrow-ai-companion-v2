@@ -25,7 +25,7 @@ CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(find
 | 迁移事务失败回滚 | 同上（migration failure cases） | PASS |
 | schema 版本 | 测试断言 `CURRENT_SCHEMA_VERSION`（48） | PASS |
 | 备份恢复 | `src/persistence/backup-service.test.ts` | PASS |
-| 重启后候选/目标/pending/route/audit | `stage4-goal-candidate-e2e.test.ts`、`reflection-routing.test.ts`（持久 SQLite） | PASS |
+| 重启后候选/目标/pending/route/audit | `src/app/stage4-restart-consistency.integration.test.ts`（真实文件关闭/重开） | PASS |
 
 ## 3. 回滚
 

@@ -320,6 +320,45 @@ describe('reflection finding routing (D-10)', () => {
     }
   })
 
+  it('converges every route of a legacy concern adopted by a later observation', () => {
+    const world = openWorld()
+    try {
+      seedRun(world.database)
+      const original = uid(8)
+      const later = uid(9)
+      const statement = '用户纠正过助手对上一轮的理解。'
+      seedFinding(world.database, original, 'intent_correction', statement, 60, '2026-11-01T07:00:01.000Z')
+      seedFinding(world.database, later, 'intent_correction', statement, 60, '2026-11-01T07:10:01.000Z')
+      world.database.connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'pending_user', 'routed', 'pre-upgrade route', ?, 'intent_correction', ?, ?)"
+      ).run(original, RUN, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+      const itemId = uid(7)
+      world.database.connection.prepare(
+        "INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, finding_id, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'legacy item', 40, 'open', NULL, NULL, '{}', ?, ?, NULL)"
+      ).run(itemId, `reflection:intent_correction:${concernDigestOf(statement)}`, '2026-11-01T07:00:01.000Z', '2026-11-01T07:00:01.000Z')
+
+      // A post-upgrade observation of the same concern adopts the legacy item.
+      world.router.ingestRun(RUN, [{ id: later, kind: 'intent_correction', statement, confidence: 60, createdAt: '2026-11-01T07:10:01.000Z' }])
+      const adopted = world.pending.get(itemId)!
+      expect(adopted.findingId).toBe(later)
+
+      expect(world.pending.decide(itemId, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      const routes = world.database.connection.prepare('SELECT finding_id, status FROM reflection_finding_routes ORDER BY finding_id').all() as Array<{ finding_id: string; status: string }>
+      expect(routes).toEqual([
+        { finding_id: original, status: 'consumed' },
+        { finding_id: later, status: 'consumed' }
+      ])
+      const audit = world.database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' AND subject_id = ?").get(itemId) as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({
+        routeStatus: 'consumed',
+        routeResolution: 'linked_with_siblings',
+        routesUpdated: 2
+      })
+    } finally {
+      world.close()
+    }
+  })
+
   it('does not guess a legacy route when the concern cannot be proven', () => {
     const world = openWorld()
     try {

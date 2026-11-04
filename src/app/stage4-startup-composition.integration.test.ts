@@ -183,4 +183,33 @@ describe('real startup composition', () => {
       database.close()
     }
   })
+
+  it('keeps startup running when the lifecycle audit itself fails', () => {
+    const { database, events } = open()
+    try {
+      const services = composeStartupReflectionServices(database, events)
+      services.findingRouter.recordLifecycle = () => { throw new Error('audit down') }
+      const result = runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter })
+      expect(result.status).toBe('ran')
+    } finally {
+      database.close()
+    }
+  })
+
+  it('repeated startup does not duplicate findings, routes or pending items', () => {
+    const { database, events } = open()
+    try {
+      const services = composeStartupReflectionServices(database, events)
+      expect(runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter }).status).toBe('ran')
+      expect(runStartupReflection({ reflection: services.reflection, findingRouter: services.findingRouter }).status).toBe('ran')
+      const counts = database.connection.prepare(`
+        SELECT
+          (SELECT COUNT(*) FROM cognitive_pending_items) AS items,
+          (SELECT COUNT(*) FROM reflection_finding_routes) AS routes
+      `).get() as { items: number; routes: number }
+      expect(counts).toEqual({ items: 0, routes: 0 })
+    } finally {
+      database.close()
+    }
+  })
 })
