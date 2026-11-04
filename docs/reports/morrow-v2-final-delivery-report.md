@@ -7,7 +7,8 @@
 - Base：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - Stage 4 集成：PR #40 head `4284cb1` → 合并 `a34d797`
 - Provider 集成：PR #51 head `326e68a` → 合并 `5091e02`
-- Provider P1/P2 修复：`d9b28aecb47ff136bbdbda492c5be20ffc53bbd4`
+- Provider P1/P2 核心修复：`d9b28aecb47ff136bbdbda492c5be20ffc53bbd4`
+- 最终收口修复（CI/harness/HTTP 状态）：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
 - 产品路径与证据提交：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 最终状态：**PARTIAL**
 
@@ -45,7 +46,7 @@
 | 项目 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | PASS（无输出，退出码 0） |
-| `vitest run` | PASS：124 文件 / 1128 测试，0 skipped |
+| `vitest run` | PASS：124 文件 / 1129 测试，0 skipped |
 | `npm run evaluate` | PASS：M3 检索 + M4 reminders 合成评估 |
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
@@ -66,8 +67,8 @@
 
 | 依赖 | 状态 | run / 证据 |
 | --- | --- | --- |
-| `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T123748Z-5fc34109.json`；403 `pre_consume_token_quota_failed`，余额低于最低预扣；未写成 PASS |
-| `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T123809Z-02e942cb.json` |
+| `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`；HTTP 403，latency 586ms，attempts 1，stream deltas 0，exit 0；未写成 PASS |
+| `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json`；HTTP 403，latency 318ms，attempts 1，stream deltas 0，exit 0 |
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
 | 本机 Electron 启动 | **BLOCKED_HOST_ELECTRON_CRASH** | Electron 44 在 Windows 26200 以 0xC0000005 退出；`scripts/product-path-smoke.mjs` 已加入 CI 双平台 |
 

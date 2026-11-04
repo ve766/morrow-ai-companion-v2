@@ -84,7 +84,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | 0；124 文件 / 1128 测试 |
+| `npx vitest run` | 0；124 文件 / 1129 测试 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
 | `npm run build` | 0 |
@@ -106,7 +106,8 @@
 | --- | --- |
 | `a34d797` | 合并 Stage 4 |
 | `5091e02` | 合并 Provider + v49 桥接 |
-| `d9b28ae` | Provider P1/P2 修复 |
+| `d9b28ae` | Provider P1/P2 核心修复 |
+| `c1f4450` | 产品路径/CI 修复、HTTP 状态证据 |
 | `28665df` | 产品路径脚本、真实运行证据、CI |
 | 后续 | 文档、独立复审、最终 PR 更新 |
 

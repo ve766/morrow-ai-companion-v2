@@ -1,6 +1,6 @@
 # Morrow V2 最终验收矩阵（Issue #53）
 
-- 实现 SHA：`d9b28aecb47ff136bbdbda492c5be20ffc53bbd4`
+- 实现 SHA：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
@@ -62,17 +62,17 @@
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1128 测试） |
+| 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1129 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
 | 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS（服务层） | `provider-continuity.integration.test.ts`；产品路径脚本等待 CI |
-| 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1128；全量运行 0 skipped |
+| 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1129；全量运行 0 skipped |
 
 ## 6. 真实 Provider
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 6.1 | `api.supxh.xin` 非流式/SSE | **BLOCKED_QUOTA** | run `20261104T123748Z-5fc34109`；403 quota，未写成 PASS |
-| 6.2 | `speed26.toter.me` 兼容回归 | **BLOCKED_QUOTA** | run `20261104T123809Z-02e942cb` |
+| 6.1 | `api.supxh.xin` 非流式/SSE | **BLOCKED_QUOTA** | run `20261104T135205Z-75b01260`；403 quota，未写成 PASS |
+| 6.2 | `speed26.toter.me` 兼容回归 | **BLOCKED_QUOTA** | run `20261104T135210Z-abf69f16` |
 | 6.3 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 端口探测；未用 mock 冒充 |
 | 6.4 | 运行元数据（run id/SHA/dirty/endpoint digest/model/HTTP/latency/attempts/exit） | PASS | 两份 JSON + transcript；无 key/Authorization/正文 |
 

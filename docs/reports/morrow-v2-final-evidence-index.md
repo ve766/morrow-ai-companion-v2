@@ -2,7 +2,7 @@
 
 - 分支：`feat/morrow-v2-final-closure`
 - PR：#54 https://github.com/ve766/morrow-ai-companion-v2/pull/54
-- 实现 SHA：`d9b28aecb47ff136bbdbda492c5be20ffc53bbd4`
+- 实现 SHA：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
@@ -48,8 +48,8 @@
 
 | 运行 | 文件 | 状态 |
 | --- | --- | --- |
-| api.supxh.xin | `evals/provider-multi-source/results/20261104T123748Z-5fc34109.json` + transcript | **BLOCKED_QUOTA** |
-| speed26.toter.me | `evals/provider-multi-source/results/20261104T123809Z-02e942cb.json` + transcript | **BLOCKED_QUOTA** |
+| api.supxh.xin | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json` + transcript | **BLOCKED_QUOTA** |
+| speed26.toter.me | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json` + transcript | **BLOCKED_QUOTA** |
 | 本地服务 | 两份结果中的 `local` 字段 | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** |
 
 两份 JSON 均记录 commit、branch、workingTree、endpoint digest、model、错误分类；不含 key/Authorization/正文。
@@ -70,7 +70,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | 0；124 文件 / 1128 测试 |
+| `npx vitest run` | 0；124 文件 / 1129 测试 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
 | `npm run build` | 0 |
@@ -81,6 +81,6 @@
 
 ## 7. 一致性
 
-- 报告、矩阵、基线中的实现 SHA 均为 `d9b28ae`；证据脚本 SHA 为 `28665df`。
+- 报告、矩阵、基线中的最终代码 SHA 为 `c1f4450`；Provider P1/P2 核心修复为 `d9b28ae`；证据脚本为 `28665df`。
 - PR head 会随文档/复审提交前进；PR 描述与最终评论给出当时 head SHA。
 - 历史 PR #40/#51/#52 的 SHA 与报告未被改写。
