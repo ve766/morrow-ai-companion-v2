@@ -1,9 +1,9 @@
 name: CI
 
+# Manual-only: GitHub-hosted Actions included minutes are exhausted.
+# Use self-hosted-ci.yml for the no-billing Windows path.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
