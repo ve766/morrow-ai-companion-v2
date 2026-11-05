@@ -1,7 +1,7 @@
 # Morrow V2 最终验收矩阵（Issue #53）
 
-- 实现 SHA：`6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
-- 最终 HEAD：（docs/evidence）
+- 实现 SHA：`df8f8020d3a9f90b17ed43796a72b99cc497a512`
+- 最终 HEAD：PR #54 head（含本复审）
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
@@ -19,7 +19,7 @@
 | 1.6 | 迁移中断/回滚 | PASS | `migrations.test.ts` “rolls back a failed v49 rebuild…” |
 | 1.7 | 身份不匹配 fail closed | PASS | `migrations.test.ts` 外来名称；`provider-multi-source.integration.test.ts` 结构不符 |
 | 1.8 | pending/reflection/outbox 数据保留 | PASS | 全量 vitest；Stage 4 集成测试；v48/v49 迁移测试 |
-| 1.9 | Windows 升级 CI | PASS | PR #54 checks：Windows upgrade job PASS（schema migrations under the real app） |
+| 1.9 | Windows 升级 CI | PASS | 父代码 CI 41995422882：Windows upgrade job PASS（schema migrations under the real app） |
 
 ## 2. Provider P1
 

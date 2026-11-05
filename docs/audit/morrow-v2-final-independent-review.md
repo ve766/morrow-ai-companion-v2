@@ -1,6 +1,6 @@
-# Morrow V2 Final Independent Review (PR #54, final HEAD 13ce2a6)
+# Morrow V2 Final Independent Review (PR #54, code SHA df8f802)
 
-Independent reviewer: separate context; did not write this implementation. No product code, test, migration, CI, doc, or evidence was modified. The only repository writes are this file and `docs/audit/morrow-v2-final-file-review-matrix.md`, both overwritten for this HEAD. Throwaway probes were created only under `.tmp/probe/` and were not committed.
+Independent reviewer: separate context; did not write this implementation. No product code, test, migration, CI, doc, or evidence was modified. The only repository writes are this file and `docs/audit/morrow-v2-final-file-review-matrix.md`. Throwaway probes were created only under `.tmp/probe/` and were not committed. The final docs HEAD is the commit containing this review; this document does not cite a self-referential docs SHA.
 
 ## 0. Reviewed identity
 
@@ -8,28 +8,29 @@ Independent reviewer: separate context; did not write this implementation. No pr
 | --- | --- |
 | Repository | `ve766/morrow-ai-companion-v2` (`E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo`) |
 | Branch | `feat/morrow-v2-final-closure` |
-| Frozen final HEAD | `13ce2a6f90d18742d9accc6f55cfd20cf4acd55a` (docs/evidence over the code SHA) |
-| Final code/test SHA | `6f5fe47a897fe63b00ec474812abde7cb9ec8f79` |
+| Final code/test SHA | `df8f8020d3a9f90b17ed43796a72b99cc497a512` |
+| Final docs HEAD | the commit containing this review (docs/evidence over the code SHA) |
+| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, not draft, `MERGEABLE`, `UNSTABLE` (final docs-HEAD CI infrastructure failure) |
+| PR head at review | `df8f8020d3a9f90b17ed43796a72b99cc497a512` (the review commit will become the docs HEAD) |
 | Base | `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9` |
-| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, not draft, `MERGEABLE`, merge state `UNSTABLE` (final docs-HEAD checks red) |
-| PR head SHA (live) | `13ce2a6f90d18742d9accc6f55cfd20cf4acd55a` |
-| Code-SHA CI | [41995422882](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41995422882), head `6f5fe47`, conclusion `success`, 4/4 jobs pass; Windows product-path step pass |
-| Prior docs-HEAD CI | [41997137337](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41997137337), head `9215cc4`, conclusion `success`, 4/4 jobs pass |
-| Frozen-HEAD CI | [42001850336](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/42001850336), head `13ce2a6`, conclusion `failure`: all 4 jobs failed in 2–3 s with 0 steps and no job log. The previous docs HEAD `bb97c9b` run `41999916963` failed the same way. The commit is docs/evidence-only and does not touch `.github/`; the workflow is unchanged since the green run. GitHub status is operational. This is an Actions infrastructure/startup failure, not a code/test failure; reruns reproduce it. |
-| Worktree | clean at review start; after writing, only the two review files are modified and uncommitted |
+| Last green code-SHA CI | [41995422882](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41995422882), head `6f5fe47` (parent code), 4/4 PASS; Windows product-path step pass |
+| New code-SHA CI | [42005665855](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/42005665855), head `df8f802`, conclusion `failure`: all 4 jobs failed in 2 s with 0 steps and no job log. The workflow is unchanged and GitHub status is operational; this is an Actions infrastructure/startup failure, not a code/test failure. |
+| Prior docs-HEAD CI | [41997137337](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41997137337), head `9215cc4`, 4/4 PASS |
+| Final docs-HEAD CI | a new run on the commit containing this review; not green at review time (same infrastructure failure expected) |
+| Worktree | code/tests clean; three final report/testing docs have uncommitted external edits; this review writes only the two review docs |
 
-The committed product-path evidence (`20261105T084141Z-45483dd6`, 22 checks, PASS) was produced by code-SHA run `41995422882`. The code-SHA CI is green; the final docs-HEAD CI is red for the infrastructure/startup reason above.
+The committed product-path evidence (`20261105T084141Z-45483dd6`, 22 checks, PASS) was produced by the parent code-SHA run `41995422882`. The new `df8f802` commit changes only the discovery limit constant and its oversized-test header; the full suite and targeted oversized tests pass locally.
 
 ## 1. Verdict
 
 # **PASS_WITH_NON_BLOCKING_BACKLOG** (code review)
 
-**Overall delivery: PARTIAL.** All code P2 findings are closed, the full tests/tsc/build/evaluations pass, no real secret leak was found, and the code-SHA CI `41995422882` is 4/4 green. The delivery is PARTIAL for exactly two blockers:
+**Overall delivery: PARTIAL.** All code P2 findings are closed, the 1 MiB exact fix is verified, the full tests/tsc/build/evaluations pass, no real secret leak was found, and the parent code-SHA CI `41995422882` is 4/4 green. The delivery is PARTIAL for exactly two blockers:
 
 1. The external Provider quota (`BLOCKED_QUOTA`) and local model service (`BLOCKED_LOCAL_SERVICE_NOT_RUNNING`) remain unavailable.
-2. The final docs-HEAD CI is red: run `42001850336` on `13ce2a6` failed all four jobs in 2–3 s with 0 steps and no logs, and the previous docs HEAD `bb97c9b` failed the same way. The workflow is unchanged since the green `9215cc4` run, so this is an Actions infrastructure/startup failure, not a code/test failure. It is still a red required check.
+2. The final docs-HEAD CI is not green: the new code-SHA CI `42005665855` on `df8f802` failed all four jobs in 2 s with 0 steps and no logs, and the prior docs HEADs `bb97c9b`/`13ce2a6` failed the same way. The workflow is unchanged since the green `9215cc4` run and GitHub status is operational; this is an Actions infrastructure/startup failure, not a code/test failure. It is still a red required check.
 
-Documentation consistency is **P3 only**: the delivery report header and validation section now reference “PR #54 head” instead of a self-referential docs SHA, and the code SHA / code-SHA CI / product-path evidence are correctly cited. The acceptance matrix header is empty (`最终 HEAD：（docs/evidence）`) and a few other stale lines remain (section 9); they have no code impact.
+Documentation consistency is **P3 only**: the key headers reference “PR #54 head” and the code SHA `df8f802` / parent code-SHA CI `41995422882` / product-path evidence are cited; the remaining stale lines are listed in section 9 and have no code impact.
 
 ## 2. P2 closure status
 
@@ -38,8 +39,9 @@ Documentation consistency is **P3 only**: the delivery report header and validat
 | Local provider without token disabled chat | `src/renderer/src/provider-readiness.ts:4-7` `isProviderUsable` allows `sourceKind === 'local'` without a credential; `companion-ui.ts:119,557,601` use it | `tests/provider-readiness.test.ts` 4/4; independent probe 6/6: local no-key `#chat-send.disabled === false`; local + keyless custom keeps chat usable; explicit default custom wins | **CLOSED** |
 | UI selection order differed from `requireConfigured()` | `provider-readiness.ts:13-21` `selectChatProvider`: explicit default → local-openai → spark → deepseek → enabled non-official custom; `companion-ui.ts:145` uses it | `tests/provider-readiness.test.ts:33-50`; independent probe shows Local OpenAI selected over Relay A with no default; service priority probe returns `local-openai` | **CLOSED** |
 | Provider profile delete had no confirmation | `provider-profiles-ui.ts:151-168` two-step in-page confirmation: first click changes to `确认删除` for 5 s, second deletes | `tests/provider-profiles-ui.test.ts:131-144`; product-path run clicks twice and deletes B | **CLOSED** |
-| Continuity fixture lacked messages, self-model, interest/evidence, relationship/evidence | `scripts/product-path-smoke.mjs:389-419` seeds two messages, one self-model entry, one interest + evidence, one relationship thread + evidence after the app stops and before the baseline snapshot | New result `20261105T084141Z-45483dd6`: restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowed changes are explicit per-field `deterministic_interest_reconciliation` / `deterministic_evidence_recompute` and `*_at` timestamps; `controlledRequest` says service-level | **CLOSED** for required categories; P3 caveats below |
-| Docs presented old SHA/CI as final | Key headers now use “PR #54 head”; code SHA `6f5fe47`, code-SHA CI `41995422882`, and product-path `20261105T084141Z-45483dd6` are cited | Remaining stale lines are P3 only (section 9) | **CLOSED as P2**; P3 cleanup remains |
+| Continuity fixture lacked messages, self-model, interest/evidence, relationship/evidence | `scripts/product-path-smoke.mjs:389-419` seeds two messages, one self-model entry, one interest + evidence, one relationship thread + evidence after the app stops and before the baseline snapshot | Result `20261105T084141Z-45483dd6`: restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowed changes are explicit per-field `deterministic_interest_reconciliation` / `deterministic_evidence_recompute` and `*_at` timestamps; `controlledRequest` says service-level | **CLOSED** for required categories; P3 caveats below |
+| Docs presented old SHA/CI as final | Key headers use “PR #54 head”; code SHA `df8f802`, parent code-SHA CI `41995422882`, and product-path `20261105T084141Z-45483dd6` are cited | Remaining stale lines are P3 only (section 9) | **CLOSED as P2**; P3 cleanup remains |
+| Discovery limit was 1,000,000 bytes, not exactly 1 MiB | `src/app/companion-service.ts:442` now `MAX_DISCOVERY_BODY_BYTES = 1_048_576`; oversized test header now `1048577` | `npx vitest run src/app/provider-multi-source.integration.test.ts -t "oversized discovery"`: 2/2 passed; full suite 128/1153 passed | **CLOSED** |
 
 ## 3. UI review after the fixes
 
@@ -49,7 +51,7 @@ Documentation consistency is **P3 only**: the delivery report header and validat
 
 ### 3.2 Chat send gate
 
-**PASS.** `isProviderUsable` and `selectChatProvider` match the service's `requireConfigured()` order. Independent probes on `6f5fe47`:
+**PASS.** `isProviderUsable` and `selectChatProvider` match the service's `requireConfigured()` order. Independent probes on `df8f802`:
 
 - local `enabled: true, apiKeyConfigured: false` → chat enabled;
 - local + custom, no default → Local OpenAI selected, chat enabled;
@@ -78,7 +80,7 @@ P3 edge: `isProviderUsable` does not re-check loopback for a local profile, so a
 | Contrast | Dark muted 6.63:1; light muted 4.41:1 on `#f3f0e8` (4.14:1 on `#ede9df`), below AA 4.5:1; design-system claims ~4.9:1. | P3 |
 | Long text | No `overflow-wrap`/`word-break` for chat/memory/provider meta; unbroken text can overflow. | P3 |
 | 390 layout | `.self-model-grid` remains two columns; nav last item is cut (scrollable); 1280 composer is below the fold. | P3 |
-| Screenshots | New run `20261105T084141Z-45483dd6` has 9 real PNGs at 1440/1280/390 for chat/memory/settings; no secrets; no overlap. The set does not show goals/reminders, self-model, or the two-step delete state; memory shows a stale empty list; chat PNG sizes differ slightly from the prior run, settings/memory are byte-identical. | P3 evidence gap |
+| Screenshots | Run `20261105T084141Z-45483dd6` has 9 real PNGs at 1440/1280/390 for chat/memory/settings; no secrets; no overlap. The set does not show goals/reminders, self-model, or the two-step delete state; memory shows a stale empty list; chat PNG sizes differ slightly from the prior run, settings/memory are byte-identical. | P3 evidence gap |
 
 ### 3.6 Consent/provider copy
 
@@ -102,7 +104,8 @@ P3 edge: `isProviderUsable` does not re-check loopback for a local profile, so a
 | --- | --- | --- |
 | Real byte counting / cancel | `bounded-body.ts:25-62`; 10 tests | PASS |
 | Content-Length not trusted | Missing/understated/overstated tests | PASS |
-| Discovery / error hint | `companion-service.ts:442,847`; `openai-compatible.ts:88-90` | PASS with P3: discovery is `1_000_000` bytes, not `1_048_576`; docs still say 1 MiB/1,048,576 |
+| Discovery limit | `companion-service.ts:442` = `1_048_576` (exact 1 MiB); oversized test header `1048577` | **PASS** — the prior 1,000,000/1,048,576 mismatch is closed; targeted oversized tests 2/2 passed. |
+| Error hint 4 KiB | `openai-compatible.ts:88-90`; 4 KiB boundary test | PASS |
 | UTF-8 split, read/cancel errors, no body | Tests | PASS |
 | Error hint no body leak | Only code/type kept; message discarded | PASS |
 | Non-stream success | `openai-compatible.ts:332-337` uses unbounded `response.json()` | P3 (not used by production chat) |
@@ -118,7 +121,7 @@ P3 edge: `isProviderUsable` does not re-check loopback for a local profile, so a
 - one active interest with one support evidence row;
 - one active relationship thread with one support evidence row.
 
-The full snapshot covers personality, self-model, interests, memories, goals, relationship, conversations/messages, pending/reflection, feeling state and event journal. `diffFullSnapshots` fails on removed rows, non-allowlisted changed fields and unexpected additions. New result `20261105T084141Z-45483dd6` reports:
+The full snapshot covers personality, self-model, interests, memories, goals, relationship, conversations/messages, pending/reflection, feeling state and event journal. `diffFullSnapshots` fails on removed rows, non-allowlisted changed fields and unexpected additions. Result `20261105T084141Z-45483dd6` reports:
 
 | Point | removed | changed | unexpectedAdded |
 | --- | --- | --- | --- |
@@ -153,11 +156,11 @@ Allowed changes are explicit per field: interest `status`, `strength`, `confiden
 
 ## 8. Product path / screenshots
 
-**PASS for the shown pages; P3 coverage.** New run `20261105T084141Z-45483dd6` has 9 real Windows Electron captures at 1440/1280/390 for chat/memory/settings. They show no secrets and no overlap. The set does not show goals/reminders, self-model, or the two-step delete state; memory shows a stale empty list. Chat PNGs differ slightly from the prior run; settings/memory are byte-identical. The product path deletes B with two clicks and passes; the delete interaction is covered by the unit test and the product-path flow, not by a screenshot.
+**PASS for the shown pages; P3 coverage.** Run `20261105T084141Z-45483dd6` has 9 real Windows Electron captures at 1440/1280/390 for chat/memory/settings. They show no secrets and no overlap. The set does not show goals/reminders, self-model, or the two-step delete state; memory shows a stale empty list. Chat PNGs differ slightly from the prior run; settings/memory are byte-identical. The product path deletes B with two clicks and passes; the delete interaction is covered by the unit test and the product-path flow, not by a screenshot.
 
 ## 9. Docs and evidence consistency — P3 only
 
-The docs now use “PR #54 head” in the delivery report header and validation section (`docs/reports/morrow-v2-final-delivery-report.md:16` and `:161`) instead of a self-referential docs SHA, and they cite code SHA `6f5fe47`, code-SHA CI `41995422882`, and product-path `20261105T084141Z-45483dd6`. That closes the prior P2 documentation issue. The acceptance matrix header is empty (`最终 HEAD：（docs/evidence）`), which is a P3 cleanup.
+The docs now reference “PR #54 head” for the final HEAD and cite code SHA `df8f802`, parent code-SHA CI `41995422882`, and product-path `20261105T084141Z-45483dd6`. The 1 MiB exact fix is reflected in the docs (`1 MiB (1,048,576 bytes)`), and the parent/current CI distinction is noted in the delivery report and evidence index. That closes the prior P2 and the 1 MiB P3.
 
 A few stale lines remain. They are **P3 only** and have no code impact:
 
@@ -166,11 +169,11 @@ A few stale lines remain. They are **P3 only** and have no code impact:
 | `docs/reports/morrow-v2-final-work-log.md:159` | Says `最终 HEAD eede520 CI run PR #54 最新 CI：4/4 PASS`; `eede520` is an old docs commit, and the final docs-HEAD CI is currently red. |
 | `docs/reports/morrow-v2-final-evidence-index.md:89` | Says `最终 HEAD 为 （docs/evidence）` with an empty value. |
 | `docs/testing/morrow-v2-final-acceptance-matrix.md:4` | Says `最终 HEAD：（docs/evidence）` with an empty value. |
-| `docs/reports/morrow-v2-final-delivery-report.md:77` | Says `最终 HEAD 6f5fe47 的 CI 4/4 PASS`; `6f5fe47` is the code SHA, not the final docs HEAD. |
-| `docs/reports/morrow-v2-final-delivery-report.md:58` | Calls `41995422882` the "最终运行"; it is the code-SHA CI, not the final docs-HEAD CI. |
-| `docs/reports/morrow-v2-final-delivery-report.md:79` | Says `Provider 核心代码此后未变`; false after the A/B provider changes. |
-| `docs/reports/morrow-v2-final-delivery-report.md:145` and `docs/testing/morrow-v2-final-acceptance-matrix.md:97` | Say discovery is 1 MiB / 1,048,576 bytes; code uses 1,000,000. |
-| `docs/reports/morrow-v2-final-evidence-index.md:66,85,103` | Cite `41995422882` as "CI run" without the code-SHA label; the code-SHA CI is correct, but the final docs-HEAD CI is red. |
+| `docs/reports/morrow-v2-final-delivery-report.md:161` | Says `最终 HEAD CI：PR #54 checks … 4/4 PASS`; the final docs-HEAD CI is red (infrastructure). |
+| `docs/reports/morrow-v2-final-delivery-report.md:77` | Says `最终 HEAD 6f5fe47 的 CI 4/4 PASS`; `6f5fe47` is the parent code SHA, not the final docs HEAD. |
+| `docs/reports/morrow-v2-final-delivery-report.md:79` | Says `Provider 核心代码此后未变`; false after the 1 MiB and A/B provider changes. |
+| `docs/reports/morrow-v2-final-evidence-index.md:85,103` | Cite `41995422882` as "CI run" without the parent-code label; line 66 now labels it correctly. |
+| `docs/testing/morrow-v2-final-acceptance-matrix.md:22` | Says `PR #54 checks: Windows upgrade job PASS`; ambiguous against the red final docs-HEAD CI. |
 | `docs/testing/morrow-v2-final-acceptance-matrix.md:85` | Calls product-path run `20261105T084141Z-45483dd6` a final HEAD CI run; it is a product-path run ID. |
 | `docs/ui/acceptance-matrix.md:13-15,24-26,33,39` | Claims self-model/goal screenshots, 390 single-column/no-overflow, keyboard focus and long-text PASS; the new set has no goals/self-model, the self-model grid is two columns, range focus is missing, and long text is not tested. |
 | `docs/ui/design-system.md:70` | Claims light muted ~4.9:1; actual 4.41:1 on `#f3f0e8` and 4.14:1 on `#ede9df`. |
@@ -179,26 +182,23 @@ The 16 fixed deliverables exist; the optional `evals/morrow-v2-final/ui/<run-id>
 
 ## 10. Commands and exit codes
 
-All commands were run at `6f5fe47` (the final code SHA; `13ce2a6` is docs/evidence-only over it). `TEMP`/`TMP` were set to `<repo>/.tmp/es`.
+All commands were run at `df8f802`. `TEMP`/`TMP` were set to `<repo>/.tmp/es`.
 
 | Command | Result | Exit |
 | --- | --- | --- |
 | `npx tsc --noEmit` | no output | 0 |
-| `TEMP=... TMP=... npx vitest run` | 128 files / 1153 tests passed, 0 skipped, 158.61s | 0 |
+| `TEMP=... TMP=... npx vitest run` | 128 files / 1153 tests passed, 0 skipped, 167.41s | 0 |
 | `npm run build` | main 953.78 kB, preload 10.61 kB, renderer JS 119.97 kB, CSS 30.36 kB | 0 |
+| `TEMP=... TMP=... npx vitest run src/app/provider-multi-source.integration.test.ts -t "oversized discovery"` | 2/2 passed (17 filtered) | 0 |
 | `TEMP=... TMP=... npx vitest run <8 targeted A/B/UI/readiness/continuity files>` | 8 files / 43 tests passed | 0 |
-| `TEMP=... TMP=... npx vitest run <8 Stage 4/provider files>` | 8 files / 61 tests passed | 0 |
 | `TEMP=... TMP=... npm run evaluate` | M3/M4 pass | 0 |
 | `TEMP=... TMP=... npm run evaluate:cognition` | cognitive/feeling/alpha/intent pass | 0 |
 | `TEMP=... TMP=... npx vitest run --config .tmp/probe/vitest.config.ts .tmp/probe/companion-gate.test.ts .tmp/probe/provider-priority.test.ts` | 2 files / 7 tests passed | 0 |
-| `gh pr view 54` | OPEN, MERGEABLE, UNSTABLE, head `13ce2a6` | 0 |
-| `gh pr checks 54` | final docs HEAD `13ce2a6` run `42001850336`: 4/4 fail (0 steps, 2–3 s); prior docs HEAD `9215cc4` run `41997137337`: 4/4 pass; code SHA `6f5fe47` run `41995422882`: 4/4 pass | 0 |
-| `git status --porcelain` (before writing) | empty | 0 |
-| `git status --porcelain` (after writing) | only the two review files modified, uncommitted | 0 |
+| `gh pr checks 54` | `df8f802` run `42005665855`: 4/4 fail (0 steps, 2 s); parent `6f5fe47` run `41995422882`: 4/4 pass; prior docs `9215cc4` run `41997137337`: 4/4 pass | 0 |
 
 ## 11. Residual P3 backlog
 
-1. Final docs-HEAD CI infrastructure/startup failure: runs `42001850336` (`13ce2a6`) and `41999916963` (`bb97c9b`) fail all jobs in 2–3 s with 0 steps and no logs; workflow unchanged since the green `9215cc4` run; code-SHA CI `41995422882` is green. This is a delivery blocker (section 1) and a P3 documentation note for the evidence index.
+1. Final docs-HEAD CI infrastructure/startup failure: run `42005665855` on `df8f802` and the prior docs-HEAD runs fail all jobs in 2 s with 0 steps and no logs; workflow unchanged since the green `9215cc4` run; parent code-SHA CI `41995422882` is green. This is a delivery blocker (section 1) and a P3 evidence-index note.
 2. Stale docs lines in section 9 (P3 only).
 3. Range inputs have `outline: none` with no focus replacement (`style.css:363` vs `:75`).
 4. Light-theme muted text contrast is 4.41:1 on the page background (4.14:1 on `--bg-soft`).
@@ -207,17 +207,16 @@ All commands were run at `6f5fe47` (the final code SHA; `13ce2a6` is docs/eviden
 7. The two-step delete's armed state is not cleared by other profile actions; the built-in local profile's delete button is enabled but the service returns FORBIDDEN.
 8. Provider profile save has no "saving" state; discover has no loading state; reset does not clear old feedback.
 9. Cognitive settings copy and local provider "priority" copy still name DeepSeek; the consent detail's HTTPS sentence is wrong for local HTTP; `dataPolicy` still contains `deepseek-egress`.
-10. Discovery uses 1,000,000 bytes, not 1,048,576; docs are inconsistent.
-11. Non-stream success `response.json()` is unbounded (not used by production chat).
-12. Continuity allowlist is table-level for additions and broad for `*_at`; the bridge restart check is tautological; goal progress is not seeded.
-13. Screenshots lack goals/reminders and self-model; memory shows a stale empty list; the new two-step delete is not captured.
-14. Presence canvas redraws every rAF even under reduced motion and calls `getComputedStyle` per frame.
-15. The new self-model panel has no loading state and does not disable actions during a request.
-16. `isProviderUsable` does not re-check loopback for a local profile; a corrupt/pre-existing non-loopback row could show ready then fail.
-17. `provider-profiles-ui.ts:262` exposes a test-only `data-provider-ui-ready` marker in the production DOM and sets it before `loadProfiles()` completes.
+10. Non-stream success `response.json()` is unbounded (not used by production chat).
+11. Continuity allowlist is table-level for additions and broad for `*_at`; the bridge restart check is tautological; goal progress is not seeded.
+12. Screenshots lack goals/reminders and self-model; memory shows a stale empty list; the new two-step delete is not captured.
+13. Presence canvas redraws every rAF even under reduced motion and calls `getComputedStyle` per frame.
+14. The new self-model panel has no loading state and does not disable actions during a request.
+15. `isProviderUsable` does not re-check loopback for a local profile; a corrupt/pre-existing non-loopback row could show ready then fail.
+16. `provider-profiles-ui.ts:262` exposes a test-only `data-provider-ui-ready` marker in the production DOM and sets it before `loadProfiles()` completes.
 
 ## 12. Final statement
 
-**Code review: PASS_WITH_NON_BLOCKING_BACKLOG. Overall delivery: PARTIAL.** All code P2s are closed and independently reproduced: local no-token chat works, selection mirrors `requireConfigured()`, provider delete has a two-step confirmation, and the continuity fixture now seeds messages/self-model/interest/evidence/relationship/evidence with full-field diffs passing and explicit allowed changes. `tsc`, 128 files / 1153 tests, build and evaluations pass; no real secret was found. The code-SHA CI `41995422882` is 4/4 green.
+**Code review: PASS_WITH_NON_BLOCKING_BACKLOG. Overall delivery: PARTIAL.** All code P2s are closed and independently reproduced: local no-token chat works, selection mirrors `requireConfigured()`, provider delete has a two-step confirmation, the continuity fixture seeds messages/self-model/interest/evidence/relationship/evidence with full-field diffs passing, and the discovery limit is now exactly 1,048,576 bytes (1 MiB) with the oversized test at 1,048,577. `tsc`, 128 files / 1153 tests, targeted oversized tests 2/2, build and evaluations pass; no real secret was found. The parent code-SHA CI `41995422882` is 4/4 green.
 
-The delivery is PARTIAL for exactly two blockers: the external Provider quota/local model service, and the final docs-HEAD CI infrastructure failure (`42001850336` on `13ce2a6`, `41999916963` on `bb97c9b`: all jobs fail in 2–3 s with 0 steps and no logs; the workflow is unchanged since the green `9215cc4` run). Docs consistency is P3 only: the delivery report header uses “PR #54 head” and cites code `6f5fe47`, code-SHA CI `41995422882`, and product-path `20261105T084141Z-45483dd6`; the acceptance matrix header is empty and the remaining stale lines are listed in section 9, with no code impact. Do not merge or release until the docs-HEAD CI infrastructure issue is resolved or explicitly accepted by the user and the P3 docs lines are cleaned up.
+The delivery is PARTIAL for exactly two blockers: the external Provider quota/local model service, and the final docs-HEAD CI infrastructure failure (`42005665855` on `df8f802`; the prior docs HEADs `bb97c9b`/`13ce2a6` failed the same way; workflow unchanged since the green `9215cc4` run). Docs consistency is P3 only: the key headers reference “PR #54 head”, the code SHA and parent CI/product-path evidence are cited, and the 1 MiB wording now matches the code; the remaining stale lines are listed in section 9 and have no code impact. Do not merge or release until the docs-HEAD CI infrastructure issue is resolved or explicitly accepted by the user and the P3 docs lines are cleaned up.

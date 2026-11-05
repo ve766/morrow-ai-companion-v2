@@ -12,8 +12,8 @@
 - product-path 收敛（优雅退出、UI 就绪、continuity）：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - UI/A/B/C 实现：`9af9c3413039453aac70685e9c5d2406a440cbfe`
-- 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
-- 最终 HEAD：`PR #54 head`（docs/evidence）；代码/测试以 `6f5fe47` 为准
+- 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`df8f8020d3a9f90b17ed43796a72b99cc497a512`
+- 最终 HEAD：`PR #54 head`（docs/evidence）；代码/测试以 `df8f802` 为准
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围
@@ -55,7 +55,7 @@
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
 | `npm run package:win` | 本机执行；安装包产物在 `release/`；CI Windows package/install smoke PASS |
-| CI | 最终运行 [41995422882](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41995422882) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
+| CI | 父代码运行 [41995422882](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41995422882) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
 
 测试新增覆盖：
 
@@ -74,9 +74,9 @@
 | `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`；HTTP 403，latency 586ms，attempts 1，stream deltas 0，exit 0；未写成 PASS |
 | `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json`；HTTP 403，latency 318ms，attempts 1，stream deltas 0，exit 0 |
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
-| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T084141Z-45483dd6`，最终 HEAD 6f5fe47 的 CI 4/4 PASS） |
+| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T084141Z-45483dd6`，父代码 6f5fe47 的 CI 4/4 PASS） |
 
-运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`；Provider 核心代码此后未变，后续提交是 UI、product-path/CI 与文档。
+运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`；Provider 核心代码自 c1f4450 后无行为变更；后续提交是 UI、product-path/CI、1 MiB 上限修正与文档。
 
 ## 4. 产品真实路径
 
@@ -158,8 +158,8 @@ CI Windows 产品路径 **PASS**：run `20261105T084141Z-45483dd6`，Electron 44
 - `tsc --noEmit`: 0
 - `vitest run`: 128 files / 1153 tests passed
 - `npm run build`: passed
-- 最终 HEAD CI：PR #54 checks（head 见 PR 页面）4/4 PASS
-- 代码 SHA CI run 41995422882（head `6f5fe47`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
+- 最终 docs HEAD CI：Actions 基础设施失败（0 steps）；父代码 CI 41995422882（head 6f5fe47）4/4 PASS
+- 父代码 CI run 41995422882（head 6f5fe47）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade；1 MiB 修正后的 df8f802 CI 42005665855 为基础设施 0-step 失败
 
 - 真实 Provider 仍 BLOCKED_QUOTA；本地服务仍 BLOCKED_LOCAL_SERVICE_NOT_RUNNING
 
