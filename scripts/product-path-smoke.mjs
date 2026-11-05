@@ -394,7 +394,7 @@ function seedContinuityRows(seed) {
     database.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(secondMessage, seed.conversationId, 'assistant', 'CONTINUITY_MARKER_ASSISTANT：我会记得这条边界。', now, 2, randomUUID())
     database.prepare('INSERT INTO self_model_entries(id, kind, statement, status, confidence, source_message_id, conversation_id, superseded_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)')
-      .run(selfModel, 'inference', 'CONTINUITY_MARKER_SELF_MODEL：用户重视本机与可控性。', 'active', 64, firstMessage, seed.conversationId, now, now)
+      .run(selfModel, 'fact', 'CONTINUITY_MARKER_SELF_MODEL：用户重视本机与可控性。', 'active', 64, null, null, now, now)
     database.prepare('INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, profile_json, origin, stale_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)')
       .run(interest, 'CONTINUITY_MARKER_INTEREST', 'active', 1, 1, 0.6, 70, firstMessage, seed.conversationId, now, now, now, '["连续性"]', '{}', 'user')
     database.prepare('INSERT INTO relationship_threads(id, kind, value, status, strength, confidence, source_message_id, conversation_id, supersedes_thread_id, first_seen_at, last_seen_at, expires_at, tombstoned_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?)')
@@ -612,7 +612,7 @@ try {
   record(
     'full-field continuity across restart',
     restartDiff.removed.length === 0 && restartDiff.changed.length === 0 && Object.keys(restartDiff.added).length === 0,
-    `removed=${restartDiff.removed.length} changed=${restartDiff.changed.length} unexpectedAdded=${Object.keys(restartDiff.added).length} allowedChanges=${restartDiff.allowedChanges.length} allowedAdditions=${JSON.stringify(restartDiff.allowedAdditions)}`
+    `removed=${JSON.stringify(restartDiff.removed)} changed=${JSON.stringify(restartDiff.changed)} unexpectedAdded=${JSON.stringify(restartDiff.added)} allowedChanges=${JSON.stringify(restartDiff.allowedChanges)} allowedAdditions=${JSON.stringify(restartDiff.allowedAdditions)}`
   )
   result.continuity = { restart: restartDiff }
 
@@ -682,7 +682,7 @@ try {
   record(
     'full-field continuity across provider switch',
     switchDiff.removed.length === 0 && switchDiff.changed.length === 0 && Object.keys(switchDiff.added).length === 0,
-    `removed=${switchDiff.removed.length} changed=${switchDiff.changed.length} unexpectedAdded=${Object.keys(switchDiff.added).length} allowedChanges=${switchDiff.allowedChanges.length} allowedAdditions=${JSON.stringify(switchDiff.allowedAdditions)}`
+    `removed=${JSON.stringify(switchDiff.removed)} changed=${JSON.stringify(switchDiff.changed)} unexpectedAdded=${JSON.stringify(switchDiff.added)} allowedChanges=${JSON.stringify(switchDiff.allowedChanges)} allowedAdditions=${JSON.stringify(switchDiff.allowedAdditions)}`
   )
   result.continuity = { ...result.continuity, switch: switchDiff }
 
@@ -741,7 +741,7 @@ try {
   record(
     'full-field continuity final A',
     finalDiff.removed.length === 0 && finalDiff.changed.length === 0 && Object.keys(finalDiff.added).length === 0,
-    `removed=${finalDiff.removed.length} changed=${finalDiff.changed.length} unexpectedAdded=${Object.keys(finalDiff.added).length} allowedChanges=${finalDiff.allowedChanges.length} allowedAdditions=${JSON.stringify(finalDiff.allowedAdditions)}`
+    `removed=${JSON.stringify(finalDiff.removed)} changed=${JSON.stringify(finalDiff.changed)} unexpectedAdded=${JSON.stringify(finalDiff.added)} allowedChanges=${JSON.stringify(finalDiff.allowedChanges)} allowedAdditions=${JSON.stringify(finalDiff.allowedAdditions)}`
   )
 
   result.status = 'PASS'
