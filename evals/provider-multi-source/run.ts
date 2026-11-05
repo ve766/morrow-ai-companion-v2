@@ -133,7 +133,7 @@ async function run(): Promise<void> {
     const frame = { url: trusted }
     const event = { sender: { mainFrame: frame }, senderFrame: frame }
     const handlers = createIpcHandlers(
-      { getAppInfo: () => ({ name: 'Morrow', version: '0.0.0', platform: process.platform, electronVersion: 'test', dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders' }) },
+      { getAppInfo: () => ({ name: 'Morrow', version: '0.0.0', platform: process.platform, electronVersion: 'test', dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders' }) },
       trusted,
       {
         memories: {} as never,

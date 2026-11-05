@@ -111,8 +111,10 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
   const remove = document.createElement('button')
   remove.type = 'button'
   remove.className = 'button button-danger button-small'
+  const builtinProfile = profile.id === 'deepseek' || profile.id === 'spark' || profile.id === 'local-openai'
   remove.textContent = '删除'
-  remove.disabled = profile.sourceKind === 'official'
+  remove.disabled = builtinProfile
+  if (builtinProfile) remove.title = '内置 Provider 不能删除；可以禁用或替换凭据。'
   actions.append(test, discover, edit, makeDefault, remove)
 
   const run = async (action: () => Promise<void>): Promise<void> => {
@@ -124,7 +126,7 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
     } finally {
       for (const button of [test, discover, edit, makeDefault, remove]) button.disabled = false
       makeDefault.disabled = profile.isDefault === true || !profile.enabled
-      remove.disabled = profile.sourceKind === 'official'
+      remove.disabled = builtinProfile
       edit.disabled = profile.sourceKind === 'official'
     }
   }
@@ -139,6 +141,7 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
     feedback(result.models.length > 0 ? `发现 ${result.models.length} 个模型：${result.models.slice(0, 8).join(', ')}` : '该服务没有返回模型列表；请手动填写模型 ID。')
   }))
   edit.addEventListener('click', () => {
+    disarmDelete()
     fillForm(profile)
     feedback(`正在编辑「${profile.displayName ?? profile.id}」`)
   })
@@ -171,6 +174,10 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
     resetForm()
     await loadProfiles()
   }))
+
+  card.addEventListener('click', (event) => {
+    if (!remove.contains(event.target as Node)) disarmDelete()
+  })
 
   card.append(body, actions)
   return card
@@ -208,7 +215,10 @@ async function loadProfiles(): Promise<void> {
   } catch (error) {
     if (guard.isCurrent(request)) feedback(error instanceof ProfileUiError ? error.message : '配置列表加载失败。', true)
   } finally {
-    if (guard.isCurrent(request)) list.setAttribute('aria-busy', 'false')
+    if (guard.isCurrent(request)) {
+      list.setAttribute('aria-busy', 'false')
+      if (document.body) document.body.dataset.providerUiReady = 'true'
+    }
   }
 }
 
@@ -259,6 +269,5 @@ export function initializeProviderProfiles(): void {
     event.preventDefault()
     void save().catch((error: unknown) => feedback(error instanceof ProfileUiError ? error.message : '保存失败，请检查输入。', true))
   })
-  if (document.body) document.body.dataset.providerUiReady = 'true'
   void loadProfiles()
 }

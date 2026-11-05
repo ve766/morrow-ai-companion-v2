@@ -315,8 +315,8 @@ export function initializeCompanion(): void {
     clear.disabled = !settings.available || state.sending
     element<HTMLParagraphElement>('#cognitive-settings-status').textContent = settings.available
       ? settings.enabled
-        ? '本机规则已启用。只保存结构化意图/事件、消息引用和短期状态，不会把原文重复写进认知记录。状态提示仅随你逐次确认的 DeepSeek 请求发送，可能增加 token 用量；本地计算不联网。关闭后立即停止新增分析和提示，已有状态会衰减，可单独清除。分值未校准，不代表真实感受或意识，也不会改写记忆、人格、权限或安全规则。'
-        : '本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用后只在本机保存结构化意图/事件、消息引用和短期状态，不复制原文。状态提示仅随你逐次确认的 DeepSeek 请求发送，可能增加 token 用量；本地计算不联网、不增加模型调用。状态不代表真实感受或意识，也不改写记忆、人格、权限或安全规则。'
+        ? '本机规则已启用。只保存结构化意图/事件、消息引用和短期状态，不会把原文重复写进认知记录。状态提示仅随你逐次确认的 模型服务请求发送，可能增加 token 用量；本地计算不联网。关闭后立即停止新增分析和提示，已有状态会衰减，可单独清除。分值未校准，不代表真实感受或意识，也不会改写记忆、人格、权限或安全规则。'
+        : '本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用后只在本机保存结构化意图/事件、消息引用和短期状态，不复制原文。状态提示仅随你逐次确认的 模型服务请求发送，可能增加 token 用量；本地计算不联网、不增加模型调用。状态不代表真实感受或意识，也不改写记忆、人格、权限或安全规则。'
       : '认知数据结构不可用；对话仍可继续，但本地认知分析与感受状态已安全停用。'
     const view = unwrap(await window.morrow.cognition.getFeelingState())
     const summary = element<HTMLDivElement>('#cognitive-state-summary')
@@ -468,7 +468,7 @@ export function initializeCompanion(): void {
     try {
       const requestedEnabled = element<HTMLInputElement>('#cognitive-enabled').checked
       const current = unwrap(await window.morrow.cognition.getSettings())
-      if (requestedEnabled && !current.enabled && !window.confirm('启用后，本地规则会分析有限上下文，并把结构化意图/事件、消息引用和短期状态保存到本机 SQLite（不会为认知记录重复保存原文）。状态提示只会进入你逐次确认发送的 DeepSeek 请求，可能增加 token 用量；本地计算不联网、不增加模型调用。它不代表 Morrow 有真实感受或意识，也不会改写记忆、人格、权限或安全规则。你可以随时关闭或清除记录。继续启用吗？')) {
+      if (requestedEnabled && !current.enabled && !window.confirm('启用后，本地规则会分析有限上下文，并把结构化意图/事件、消息引用和短期状态保存到本机 SQLite（不会为认知记录重复保存原文）。状态提示只会进入你逐次确认发送的 模型服务请求，可能增加 token 用量；本地计算不联网、不增加模型调用。它不代表 Morrow 有真实感受或意识，也不会改写记忆、人格、权限或安全规则。你可以随时关闭或清除记录。继续启用吗？')) {
         await loadCognitive()
         return
       }

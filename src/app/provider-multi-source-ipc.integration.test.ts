@@ -28,7 +28,7 @@ function event(url = trustedUrl) {
 
 function handlersFor(stack: Stack): Record<string, IpcHandler> {
   return createIpcHandlers(
-    { getAppInfo: () => ({ name: 'Morrow', version: '0.0.0', platform: 'win32', electronVersion: '44.9.0', dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders' }) },
+    { getAppInfo: () => ({ name: 'Morrow', version: '0.0.0', platform: 'win32', electronVersion: '44.9.0', dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders' }) },
     trustedUrl,
     { memories: stack.memories, goals: {} as never, reminders: {} as never, companion: stack.companion }
   ) as Record<string, IpcHandler>

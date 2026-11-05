@@ -374,7 +374,7 @@
               <input id="local-provider-model" name="model" type="text" maxlength="64" spellcheck="false" placeholder="例如 qwen2.5-7b-instruct" />
               <label for="local-provider-api-key">访问口令（可选）</label>
               <input id="local-provider-api-key" name="apiKey" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="本地服务未设置口令时留空" />
-              <label class="companion-toggle"><input id="local-provider-enabled" name="enabled" type="checkbox" /><span>启用本地模型（启用时优先于 DeepSeek）</span></label>
+              <label class="companion-toggle"><input id="local-provider-enabled" name="enabled" type="checkbox" /><span>启用本地模型（无显式默认 Provider 时优先于 DeepSeek）</span></label>
               <div class="companion-actions">
                 <button class="button button-primary button-small" type="submit">保存设置</button>
                 <button id="local-provider-test" class="button button-secondary button-small" type="button" disabled>测试连接（发送到本机服务）</button>

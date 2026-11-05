@@ -288,11 +288,21 @@ const FULL_CONTINUITY_TABLES = [
   'cognitive_feeling_events', 'cognitive_core_settings', 'event_journal'
 ]
 const TIMESTAMP_FIELDS = new Set(['updated_at', 'last_seen_at', 'stale_at', 'archived_at', 'completed_at', 'tested_at'])
-const ALLOWED_ADDITION_TABLES = new Set([
-  'interests', 'interest_evidence', 'reflection_runs', 'reflection_findings', 'reflection_finding_routes',
-  'cognitive_turn_contexts', 'cognitive_turn_observations', 'cognitive_feeling_events', 'event_journal',
-  'memory_evidence', 'goal_audit', 'personality_revisions', 'personality_growth_events'
-])
+const ALLOWED_ADDITION_REASONS = {
+  interests: 'startup_interest_reconciliation',
+  interest_evidence: 'startup_interest_evidence',
+  reflection_runs: 'startup_reflection_run',
+  reflection_findings: 'startup_reflection_finding',
+  reflection_finding_routes: 'startup_reflection_route',
+  cognitive_turn_contexts: 'startup_cognitive_context',
+  cognitive_turn_observations: 'startup_cognitive_observation',
+  cognitive_feeling_events: 'startup_feeling_event',
+  event_journal: 'append_only_journal',
+  memory_evidence: 'memory_evidence_maintenance',
+  goal_audit: 'goal_audit_append',
+  personality_revisions: 'personality_revision_append',
+  personality_growth_events: 'growth_event_append'
+}
 
 function snapshotFullDatabase() {
   const path = findDatabase(profile)
@@ -366,8 +376,9 @@ function diffFullSnapshots(baseline, final) {
     }
     const added = Object.keys(after.rows).filter((key) => !before.rows[key])
     if (added.length > 0) {
-      if (ALLOWED_ADDITION_TABLES.has(table)) result.allowedAdditions[table] = added.length
-      else result.added[table] = added.length
+      const reason = ALLOWED_ADDITION_REASONS[table]
+      if (reason) result.allowedAdditions[table] = { reason, keys: added }
+      else result.added[table] = added
     }
   }
   return result
@@ -395,6 +406,9 @@ function seedContinuityRows(seed) {
   const selfModel = randomUUID()
   const interest = randomUUID()
   const thread = randomUUID()
+  const goalTask = randomUUID()
+  const companionGoal = randomUUID()
+  const progress = randomUUID()
   try {
     database.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(firstMessage, seed.conversationId, 'user', 'CONTINUITY_MARKER_USER：把对话留在本机。', now, 1, randomUUID())
@@ -410,7 +424,13 @@ function seedContinuityRows(seed) {
       .run(thread, 'address_preference', 'CONTINUITY_MARKER_THREAD', 'active', 0.6, 70, firstMessage, seed.conversationId, now, now, now, now)
     database.prepare('INSERT INTO relationship_thread_evidence(thread_id, source_message_id, conversation_id, polarity, weight, created_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(thread, firstMessage, seed.conversationId, 'support', 0.6, now)
-    return { firstMessage, secondMessage, selfModel, interest, thread }
+    database.prepare('INSERT INTO goal_tasks(id, goal_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(goalTask, seed.goalId, 'queued', now, now)
+    database.prepare('INSERT INTO companion_goals(id, title, detail, owner, status, priority, due_at, source_message_id, created_at, updated_at, revision, candidate_id) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)')
+      .run(companionGoal, 'CONTINUITY_MARKER_COMPANION_GOAL', 'kept across provider switches', 'user', 'active', 3, firstMessage, now, now, 1)
+    database.prepare('INSERT INTO companion_goal_progress(id, goal_id, kind, note, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(progress, companionGoal, 'note', 'CONTINUITY_MARKER_PROGRESS', now)
+    return { firstMessage, secondMessage, selfModel, interest, thread, goalTask, companionGoal, progress }
   } finally {
     database.close()
   }
@@ -580,6 +600,15 @@ try {
   started = await start()
   activeRun = started.run
   activeClient = started.client
+  const continuityBefore = await activeClient.evaluate(continuityScript)
+  await stop(activeRun, activeClient)
+  await delay(750)
+  activeRun = undefined
+  activeClient = undefined
+
+  started = await start()
+  activeRun = started.run
+  activeClient = started.client
   const afterRestart = await activeClient.evaluate(`(async () => {
     let lastError = null
     const deadline = Date.now() + 8000
@@ -600,8 +629,7 @@ try {
   const restartedA = afterRestart.profiles.find((profile) => profile.id === idA)
   const restartedB = afterRestart.profiles.find((profile) => profile.id === idB)
   record('profiles and OS secrets survive restart', restartedA?.apiKeyConfigured === true && restartedB?.apiKeyConfigured === true, 'both profiles read back configured after restart')
-  const continuityBefore = await activeClient.evaluate(continuityScript)
-  const continuityAfterRestart = continuityBefore
+  const continuityAfterRestart = await activeClient.evaluate(continuityScript)
   record('continuity unchanged across restart', continuityPreserved(continuityBefore, continuityAfterRestart), `baseline=${JSON.stringify({interests: continuityBefore.interests.length, memories: continuityBefore.memories.length, goals: continuityBefore.goals.length})} after=${JSON.stringify({interests: continuityAfterRestart.interests.length, memories: continuityAfterRestart.memories.length, goals: continuityAfterRestart.goals.length})}`)
   const changed = await saveProfileThroughForm(activeClient, {
     profileId: idA,

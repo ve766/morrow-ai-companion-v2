@@ -35,6 +35,7 @@ function createPresence(canvas: HTMLCanvasElement): () => void {
     const box = canvas.getBoundingClientRect()
     canvas.width = Math.max(1, Math.round(box.width * ratio))
     canvas.height = Math.max(1, Math.round(box.height * ratio))
+    if (reducedMotion()) draw()
   }
 
   const draw = (): void => {
@@ -98,7 +99,12 @@ function createPresence(canvas: HTMLCanvasElement): () => void {
       frame = 0
       return
     }
-    if (!dragging && !reducedMotion()) rotation += 0.0022
+    if (reducedMotion()) {
+      draw()
+      frame = 0
+      return
+    }
+    if (!dragging) rotation += 0.0022
     draw()
     frame = requestAnimationFrame(loop)
   }
@@ -112,6 +118,7 @@ function createPresence(canvas: HTMLCanvasElement): () => void {
     if (!dragging) return
     rotation += (event.clientX - lastX) * 0.008
     lastX = event.clientX
+    if (reducedMotion()) draw()
   }
   const onPointerUp = (): void => { dragging = false }
 

@@ -74,7 +74,7 @@ function getAppInfo(): AppInfo {
     version: app.getVersion(),
     platform: process.platform,
     electronVersion: process.versions.electron ?? 'unknown',
-    dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+    dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
   }
 }
 
@@ -101,7 +101,7 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
     presentation.egress,
     `计费：${presentation.pricing}`,
     ...(presentation.warning ? [`注意：${presentation.warning}`] : []),
-    'API 密钥仅在 Windows 安全存储中加密保存；请求时通过 HTTPS Authorization Bearer 标头发送，不进入请求正文或 SQLite。',
+    'API 密钥仅在 Windows 安全存储中加密保存；请求时通过 Authorization Bearer 标头发送（远程 HTTPS；本机回环可为 HTTP），不进入请求正文或 SQLite。',
     `已选记忆：\n${memories}`,
     `精确请求正文：\n${preview.exactPayload}`
   ].join('\n\n')

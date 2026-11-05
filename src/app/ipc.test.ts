@@ -21,7 +21,7 @@ const appInfo: AppInfo = {
   version: '0.0.0',
   platform: 'win32',
   electronVersion: '44.9.0',
-  dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+  dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
 }
 
 const validGoal: GoalCreateRequest = {

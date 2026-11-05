@@ -143,7 +143,7 @@ export interface AppInfo {
   version: string
   platform: string
   electronVersion: string
-  dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+  dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
 }
 
 export interface MemoryCreateRequest {

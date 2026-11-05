@@ -3,7 +3,9 @@ import { isProviderConfigValid, normalizeProviderConfig } from './provider-regis
 import { resolveChatEndpoint } from './endpoint-resolver'
 import { defaultEndpointPolicy, type EndpointPolicy } from './endpoint-security'
 import { DEFAULT_PROVIDER_TOTAL_BUDGET_MS } from './provider-policy'
-import { readBoundedText } from './bounded-body'
+import { readBoundedText, ProviderBodyLimitError } from './bounded-body'
+
+const MAX_NON_STREAM_BODY_BYTES = 1_048_576
 import { ApplicationError, type ApplicationErrorCode } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
@@ -331,8 +333,10 @@ export class OpenAICompatibleProvider implements ProviderPort {
       }
       let data: { choices?: Array<{ message?: { content?: unknown } }>; model?: unknown }
       try {
-        data = await response.json() as { choices?: Array<{ message?: { content?: unknown } }>; model?: unknown }
-      } catch {
+        const textBody = await readBoundedText(response, MAX_NON_STREAM_BODY_BYTES)
+        data = JSON.parse(textBody) as { choices?: Array<{ message?: { content?: unknown } }>; model?: unknown }
+      } catch (error) {
+        if (error instanceof ProviderBodyLimitError) throw new ApplicationError('PROVIDER_RESPONSE')
         throw new ApplicationError('PROVIDER_RESPONSE')
       }
       const text = data.choices?.[0]?.message?.content

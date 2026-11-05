@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 class FakeElement {
   className = ''
   textContent = ''
+  title = ''
   type = ''
   value = ''
   checked = false
@@ -174,6 +175,26 @@ describe('provider profile renderer', () => {
     const actions = elements['provider-profile-list']!.children[0]!.children[1]!
     expect(actions.children[2]!.disabled).toBe(true)
     expect(actions.children[4]!.disabled).toBe(true)
+  })
+
+  it('disables delete for a built-in local profile', async () => {
+    const calls = bridge()
+    calls.listProfiles.mockResolvedValueOnce({
+      ok: true as const,
+      data: [{
+        ...profile,
+        id: 'local-openai',
+        displayName: 'Local OpenAI',
+        sourceKind: 'local' as const,
+        providerClass: 'local' as const,
+        endpoint: 'http://127.0.0.1:1234',
+        apiKeyConfigured: false
+      }]
+    })
+    const elements = await load()
+    const actions = elements['provider-profile-list']!.children[0]!.children[1]!
+    expect(actions.children[4]!.disabled).toBe(true)
+    expect(actions.children[4]!.title).toContain('内置 Provider 不能删除')
   })
 
   it('prompts for a new key when a destination change clears the credential', async () => {
