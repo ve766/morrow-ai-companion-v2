@@ -366,7 +366,7 @@
               </div>
               <span id="local-provider-status" class="status-pill">未配置</span>
             </div>
-            <p class="companion-disclosure">连接本机的 OpenAI 兼容服务（如 llama.cpp server、LM Studio、Ollama）。端点必须是本机回环地址（127.0.0.1 或 localhost），请求不会离开本机、不产生 API 费用。启用后，对话会优先使用本地模型；每次发送前仍会显示精确请求并单独确认。</p>
+            <p class="companion-disclosure">连接本机的 OpenAI 兼容服务（如 llama.cpp server、LM Studio、Ollama）。端点必须是本机回环地址（127.0.0.1 或 localhost），请求不会离开本机、不产生 API 费用。没有显式默认 Provider 时，对话会优先使用本地模型；每次发送前仍会显示精确请求并单独确认。</p>
             <form id="local-provider-form" class="provider-form">
               <label for="local-provider-endpoint">服务端点（回环地址）</label>
               <input id="local-provider-endpoint" name="endpoint" type="text" maxlength="2000" spellcheck="false" placeholder="例如 http://127.0.0.1:1234" />
@@ -392,7 +392,7 @@
               </div>
             </div>
             <label class="companion-toggle"><input id="cognitive-enabled" name="enabled" type="checkbox" disabled /><span>启用本地认知与感受计算（默认关闭）</span></label>
-            <p id="cognitive-settings-status" class="companion-feedback" role="status" aria-live="polite">本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用前会说明保存在本机的结构化状态、对提示与 token 用量的影响，以及它不代表真实感受或意识。每次 DeepSeek 发送仍需单独确认；本地计算不联网、不增加模型调用。</p>
+            <p id="cognitive-settings-status" class="companion-feedback" role="status" aria-live="polite">本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用前会说明保存在本机的结构化状态、对提示与 token 用量的影响，以及它不代表真实感受或意识。每次模型服务发送仍需单独确认；本地计算不联网、不增加模型调用。</p>
             <div id="cognitive-state-summary" class="cognitive-state" aria-live="polite">状态加载中……</div>
             <div class="companion-actions">
               <button id="cognitive-settings-save" class="button button-secondary button-small" type="submit" disabled>保存认知设置</button>

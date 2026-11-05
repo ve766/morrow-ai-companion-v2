@@ -11,7 +11,7 @@
 | `--panel` | `#0b1018` | `#fbfaf6` | 面板 |
 | `--panel-2` | `#111828` | `#ffffff` | 卡片/浮层 |
 | `--ink` | `#edf3ff` | `#131519` | 主文字 |
-| `--muted` | `#8595ae` | `#6e6f73` | 次文字/标签 |
+| `--muted` | `#8595ae` | `#66676d` | 次文字/标签 |
 | `--line` | 白 12% | 黑 12% | 细线 |
 | `--line-2` | 白 24% | 黑 26% | 强线/边框 |
 | `--accent` | `#7be7ff` | `#2f5bff` | 主强调/焦点/主按钮 |
@@ -67,7 +67,7 @@
 - 所有导航是 `<button>`，active 同时有 `aria-current="page"`。
 - 表单 label 与控件显式 `for/id`；错误/成功反馈 `role="status"` / `aria-live="polite"`。
 - 焦点环 2px accent，offset 3px；不使用 `outline:none` 无替代。
-- 颜色对比：主文字/背景 ≥ 12:1（深空）、≥ 12:1（纸面）；muted 在深空约 5.6:1，在纸面  对  约 4.95:1（由 tests/design-tokens.test.ts 复算）；关键信息不只用 muted。
+- 颜色对比：主文字/背景 ≥ 12:1（深空）、≥ 12:1（纸面）；muted 在深空约 5.6:1，在纸面对 `#f3f0e8` 约 4.95:1（由 tests/design-tokens.test.ts 复算）；关键信息不只用 muted。
 - 动态 canvas `aria-hidden="true"`，不承载唯一信息。
 - 危险操作保留原生 confirm/二次确认；不靠颜色单独表达。
 

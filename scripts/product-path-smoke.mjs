@@ -377,7 +377,7 @@ function diffFullSnapshots(baseline, final) {
     const added = Object.keys(after.rows).filter((key) => !before.rows[key])
     if (added.length > 0) {
       const reason = ALLOWED_ADDITION_REASONS[table]
-      if (reason) result.allowedAdditions[table] = { reason, keys: added }
+      if (reason) result.allowedAdditions[table] = added.map((key) => ({ key, reason }))
       else result.added[table] = added
     }
   }

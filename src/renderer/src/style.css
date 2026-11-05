@@ -438,7 +438,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent);
 .pending-item-body { min-width: 0; }
 .pending-item-kind { margin: 0; font-family: var(--mono); font-size: 7.5px; letter-spacing: 0.08em; color: var(--accent); text-transform: uppercase; }
 .pending-item-summary { margin: 4px 0; font-size: 12px; line-height: 1.6; }
-.pending-item-meta { margin: 0; color: var(--muted); font-size: 9.5px; }
+.pending-item-meta { margin: 0; color: var(--muted); font-size: 9.5px; overflow-wrap: anywhere; }
 .pending-item-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; flex: none; }
 .empty-state { display: grid; place-items: center; gap: 4px; padding: 28px 16px; text-align: center; color: var(--muted); }
 .empty-mark { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line-2); border-radius: 50%; font-family: var(--mono); }
@@ -488,6 +488,10 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent);
 .footer span:last-child { text-align: right; max-width: 66ch; }
 
 /* ---------- responsive ---------- */
+@media (max-width: 1320px) {
+  .chat-messages { min-height: 18vh; max-height: 32vh; }
+  .presence-hero { padding: 18px 0 16px; }
+}
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 232px minmax(0, 1fr); }
   .chat-messages { min-height: 14vh; max-height: 28vh; }
