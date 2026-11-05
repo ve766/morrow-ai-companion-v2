@@ -156,6 +156,7 @@ Windows product-path PASS run：`20261104T154241Z-1430f856`（Electron 44.9.3，
 - `vitest run`: 127 files / 1148 tests passed
 - `npm run build`: passed
 - CI run 41962719371（`019c2c2`）：4/4 PASS
+- 最终 HEAD `771cbaa` CI run 41964006554：4/4 PASS
 - 截图：`docs/ui/evidence/20261105T034317Z-8dc025dc/` 9 张真实 Electron 窗口
 - 真实 Provider/本地服务：仍 BLOCKED_QUOTA / BLOCKED_LOCAL_SERVICE_NOT_RUNNING
 

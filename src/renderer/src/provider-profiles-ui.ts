@@ -149,6 +149,7 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
     await loadProfiles()
   }))
   remove.addEventListener('click', () => void run(async () => {
+    if (typeof window.confirm === 'function' && !window.confirm(`删除配置「${profile.displayName ?? profile.id}」？这会同时删除本机安全存储中的密钥，且无法恢复。`)) return
     unwrap(await window.morrow.providers.deleteProfile({ profileId: profile.id }))
     notifyProviderChange()
     feedback('配置已删除')

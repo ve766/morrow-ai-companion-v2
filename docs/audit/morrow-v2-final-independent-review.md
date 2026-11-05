@@ -1,214 +1,267 @@
-# Morrow V2 Final Independent Review (Issue #53)
+# Morrow V2 Final Independent Review (PR #54, final closure round)
 
-Independent reviewer: separate context, did not write the implementation. No product code, test, migration, CI, or existing doc was modified. Only this file and `docs/audit/morrow-v2-final-file-review-matrix.md` were rewritten.
+Independent reviewer: separate context; did not write this implementation. No product code, test, migration, CI, doc, or evidence was modified. The only repository writes are this file and `docs/audit/morrow-v2-final-file-review-matrix.md`, both overwritten for the final HEAD. Throwaway probes were created only under `.tmp/probe/` and were not committed.
 
 ## 0. Reviewed identity
 
 | Item | Value |
 | --- | --- |
-| Repository | `ve766/morrow-ai-companion-v2` |
+| Repository | `ve766/morrow-ai-companion-v2` (`E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo`) |
 | Branch | `feat/morrow-v2-final-closure` |
-| Reviewed HEAD | `a8458898ab8936c122aed3ba76030339fbfd94e5` (pushed; docs-only over `d07b3f4`) |
-| Final code SHA | `d07b3f4b951fab2bd522413c789850055a49fe61` |
+| Final candidate HEAD | `771cbaaa3c9b829e95e76a1eee89a2390d44201d` (docs/screenshots only over the code SHA) |
+| Final code/test SHA | `019c2c2520ba5e28db9e7a779fa95ad27a1b4009` |
 | Base | `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9` |
-| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, not draft |
-| PR base/head | `release/morrow-v2-final-delivery` / `feat/morrow-v2-final-closure` |
-| PR head SHA | `a8458898ab8936c122aed3ba76030339fbfd94e5` |
-| Mergeability | `MERGEABLE`, merge state `CLEAN` |
-| Current CI run | [41862065143](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143), head `a845889`, conclusion `success`, 4/4 jobs pass |
-| Prior code-SHA CI run | [41859315790](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41859315790), head `d07b3f4`, conclusion `success`, 4/4 jobs pass |
+| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, not draft, `MERGEABLE`, merge state `CLEAN` |
+| PR head SHA (live) | `771cbaaa3c9b829e95e76a1eee89a2390d44201d` |
+| Final HEAD CI | [41964006554](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41964006554), head `771cbaa`, conclusion `success`, 4/4 jobs pass |
+| Code-SHA CI | [41962719371](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41962719371), head `019c2c2`, conclusion `success`, 4/4 jobs pass; Windows product-path step pass |
+| Worktree | clean at review start; after writing this review, only the two review files are modified and uncommitted |
 
-CI job detail for the final HEAD run:
+Final HEAD CI jobs (`gh pr checks 54`):
 
 | Job | Result | URL |
 | --- | --- | --- |
-| Typecheck, tests, build and smoke (ubuntu-latest) | pass | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143/job/126686261601 |
-| Typecheck, tests, build and smoke (windows-latest) | pass | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143/job/126686261958 |
-| Windows package, install and installed-app smoke | pass | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143/job/126686261128 |
-| Windows upgrade path (schema migrations under the real app) | pass | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41862065143/job/126686261798 |
+| Typecheck, tests, build and smoke (ubuntu-latest) | pass (3m3s) | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41964006554/job/127036673014 |
+| Typecheck, tests, build and smoke (windows-latest) | pass (8m7s) | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41964006554/job/127036672819 |
+| Windows package, install and installed-app smoke | pass (3m29s) | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41964006554/job/127036673048 |
+| Windows upgrade path (schema migrations under the real app) | pass (1m43s) | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41964006554/job/127036673043 |
 
-The Windows product-path step in the final HEAD run also passed, and the artifact contains a new PASS JSON (`20261104T155831Z-899f5cb0`, 18 checks). The committed PASS evidence (`20261104T154241Z-1430f856`) matches the prior code-SHA artifact from run `41859315790`.
+The Windows job in both runs executed `Electron product-path acceptance (two profiles, OS secrets, restart continuity)` successfully. The committed product-path evidence (`20261105T034317Z-8dc025dc`, 22 checks, PASS) was produced by run `41962719371` at the code SHA, not by the docs-only HEAD run.
 
 ## 1. Verdict
 
-# **PASS_WITH_NON_BLOCKING_BACKLOG**
+# **PARTIAL**
 
-All Issue #53 §三 P1/P2 items are closed at this HEAD. The final code SHA has a 4/4 green CI run, the final docs-only HEAD has a 4/4 green CI run, PR #54 is `CLEAN`, and the product-path acceptance now passes on Windows CI with real OS SafeStorage evidence. The remaining backlog is P3 documentation/evidence polish and external provider availability; no open P1/P2, secret leak, migration data-loss risk, or failing critical test was found.
+The UI redesign is real, reference-grounded, and largely preserves existing functions. Fix A and Fix B are substantially correct and independently reproduced. Fix C's snapshot/diff machinery is strong, but the product-path fixture does not populate several required record categories, so the "full-field" evidence is partly vacuous. The chat send gate has a P2 functional regression for local providers and a P2 target-selection mismatch against the service resolver. A new destructive provider-profile delete has no confirmation. Documentation still presents old SHA/CI/product-path runs as final. Those are open P2s, so this cannot be PASS.
 
-## 2. What changed since the previous review
+External provider quota and the local model service remain blocked; the delivery status therefore stays **PARTIAL** even if the remaining code P2s are fixed. If only the P3 backlog remained, the code verdict would be `PASS_WITH_NON_BLOCKING_BACKLOG`.
 
-- `scripts/product-path-smoke.mjs`: `seedScript` is now an async IIFE (`:273`); the final continuity snapshot is awaited (`:538`); the provider panel is awaited via `#provider-profile-list[aria-busy=false]` (`:174`); Electron is closed with `window.close()` before restart (`:187-191`); continuity uses baseline identity/content preservation and allows normal growth (`:52-66`) instead of exact array equality; database continuity checks counts (`:48`, `:250`).
-- `.github/workflows/ci.yml`: product-path runs only on Windows (`:62-63`), where the OS keyring exists; the Windows package job no longer forces `MORROW_SMOKE_DISABLE_SANDBOX=1`; package/install smoke passes.
-- `src/shared/errors.ts`: `ApplicationError` carries `httpStatus` (`:27-33`); adapter/discovery populate it; `healthForError` uses it (`src/app/companion-service.ts:980-991`).
-- `evals/provider-multi-source/run.ts`: blocked runs now record `failure.httpStatus`, latency, attempts, `streamDeltaCount`, and `exitCode`.
-- `tests/provider-profiles-ui.test.ts`: new official-profile edit/delete disabled test (`:143`).
-- Docs: test count 1129/0 skipped, schema v49, regenerated provider runs, product-path PASS evidence, CI 4/4 PASS.
+## 2. What changed since the prior review (`a845889`)
 
-## 3. P1/P2 findings (Issue #53 §三)
+- `9af9c34` — UI redesign (`style.css`, `companion.css`, `presence-ui.ts`, `self-model-ui.ts`), Fix A (`consent-presentation.ts`), Fix B (`bounded-body.ts`), Fix C (full SQLite snapshot/diff), UI screenshots and docs.
+- `019c2c2` — chat send gate changed to the active profile, provider-change event refresh, final screenshots/continuity evidence.
+- `771cbaa` — docs and final screenshot set only; no production/test code.
 
-Legend: CLOSED = fixed and independently reproduced; OPEN = still defective; PARTIAL = a required layer/evidence is missing.
+## 3. UI redesign review
 
-| ID | Finding | Code location at HEAD | Reproduction / attack path | Tests / probe | Conclusion |
-| --- | --- | --- | --- | --- | --- |
-| P1-1 | Stale health/capabilities after config change | `src/app/companion-service.ts:580-617` (`destinationChanged`, `modelChanged`, `credentialChanged`, `connectionSemanticsChanged`), `:616-617` | Change endpoint/path/protocol/model/sourceKind or credential, then read the profile: `lastTest` must be `null`, `capabilities.streaming.verified` false; only displayName/enabled/isDefault may preserve | `src/app/provider-multi-source.integration.test.ts:352-432`; independent probe: endpoint change → `lastTest=null`, verified=false, secret cleared | **CLOSED** |
-| P1-2 | Connection-test URL differs from chat URL | `src/app/companion-service.ts:416-429` (`connectionInput` → `resolveChatEndpoint`), `src/providers/endpoint-resolver.ts:50-70`, `src/providers/openai-compatible.ts:263-270` (adapter equality check) | Save base, `/v1`, full chat URL, custom path and trailing-slash shapes; test URL must equal the chat URL and must not duplicate `/v1`/`/chat/completions` | `provider-multi-source.integration.test.ts:434-454` (6 shapes); `endpoint-resolver.test.ts`; independent probe: test URL `https://relay.example.com/v1/chat/completions` | **CLOSED** |
-| P1-3 | Official profile override | `src/app/companion-service.ts:542-557` (built-in id/sourceKind/endpoint/model/path checks), `src/shared/validation.ts:235-258` (IPC rejects `official`), `src/renderer/src/provider-profiles-ui.ts:101,111,123-124` (edit/delete disabled) | Direct service call with `deepseek`/`spark`/`local-openai` + foreign endpoint/path/sourceKind must throw; IPC `providerProfileSave` with `sourceKind:'official'` must return `INVALID_INPUT`; UI must not expose edit/delete for official | `provider-multi-source.integration.test.ts:456-485`; `provider-multi-source-ipc.integration.test.ts:86-98`; new UI test `tests/provider-profiles-ui.test.ts:143` (edit/delete disabled) | **CLOSED** — service, IPC and UI layers are now covered. |
-| P1-4 | Custom profile secret binding | `src/app/companion-service.ts:580-700` (`willClearCredential`, secret-first/row-second, compensation), `:639-649`, `:689-700` | Change endpoint/path/sourceKind without a new key: old secret must be deleted, remote profile disabled, `apiKeyConfigured=false`; new-key write failure must restore the old secret and old row; restart must read the OS secret back | `provider-multi-source.integration.test.ts:373-430`, `:487-521`; product-path PASS `20261104T154241Z-1430f856`: distinct OS ciphertext files, restart readback, endpoint-change clearing, rekey rotation, delete isolation; current HEAD CI also PASS (`20261104T155831Z-899f5cb0`) | **CLOSED** — real OS SafeStorage path is now verified on Windows CI. |
-| P1-5 | Model-discovery consent path | `src/app/companion-service.ts:785-865`; `src/providers/provider-policy.ts:6` (`model-discovery` action); `src/app/index.ts:80-140` (dialog action label) | Deny consent or make endpoint policy reject: authenticated GET must not be sent (fetch count 0); discovery must validate profile/resolver/policy before fetch; 1 MB response limit | `provider-multi-source.integration.test.ts:524-568`; independent probe: denial fetch 0, policy rejection fetch 0/previews 0, action `model-discovery`, models parsed; 1 MB content-length test | **CLOSED** (service/IPC). P3: `ProviderConsent` still has no `action` field; action binding is via the preview and endpoint+body hash, which prevents practical reuse. |
-| P2-1 | Profile id 40 vs SecretStore 40 | `src/providers/provider-registry.ts:37-38`; `src/shared/validation.ts:206-210`; `src/persistence/migrations.ts:2591-2593`; `src/security/secrets.ts:24-25` | 40-char id accepted at service/IPC/DB/OS store; 41-char rejected; existing Provider v48 41–64-char row must not be silently truncated | `migrations.test.ts:797-804`; IPC test `:100-109`; independent probe: 40 accepted, 41 `INVALID_INPUT`; OS-store probe: 40 set/get succeeds, 41 rejected; migration probe: 41-char Provider v48 row fails closed and is preserved | **CLOSED** for the application/DB/OS constraint. P3: a legal Provider v48 41–64-char row blocks v49 upgrade until manually renamed; no data loss and the docs record recovery. |
-| P2-2 | Endpoint security boundaries | `src/providers/endpoint-security.ts:35-168`; `src/providers/endpoint-resolver.ts:20-34`; `src/providers/openai-compatible.ts:292-307` (`redirect:'error'`) | IPv6 loopback, IPv4-mapped hex/dotted, IPv4-compatible, CGNAT, NAT64, 6to4, link-local/ULA/multicast/unspecified, localhost trailing dot, metadata, userinfo/query/fragment, decimal/octal/short IPv4, HTTP remote, private-network, redirect | `endpoint-security.test.ts`; independent probe: 30/30 endpoint classifications, 10/10 `isPrivateAddress`, 8/8 resolver, 3/3 DNS policy; redirect probe: redirect rejected, target fetch count 0 | **CLOSED** |
-| P2-3 | Error classification and endpointPath semantics | `src/providers/openai-compatible.ts:308-324` (quota/auth/model/429/5xx mapping); `src/app/ipc.ts:176-200` (generic “模型服务/该 Provider” messages); `src/providers/endpoint-resolver.ts:50-93`; `src/renderer/index.html` provider-path help; `src/app/companion-service.ts:844-849` (1 MB check) | Custom profile must not show DeepSeek-specific errors; `/v1` vs `/v1/chat/completions` must resolve unambiguously; discovery body/error must be bounded and sanitized | `openai-compatible.test.ts`, `provider-retry.test.ts`, resolver tests, discovery oversized-body test; independent probes | **CLOSED** for errors/path/limit. P3: the native consent dialog still says “DeepSeek” and links DeepSeek pricing for custom relays; discovery enforces the 1 MB limit after `response.text()` buffers the body, not while streaming. |
+### 3.1 Is it a real renderer redesign, grounded in the references?
 
-## 4. Migration verdict
+**PASS.** The implementation modifies the real Electron renderer (`src/renderer/index.html`, `src/renderer/src/main.ts`, `style.css`, `companion.css`, `presence-ui.ts`, `self-model-ui.ts`, `companion-ui.ts`, `provider-profiles-ui.ts`), not a static demo. The screenshots are captured by `scripts/product-path-smoke.mjs` from a real Electron window through CDP.
 
-**PASS.** Independent migration probe: 17/17 checks, 0 failures.
+The visual language is grounded in the provided references, not invented:
 
-| Probe | Result |
+| Reference | What the product actually uses |
 | --- | --- |
-| release v47 → 49 with legacy `deepseek`/`spark`/`local-openai` rows and pending data | PASS — rows, pending item, v48 columns and v49 version preserved |
-| Stage 4 v48 → 49 | PASS — pending/provider rows preserved |
-| Provider v48 identity `provider-multi-source-profiles` → 49 through bridge | PASS — pending columns added, v48 name relabeled, custom row preserved |
-| Repeated startup and bridge retry after committed column add but uncommitted label | PASS — relabel only, no duplicate `ALTER` |
-| v49 failure rollback and retry | PASS — duplicate-default failure rolls back to v48 shape; retry succeeds after fix |
-| Foreign v48 name | PASS — `SchemaIdentityError`, no open/write |
-| Known name with wrong structure (Stage 4 and Provider names) | PASS — `SchemaIdentityError` |
-| 40/41-char id boundary | PASS — 40 migrates; 41 fails closed, v48 row preserved, rename to 40 then migrates |
+| `E:\open ui\auto ui\spatial.html` / `PROJECT-NOTES.md` (Spatial Lab) | Deep-space `#05070C`, cyan `#7BE7FF`, violet `#A78BFA`, lime `#DDFF4D`; orbit/point-cloud canvas; mono labels; drag-to-orbit; hero grid and outline heading. |
+| `E:\open ui\auto ui\agentic-lab.html` / `PROJECT-NOTES.md` (Agent Desk) | Paper theme `#F3F0E8` / ink `#131519` / blue `#2F5BFF` / orange `#FF6B35` / mint `#0FA98C` / violet `#7C5CFF`; hairline cards, pills, paper workbench; used for settings/control surfaces, not the main conversation. |
+| `E:\open ui\auto ui\designs-lab.html` | Numbered/indexed card density, editorial mastheads, settings index, compact metadata. |
+| `E:\open ui\auto ui\_morrow\memory-vault.src.html` + `zcode-morrow/README.md` | Memory provenance/sensitivity/revision semantics and "do not auto-write" boundary; no three.js runtime copied. |
 
-`npx vitest run src/persistence/migrations.test.ts src/app/provider-multi-source.integration.test.ts`: **2 files / 41 tests passed, exit 0**.
+No external runtime or UI framework was added; `package.json` still has only Electron/Vite/Vitest/TypeScript/esbuild/electron-builder. The canvas is a ~150-line native Canvas 2D projection.
 
-Residual migration notes (P3, not data loss):
+### 3.2 Is the companion/conversation still the center?
 
-- A legal Provider v48 profile id of 41–64 characters cannot pass the v49 CHECK. Migration fails closed and rolls back; the row is preserved. The docs describe renaming the id, but not that the OS secret file is keyed by the old id, so the user must re-enter the key. No released Provider v48 database exists.
-- `SqliteDatabase.open` catches a non-identity v49 failure and opens degraded at v48. For a Provider v48 database the provider table is the extended shape and the app remains usable; for a release v47 database a v49 failure is unlikely with valid release data, but the degraded-open path is not covered by a test. Observability/hardening gap, not a demonstrated data-loss path.
+**PASS with a P3 usability caveat.** The chat view is the default (`shell-ui.ts:37`), the conversation panel is the main work area, and settings are a separate view. The hero is a landing banner above the conversation; at 1440 it reads as a companion product, not an Agent dashboard. At 1280x800 the composer/send button falls below the viewport (the screenshot shows the textarea but not the send button), and at 390x844 the hero occupies most of the first screen before the conversation begins. Both are reachable by page scroll, but the primary action is not visible at a common desktop size. P3.
 
-## 5. Security / consent / secret verdict
+### 3.3 Are existing functions preserved?
 
-**PASS.** Independent security probe: 73/73 assertions, 0 failures.
+**PASS.** All four views and existing IDs remain in `index.html`; `shell-ui.ts` still toggles the mounted views by `hidden`/`active` and `aria-current`, so every init path and IPC listener stays alive. The memory, goal, reminder, pending, backup, cognitive, personality, conversation, provider, and consent paths are unchanged in the DOM and still call the same bridge methods. No existing view, button, or form field was deleted. The new self-model panel is additive.
 
-- Endpoint classification: 30/30 required boundary cases blocked/allowed as expected (IPv6 loopback, mapped hex/dotted, IPv4-compatible, CGNAT edges, NAT64 public/private, 6to4 public/private, link-local/ULA/multicast/unspecified, localhost and metadata trailing dot, decimal/octal/short IPv4, userinfo/query/fragment, HTTP remote, private-network, local loopback/private).
-- `isPrivateAddress`: 10/10; DNS policy: public allowed, private blocked, lookup failure blocked.
-- Resolver: 8/8 (bare base, `/v1`, full chat URL, custom prefix, trailing slash, models path, normalization).
-- Service: 18/18 (40/41 id, official and `local-openai` override rejection, endpoint change clears secret and disables, health/capabilities cleared, discovery denial fetch 0, policy rejection fetch 0 and previews 0, discovery action, connection URL equality, replacement-secret failure restores old secret/row).
-- OS store: 40-char set/get succeeds; 41-char rejected.
-- Redirect: adapter rejects the redirect (`PROVIDER_NETWORK`) and the redirect target receives 0 requests; no Authorization follows a redirect.
+### 3.4 Chat send gate: default/custom profile, not only legacy DeepSeek
 
-Secret scan (tracked blobs; counts only, no values):
+**P2 — regression and target mismatch.** The gate no longer reads only the legacy DeepSeek form; it reads `providers.listProfiles()` and selects an active profile at `src/renderer/src/companion-ui.ts:143-151`. However:
 
-| Pattern | Result |
+1. `src/renderer/src/companion-ui.ts:118-122` requires `provider.apiKeyConfigured` for every profile. The service explicitly allows a local profile with no access token (`src/app/companion-service.ts:892-896`; `saveProfile` allows `enabled: true` for local with no key). The renderer therefore disables `#chat-send` for a perfectly usable local model. The UI's own form copy says the local access token is optional (`src/renderer/index.html:375-377`). Independent probe: a local profile `enabled: true, apiKeyConfigured: false` leaves `#chat-send.disabled === true` (expected false). The previous code used `deepseekReady || localReady`, so this is a regression.
+2. The UI selection order is default -> enabled custom-proxy -> enabled local -> any enabled (`companion-ui.ts:144-147`). The service order is explicit default -> local-openai -> spark -> deepseek -> first enabled non-official custom (`companion-service.ts:871-890`). With no default and both local and custom enabled, the UI shows the custom profile and gates on its key, while `requireConfigured()` routes the actual request to local. With a custom profile that has no key and a usable local profile, the UI disables chat even though the service would use local. Independent probes:
+   - `provider-priority.test.ts`: service returns `local-openai` with local and custom both enabled and no default.
+   - `companion-gate.test.ts`: UI state shows `Relay A` in the same configuration; and with the custom profile keyless, `#chat-send` is disabled while local is usable.
+3. The same `apiKeyConfigured` check is repeated in the submit guard (`companion-ui.ts:560`) and the `finally` re-enable (`companion-ui.ts:604`), so the bug survives every path.
+
+This is a P2: the displayed provider can differ from the egress target, and a supported local-model flow is blocked. The consent dialog itself still shows the true request target (Fix A), which limits the damage, but the main chat state is misleading.
+
+### 3.5 Self-model / interest actions
+
+**PASS with P3 polish.** `src/renderer/src/self-model-ui.ts` calls only existing bridge methods: `selfModel.listEntries`, `listInterests`, `correctEntry`, `retractEntry`, `setInterestStatus` (`src/preload/index.ts:95-101`; IPC handlers `src/app/ipc.ts:279-283`). No new IPC channel, no service bypass. Statements and labels are rendered with `textContent`; the panel HTML is static. Retraction uses `window.confirm`; correction uses a native prompt. The service transition matrix allows user transitions except from `dropped` (`src/self-model/self-model-domain.ts:183-188`), so the "pause/restore" actions are safe. P3: the toggle still offers "恢复" for a `dropped` interest (the service then rejects it), the timestamp is raw ISO, and buttons are not disabled during the request.
+
+### 3.6 Accessibility, layout, and screenshots
+
+| Item | Finding | Conclusion |
+| --- | --- | --- |
+| Navigation semantics | `<button>` nav, `aria-current="page"` toggled by `shell-ui.ts:23-24`; tested in `tests/shell-ui.test.ts`. | PASS |
+| Live regions/labels | `role=status`/`aria-live` on chat state, feedback, provider profile feedback, self-model feedback; all form controls have labels or `aria-label`. | PASS |
+| Reduced motion | `prefers-reduced-motion` CSS block (`style.css:522-524`) and canvas `reducedMotion()` check (`presence-ui.ts:13,101`). The canvas still redraws a static frame every rAF, but does not rotate. | PASS (P3 performance) |
+| Focus visibility | Global `:focus-visible` (`style.css:75`) is overridden for range inputs by `input[type="range"] { outline: none; }` (`style.css:363`), with no replacement focus style. The three personality sliders have no visible keyboard focus. | **P3** — accessibility requirement not met for sliders. |
+| Contrast | Dark muted `#8595ae` on `#05070c` = 6.63:1; light muted `#6e6f73` on `#f3f0e8` = 4.41:1, on `#ede9df` = 4.14:1. `docs/ui/design-system.md:70` claims about 4.9:1 for light. | **P3** — light-theme muted text is below WCAG AA 4.5:1 on the page background; doc overstates. |
+| Long text | `style.css` has no `overflow-wrap`/`word-break` for `.chat-message-body`, `.memory-content`, `.pending-item-meta`, or provider meta. A long unbroken URL/string can overflow its card. The acceptance matrix claims long-text PASS. | **P3** — not exercised; risk of horizontal overflow. |
+| Self-model grid at 390 | `.self-model-grid` stays `repeat(2, minmax(0,1fr))` (`style.css:433`); no 640px override. At 390 the new self-model/interest panel is two very narrow columns. | **P3** — narrow-window adaptation gap. |
+| 390 nav | The nav row is horizontally scrollable; the last item ("设置与备份") is cut in the screenshot. It is reachable by horizontal scroll, but there is no visible scroll affordance. | **P3** |
+| 1280 composer | Send button below the fold at 1280x800. | **P3** |
+| Screenshots | 9 real PNGs at 1440/1280/390 for chat/memory/settings; no secrets visible; no overlap. Memory screenshot shows the empty state even though the fixture created a memory (the memory list loaded before the seed and is not refreshed on view switch). No goals/reminders or self-model screenshots, despite the acceptance matrix claiming screenshot evidence for them. | **P3 evidence gap** |
+
+### 3.7 Danger and consent copy
+
+**P2 — provider profile delete has no confirmation.** `src/renderer/src/provider-profiles-ui.ts:151-157` deletes a profile (and its OS secret) directly on click. Every other destructive path keeps a confirm (`main.ts:222,235,248`, `companion-ui.ts:376,440,488,512`, `goals-ui.ts:252,263`, `reminders-ui.ts:345,355`, `self-model-ui.ts:89`). The UI audit and acceptance matrix claim danger confirmations are preserved, which is false for this new action. The product-path test itself deletes profile B by clicking the danger button with no confirmation.
+
+**P3 — misleading provider copy remains outside the consent dialog.**
+- `src/renderer/src/companion-ui.ts:321-322,474` still say cognitive state is sent in the "DeepSeek 请求"; for a custom/local active provider that is false.
+- `src/renderer/index.html:395` says "每次 DeepSeek 发送仍需单独确认" in the cognitive settings status.
+- `src/app/index.ts:104` always says the key is sent "通过 HTTPS Authorization Bearer 标头" even for a local `http://127.0.0.1` provider.
+- `src/app/index.ts:77` still exposes `dataPolicy: 'local-first-consented-deepseek-egress-...'` though multi-source providers are supported.
+- `src/renderer/index.html:377` says local is "优先于 DeepSeek"; the service also prioritizes local over Spark/DeepSeek only when no explicit default exists.
+
+None of these re-introduce DeepSeek in the native consent dialog for custom/local (Fix A passes), but they are user-visible provider copy that should be corrected.
+
+## 4. Fix A — consent presentation
+
+| Check | Code / test | Conclusion |
+| --- | --- | --- |
+| Official/custom/local labels | `src/providers/consent-presentation.ts:46-93`; `src/providers/consent-presentation.test.ts` 6 tests | PASS — official uses its own display name, custom is fixed "自定义服务端", local is "本地模型服务". |
+| No DeepSeek name/price for custom/local | Same tests; `presentProviderConsent` branches | PASS — custom/local strings contain no DeepSeek; pricing is self-verify/no-fee. |
+| Unknown official price | Official branch `pricing` = "计费信息未验证…" | PASS — no inherited vendor price. |
+| Endpoint sanitization | `sanitizeConsentEndpoint` strips userinfo/query/fragment; save-time `normalizeBaseUrl` rejects them (`endpoint-resolver.ts:20-34`) | PASS — test covers `user:pass@host/v1?token=secret#x`. |
+| Same target/model/payload hash | `src/app/index.ts:81-127` consumes one `ProviderConsentPreview`; no second target build | PASS — target, model, bytes, hash, memories and exact payload all come from the preview. |
+| Consent gate not weakened | `assessProviderRequest` still requires a matching hash, provider id, lifetime and sensitive flag (`provider-policy.ts:91-125`) | PASS — no bypass found. |
+| Residual: local HTTP copy | `src/app/index.ts:104` hardcoded HTTPS Bearer sentence | P3 — false for local HTTP loopback. |
+| Residual: action binding | `ProviderConsent` has no `action` field; action is bound only through endpoint+body hash | P3 — practical reuse is blocked by the hash, but the record does not carry the action. |
+
+Commands: `npx vitest run src/providers/consent-presentation.test.ts` — 6/6 passed (part of 7-file/38-test targeted run and the full 1148-test run).
+
+## 5. Fix B — bounded response body
+
+| Check | Code / test | Conclusion |
+| --- | --- | --- |
+| Real byte counting | `src/providers/bounded-body.ts:25-62`; `bounded-body.test.ts` | PASS — sums `Uint8Array.byteLength`, not string length. |
+| Cancel on limit | `reader.cancel()` before throw; cancel errors swallowed | PASS — test asserts cancel called; cancel-throws test still yields the limit error. |
+| Content-Length not trusted | Early reject only when declared > limit; actual bytes always counted | PASS — missing/understated/overstated tests. |
+| Discovery 1 MiB / error hint 4 KiB | `companion-service.ts:442,847`; `openai-compatible.ts:88-90` | **PASS with P3** — discovery uses `1_000_000` bytes, not `1_048_576`; this is stricter but contradicts the task and docs that say 1 MiB. Error hint is 4,096. |
+| UTF-8 split | `TextDecoder(..., {stream:true})`; test splits "你" across chunks | PASS |
+| Read/cancel errors, no body | Tests cover read error, cancel throw, `new Response(null)` | PASS |
+| Error hint does not leak body | `readProviderErrorHint` keeps only numeric/string code and type; discards message | PASS |
+| Oversized discovery | `provider-multi-source.integration.test.ts:559-570` uses 1,048,577 bytes without trusting Content-Length | PASS — rejects as `PROVIDER_RESPONSE`; no exact-1,048,576-accept test. |
+| Non-stream success body | `openai-compatible.ts:332-337` uses `response.json()` unbounded | P3 residual — not in the task's two required paths; production chat uses streaming. |
+
+Commands: `npx vitest run src/providers/bounded-body.test.ts` — 10/10 passed; discovery tests passed in the 8-file/61-test targeted run and the full suite.
+
+## 6. Fix C — provider-switch continuity
+
+### 6.1 Code
+
+`scripts/product-path-smoke.mjs` now exports a full SQLite snapshot (`snapshotFullDatabase`, `:298-333`) over:
+
+`personality_profiles`, `personality_revisions`, `self_model_entries`, `interests`, `interest_evidence`, `memories`, `memory_revisions`, `memory_evidence`, `goals`, `goal_tasks`, `goal_audit`, `companion_goals`, `companion_goal_progress`, `relationship_threads`, `relationship_thread_evidence`, `conversations`, `messages`, `cognitive_pending_items`, `reflection_findings`, `reflection_finding_routes`, `reflection_runs`, `cognitive_turn_contexts`, `cognitive_turn_observations`, `cognitive_feeling_state`, `cognitive_feeling_events`, `cognitive_core_settings`, `event_journal`.
+
+`diffFullSnapshots` (`:335-367`) fails on any removed row, any changed non-allowlisted field, and any unexpected added row. `TIMESTAMP_FIELDS` allows any `*_at` except `created_at`; `ALLOWED_ADDITION_TABLES` allows table-level growth for interests/evidence/reflection/cognitive/event rows. The artifact records `removed`, `changed`, `added`, `allowedChanges`, `allowedAdditions` for restart, switch and final A.
+
+### 6.2 Evidence
+
+Run `20261105T034317Z-8dc025dc` (`evals/morrow-v2-final/results/...json`, transcript) reports:
+
+| Point | removed | changed | unexpectedAdded | allowedChanges |
+| --- | --- | --- | --- | --- |
+| restart | 0 | 0 | 0 | 0 |
+| switch A→B→A | 0 | 0 | 0 | 0 |
+| final A | 0 | 0 | 0 | 0 |
+
+The full snapshot includes personality version/systemRules, memory content/status, goal content/status/progress (all columns), relationship tables, and conversation/message tables. **However, the fixture does not populate several required categories**, so the corresponding comparisons are vacuous:
+
+- `seedScript` (`:385-407`) creates one personality revision, one memory, one goal, and one conversation. It creates **no messages**, **no relationship thread/evidence**, **no self-model entry**, and **no baseline interest**.
+- The full snapshot therefore compares zero `messages`, zero `relationship_threads`, zero `self_model_entries`, and zero baseline `interests`. The only interest row is the startup-created one, reported as an allowed addition (`interests: 1`).
+- `continuityScript` (`:409-430`) maps self-model kind/statement, interest label, memory currentText, goal intent, conversation title; it does not read messages or relationship threads at all.
+- The product-path flow switches the default profile A→B→A (`:638-646`) but never sends a chat request under B. The "controlled request" is covered only by the service-level `src/app/provider-continuity.integration.test.ts` using a mock provider, and that test's snapshot compares message IDs/roles only, not content/order/status. This limitation is honestly recorded in the result/transcript, but the task's required message/relationship/self-model continuity is not proven end-to-end.
+
+### 6.3 Conclusion
+
+**P2 — machinery PASS, fixture/evidence PARTIAL.** The diff code is substantially stronger than the prior count-based check, and removed/unexpected changes would fail. But the evidence does not actually exercise messages, relationship threads/evidence, self-model entries, or a pre-existing interest, which are explicit task requirements. `docs/testing/morrow-v2-final-acceptance-matrix.md:102` claiming C2 PASS for all fields is overstated.
+
+P3: the allowlist is table-level, not per-row with a reason; any `*_at` change except `created_at` is allowed, which could mask a semantic timestamp-only transition in a table without a status column; `FULL_CONTINUITY_TABLES` omits some companion-owned tables (`memory_suggestions`, `reminders`, `deletion_journal`, `turn_states`, `personalization_state`, `user_interaction_profile`); allowed additions are counted, not content-inspected.
+
+## 7. Security / secret verdict
+
+**PASS.** No real API key, Bearer token, Authorization header value, private key, AWS/GitHub/Slack token, or provider response body was found in tracked files or committed evidence.
+
+| Scan | Result |
 | --- | --- |
-| `sk-[A-Za-z0-9_-]{16,}` | 11 matches in 9 files; all confirmed false positives (`risk-dependency` filename fragments, `task-status` CSS/fixture ids), no token |
-| `Bearer <20+ token>` | 0 matches |
-| Test `apiKey` literals | 16 literals in provider tests; all fake descriptive shapes, no `sk-`, no real-looking provider key |
-| Evidence JSON/transcripts | No key, no Authorization header, no response body; only statements that none are recorded |
-| Real provider results | `BLOCKED_QUOTA` both; HTTP 403/latency/attempts/deltas/exit recorded; no key/body |
+| `sk-` pattern in tracked files | 9 matches, all false positives: 7 are the file-name fragment in `morrow-v2-risk-dependency-register` (`docs/...`, `evals/stage-3/shared/real-provider.ts`), 2 are an evaluation fixture ID (`evaluation/fixtures/...`, `evaluation/reports/...`). 0 real keys. |
+| `api[_-]?key = "..."` | 33 matches, all test/offline literals (`offline-*`, `test-only-*`, `test-key-*`, `synthetic-*`, `replacement-*`, `key-0123`). 0 real keys. |
+| `Bearer <literal>` | 2 matches, both `test-only-*` in `src/providers/openai-compatible.test.ts`. 0 real tokens. |
+| AWS/GitHub/Slack/private-key patterns | 0 matches. |
+| Product-path artifact | Only SHA-256 digests of OS secret ciphertext; no key, Authorization header, or response body. Transcript states fake keys. |
+| Screenshots | Settings shows "密钥：已保存在本机安全存储" and masked endpoints; no key text. |
+| New UI DOM/logging | No key is rendered; provider list uses `apiKeyConfigured` only; `dataset` contains profile IDs, not secrets; no console logging in the new UI modules. |
 
-Residual security/consent P3:
+Endpoint security remains intact: `normalizeBaseUrl` rejects userinfo/query/fragment; custom remote requires HTTPS and DNS policy; local requires loopback; redirects are `error`; request-time policy re-checks custom endpoints. The consent preview/hash path is unchanged in strength.
 
-- Native consent copy is still DeepSeek-specific for custom remote profiles (`src/app/index.ts:98-124`): the dialog title/message says “发送到 DeepSeek” and shows DeepSeek pricing even when the endpoint is a custom relay. The exact endpoint, model and payload are shown, so informed consent is not completely defeated, but the copy is factually wrong and should be generic.
-- Discovery enforces the 1 MB limit after `response.text()` has buffered the whole body (`src/app/companion-service.ts:844-849`); a malicious endpoint can force memory use before rejection. Error-body reading in the adapter similarly reads the full body before slicing to 4 KB (`src/providers/openai-compatible.ts:87-103`).
-- `ProviderConsent` has no `action` field; action binding is only in the preview and in the endpoint+body hash. No practical cross-action reuse was found.
-- DNS rebinding between lookup and connect remains a documented residual risk; redirects are refused and every attempt re-checks.
+Residual security P3: the non-stream `response.json()` success path is unbounded (not used by the production chat/test paths); the native consent detail's hardcoded HTTPS sentence is wrong for local HTTP; `ProviderConsent` has no action field.
 
-## 6. Product real-path verdict
+## 8. Continuity verdict
 
-**PASS on Windows CI; local host remains blocked and is honestly recorded.**
+**PARTIAL.** The code-level snapshot/diff is good; the evidence is not complete for messages, relationship threads/evidence, self-model, or a baseline interest. Provider B's request is service-level (mock provider), not a full Electron request; the docs say so and this review does not upgrade it.
 
-- The script drives the real renderer provider form through DOM events → preload bridge → IPC → SQLite, then reads/writes the OS SafeStorage secret files under the isolated profile and restarts the app.
-- Final HEAD CI run `41862065143` (Windows main job `126686261958`) passed the `Electron product-path acceptance` step. The artifact contains `20261104T155831Z-899f5cb0.json`: `PASS`, 18/18 checks, Electron 44.9.3, sandbox enabled, OS secret ciphertext digests distinct, restart readback, endpoint-change clearing, rekey rotation, delete isolation.
-- The committed evidence `evals/morrow-v2-final/results/20261104T154241Z-1430f856.json` is `PASS`, 18/18 checks, and is byte-identical to the prior code-SHA artifact from run `41859315790` (`d07b3f4`). It is the final code-SHA evidence; the current HEAD artifact adds a second PASS run.
-- Local host: the committed `20261104T124128Z-125af6f6.json` (`2147483651`) and `20261104T124142Z-933adad0.json` (`3221225477`, 0xC0000005) remain FAILED; the local Electron host crash is not hidden.
-- The script explicitly records that native consent dialogs are not automatable through CDP and that connection tests were not triggered to avoid an unattended native dialog. It does not claim consent-dialog automation; consent denial/fetch-zero is proven by service integration tests at the same SHA.
-- Continuity: baseline IDs/content for personality `systemRules`, self-model, interests, memories, goals and conversations are preserved; the normal startup growth of one interest is allowed. Database table counts are preserved. P3: the script does not compare personality `version`, relationship thread content, message content, or mutable status fields; it checks selected content and table counts. The provider-switch code does not touch those stores, and Stage 5 tests cover relationship service behavior, so this is an evidence-depth gap rather than a demonstrated regression.
+## 9. Product-path / UI screenshot verdict
 
-## 7. Real-provider verdict
+**PASS for what is shown, PARTIAL for coverage.** The 9 screenshots under `docs/ui/evidence/20261105T034317Z-8dc025dc/` are real Electron window captures from Windows CI, at 1440x900 / 1280x800 / 390x844, for chat/memory/settings. They show no secrets, no overlap, and no unreachable control beyond page scroll. Gaps: no goals/reminders or self-model screenshots; memory shows the empty state despite a seeded memory; the 390 nav's last item is cut (scrollable); the 1280 composer is below the fold. The acceptance matrix overstates screenshot and keyboard coverage.
 
-**BLOCKED_QUOTA (honest), not PASS; no secret leak.**
+## 10. Docs and evidence consistency
 
-| Run | Endpoint | Status | Evidence |
-| --- | --- | --- | --- |
-| `20261104T135205Z-75b01260` | `https://api.supxh.xin/` | `BLOCKED_QUOTA` | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`, transcript; HTTP 403, latency 586ms, attempts 1, deltas 0, exit 0 |
-| `20261104T135210Z-abf69f16` | `https://speed26.toter.me/` | `BLOCKED_QUOTA` | same directory, transcript; HTTP 403, latency 318ms, attempts 1, deltas 0, exit 0 |
-| local OpenAI-compatible | none | `BLOCKED_LOCAL_SERVICE_NOT_RUNNING` | both JSONs’ `local` field |
+**PARTIAL.** All 16 fixed deliverables exist (the optional `evals/morrow-v2-final/ui/<run-id>/` was not needed; screenshots live under `docs/ui/evidence/`). The final section of the delivery report and the UI evidence index correctly identify `019c2c2` and run `41962719371`, and the final HEAD run `41964006554` is green. But older sections still present old SHA/CI/product-path runs as final:
 
-The JSONs record run id, commit, branch, working tree, endpoint digest, model, profile id (not key), HTTP status, latency, attempts, stream delta count, exit code, and error classification. They do not present quota as PASS and contain no key, Authorization header or response body.
+| File / location | Problem |
+| --- | --- |
+| `docs/reports/morrow-v2-final-delivery-report.md:58,77,79,91` | Presents CI `41869931767` (head `92bc4ed`) and product-path `20261104T155831Z-899f5cb0` as the final CI/product-path; also says provider code is unchanged after `c1f4450`, which is no longer true after the A/B changes. |
+| `docs/reports/morrow-v2-final-evidence-index.md:66-68,89` | "CI run 41869931767" and "final code SHA d07b3f4" are presented in the main evidence section; the final HEAD run `41964006554` and code SHA `019c2c2` are only in section 8. |
+| `docs/testing/morrow-v2-final-acceptance-matrix.md:3-4,21,53,56,67,84` | Header SHAs are `d07b3f4`/`28665df`; rows still cite run `41869931767` and `20261104T155831Z-899f5cb0`; row 4.4 still says message content/relationship are only table counts. |
+| `docs/testing/morrow-v2-final-acceptance-matrix.md:96,102` | Says discovery is 1 MiB (code is 1,000,000 bytes) and C2 PASS for all fields (fixture gaps above). |
+| `docs/ui/acceptance-matrix.md:14-15,26,33` | Claims goal/self-model screenshots, provider delete confirm, 390 layout and keyboard focus PASS; the screenshots, confirm, and range focus do not support all four. |
+| `docs/ui/design-system.md:70` | Claims light muted about 4.9:1; actual is 4.41:1 on `#f3f0e8` and 4.14:1 on `#ede9df`. |
+| `docs/ui/current-ui-audit.md:46` | Claims dangerous actions retain confirm; provider-profile delete does not. |
+| `docs/reports/morrow-v2-final-work-log.md:148` | Says discovery 1 MiB; code is 1,000,000 bytes. |
+| `docs/reports/morrow-v2-final-delivery-report.md:145` | Says discovery 1,048,576; code is 1,000,000. |
 
-P3 evidence consistency: the two real-provider runs record `codeCommit` `c1f4450`, not the final code SHA `d07b3f4`. Provider code is unchanged between `c1f4450` and `d07b3f4` (the later commits are product-path/CI/docs only), so the evidence is functionally valid for the provider code, but the docs should state the exact commit. The baseline’s claim of a provider 403 `pre_consume_token_quota_failed` string is not present in the committed JSON/transcript; the JSON records HTTP 403 and the app-level `PROVIDER_QUOTA` classification.
+The 1,000,000-byte limit is stricter than 1 MiB, so this is a documentation/spec mismatch, not a weakening. The stale "final" evidence is a P2 documentation consistency defect because the task explicitly forbids presenting old SHA evidence as final.
 
-## 8. Docs / evidence consistency
+## 11. Commands and exit codes
 
-| Claim | Evidence | Finding |
+All commands were run at `771cbaa` with a clean worktree. `TEMP`/`TMP` were set to `<repo>/.tmp/es` for Vitest/evaluation to keep temporary files inside the workspace.
+
+| Command | Result | Exit |
 | --- | --- | --- |
-| Implementation `d07b3f4`; base `3812b18`; PR head `a845889` | Git history; PR | Consistent |
-| Test count 124 files / 1129 tests, 0 skipped | Independent run: 124/1129, exit 0 | Consistent |
-| `tsc --noEmit` and `npm run build` | Independent runs: both exit 0 | Consistent |
-| Migration version 49 | Code and probes | Consistent |
-| Final status `PARTIAL` | External providers/local service blocked; code/CI/product path pass | Consistent with Issue #53’s PARTIAL definition |
-| CI 4/4 PASS | Final HEAD run 41862065143 4/4 PASS; prior code-SHA run 41859315790 4/4 PASS | Consistent; docs link the prior code-SHA run, not the final HEAD run |
-| Product-path PASS evidence `154241` | Matches prior code-SHA artifact; current HEAD artifact `155831` also PASS | Consistent; docs cite the committed final-code-SHA run, not the newer docs-only HEAD run |
-| Real-provider runs record SHA | JSONs record `c1f4450`, not `d07b3f4` | P3: provider code unchanged after `c1f4450`; docs should state the exact commit |
-| `docs/architecture/database-schema.md` current schema | Header v49, v49 row present | Consistent |
-| Acceptance matrix 1.9 Windows upgrade CI `PARTIAL`; 5.3 “产品路径脚本等待 CI” | Final CI 4/4 PASS; product-path passed | **Outdated**; should be PASS or link the final run |
-| Acceptance matrix 4.4 “人格 systemRules/version” | Script compares `systemRules` only; version is read but not compared | P3 overstatement |
-| Baseline 403 `pre_consume_token_quota_failed` | JSONs have HTTP 403 and app-level `PROVIDER_QUOTA`; no such string | P3 unsupported detail |
-| Delivery report attributes HTTP status fix to `d07b3f4` | HTTP status fix is in `c1f4450`; `d07b3f4` is the final code SHA including it | P3 attribution imprecision |
+| `npx tsc --noEmit` | no output | 0 |
+| `TEMP=... TMP=... npx vitest run` | 127 files / 1148 tests passed, 0 skipped, 159.11s | 0 |
+| `npm run build` | main 953.78 kB, preload 10.61 kB, renderer JS 119.29 kB, CSS 30.36 kB | 0 |
+| `TEMP=... TMP=... npx vitest run src/providers/consent-presentation.test.ts src/providers/bounded-body.test.ts src/providers/endpoint-resolver.test.ts src/providers/endpoint-security.test.ts src/app/provider-continuity.integration.test.ts tests/shell-ui.test.ts tests/provider-profiles-ui.test.ts` | 7 files / 38 tests passed | 0 |
+| `TEMP=... TMP=... npx vitest run src/app/stage4-*.test.ts src/persistence/pending-schema-gate.test.ts src/cognition/pending-items.test.ts src/app/provider-multi-source.integration.test.ts` | 8 files / 61 tests passed | 0 |
+| `TEMP=... TMP=... npm run evaluate` | M3/M4 offline gates passed | 0 |
+| `TEMP=... TMP=... npm run evaluate:cognition` | cognitive/feeling/alpha/intent gates passed | 0 |
+| `TEMP=... TMP=... npx vitest run --config .tmp/probe/vitest.config.ts .tmp/probe/companion-gate.test.ts` | negative probe: 5 tests, 4 passed, 1 failed (local no-key chat disabled) | 1 (expected for the bug) |
+| `TEMP=... TMP=... npx vitest run --config .tmp/probe/vitest.config.ts .tmp/probe/provider-priority.test.ts` | 1 test passed; service picks local over custom | 0 |
+| `gh pr view 54` | OPEN, MERGEABLE, CLEAN, head `771cbaa` | 0 |
+| `gh pr checks 54` | 4/4 pass | 0 |
+| `git status --porcelain` (before writing) | empty | 0 |
+| `git status --porcelain` (after writing) | only the two review files modified, uncommitted | 0 |
 
-Historical PR #40/#51/#52 documents and the provider v48 docs are retained and labeled with their own SHAs; they were not treated as final-SHA evidence. No historical evidence was rewritten.
+Note: `npm run evaluate` / `evaluate:cognition` fail with exit 1 when `TEMP`/`TMP` point at the sandbox's default temp; with the workspace temp they pass. This is an environment/temp-write restriction in the review sandbox, not a product regression; the CI "Offline evaluations" steps passed.
 
-## 9. Residual risks / P3 backlog
+## 12. Residual risks / P3 backlog
 
-External blockers (status PARTIAL, not P3 defects):
+1. Range inputs have `outline: none` and no focus replacement (`style.css:363` vs `:75`).
+2. Light-theme muted text contrast is 4.41:1 on the page background (4.14:1 on `--bg-soft`); the design-system doc claims 4.9:1.
+3. No `overflow-wrap`/`word-break` for chat/memory/provider meta; long unbroken text can overflow.
+4. `.self-model-grid` remains two columns at 390.
+5. The 390 nav's last item is cut and only reachable by horizontal scroll; the 1280 composer is below the fold.
+6. Provider profile delete has no confirmation; local builtin profile delete is enabled but the service returns FORBIDDEN.
+7. Provider profile save has no "saving" state; discover has no loading state; reset does not clear old feedback.
+8. The provider selection priority in the UI should be the service's `requireConfigured()` result (or the service should expose it) instead of a separate heuristic.
+9. Cognitive settings copy and the local provider "priority" copy still name DeepSeek; the consent detail's HTTPS sentence is wrong for local HTTP.
+10. Discovery uses 1,000,000 bytes, not 1,048,576; docs are inconsistent.
+11. Non-stream success `response.json()` is unbounded (not used by production chat).
+12. Continuity allowlist is table-level and timestamp-broad; it does not list per-row reasons; some companion tables are not compared.
+13. Continuity fixture lacks messages, relationship threads/evidence, self-model entries, and a baseline interest; Provider B has no full Electron request.
+14. Screenshot coverage lacks goals/reminders and self-model; memory screenshot shows a stale empty list.
+15. The presence canvas redraws every rAF even under reduced motion and calls `getComputedStyle` per frame; consider throttling/idle draw.
+16. The new self-model panel has no loading state and does not disable actions during a request.
+17. `dataPolicy` still contains `deepseek-egress` in the app info string.
+18. Docs still present old SHA/CI/product-path runs as final; update the historical sections to point to the current evidence.
 
-1. `https://api.supxh.xin` and `https://speed26.toter.me` return HTTP 403 quota; no real non-stream/SSE PASS is possible. The run is honestly BLOCKED_QUOTA.
-2. No local OpenAI-compatible service was running; BLOCKED_LOCAL_SERVICE_NOT_RUNNING. No mock was substituted.
+## 13. Final statement
 
-P3 backlog (each is non-blocking for safety, data integrity or core companion experience):
-
-1. **Consent dialog copy is DeepSeek-specific for custom remote profiles.** The target endpoint/model/payload are shown, so this is a misleading-consent UX defect, not a bypass.
-2. **Discovery/error body limits are post-read, not streaming.** User-triggered; bounded by the 1 MB check; DoS hardening only.
-3. **`ProviderConsent` lacks an `action` field.** The endpoint+body hash prevents practical cross-action reuse; defense-in-depth.
-4. **Provider v48 41–64-char id migration fails closed.** No released Provider v48 database exists; no data loss; manual rename required; docs should mention the secret file.
-5. **`validateProviderConfig` does not reject `endpointPath` on an official profile at request time.** Unreachable through current service/IPC/UI; defense-in-depth.
-6. **Continuity evidence depth.** Product path checks selected baseline content and table counts, not personality version, relationship content, message content, or mutable statuses. Provider switching does not touch those stores; Stage 5 tests cover relationship service; evidence-depth gap only.
-7. **Docs/evidence polish.** CI link/run IDs point to the prior code-SHA run; real-provider commit is `c1f4450`; acceptance matrix 1.9/5.3 and 4.4 need updates; baseline 403 string is unsupported. No product behavior impact.
-8. **`MORROW_EVAL_SHA` can override the recorded commit.** Evidence-integrity risk for future eval runs; the current runs used the actual checkout.
-9. **`setDefaultProfile` does not verify credential presence.** Chat still fails closed in `assertUsable`; profile selection only.
-10. **`getProvider` ignores an explicit custom default** and falls back to local/DeepSeek for the legacy settings card; settings display only.
-11. **Some special-use IPv4 ranges (198.18.0.0/15, 192.0.0.0/24) are not classified private.** Not in the required boundary list; low SSRF relevance.
-12. **DNS rebinding residual risk.** Documented; redirects refused and each attempt re-checked.
-
-Additional residual risk (not classified P3, because it can require key re-entry): `SafeStorageSecretStore.delete` does not check availability, while the following `get` verification does. If OS storage availability flips between the read and the delete, the old secret file can be deleted while the compensation cannot rewrite it. The profile row stays unchanged and chat fails closed; the user must re-enter the key. No normal-path reproduction was found; if reproduced it should be treated as P2, though it is not a secret disclosure and the profile/companion data remain intact.
-
-## 10. Exact commands and exit codes
-
-All commands were run from the repository root. `TEMP`/`TMP`/`TMPDIR` were set to `<repo>/.tmp/es` for esbuild/vitest on this host.
-
-| Command | Exit | Result |
-| --- | --- | --- |
-| `gh pr view 54 --json ...` | 0 | OPEN, head `a845889`, `MERGEABLE`, `CLEAN` |
-| `gh pr checks 54` | 0 | 4/4 jobs pass on run `41862065143` |
-| `gh run view 41862065143 --json ...` | 0 | head `a845889`, conclusion `success`, 4 jobs |
-| `gh run view 41859315790 --json ...` | 0 | head `d07b3f4`, conclusion `success`, 4 jobs |
-| `gh api repos/.../actions/runs/41862065143/artifacts` | 0 | Product-path artifact contains PASS `20261104T155831Z-899f5cb0` (18 checks) |
-| `gh api repos/.../actions/runs/41859315790/artifacts` | 0 | Product-path artifact contains PASS `20261104T154241Z-1430f856` (18 checks), byte-identical to committed evidence |
-| `git diff --stat 3812b18...HEAD` | 0 | 169 files, 21080 insertions, 493 deletions |
-| `npx tsc --noEmit` | 0 | Clean |
-| `npx vitest run src/persistence/migrations.test.ts src/app/provider-multi-source.integration.test.ts src/app/provider-multi-source-ipc.integration.test.ts tests/provider-profiles-ui.test.ts` | 0 | 4 files / 49 tests passed |
-| `npx vitest run` | 0 | 124 files / 1129 tests passed, 0 skipped |
-| `npm run build` | 0 | main/preload/renderer bundles built |
-| `.tmp/migration-probe2.mjs` | 0 | 17 checks, 0 failures |
-| `.tmp/security-probe2.mjs` | 0 | 73 assertions, 0 failures (includes OS-store 40/41 and redirect) |
-| Secret scan `git grep`/node over tracked blobs | 0 | `sk-` 11 false positives, `Bearer` tokens 0, test keys fake, evidence clean |
-| `git status --porcelain` after review-doc rewrite | 0 | Only the two review docs are modified; no code/test change |
-
-Probe files were placed under `.tmp/` and deleted after use. The current CI artifact was downloaded to `.tmp/` and deleted. No historical evidence was modified.
-
-## 11. Conclusion
-
-The blocking findings from the previous review are resolved:
-
-- The product-path harness runs on both the code SHA and the final docs-only HEAD; Windows CI product-path passes with real OS SafeStorage, restart, endpoint-change, rekey and delete checks.
-- CI on the final HEAD is 4/4 PASS and PR #54 is `CLEAN`.
-- The P1-3 UI layer test exists; the P1-4 real OS path evidence exists; migration and security probes still pass.
-- The remaining open items are P3 documentation/evidence polish, external provider quota/local-service blocks, and hardening items that do not affect safety, data integrity or the core companion experience.
-
-**Verdict: PASS_WITH_NON_BLOCKING_BACKLOG.** The final status remains `PARTIAL` because real remote providers and a local OpenAI-compatible service are externally blocked; V2 should not be released until the user makes the release decision.
+**PARTIAL.** Do not merge or release. Required before a PASS: fix the local no-key chat gate and make the UI's active provider exactly match `requireConfigured()`; add a confirmation for provider-profile deletion; seed and exercise messages/relationship/self-model/baseline-interest in the continuity run (or explicitly scope the claim); correct the stale "final" SHA/CI sections and the 1 MiB claim. External Provider quota and the local model service remain blocked, so delivery stays PARTIAL regardless.

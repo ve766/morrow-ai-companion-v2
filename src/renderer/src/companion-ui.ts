@@ -10,6 +10,7 @@ import type {
   ProviderConfigRecord,
   Sensitivity
 } from '../../shared/companion'
+import { isProviderUsable, selectChatProvider } from './provider-readiness'
 
 class UiError extends Error {
   constructor(message: string, readonly code: string) {
@@ -115,7 +116,7 @@ export function initializeCompanion(): void {
     else if (!localProvider) localStatus.textContent = '未配置'
     else if (!localProvider.enabled) localStatus.textContent = '已配置但未启用'
     else localStatus.textContent = `已启用：${localProvider.model}`
-    const chatReady = Boolean(provider?.enabled && provider.apiKeyConfigured)
+    const chatReady = isProviderUsable(provider)
     const localReady = Boolean(localProvider?.enabled)
     const officialReady = Boolean(officialProvider?.enabled && officialProvider.apiKeyConfigured)
     const ready = Boolean(!state.providerStorageUnverified && chatReady)
@@ -141,11 +142,7 @@ export function initializeCompanion(): void {
   const loadProvider = async (): Promise<void> => {
     state.providerStorageUnverified = false
     const profiles = unwrap(await window.morrow.providers.listProfiles())
-    const chatProvider = profiles.find((profile) => profile.isDefault && profile.enabled)
-      ?? profiles.find((profile) => profile.enabled && profile.sourceKind === 'custom-proxy')
-      ?? profiles.find((profile) => profile.enabled && profile.sourceKind === 'local')
-      ?? profiles.find((profile) => profile.enabled)
-      ?? null
+    const chatProvider = selectChatProvider(profiles)
     const official = unwrap(await window.morrow.providers.get({ providerId: 'deepseek' }))
     const local = unwrap(await window.morrow.providers.get({ providerId: 'local-openai' }))
     updateProviderStatus(chatProvider, official, local)
@@ -557,7 +554,7 @@ export function initializeCompanion(): void {
 
   element<HTMLFormElement>('#chat-form').addEventListener('submit', async (event) => {
     event.preventDefault()
-    if (state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured || state.sending || !state.conversationId) return
+    if (state.providerStorageUnverified || !isProviderUsable(state.provider) || state.sending || !state.conversationId) return
     const content = element<HTMLTextAreaElement>('#chat-content').value.trim()
     if (!content) return
     const includeSensitive = element<HTMLInputElement>('#chat-include-sensitive').checked
@@ -601,7 +598,7 @@ export function initializeCompanion(): void {
       element<HTMLButtonElement>('#conversation-delete').disabled = false
       element<HTMLSelectElement>('#conversation-select').disabled = false
       element<HTMLButtonElement>('#provider-clear-key').disabled = false
-      element<HTMLButtonElement>('#chat-send').disabled = state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured
+      element<HTMLButtonElement>('#chat-send').disabled = state.providerStorageUnverified || !isProviderUsable(state.provider)
       await loadCognitive().catch((error) => setStatus(errorText(error), true))
     }
   })

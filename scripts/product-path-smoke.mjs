@@ -378,6 +378,35 @@ function secretDigest(profileId) {
   return existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : null
 }
 
+function seedContinuityRows(seed) {
+  const path = findDatabase(profile)
+  if (!path) throw new Error('Morrow database was not found for continuity seeding.')
+  const database = new DatabaseSync(path)
+  const now = new Date().toISOString()
+  const firstMessage = randomUUID()
+  const secondMessage = randomUUID()
+  const selfModel = randomUUID()
+  const interest = randomUUID()
+  const thread = randomUUID()
+  try {
+    database.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(firstMessage, seed.conversationId, 'user', 'CONTINUITY_MARKER_USER：把对话留在本机。', now, 1, randomUUID())
+    database.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(secondMessage, seed.conversationId, 'assistant', 'CONTINUITY_MARKER_ASSISTANT：我会记得这条边界。', now, 2, randomUUID())
+    database.prepare('INSERT INTO self_model_entries(id, kind, statement, status, confidence, source_message_id, conversation_id, superseded_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)')
+      .run(selfModel, 'inference', 'CONTINUITY_MARKER_SELF_MODEL：用户重视本机与可控性。', 'active', 64, firstMessage, seed.conversationId, now, now)
+    database.prepare('INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, profile_json, origin, stale_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)')
+      .run(interest, 'CONTINUITY_MARKER_INTEREST', 'active', 1, 1, 0.6, 70, firstMessage, seed.conversationId, now, now, now, '["连续性"]', '{}', 'user')
+    database.prepare('INSERT INTO relationship_threads(id, kind, value, status, strength, confidence, source_message_id, conversation_id, supersedes_thread_id, first_seen_at, last_seen_at, expires_at, tombstoned_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?)')
+      .run(thread, 'shared_topic', 'CONTINUITY_MARKER_THREAD', 'active', 0.6, 70, firstMessage, seed.conversationId, now, now, now, now)
+    database.prepare('INSERT INTO relationship_thread_evidence(thread_id, source_message_id, conversation_id, polarity, weight, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(thread, firstMessage, seed.conversationId, 'support', 0.6, now)
+    return { firstMessage, secondMessage, selfModel, interest, thread }
+  } finally {
+    database.close()
+  }
+}
+
 function snapshotSecrets(profileIds) {
   return Object.fromEntries(profileIds.map((id) => [id, secretDigest(id)]))
 }
@@ -488,7 +517,8 @@ const result = {
   checks,
   continuity: {},
   secrets: {},
-  limitation: 'Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. Connection tests were not triggered here to avoid an unattended native dialog.'
+  limitation: 'Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.',
+  controlledRequest: { mode: 'service-level', status: 'COVERED_BY_INTEGRATION_TEST', detail: 'Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated.' }
 }
 
 let activeRun
@@ -527,6 +557,15 @@ try {
   result.uiEvidence = uiEvidence
   record('UI evidence screenshots captured', uiEvidence.length === 9, `${uiEvidence.length} screenshots at 1440×900 / 1280×800 / 390×844`)
 
+  await stop(activeRun, activeClient)
+  await delay(750)
+  activeRun = undefined
+  activeClient = undefined
+  const continuityFixture = seedContinuityRows(seed)
+  result.continuityFixture = continuityFixture
+  started = await start()
+  activeRun = started.run
+  activeClient = started.client
   const continuityBefore = await activeClient.evaluate(continuityScript)
   await stop(activeRun, activeClient)
   await delay(750)
