@@ -439,7 +439,7 @@ function comparableEndpoint(endpoint: string): string {
 }
 
 /** Model lists are small; a relay streaming an unbounded body is refused. */
-const MAX_DISCOVERY_BODY_BYTES = 1_000_000
+const MAX_DISCOVERY_BODY_BYTES = 1_048_576
 
 export class ProviderConfigService {
   constructor(

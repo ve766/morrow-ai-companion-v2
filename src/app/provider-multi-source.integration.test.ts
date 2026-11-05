@@ -574,7 +574,7 @@ describe('model discovery hardening', () => {
     const { database, service, fetcher } = openService()
     try {
       const saved = service.saveProfile(profileA)
-      fetcher.mockResolvedValueOnce(new Response('{}', { status: 200, headers: { 'content-length': '1000001' } }))
+      fetcher.mockResolvedValueOnce(new Response('{}', { status: 200, headers: { 'content-length': '1048577' } }))
       await expect(service.discoverModels({ profileId: saved.id })).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE' })
     } finally {
       database.close()
