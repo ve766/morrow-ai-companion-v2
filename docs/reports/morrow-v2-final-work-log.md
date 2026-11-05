@@ -113,7 +113,7 @@
 | 7 | 重启后立即提交表单，UI 尚未初始化 | 等待 `#provider-profile-list[aria-busy=false]` |
 | 8 | **全部 PASS** | run `41859315790`：Ubuntu smoke、Windows smoke/product-path、Windows package/install、Windows upgrade 4/4 |
 
-Windows product-path PASS run：`20261105T071402Z-608ab4c9`（Electron 44.9.3，sandbox 启用，22 项检查）。
+Windows product-path PASS run：`20261105T084141Z-45483dd6`（Electron 44.9.3，sandbox 启用，22 项检查）。
 
 ## 6. Git 记录
 
@@ -146,7 +146,7 @@ Windows product-path PASS run：`20261105T071402Z-608ab4c9`（Electron 44.9.3，
 
 - A：`consent-presentation.ts` + 6 组测试；`index.ts` 改用统一 presentation。
 - B：`bounded-body.ts` + 10 组测试；discovery 1 MiB、error hint 4 KiB；新增无 Content-Length 超限测试。
-- C：product-path 增加全字段 SQLite 快照/逐字段 diff/allowlist；CI run `20261105T071402Z-608ab4c9` 三次 diff 全 0。
+- C：product-path 增加全字段 SQLite 快照/逐字段 diff/allowlist；CI run `20261105T084141Z-45483dd6` 三次 diff 全 0。
 - UI：重写 `style.css`/`companion.css`，新增 `presence-ui.ts`（hero/轨道 canvas/主题/导航编号/设置索引）、`self-model-ui.ts`；保留全部既有 ID/IPC。
 - UI 功能修正：聊天发送门禁使用默认/自定义 Provider；Provider 变更事件刷新聊天状态；官方 DeepSeek 卡不再宣称“聊天保持离线”。
 
@@ -157,7 +157,7 @@ Windows product-path PASS run：`20261105T071402Z-608ab4c9`（Electron 44.9.3，
 - `npm run build`: passed
 - CI run 41962719371（`019c2c2`）：4/4 PASS
 - 最终 HEAD `eede520` CI run 41989744603：4/4 PASS
-- 截图：`docs/ui/evidence/20261105T071402Z-608ab4c9/` 9 张真实 Electron 窗口
+- 截图：`docs/ui/evidence/20261105T084141Z-45483dd6/` 9 张真实 Electron 窗口
 - 真实 Provider/本地服务：仍 BLOCKED_QUOTA / BLOCKED_LOCAL_SERVICE_NOT_RUNNING
 
 ### 8.4 已知限制

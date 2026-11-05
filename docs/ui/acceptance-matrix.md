@@ -1,7 +1,7 @@
 # UI 验收矩阵
 
 - 真实 renderer：Electron 44 + `src/renderer/index.html`
-- 截图：Windows CI product-path 真实窗口，1440×900 / 1280×800 / 390×844，输出到 `docs/ui/evidence/20261105T071402Z-608ab4c9/`
+- 截图：Windows CI product-path 真实窗口，1440×900 / 1280×800 / 390×844，输出到 `docs/ui/evidence/20261105T084141Z-45483dd6/`
 - 状态：PASS = 代码/截图/交互证据；PARTIAL = 受外部宿主限制；NOT_RUN = 未执行
 
 ## 1. 页面 × 状态
@@ -67,4 +67,4 @@
 - `memory-*.png`
 - `settings-*.png`
 
-每张截图对应同一 run id；`evals/morrow-v2-final/results/20261105T071402Z-608ab4c9.json` 记录 `uiEvidence` 路径。截图不是生成图；本机 Electron 宿主 0xC0000005 阻塞时，保留 FAILED 运行记录，不以静态图替代。
+每张截图对应同一 run id；`evals/morrow-v2-final/results/20261105T084141Z-45483dd6.json` 记录 `uiEvidence` 路径。截图不是生成图；本机 Electron 宿主 0xC0000005 阻塞时，保留 FAILED 运行记录，不以静态图替代。

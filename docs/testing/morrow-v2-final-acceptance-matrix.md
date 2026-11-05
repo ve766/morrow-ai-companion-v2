@@ -1,7 +1,7 @@
 # Morrow V2 最终验收矩阵（Issue #53）
 
-- 实现 SHA：`8797ab9e2dea171a159d92c349babeb4180dbf84`
-- 最终 HEAD：`140fd303f700e8bb4761c653aa6492c4ee9ddb9b`
+- 实现 SHA：`6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
+- 最终 HEAD：`6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 
@@ -51,7 +51,7 @@
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PASS | CI Windows run `20261105T071402Z-608ab4c9`：真实 renderer 表单创建 A/B，OS 密文文件摘要不同 |
+| 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PASS | CI Windows run `20261105T084141Z-45483dd6`：真实 renderer 表单创建 A/B，OS 密文文件摘要不同 |
 | 4.2 | 真实 OS SafeStorage 保存/回读/更新/删除/重启 | PASS | 同上：保存、重启回读、endpoint 变更清除 A、rekey 轮换、删除 B 仅删 B；密文摘要见 JSON |
 | 4.3 | 拒绝 consent 时 fetch=0；切换 endpoint/model 后旧 consent 无效 | PASS（服务层） | `provider-multi-source.integration.test.ts`；`provider-manual-chat.integration.test.ts`；原生对话框无法由 CDP 驱动，已在脚本 limitation 记录 |
 | 4.4 | A→重启→B→A 连续性 | PASS | 同上 run：完整 SQLite 快照逐字段比较 personality、self-model、interests、memory、goals、relationship、conversation/messages；removed=0 changed=0；仅时间戳/兴趣聚合/关系强度重算列入显式 allowlist |
@@ -65,7 +65,7 @@
 | --- | --- | --- | --- |
 | 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（128 文件 / 1153 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
-| 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261105T071402Z-608ab4c9` 完整快照逐字段 diff |
+| 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261105T084141Z-45483dd6` 完整快照逐字段 diff |
 | 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1153；全量运行 0 skipped |
 
 ## 6. 真实 Provider
@@ -82,7 +82,7 @@
 - 代码、迁移、P1/P2、Stage 4 回归、离线评估、构建、Windows 安装/启动、真实 Electron 产品路径（CI Windows）：PASS。
 - 真实远程 Provider：BLOCKED_QUOTA（外部账户）。
 - 本地模型：BLOCKED_LOCAL_SERVICE_NOT_RUNNING（外部服务）。
-- 本机 Electron 启动：BLOCKED_HOST_ELECTRON_CRASH；同一脚本在最终 HEAD CI Windows run `20261105T071402Z-608ab4c9` PASS。
+- 本机 Electron 启动：BLOCKED_HOST_ELECTRON_CRASH；同一脚本在最终 HEAD CI Windows run `20261105T084141Z-45483dd6` PASS。
 - 因此整体状态为 **PARTIAL**，不是 COMPLETE；不得发布 Release 或合并 PR。
 
 ## 8. 2026-11-05 追加验收（PR #54 收口）
