@@ -1,22 +1,22 @@
-# Morrow V2 Final File Review Matrix (PR #54, frozen HEAD bb97c9b)
+# Morrow V2 Final File Review Matrix (PR #54, final HEAD 13ce2a6)
 
-- Frozen final HEAD: `bb97c9ba89a5f144ff1d97e96140681b755cf095`
+- Frozen final HEAD: `13ce2a6f90d18742d9accc6f55cfd20cf4acd55a`
 - Final code/test SHA: `6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
 - Base: `3812b185398c0442fcc0d0ba5b180713cafee1d9`
-- PR #54 head: `bb97c9ba89a5f144ff1d97e96140681b755cf095`, `OPEN`, `MERGEABLE`, `UNSTABLE`
-- Frozen-HEAD CI: run `41999916963` — **failure**: all 4 jobs failed in 2 s with 0 steps and no job log (CI startup/infrastructure failure; the commit is docs/evidence-only and does not touch `.github/`)
+- PR #54 head: `13ce2a6f90d18742d9accc6f55cfd20cf4acd55a`, `OPEN`, `MERGEABLE`, `UNSTABLE`
+- Final docs-HEAD CI: run `42001850336` — **failure**: all 4 jobs failed in 2–3 s with 0 steps and no job log (Actions infrastructure/startup failure; docs/evidence-only commit, workflow unchanged since the green run; previous docs HEAD `bb97c9b` run `41999916963` failed the same way)
 - Prior docs-HEAD CI: run `41997137337` (head `9215cc4`), 4/4 PASS
 - Code-SHA CI: run `41995422882` (head `6f5fe47`), 4/4 PASS (Windows product-path step pass)
-- Diff vs base: 233 files changed, 24,828 insertions, 1,234 deletions.
+- Diff vs base: 233 files changed, 24,824 insertions, 1,234 deletions.
 - Worktree: clean at review start; after writing, only this file and the independent review are modified and uncommitted.
 
-Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed with a non-blocking residual; **P2** = open blocking finding; **HISTORICAL** = prior-stage evidence retained, not final-SHA proof.
+Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed with a non-blocking residual; **P2** = open code/data blocking finding; **HISTORICAL** = prior-stage evidence retained, not final-SHA proof. Documentation stale lines are **P3 only** for this final HEAD because the key headers now reference “PR #54 head” and the code SHA/CI/product-path evidence are correct.
 
 ## 1. Production files changed vs base
 
 | # | File | Change reviewed | Conclusion |
 | --- | --- | --- | --- |
-| 1 | `.github/workflows/ci.yml` | Windows product-path only; package/install/upgrade jobs; artifact upload. | PASS — prior docs-HEAD `9215cc4` run `41997137337` and code-SHA `6f5fe47` run `41995422882` are 4/4; frozen HEAD `bb97c9b` run `41999916963` failed at startup with 0 steps (infrastructure). |
+| 1 | `.github/workflows/ci.yml` | Windows product-path only; package/install/upgrade jobs; artifact upload. | PASS — code-SHA run `41995422882` and prior docs-HEAD run `41997137337` are 4/4; frozen docs-HEAD run `42001850336` failed at startup with 0 steps (infrastructure, workflow unchanged). |
 | 2 | `package.json` | `smoke:product-path`, provider evaluation scripts. | PASS — scripts resolve; no new runtime dependency. |
 | 3 | `scripts/product-path-smoke.mjs` | Full SQLite snapshot/diff; seeded messages, self-model, interest/evidence, relationship/evidence; two-step delete; readiness-marker wait; explicit `controlledRequest`. | PASS+P3 — full-field restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowed changes per field with reasons; P3: `continuityAfterRestart = continuityBefore` makes the bridge restart check tautological, goal progress is not seeded, allowed additions are table-level, Provider B is service-level only (explicitly stated). |
 | 4 | `src/app/companion-service.ts` | Provider lifecycle, secret transactions, discovery consent/policy, bounded discovery body, `requireConfigured()` priority. | PASS+P3 — discovery uses `1_000_000` bytes, not 1,048,576; no secret/body leak. |
@@ -85,11 +85,11 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 
 | Group | Files | Conclusion |
 | --- | --- | --- |
-| 16 fixed deliverables | `docs/audit/morrow-v2-final-closure-baseline.md`, `docs/ui/reference-inventory.md`, `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md`, `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md`, `docs/ui/evidence/`, `docs/testing/morrow-v2-final-acceptance-matrix.md`, `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md`, `docs/audit/morrow-v2-final-independent-review.md`, `docs/audit/morrow-v2-final-file-review-matrix.md`, `evals/morrow-v2-final/results/<run>.json`, `evals/morrow-v2-final/transcripts/<run>.md`, optional `evals/morrow-v2-final/ui/` | **P2** — all required paths exist; the optional UI machine directory was not needed. At `bb97c9b`, docs still cite `6f5fe47`/`9215cc4`/`eede520` and `41995422882`/`41997137337`/`41989744603` as final HEAD/CI; work log 159, evidence index 89/66/85/103, acceptance matrix 4/22/85, delivery report 16/58/77/145/161, and the 1 MiB/"provider core unchanged" lines are stale. |
+| 16 fixed deliverables | `docs/audit/morrow-v2-final-closure-baseline.md`, `docs/ui/reference-inventory.md`, `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md`, `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md`, `docs/ui/evidence/`, `docs/testing/morrow-v2-final-acceptance-matrix.md`, `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md`, `docs/audit/morrow-v2-final-independent-review.md`, `docs/audit/morrow-v2-final-file-review-matrix.md`, `evals/morrow-v2-final/results/<run>.json`, `evals/morrow-v2-final/transcripts/<run>.md`, optional `evals/morrow-v2-final/ui/` | PASS+P3 — all required paths exist; the delivery report header/validation now reference “PR #54 head” and cite code `6f5fe47`, code-SHA CI `41995422882`, and product-path `20261105T084141Z-45483dd6`. P3 stale lines remain: acceptance matrix `:4` empty “最终 HEAD”, work log `:159` (`eede520`/4/4 claim), evidence index `:89` empty “最终 HEAD”, delivery report `:77` (`6f5fe47` as final HEAD), `:58` (code-SHA CI as final), `:79` (“provider core code unchanged”), `:145` and acceptance `:97` (1,048,576 vs 1,000,000), evidence index `:66,85,103` (code-SHA CI unlabeled), acceptance `:85` (product-path run as CI). No code impact. |
 | UI reference/inventory | `docs/ui/reference-inventory.md` | PASS — files, status, purpose and conflict/trade-off recorded; no fabricated reference. |
 | UI audit/design system | `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md` | PASS+P3 — audit accurate; design-system overstates light muted contrast (4.9 vs 4.41), claims every token is used (`--serif`, `--topbar`, `--radius-sm` unused), and says dangerous actions keep a native confirm (provider delete is now an in-page two-step). |
 | UI implementation/acceptance | `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md` | PASS+P3 — mapping accurate; acceptance matrix claims self-model/goal screenshots, 390 single-column/no-overflow, keyboard focus and long-text PASS that are not all supported. |
-| Final reports | `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md` | **P2** — final HEAD/CI citations still stale (see independent review section 9). P3: 1 MiB/1,048,576 vs 1,000,000; "provider core code unchanged after c1f4450" is false. |
+| Final reports | `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md` | PASS+P3 — key headers use “PR #54 head”; code SHA/CI/product-path are cited. P3 stale lines listed above; no code impact. |
 | Continuity evidence | `evals/morrow-v2-final/results/20261105T084141Z-45483dd6.json`, `evals/morrow-v2-final/transcripts/20261105T084141Z-45483dd6.md` | PASS+P3 — seeded messages/self-model/interest/evidence/relationship/evidence; restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowedChanges per field with reasons; `controlledRequest` explicitly service-level. P3: bridge restart check tautological; goal progress not seeded; allowed additions table-level. No key/Authorization/body. |
 | Screenshots | `docs/ui/evidence/20261105T084141Z-45483dd6/*.png` (9), prior sets | PASS+P3 — real Electron captures; no secret text; chat/memory/settings × 3 sizes; no goals/reminders/self-model screenshots; memory shows a stale empty list; 390 nav last item cut; two-step delete state not captured. |
 | Historical docs | `docs/architecture/provider-multi-source-architecture.md`, `provider-security-and-consent.md`, `pr-40-*`, `provider-multi-source-*` reports/tests, `stage-4-*` reports/tests | HISTORICAL — retained with their own SHAs; not final-SHA evidence; no evidence rewritten. |
@@ -118,11 +118,11 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 | `TEMP=... TMP=... npm run evaluate` | M3/M4 pass | 0 |
 | `TEMP=... TMP=... npm run evaluate:cognition` | cognitive/feeling/alpha/intent pass | 0 |
 | `.tmp/probe/companion-gate.test.ts` + `.tmp/probe/provider-priority.test.ts` | 2 files / 7 tests pass | 0 |
-| `gh pr checks 54` | frozen `bb97c9b` run `41999916963`: 4/4 fail (0 steps, 2 s); `9215cc4` run `41997137337`: 4/4 pass; `6f5fe47` run `41995422882`: 4/4 pass | 0 |
+| `gh pr checks 54` | final docs HEAD `13ce2a6` run `42001850336`: 4/4 fail (0 steps, 2–3 s); prior docs HEAD `9215cc4` run `41997137337`: 4/4 pass; code SHA `6f5fe47` run `41995422882`: 4/4 pass | 0 |
 
 ## 6. Blocking findings carried into the verdict
 
-1. **Frozen-HEAD CI is red** — run `41999916963` on `bb97c9b`: all four jobs failed in 2 s with 0 steps and no job log. The commit is docs/evidence-only and does not touch `.github/`; this is a CI startup/infrastructure failure, not a code/test failure. A rerun must be green before merge.
-2. **P2 documentation consistency** — at `bb97c9b`, `docs/reports/morrow-v2-final-work-log.md:159` still says `eede520`/`41989744603`; `docs/reports/morrow-v2-final-evidence-index.md:89` says final HEAD `6f5fe47` and `:66,85,103` cite only `41995422882`; `docs/reports/morrow-v2-final-delivery-report.md:16,58,77,161` cite `9215cc4`/`41995422882`/`41997137337`, not `bb97c9b`; `docs/testing/morrow-v2-final-acceptance-matrix.md:4,22,85` say final HEAD `6f5fe47` and use `41989744603`; `:97` and delivery report `:145` say 1,048,576 bytes (code is 1,000,000); delivery report `:79` says provider core code is unchanged after `c1f4450` (false).
+1. **External Provider quota/local model service** — `api.supxh.xin` and `speed26.toter.me` are `BLOCKED_QUOTA`; the local OpenAI-compatible service is `BLOCKED_LOCAL_SERVICE_NOT_RUNNING`. Not code defects.
+2. **Final docs-HEAD CI infrastructure failure** — run `42001850336` on `13ce2a6` and run `41999916963` on `bb97c9b` failed all four jobs in 2–3 s with 0 steps and no logs; the workflow is unchanged since the green `9215cc4` run; code-SHA CI `41995422882` is 4/4 PASS. This is an Actions infrastructure/startup failure, not a code/test failure, but it is still a red required check.
 
-No open code P1/P2 remains from the four prior findings. P3 residuals are listed in the independent review section 11. Code verdict: **PASS_WITH_NON_BLOCKING_BACKLOG**; overall delivery: **PARTIAL** because the frozen-HEAD CI is red, the docs P2 is open, and the external Provider quota/local model service remain blocked.
+No open code P1/P2 remains from the four prior findings. Documentation stale lines are P3 only and have no code impact. Code verdict: **PASS_WITH_NON_BLOCKING_BACKLOG**; overall delivery: **PARTIAL** for the two blockers above.
