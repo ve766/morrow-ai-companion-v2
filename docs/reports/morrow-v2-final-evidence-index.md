@@ -74,7 +74,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | 0；124 文件 / 1148 测试 |
+| `npx vitest run` | 0；127 文件 / 1148 测试 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
 | `npm run build` | 0 |
@@ -99,10 +99,10 @@
 | 设计系统/tokens | `docs/ui/design-system.md` |
 | UI 实施与回归 | `docs/ui/implementation-and-regression-report.md` |
 | UI 验收矩阵 | `docs/ui/acceptance-matrix.md` |
-| 真实 Electron 截图 | `docs/ui/evidence/20261105T031237Z-f9c9988e/`（9 张） |
-| UI/A/B/C CI run | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41959419321（4/4 PASS） |
-| 全字段 continuity 结果 | `evals/morrow-v2-final/results/20261105T031237Z-f9c9988e.json` |
-| continuity transcript | `evals/morrow-v2-final/transcripts/20261105T031237Z-f9c9988e.md` |
+| 真实 Electron 截图 | `docs/ui/evidence/20261105T034317Z-8dc025dc/`（9 张） |
+| UI/A/B/C CI run | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41962719371（4/4 PASS） |
+| 全字段 continuity 结果 | `evals/morrow-v2-final/results/20261105T034317Z-8dc025dc.json` |
+| continuity transcript | `evals/morrow-v2-final/transcripts/20261105T034317Z-8dc025dc.md` |
 | consent 展示测试 | `src/providers/consent-presentation.test.ts` |
 | bounded body 测试 | `src/providers/bounded-body.test.ts` |
 | 全字段 diff | product-path result `continuity.fullField.restart/switch/final` |

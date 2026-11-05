@@ -22,6 +22,7 @@
 - Provider 表单仍通过 `window.morrow.providers.*` typed bridge；密钥输入仍是 password，保存后清空。
 - 记忆/目标/提醒/备份仍调用原服务；UI 只消费返回的 `IpcResult`。
 - 新增自我模型/兴趣面板只调用已有 `selfModel.listEntries/listInterests/correctEntry/retractEntry/setInterestStatus`，不新增 IPC 通道。
+- 对话发送门禁改用 `providers.listProfiles()` 的默认/自定义 Provider，而不是旧 DeepSeek 表单；Provider 保存/切换/删除后通过 `morrow:providers-changed` 刷新聊天就绪状态。
 
 ## 3. 兼容性
 

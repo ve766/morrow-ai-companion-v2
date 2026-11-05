@@ -62,7 +62,7 @@
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1148 测试） |
+| 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（127 文件 / 1148 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
 | 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261104T155831Z-899f5cb0`（relationship 以表计数覆盖） |
 | 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1148；全量运行 0 skipped |

@@ -11,7 +11,9 @@
 - HTTP 状态/CI/harness 修复：`c1f44507d911a5fa673174d126f4fe6b029a4e8c`
 - product-path 收敛（优雅退出、UI 就绪、continuity）：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
-- 最终 HEAD（复审/证据文档 + product-path 重试）：`92bc4ed146872e85de65648f6de1fb49e8a6bc3d`
+- UI/A/B/C 实现：`9af9c3413039453aac70685e9c5d2406a440cbfe`
+- 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`019c2c2520ba5e28db9e7a779fa95ad27a1b4009`
+- 最终 HEAD（复审/证据文档）：见 PR #54 head；代码/测试以 `019c2c2` 为准
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围
@@ -48,7 +50,7 @@
 | 项目 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | PASS（无输出，退出码 0） |
-| `vitest run` | PASS：124 文件 / 1148 测试，0 skipped |
+| `vitest run` | PASS：127 文件 / 1148 测试，0 skipped |
 | `npm run evaluate` | PASS：M3 检索 + M4 reminders 合成评估 |
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
@@ -126,7 +128,7 @@ CI Windows 产品路径 **PASS**：run `20261104T155831Z-899f5cb0`，Electron 44
 - 记忆页：新增自我模型/兴趣面板（更正/撤回/暂停/恢复），保留来源/修订链/敏感级/删除语义。
 - 设置页：分区索引 + 双栏 Provider + 官方 DeepSeek 兼容入口 + 本地模型 + 认知 + 备份。
 - 主题：深空默认 / 纸面切换；只改 CSS token，不触碰数据。
-- 截图：Windows Electron 真实窗口，run `20261105T031237Z-f9c9988e`，`docs/ui/evidence/20261105T031237Z-f9c9988e/`（chat/memory/settings × 1440/1280/390，共 9 张）。
+- 截图：Windows Electron 真实窗口，run `20261105T034317Z-8dc025dc`，`docs/ui/evidence/20261105T034317Z-8dc025dc/`（chat/memory/settings × 1440/1280/390，共 9 张）。
 - 功能修正：对话发送门禁改用默认/自定义 Provider，而不是只看旧 DeepSeek 表单；Provider 保存/切换/删除后通过 `morrow:providers-changed` 刷新聊天就绪状态。
 
 ### 9.2 修复 A：Consent 展示
@@ -148,7 +150,7 @@ CI Windows 产品路径 **PASS**：run `20261104T155831Z-899f5cb0`，Electron 44
 - `scripts/product-path-smoke.mjs` 在 A baseline / A restart / B switch / final A 四个时点导出完整 SQLite 快照（personality、self-model、interests、memories、goals、relationship、conversations/messages、pending/reflection、feeling state、event journal 等）。
 - 每个字段存 SHA-256；`diffFullSnapshots` 逐字段比较，删除/未允许的修改/意外新增都会失败。
 - 允许变化显式 allowlist：`*_at` 维护时间戳、feeling state 派生字段、启动反思新增的 interest/reflection/event 行；每项记录在结果 JSON 的 `allowedAdditions`。
-- 结果：run `20261105T031237Z-f9c9988e` 三次 diff 均 `removed=0 changed=0 unexpectedAdded=0`。
+- 结果：run `20261105T034317Z-8dc025dc` 三次 diff 均 `removed=0 changed=0 unexpectedAdded=0`。
 - 限制：Provider B 的“受控请求”仍由服务层测试覆盖；Electron 原生 consent 对话框无法由 CDP 自动点击，未用 mock 冒充真实产品路径。
 
 ### 9.5 验证
@@ -156,7 +158,7 @@ CI Windows 产品路径 **PASS**：run `20261104T155831Z-899f5cb0`，Electron 44
 - `tsc --noEmit`: 0
 - `vitest run`: 127 files / 1148 tests passed
 - `npm run build`: passed
-- CI run 41959419321（head `9af9c34`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
+- CI run 41962719371（head `019c2c2`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
 - 真实 Provider 仍 BLOCKED_QUOTA；本地服务仍 BLOCKED_LOCAL_SERVICE_NOT_RUNNING
 
 ### 9.6 状态
