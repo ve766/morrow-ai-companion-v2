@@ -38,7 +38,7 @@
 ## 4. CI 诊断
 
 - 失败 run 的 job：`runner_id=0`、`runner_name=""`、`steps=[]`，2–3 秒结束，无日志。
-- workflow 在绿色 run `41997137337` 后未改；`gh api` Actions enabled，0 self-hosted runners；GitHub status operational。
+- workflow 在绿色 run `41997137337` 后未改；`gh api` Actions enabled，0 self-hosted runners；GitHub status operational；check-run annotation 明确为 “recent account payments have failed or your spending limit needs to be increased”。
 - 结论：Actions 启动/runner 分配基础设施失败；不是代码/测试失败，但 required checks 仍红，不能标 PASS。
 - 未删除 required checks、未跳过 Windows job、未加 continue-on-error、未用父 SHA 替代最终 SHA。
 

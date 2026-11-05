@@ -42,7 +42,8 @@ NSIS 构建：electron-builder 生成 stub 后执行 installer 提取 uninstalle
 | `42007647526` | `ff5b787` | 4/4 FAIL 0-step | Actions 基础设施失败 |
 | `42004491868` | `eac8fbd` | 4/4 FAIL 0-step | Actions 基础设施失败 |
 | `42001850336` | `13ce2a6` | 4/4 FAIL 0-step | Actions 基础设施失败 |
-| RC `ac00627` | `ac00627` | 未获得可信 run | 同一 0-step 基础设施失败 |
+| RC `fad6a94` | `fad6a94` | 未获得可信 run | 同一 0-step 基础设施失败 |
+| RC final docs `84481f8` | `84481f8` | 4/4 FAIL 0-step | run `42025990645`；billing/spending-limit annotation |
 
 证据：失败 job `runner_id=0`、`runner_name=""`、`steps=[]`，2–3 秒结束，无 job 日志；check-run annotation 为 “The job was not started because recent account payments have failed or your spending limit needs to be increased.”；workflow 在绿色 run 后未变；`gh api` Actions enabled、0 self-hosted runners；GitHub status operational。未删除/跳过 required check。用户需处理 GitHub 付款/额度。
 
