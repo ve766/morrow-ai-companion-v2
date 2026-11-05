@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPreviewOutcome, type BackupRestoreOutcome } from '../shared/contracts'
 import type { ApprovalChallenge } from '../motivation/goals'
 import type { ProviderConsent, ProviderConsentPreview } from '../providers/provider-policy'
+import { presentProviderConsent } from '../providers/consent-presentation'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { ARCHIVE_THRESHOLD } from '../memory/memory-importance'
@@ -80,13 +81,7 @@ function getAppInfo(): AppInfo {
 async function requestProviderConsent(preview: ProviderConsentPreview): Promise<ProviderConsent | undefined> {
   const window = mainWindow
   if (!window || window.isDestroyed()) return undefined
-  const actionLabel = preview.action === 'chat'
-    ? '发送对话'
-    : preview.action === 'connection-test'
-      ? '测试连接'
-      : preview.action === 'model-discovery'
-        ? '获取模型列表'
-        : '生成记忆候选'
+  const presentation = presentProviderConsent(preview)
   const sensitivityLabel = preview.maximumSensitivity === 'sensitive'
     ? '敏感（仅在本次明确确认后发送）'
     : preview.maximumSensitivity === 'personal'
@@ -95,33 +90,25 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   const memories = preview.includedMemories.length === 0
     ? '本次不包含已保存记忆。'
     : preview.includedMemories.map((memory, index) => `${index + 1}. [${memory.sensitivity}] ${memory.excerpt}`).join('\n')
-  const isLocal = preview.providerId === 'local-openai'
-  const egressLines = isLocal
-    ? [
-        '目标端点为本机回环地址（127.0.0.1 / localhost）。请求不会离开本机，也不会产生 API 费用。',
-        '本地服务若设置了访问口令，将仅以 HTTPS Authorization Bearer 标头发送，不进入请求正文或 SQLite。'
-      ]
-    : [
-        '费用：DeepSeek API 按 token 计费，本次请求或连接测试可能产生费用；价格会随模型、缓存与时段变化，请以 https://api-docs.deepseek.com/quick_start/pricing 为准。',
-        'API 密钥仅在 Windows 安全存储中加密保存；请求时通过 HTTPS Authorization Bearer 标头发送，不进入请求正文或 SQLite。'
-      ]
   const detail = [
-    `操作：${actionLabel}`,
-    `目标：${preview.endpoint}`,
-    `模型：${preview.model}`,
+    `操作：${presentation.actionLabel}`,
+    `目标：${presentation.providerKindLabel}`,
+    `端点：${presentation.target}`,
+    `模型：${presentation.model}`,
     `数据敏感度：${sensitivityLabel}`,
     `请求大小：${preview.payloadBytes} 字节`,
     `请求摘要：${preview.payloadSha256}`,
-    ...egressLines,
+    presentation.egress,
+    `计费：${presentation.pricing}`,
+    ...(presentation.warning ? [`注意：${presentation.warning}`] : []),
+    'API 密钥仅在 Windows 安全存储中加密保存；请求时通过 HTTPS Authorization Bearer 标头发送，不进入请求正文或 SQLite。',
     `已选记忆：\n${memories}`,
     `精确请求正文：\n${preview.exactPayload}`
   ].join('\n\n')
   const result = await dialog.showMessageBox(window, {
-    type: preview.maximumSensitivity === 'sensitive' ? 'warning' : 'question',
-    title: isLocal ? '确认发送数据到本地模型' : '确认向 DeepSeek 发送数据',
-    message: isLocal
-      ? '以下内容将发送到你配置的本地模型服务（本机回环地址）。每次请求都需要单独确认。'
-      : '以下内容将离开本机并发送到 DeepSeek。每次请求都需要单独确认。',
+    type: preview.maximumSensitivity === 'sensitive' || presentation.warning ? 'warning' : 'question',
+    title: presentation.title,
+    message: presentation.message,
     detail,
     buttons: ['取消', '允许并发送'],
     defaultId: 0,

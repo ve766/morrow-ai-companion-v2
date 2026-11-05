@@ -3,6 +3,7 @@ import { isProviderConfigValid, normalizeProviderConfig } from './provider-regis
 import { resolveChatEndpoint } from './endpoint-resolver'
 import { defaultEndpointPolicy, type EndpointPolicy } from './endpoint-security'
 import { DEFAULT_PROVIDER_TOTAL_BUDGET_MS } from './provider-policy'
+import { readBoundedText } from './bounded-body'
 import { ApplicationError, type ApplicationErrorCode } from '../shared/errors'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
@@ -86,7 +87,7 @@ interface ProviderErrorHint {
  */
 async function readProviderErrorHint(response: Response): Promise<ProviderErrorHint> {
   try {
-    const text = (await response.text()).slice(0, 4096)
+    const text = await readBoundedText(response, 4_096)
     const parsed = JSON.parse(text) as { code?: unknown; error?: { code?: unknown; type?: unknown } } | null
     const raw = parsed?.error && typeof parsed.error === 'object' ? parsed.error.code : parsed?.code
     const type = parsed?.error && typeof parsed.error === 'object' && typeof parsed.error.type === 'string'

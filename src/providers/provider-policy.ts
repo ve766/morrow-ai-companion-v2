@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
+import type { AssembledMemoryContext, ProviderSourceKind, Sensitivity } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
 
 export type ProviderClass = 'mock' | 'local' | 'remote'
@@ -51,6 +51,8 @@ export interface ProviderConsent {
 export interface ProviderConsentPreview {
   action: ProviderAction
   providerId: string
+  providerDisplayName: string
+  providerSourceKind: ProviderSourceKind
   endpoint: string
   model: string
   payloadSha256: string
@@ -148,13 +150,18 @@ export function matchesPayloadHash(actual: string, expected: string): boolean {
 
 export function consentPreview(
   action: ProviderAction,
-  provider: { id: string; endpoint: string; model: string },
+  provider: { id: string; endpoint: string; model: string; sourceKind?: ProviderSourceKind; displayName?: string },
   input: ProviderInput
 ): ProviderConsentPreview {
   const exactPayload = stableJson({ endpoint: input.endpoint, body: input.requestPayload })
+  const sourceKind: ProviderSourceKind = provider.sourceKind
+    ?? (provider.id === 'local-openai' ? 'local' : provider.id === 'deepseek' || provider.id === 'spark' ? 'official' : 'custom-proxy')
+  const displayName = provider.displayName?.trim() || (sourceKind === 'custom-proxy' ? '自定义服务端' : provider.id)
   return {
     action,
     providerId: provider.id,
+    providerDisplayName: displayName,
+    providerSourceKind: sourceKind,
     endpoint: input.endpoint,
     model: provider.model,
     payloadSha256: createHash('sha256').update(exactPayload).digest('hex'),

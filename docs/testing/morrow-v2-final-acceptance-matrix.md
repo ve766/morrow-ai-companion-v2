@@ -83,3 +83,28 @@
 - 本地模型：BLOCKED_LOCAL_SERVICE_NOT_RUNNING（外部服务）。
 - 本机 Electron 启动：BLOCKED_HOST_ELECTRON_CRASH；同一脚本在最终 HEAD CI Windows run `20261104T155831Z-899f5cb0` PASS。
 - 因此整体状态为 **PARTIAL**，不是 COMPLETE；不得发布 Release 或合并 PR。
+
+## 8. 2026-11-05 追加验收（PR #54 收口）
+
+| # | 验收项 | 状态 | 证据 |
+| --- | --- | --- | --- |
+| A1 | consent 展示按官方/自定义/本地区分 | PASS | `src/providers/consent-presentation.ts`；6 组单测 |
+| A2 | 自定义/本地绝不出现 DeepSeek 厂商或价格 | PASS | `consent-presentation.test.ts` |
+| A3 | endpoint 展示剔除 userinfo/query/fragment | PASS | `sanitizeConsentEndpoint` 测试 |
+| A4 | 未知价格显示“计费信息未验证” | PASS | 官方 profile 测试 |
+| A5 | consent 目标/模型/payload 来自同一 preview | PASS | `requestProviderConsent` 只消费 `ProviderConsentPreview` |
+| B1 | discovery 1 MiB 按真实字节流式限制 | PASS | `bounded-body.ts` + 10 组单测；无 Content-Length 超限测试 |
+| B2 | error hint 4 KiB 流式限制 | PASS | `readBoundedText(response, 4096)`；4 KiB 边界测试 |
+| B3 | 超限取消 reader/body，不继续读取 | PASS | `ProviderBodyLimitError` + cancel 测试 |
+| B4 | Content-Length 缺失/偏小/偏大 | PASS | `bounded-body.test.ts` |
+| B5 | UTF-8 跨 chunk/读取错误/无 body | PASS | `bounded-body.test.ts` |
+| C1 | A→重启→B→重启→A 真实产品路径 | PASS（CI 待新 run） | `scripts/product-path-smoke.mjs` 多轮重启 |
+| C2 | 人格版本/systemRules、自我模型、兴趣、记忆、目标、关系、会话/消息全字段 diff | PASS（代码/CI 待新 run） | `snapshotFullDatabase` + `diffFullSnapshots` |
+| C3 | 允许变化显式 allowlist（时间戳/派生感受状态/兴趣增长） | PASS | `TIMESTAMP_FIELDS`/`ALLOWED_ADDITION_TABLES` |
+| C4 | JSON diff + transcript | PASS（CI 待新 run） | product-path result `continuity.fullField` + transcript |
+| UI1 | 主对话页空间 hero + 对话中心 | PASS | `presence-ui.ts`、`style.css`、截图 |
+| UI2 | Provider/人格/记忆/兴趣/目标/状态入口 | PASS | 现有视图 + `self-model-ui.ts` |
+| UI3 | 1280/1440/390 响应式 | PASS（CI 截图） | product-path `uiEvidence` 9 张 |
+| UI4 | 键盘/焦点/aria/减弱动效 | PASS | `docs/ui/design-system.md` + 代码 |
+| UI5 | 真实 Electron 截图 | PASS（CI 待新 run） | `docs/ui/evidence/<run-id>/` |
+| D1 | 最新完整 SHA 独立复审 | PARTIAL（待本轮冻结后执行） | 复审文档将覆盖本轮 HEAD |

@@ -69,7 +69,7 @@
               <div id="memory-suggestions" class="suggestion-list" aria-live="polite"></div>
             </section>
 
-            <details class="personality-panel">
+            <details class="personality-panel" open>
               <summary>调整 Morrow 的沟通风格</summary>
               <p>这些是可检查、可撤回的用户偏好，不是模型自行学习的规则。固定安全与隐私原则始终优先。</p>
               <form id="personality-form" class="personality-form">
@@ -336,11 +336,11 @@
             <div class="section-heading">
               <div>
                 <p class="eyebrow">PROVIDER</p>
-                <h2>模型连接</h2>
+                <h2>官方 DeepSeek 连接</h2>
               </div>
               <span id="provider-status" class="status-pill">未配置</span>
             </div>
-            <p class="companion-disclosure">当前只接入 DeepSeek-V4.1-Flash-1017（API 模型标识 deepseek-flash）。远程请求会把本条消息、近期对话和本次允许的相关记忆发送至 DeepSeek；默认排除标为“敏感”的记忆。每次请求单独弹出系统确认，可查看实际正文和记忆内容。</p>
+            <p class="companion-disclosure">这里是 DeepSeek 官方连接的兼容入口；自定义中转站与本机服务使用上方配置。远程请求会把本条消息、近期对话和本次允许的相关记忆发送至实际配置的 Provider；默认排除标为“敏感”的记忆。每次请求单独弹出系统确认，可查看实际目标、正文和记忆内容。</p>
             <form id="provider-form" class="provider-form">
               <div class="provider-facts">
                 <span>模型：DeepSeek-V4.1-Flash-1017（deepseek-flash）</span>
@@ -429,7 +429,7 @@
 
         <footer class="footer">
           <span>数据只保存在此 Windows 用户的应用数据目录</span>
-          <span>默认本机保存 · DeepSeek 请求逐次授权 · 无遥测 · 所有内部状态都是可检查的计算数据，不代表主观意识</span>
+          <span>默认本机保存 · 模型请求逐次授权 · 无遥测 · 所有内部状态都是可检查的计算数据，不代表主观意识</span>
         </footer>
       </main>
     </div>

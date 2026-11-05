@@ -69,7 +69,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: morrow-product-path-${{ matrix.os }}
-          path: evals/morrow-v2-final/
+          path: |
+            evals/morrow-v2-final/
+            docs/ui/evidence/
           if-no-files-found: warn
 
   windows-package-smoke:

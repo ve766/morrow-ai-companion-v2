@@ -94,6 +94,7 @@ function launch(port) {
     `--remote-debugging-port=${port}`,
     '--no-first-run',
     '--disable-gpu',
+    '--window-size=1440,900',
     '--disable-dev-shm-usage',
     `--user-data-dir=${profile}`
   ]
@@ -145,13 +146,16 @@ async function connect(url) {
     socket.addEventListener('error', () => { clearTimeout(timeout); rejectOpen(new Error('DevTools connection failed.')) }, { once: true })
   })
   return {
-    evaluate(expression) {
+    send(method, params = {}) {
       return new Promise((resolveResult, rejectResult) => {
         const id = ++nextId
-        const timeout = setTimeout(() => { pending.delete(id); rejectResult(new Error('Renderer evaluation timed out.')) }, 20000)
+        const timeout = setTimeout(() => { pending.delete(id); rejectResult(new Error('DevTools command timed out.')) }, 20000)
         pending.set(id, { resolve: resolveResult, reject: rejectResult, timeout })
-        socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }))
-      }).then((result) => {
+        socket.send(JSON.stringify({ id, method, params }))
+      })
+    },
+    evaluate(expression) {
+      return this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }).then((result) => {
         if (result.exceptionDetails) {
           throw new Error(`Renderer evaluation failed: ${result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? 'unknown exception'}.`)
         }
@@ -182,6 +186,27 @@ async function waitForProviderUi(client) {
     return false
   })()`)
   if (!ready) throw new Error('Provider profile panel did not finish initializing.')
+}
+
+async function captureUiEvidence(client, runId) {
+  const directory = join(root, 'docs', 'ui', 'evidence', runId)
+  mkdirSync(directory, { recursive: true })
+  await client.send('Page.enable')
+  const files = []
+  for (const view of ['chat', 'memory', 'settings']) {
+    await client.evaluate(`document.querySelector('.nav-item[data-view="${view}"]').click(); window.scrollTo(0, 0)`)
+    await delay(350)
+    for (const [width, height, label] of [[1440, 900, '1440x900'], [1280, 800, '1280x800'], [390, 844, '390x844']]) {
+      await client.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 600 })
+      await delay(250)
+      const shot = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+      const file = join(directory, `${view}-${label}.png`)
+      writeFileSync(file, Buffer.from(shot.data, 'base64'))
+      files.push(file)
+    }
+  }
+  await client.send('Emulation.clearDeviceMetricsOverride')
+  return files
 }
 
 async function stop(run, client) {
@@ -254,6 +279,93 @@ function snapshotDatabase() {
     database.close()
   }
 }
+
+const FULL_CONTINUITY_TABLES = [
+  'personality_profiles', 'personality_revisions', 'self_model_entries', 'interests', 'interest_evidence',
+  'memories', 'memory_revisions', 'memory_evidence', 'goals', 'goal_tasks', 'goal_audit',
+  'companion_goals', 'companion_goal_progress', 'relationship_threads', 'relationship_thread_evidence',
+  'conversations', 'messages', 'cognitive_pending_items', 'reflection_findings', 'reflection_finding_routes',
+  'reflection_runs', 'cognitive_turn_contexts', 'cognitive_turn_observations', 'cognitive_feeling_state',
+  'cognitive_feeling_events', 'cognitive_core_settings', 'event_journal'
+]
+const TIMESTAMP_FIELDS = new Set(['updated_at', 'last_seen_at', 'stale_at', 'archived_at', 'completed_at', 'tested_at'])
+const ALLOWED_ADDITION_TABLES = new Set([
+  'interests', 'interest_evidence', 'reflection_runs', 'reflection_findings', 'reflection_finding_routes',
+  'cognitive_turn_contexts', 'cognitive_turn_observations', 'cognitive_feeling_events', 'event_journal',
+  'memory_evidence', 'goal_audit', 'personality_revisions', 'personality_growth_events'
+])
+
+function snapshotFullDatabase() {
+  const path = findDatabase(profile)
+  if (!path) throw new Error('Morrow database was not found in the isolated profile.')
+  const database = new DatabaseSync(path)
+  try {
+    const tables = {}
+    for (const table of FULL_CONTINUITY_TABLES) {
+      let columns
+      try {
+        columns = database.prepare(`PRAGMA table_info(${table})`).all()
+      } catch {
+        continue
+      }
+      if (columns.length === 0) continue
+      let rows
+      try {
+        rows = database.prepare(`SELECT rowid AS __rowid, * FROM ${table}`).all()
+      } catch {
+        rows = database.prepare(`SELECT * FROM ${table}`).all().map((row, index) => ({ ...row, __rowid: index + 1 }))
+      }
+      const idColumn = columns.some((column) => column.name === 'id') ? 'id' : null
+      const fieldNames = columns.map((column) => column.name)
+      const byKey = {}
+      for (const row of rows) {
+        const key = String(idColumn ? row[idColumn] : row.__rowid)
+        const fields = {}
+        for (const field of fieldNames) fields[field] = hash(row[field] === undefined ? null : row[field])
+        byKey[key] = fields
+      }
+      tables[table] = { count: rows.length, rows: byKey }
+    }
+    return tables
+  } finally {
+    database.close()
+  }
+}
+
+function diffFullSnapshots(baseline, final) {
+  const result = { removed: [], changed: [], added: {}, allowedChanges: [], allowedAdditions: {} }
+  for (const [table, before] of Object.entries(baseline)) {
+    const after = final[table]
+    if (!after) {
+      result.removed.push({ table, reason: 'table_missing' })
+      continue
+    }
+    for (const [key, fields] of Object.entries(before.rows)) {
+      const next = after.rows[key]
+      if (!next) {
+        result.removed.push({ table, key })
+        continue
+      }
+      for (const [field, digest] of Object.entries(fields)) {
+        if (next[field] === digest) continue
+        const change = { table, key, field }
+        const timestamp = field !== 'created_at' && field.endsWith('_at')
+        if (timestamp || (table === 'cognitive_feeling_state' && ['revision', 'state_json', 'dirty'].includes(field))) {
+          result.allowedChanges.push({ ...change, reason: timestamp ? 'normal_maintenance_timestamp' : 'derived_startup_state' })
+        } else {
+          result.changed.push(change)
+        }
+      }
+    }
+    const added = Object.keys(after.rows).filter((key) => !before.rows[key])
+    if (added.length > 0) {
+      if (ALLOWED_ADDITION_TABLES.has(table)) result.allowedAdditions[table] = added.length
+      else result.added[table] = added.length
+    }
+  }
+  return result
+}
+
 
 function secretPath(profileId) {
   const path = findDatabase(profile)
@@ -411,12 +523,17 @@ try {
   const idB = profileB.saved.id
   assert.notEqual(idA, idB)
 
+  const uiEvidence = await captureUiEvidence(activeClient, runId)
+  result.uiEvidence = uiEvidence
+  record('UI evidence screenshots captured', uiEvidence.length === 9, `${uiEvidence.length} screenshots at 1440×900 / 1280×800 / 390×844`)
+
   const continuityBefore = await activeClient.evaluate(continuityScript)
   await stop(activeRun, activeClient)
   await delay(750)
   activeRun = undefined
   activeClient = undefined
   const dbBefore = snapshotDatabase()
+  const fullBefore = snapshotFullDatabase()
   const secretsBefore = snapshotSecrets([idA, idB])
   record('two profiles use distinct OS secret files', secretsBefore[idA] !== null && secretsBefore[idB] !== null && secretsBefore[idA] !== secretsBefore[idB], 'distinct ciphertext digests')
 
@@ -447,6 +564,22 @@ try {
   record('continuity unchanged across restart', continuityPreserved(continuityBefore, continuityAfterRestart), `baseline=${JSON.stringify({interests: continuityBefore.interests.length, memories: continuityBefore.memories.length, goals: continuityBefore.goals.length})} after=${JSON.stringify({interests: continuityAfterRestart.interests.length, memories: continuityAfterRestart.memories.length, goals: continuityAfterRestart.goals.length})}`)
   const dbAfterRestart = snapshotDatabase()
   record('SQLite continuity rows preserved across restart', countsPreserved(dbBefore.snapshot, dbAfterRestart.snapshot), 'no continuity table was cleared')
+  await stop(activeRun, activeClient)
+  await delay(750)
+  activeRun = undefined
+  activeClient = undefined
+  const fullAfterRestart = snapshotFullDatabase()
+  const restartDiff = diffFullSnapshots(fullBefore, fullAfterRestart)
+  record(
+    'full-field continuity across restart',
+    restartDiff.removed.length === 0 && restartDiff.changed.length === 0 && Object.keys(restartDiff.added).length === 0,
+    `removed=${restartDiff.removed.length} changed=${restartDiff.changed.length} unexpectedAdded=${Object.keys(restartDiff.added).length} allowedChanges=${restartDiff.allowedChanges.length} allowedAdditions=${JSON.stringify(restartDiff.allowedAdditions)}`
+  )
+  result.continuity = { restart: restartDiff }
+
+  started = await start()
+  activeRun = started.run
+  activeClient = started.client
 
   const changed = await saveProfileThroughForm(activeClient, {
     profileId: idA,
@@ -505,6 +638,14 @@ try {
   activeClient = undefined
   const dbAfterSwitch = snapshotDatabase()
   record('SQLite continuity rows preserved across provider switch', countsPreserved(dbBefore.snapshot, dbAfterSwitch.snapshot), 'no continuity table was cleared')
+  const fullAfterSwitch = snapshotFullDatabase()
+  const switchDiff = diffFullSnapshots(fullBefore, fullAfterSwitch)
+  record(
+    'full-field continuity across provider switch',
+    switchDiff.removed.length === 0 && switchDiff.changed.length === 0 && Object.keys(switchDiff.added).length === 0,
+    `removed=${switchDiff.removed.length} changed=${switchDiff.changed.length} unexpectedAdded=${Object.keys(switchDiff.added).length} allowedChanges=${switchDiff.allowedChanges.length} allowedAdditions=${JSON.stringify(switchDiff.allowedAdditions)}`
+  )
+  result.continuity = { ...result.continuity, switch: switchDiff }
 
   started = await start()
   activeRun = started.run
@@ -552,17 +693,37 @@ try {
   })()`)
   record('final restart keeps only A configured', finalState.profiles.length === 1 && finalState.profiles[0].id === idA && finalState.profiles[0].apiKeyConfigured === true, 'one configured profile remains')
   record('final continuity unchanged', continuityPreserved(continuityBefore, finalState.continuity), 'baseline identities and content preserved')
+  await stop(activeRun, activeClient)
+  await delay(750)
+  activeRun = undefined
+  activeClient = undefined
+  const fullFinal = snapshotFullDatabase()
+  const finalDiff = diffFullSnapshots(fullBefore, fullFinal)
+  record(
+    'full-field continuity final A',
+    finalDiff.removed.length === 0 && finalDiff.changed.length === 0 && Object.keys(finalDiff.added).length === 0,
+    `removed=${finalDiff.removed.length} changed=${finalDiff.changed.length} unexpectedAdded=${Object.keys(finalDiff.added).length} allowedChanges=${finalDiff.allowedChanges.length} allowedAdditions=${JSON.stringify(finalDiff.allowedAdditions)}`
+  )
 
   result.status = 'PASS'
   result.continuity = {
-    baselineSha256: hash(continuityBefore),
-    afterRestartSha256: hash(continuityAfterRestart),
-    afterSwitchSha256: hash(continuityAfterSwitch),
-    finalSha256: hash(finalState.continuity),
-    databaseBaselineSha256: hash(dbBefore.snapshot),
-    databaseAfterRestartSha256: hash(dbAfterRestart.snapshot),
-    databaseAfterSwitchSha256: hash(dbAfterSwitch.snapshot),
-    tables: Object.keys(dbBefore.snapshot)
+    bridge: {
+      baselineSha256: hash(continuityBefore),
+      afterRestartSha256: hash(continuityAfterRestart),
+      afterSwitchSha256: hash(continuityAfterSwitch),
+      finalSha256: hash(finalState.continuity)
+    },
+    databaseCounts: {
+      baselineSha256: hash(dbBefore.snapshot),
+      afterRestartSha256: hash(dbAfterRestart.snapshot),
+      afterSwitchSha256: hash(dbAfterSwitch.snapshot),
+      tables: Object.keys(dbBefore.snapshot)
+    },
+    fullField: {
+      restart: result.continuity.restart,
+      switch: result.continuity.switch,
+      final: finalDiff
+    }
   }
   result.secrets = {
     a: { before: secretsBefore[idA], afterChange: secretsAfterChange[idA], afterRekey: secretsAfterRekey[idA] },
@@ -592,10 +753,13 @@ try {
     '',
     '## Continuity',
     '',
-    `- Bridge baseline: \`${result.continuity.baselineSha256 ?? 'not-run'}\``,
-    `- After restart: \`${result.continuity.afterRestartSha256 ?? 'not-run'}\``,
-    `- After A → B → A: \`${result.continuity.afterSwitchSha256 ?? 'not-run'}\``,
-    `- Final: \`${result.continuity.finalSha256 ?? 'not-run'}\``,
+    `- Bridge baseline: \`${result.continuity.bridge?.baselineSha256 ?? 'not-run'}\``,
+    `- After restart: \`${result.continuity.bridge?.afterRestartSha256 ?? 'not-run'}\``,
+    `- After A → B → A: \`${result.continuity.bridge?.afterSwitchSha256 ?? 'not-run'}\``,
+    `- Final: \`${result.continuity.bridge?.finalSha256 ?? 'not-run'}\``,
+    `- Full-field restart diff: ${result.continuity.fullField?.restart ? JSON.stringify({ removed: result.continuity.fullField.restart.removed.length, changed: result.continuity.fullField.restart.changed.length, added: result.continuity.fullField.restart.added }) : 'not-run'}`,
+    `- Full-field switch diff: ${result.continuity.fullField?.switch ? JSON.stringify({ removed: result.continuity.fullField.switch.removed.length, changed: result.continuity.fullField.switch.changed.length, added: result.continuity.fullField.switch.added }) : 'not-run'}`,
+    `- Full-field final diff: ${result.continuity.fullField?.final ? JSON.stringify({ removed: result.continuity.fullField.final.removed.length, changed: result.continuity.fullField.final.changed.length, added: result.continuity.fullField.final.added }) : 'not-run'}`,
     '',
     '## Limitation',
     '',

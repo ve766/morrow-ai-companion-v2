@@ -66,3 +66,19 @@
 ## 5. 结论
 
 集成线具备完整代码与自动化证据；真实远程 Provider 与本地模型仍被外部条件阻塞，因此最终状态不能声明 COMPLETE。最终状态在交付报告中按 Issue #53 的 PARTIAL 定义记录。
+
+## 6. 2026-11-05 追加基线（PR #54 收口任务）
+
+PR #54 新增评论要求在本分支完成 UI 重设计、A/B/C 三项修复和最新 SHA 独立复审。开工时重新读取：
+
+- PR #54：`OPEN`，base `release/morrow-v2-final-delivery`，head `feat/morrow-v2-final-closure`，当时 head `884418b`，CI 4/4 PASS。
+- 本机工作树：clean；本轮从 `884418b` 继续，未新建分支/PR。
+- 复核的历史问题：
+  - 自定义 remote consent 仍使用 DeepSeek 厂商/价格文案（确认存在）。
+  - `discoverModels()` 先 `response.text()` 再查长度（确认存在）。
+  - `readProviderErrorHint()` 先完整读取再 `slice(0, 4096)`（确认存在）。
+  - 产品路径 continuity 只比较部分字段/计数，缺人格版本、关系线程、消息内容/状态（确认存在）。
+  - 独立复审只覆盖到 `a845889`/`d07b3f4`，未覆盖本轮 UI 与 A/B/C（确认）。
+- 当前 UI 页面清单：对话、记忆、目标、设置/备份；Provider/认知/备份集中在设置；自我模型/兴趣有 IPC 无 UI 入口。
+- 参考文件：`E:\open ui\auto ui\spatial.html`、`agentic-lab.html`、`designs-lab.html`、`_morrow/memory-vault.src.html`、`zcode-morrow/README.md`、`PROJECT-NOTES.md`；详见 `docs/ui/reference-inventory.md`。
+- 本轮新增风险：UI 结构变化可能影响既有 DOM 选择器；Provider 表单/危险操作必须保留；C 快照不能包含 secret/正文。

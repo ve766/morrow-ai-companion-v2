@@ -40,6 +40,7 @@ import { SqliteConversationRepository } from '../persistence/conversation-reposi
 import { ApplicationError } from '../shared/errors'
 import { dispatchToProvider, consentPreview, hashProviderInput, type ProviderConsent, type ProviderConsentPreview, type ProviderInput, type ProviderPort } from '../providers/provider-policy'
 import { OpenAICompatibleProvider } from '../providers/openai-compatible'
+import { readBoundedText, ProviderBodyLimitError } from '../providers/bounded-body'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
 import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognition/cognitive-turn-analyzer'
@@ -841,12 +842,13 @@ export class ProviderConfigService {
         if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL', response.status)
         throw new ApplicationError('PROVIDER_NETWORK', response.status)
       }
-      const declaredLength = Number(response.headers.get('content-length') ?? '0')
-      if (Number.isFinite(declaredLength) && declaredLength > MAX_DISCOVERY_BODY_BYTES) {
-        throw new ApplicationError('PROVIDER_RESPONSE')
+      let text: string
+      try {
+        text = await readBoundedText(response, MAX_DISCOVERY_BODY_BYTES)
+      } catch (error) {
+        if (error instanceof ProviderBodyLimitError) throw new ApplicationError('PROVIDER_RESPONSE')
+        throw error
       }
-      const text = await response.text()
-      if (text.length > MAX_DISCOVERY_BODY_BYTES) throw new ApplicationError('PROVIDER_RESPONSE')
       let parsed: { data?: Array<{ id?: unknown }>; models?: Array<{ id?: unknown; name?: unknown }> }
       try {
         parsed = JSON.parse(text) as typeof parsed

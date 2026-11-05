@@ -556,6 +556,20 @@ describe('model discovery hardening', () => {
     }
   })
 
+  it('refuses an oversized discovery body without trusting Content-Length', async () => {
+    const { database, service, fetcher } = openService()
+    try {
+      const saved = service.saveProfile(profileA)
+      const oversized = new Uint8Array(1_048_577).fill(97)
+      fetcher.mockResolvedValueOnce(new Response(new ReadableStream({
+        start(controller) { controller.enqueue(oversized); controller.close() }
+      }), { status: 200 }))
+      await expect(service.discoverModels({ profileId: saved.id })).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE' })
+    } finally {
+      database.close()
+    }
+  })
+
   it('refuses an oversized discovery body', async () => {
     const { database, service, fetcher } = openService()
     try {
