@@ -665,24 +665,6 @@ try {
   record('switch A → B → A through the product bridge', switched.find((profile) => profile.id === idA)?.isDefault === true, 'A is default again')
   const continuityAfterSwitch = await activeClient.evaluate(continuityScript)
   record('continuity unchanged across provider switch', continuityPreserved(continuityBefore, continuityAfterSwitch), 'baseline identities and content preserved')
-  await stop(activeRun, activeClient)
-  await delay(750)
-  activeRun = undefined
-  activeClient = undefined
-  const dbAfterSwitch = snapshotDatabase()
-  record('SQLite continuity rows preserved across provider switch', countsPreserved(dbBefore.snapshot, dbAfterSwitch.snapshot), 'no continuity table was cleared')
-  const fullAfterSwitch = snapshotFullDatabase()
-  const switchDiff = diffFullSnapshots(fullBefore, fullAfterSwitch)
-  record(
-    'full-field continuity across provider switch',
-    switchDiff.removed.length === 0 && switchDiff.changed.length === 0 && Object.keys(switchDiff.added).length === 0,
-    `removed=${JSON.stringify(switchDiff.removed)} changed=${JSON.stringify(switchDiff.changed)} unexpectedAdded=${JSON.stringify(switchDiff.added)} allowedChanges=${JSON.stringify(switchDiff.allowedChanges)} allowedAdditions=${JSON.stringify(switchDiff.allowedAdditions)}`
-  )
-  result.continuity = { ...result.continuity, switch: switchDiff }
-
-  started = await start()
-  activeRun = started.run
-  activeClient = started.client
   const deleted = await activeClient.evaluate(`(async () => {
     const deadline = Date.now() + 10000
     let card = null
@@ -711,6 +693,16 @@ try {
   activeClient = undefined
   const secretsAfterDelete = snapshotSecrets([idA, idB])
   record('deleting B removes only B’s OS secret', secretsAfterDelete[idB] === null && secretsAfterDelete[idA] !== null, 'A secret retained')
+  const dbAfterSwitch = snapshotDatabase()
+  record('SQLite continuity rows preserved across provider switch', countsPreserved(dbBefore.snapshot, dbAfterSwitch.snapshot), 'no continuity table was cleared')
+  const fullAfterSwitch = snapshotFullDatabase()
+  const switchDiff = diffFullSnapshots(fullBefore, fullAfterSwitch)
+  record(
+    'full-field continuity across provider switch',
+    switchDiff.removed.length === 0 && switchDiff.changed.length === 0 && Object.keys(switchDiff.added).length === 0,
+    `removed=${JSON.stringify(switchDiff.removed)} changed=${JSON.stringify(switchDiff.changed)} unexpectedAdded=${JSON.stringify(switchDiff.added)} allowedChanges=${JSON.stringify(switchDiff.allowedChanges)} allowedAdditions=${JSON.stringify(switchDiff.allowedAdditions)}`
+  )
+  result.continuity = { ...result.continuity, switch: switchDiff }
 
   started = await start()
   activeRun = started.run
