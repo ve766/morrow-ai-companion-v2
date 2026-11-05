@@ -5,7 +5,9 @@
 - Branch: `feat/morrow-v2-final-closure`
 - Base: `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 基线 HEAD：`15a06e5f11367f99399efd0aa13f8f45574541a2`（parent `53acb9c`）
-- 实现提交：本文件所在提交（最终 full SHA 与 parent 以 Issue #57 comment 为准）
+- 代码 SHA：`ea5f9ab8082023f46a658106bd6accee2f2ed8b6`（parent `f92b132`）
+- 复审 HEAD：`4428477a9f63862d3e3b83ca3ad706943b1b18c7`（仅文档）
+- 最终 HEAD 与 parent：以 Issue #57 comment 为准
 - 最终状态：**PARTIAL / PENDING_USER_ACTION**（代码/探针/静态验收完成；Runner 未注册，真实 NSIS 安装与 self-hosted run 未执行）
 
 ## 1. 根因
@@ -83,8 +85,10 @@ manifest 新增：
 {
   "installation": {
     "target": "<runDir>\\installed-app",
-    "installer": "Morrow-Setup-2.0.0-x64.exe",
+    "installer": "Morrow-CI-Setup-2.0.0-x64.exe",
     "installerSha256": "...",
+    "releaseInstaller": "Morrow-Setup-2.0.0-x64.exe",
+    "releaseInstallerSha256": "...",
     "installExitCode": 0,
     "installedExe": "<runDir>\\installed-app\\Morrow.exe",
     "installedExeSha256": "...",
@@ -134,5 +138,6 @@ manifest 新增：
 ## 5. 风险与回滚
 
 - 残余风险：workflow 级超时可能跳过 finally，留下 `<runDir>\installed-app`；该目录只在本 run 归档内，下一次 run 使用新目录，不会复用。
+- CI 变体会在 HKCU 写入唯一 GUID 的安装/卸载键（`Software\3f2b8c1e-...` 及 Uninstall 项），卸载器会删除；清理失败时可能残留 CI-only 键和一个临时的 “Morrow 2.0.0” Apps & Features 条目。它不会修改或删除用户原安装的键。
 - 卸载器退出码可能受 NSIS/宿主影响；失败时保留目录并标 `CLEANUP_FAILED`，不强行删除。
 - 回滚：删除 `ci-self-hosted-*` tag；停止/卸载 Runner；删除 `%LOCALAPPDATA%\Morrow\CI` 下本任务生成的归档；不修改 main/release，不合并 PR #54，不发布 Release。

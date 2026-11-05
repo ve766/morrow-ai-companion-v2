@@ -35,8 +35,10 @@
 | 24 | 无 hosted run、无 artifact upload、无付费操作 | PASS | 0 runners；无 dispatch；无 upload-artifact |
 | 25 | 真实 NSIS 安装/卸载实测 | **PENDING_USER_ACTION** | 宿主 NSIS 构建被策略阻塞；Runner 未注册 |
 | 26 | 真实 self-hosted run（最终 SHA） | **PENDING_USER_ACTION / BLOCKED_RUNNER_NOT_REGISTERED** | `actions/runners=0` |
-| 27 | 独立复审最终 SHA | **PENDING（新 SHA 复审中）** | 首轮复审 `d7f7b70` 发现 B1（PS 5.1 ExitCode=null）与 B2（NSIS 旧版本卸载）；已修复，待新 SHA 复审 |
+| 27 | 独立复审最终 SHA | PASS（无剩余 blocker） | R3 复审 `ea5f9ab`（HEAD `4428477` 仅文档）：`docs/audit/morrow-v2-self-hosted-ci-hardening-independent-review-r3.md` |
 | 28 | workflow 级超时可能跳过 finally | 残余限制 | 安装/卸载有 180s 超时；job 180min 强杀无法保证 finally |
+| 29 | 探针未覆盖真实 NSIS 编排/step 主循环 | 残余限制 | step 循环由 R3 独立探针 9/9 验证；真实安装/卸载 PENDING |
+| 30 | CI 变体 HKCU 唯一 GUID 键 | 残余（可接受） | 卸载器删除；清理失败可能残留 CI-only 键；不影响用户原安装 |
 
 ## 结论
 

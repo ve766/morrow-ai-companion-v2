@@ -1,7 +1,9 @@
 # 自托管 CI 安装隔离加固证据索引（Issue #57）
 
 - 基线 HEAD：`15a06e5f11367f99399efd0aa13f8f45574541a2`（parent `53acb9c`）
-- 实现提交：本文件所在提交（最终 full SHA 与 parent 以 Issue #57 comment 为准）
+- 代码 SHA：`ea5f9ab8082023f46a658106bd6accee2f2ed8b6`（parent `f92b132`）
+- 复审 HEAD：`4428477a9f63862d3e3b83ca3ad706943b1b18c7`（仅文档）
+- 最终 HEAD 与 parent：以 Issue #57 comment 为准
 - 最终状态：**PARTIAL / PENDING_USER_ACTION**
 
 ## 1. 文件
@@ -48,7 +50,7 @@ npm run typecheck
 npm test
 ```
 
-结果见 Issue #57 comment；本文件不预填未执行的结果。
+结果（代码 SHA `ea5f9ab`）：`npm run typecheck` exit 0；`npm test` 129 files / 1156 tests passed / 0 failed / 0 skipped。
 
 ## 3. 探针覆盖（56 项）
 
