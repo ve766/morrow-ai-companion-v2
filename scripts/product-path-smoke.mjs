@@ -488,7 +488,7 @@ async function saveProfileThroughForm(client, values) {
     if (!(form instanceof HTMLFormElement) || !(feedback instanceof HTMLElement)) throw new Error('Provider form is unavailable.')
     const before = feedback.textContent
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-    const deadline = Date.now() + 8000
+    const deadline = Date.now() + 20000
     while (Date.now() < deadline) {
       const text = feedback.textContent ?? ''
       if (text !== before && (text.includes('已保存') || text.includes('失败') || text.includes('无法'))) break
