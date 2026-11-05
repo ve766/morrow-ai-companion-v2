@@ -4,7 +4,7 @@
 - PR：https://github.com/ve766/morrow-ai-companion-v2/pull/54
 - 分支：`feat/morrow-v2-final-closure`
 - Base：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
-- 本轮代码 SHA：`ac00627d0dc50677fc3b21ab0ae19c29f08fe9f7`
+- 本轮代码 SHA：`fad6a94eef19ce5cfbdca9f4c0e1af0aca08074c`
 - 上一冻结 SHA：`ff5b7876fcfd01a1e53c18c91b35aec47752ca31`
 - 版本：`2.0.0`
 - 最终状态：**PARTIAL**
@@ -38,8 +38,8 @@
 ### C. Windows RC
 
 - **Portable RC 已构建**：`evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe`
-  - 大小：100,541,545 bytes
-  - SHA256：`cf662590c2ad2d3f5574bc758d933276082f3fb405e71b2d28117d07dec98e67`
+  - 大小：100,541,544 bytes
+  - SHA256：`fd584ffd53f74ffb3d7c93804a8d92a308a84c7ffb2d04b9da7532f73e8ab1da`
   - 版本：2.0.0 · win32-x64
 - **NSIS 安装包 BLOCKED_HOST_EXECUTION_POLICY**：electron-builder 生成 NSIS stub 后必须执行它来提取 uninstaller；本机执行返回 exit 2 / 挂起，无法产出完整 NSIS 安装包。Portable target 成功。
 - **安装/启动 BLOCKED_HOST_ELECTRON_CRASH**：本机 Electron 44 即使 `--no-sandbox` 也以 0xC0000005 退出；无法完成安装后启动和安装后截图。

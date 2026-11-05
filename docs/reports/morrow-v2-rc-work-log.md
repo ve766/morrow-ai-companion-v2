@@ -1,7 +1,7 @@
 # Morrow V2 RC 工作日志
 
 - 起始实时 head：`ff5b7876fcfd01a1e53c18c91b35aec47752ca31`
-- 本轮代码 SHA：`ac00627d0dc50677fc3b21ab0ae19c29f08fe9f7`
+- 本轮代码 SHA：`fad6a94eef19ce5cfbdca9f4c0e1af0aca08074c`
 - Base：`3812b18`
 - 工作树：本轮开始 clean；代码/测试/构建/RC 产物提交后，仅 RC 文档/二进制为新增。
 
@@ -31,7 +31,7 @@
 | `npm run build` | 0 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
-| portable build | 0；`Morrow-2.0.0-x64-portable.exe` 100,541,545 bytes |
+| portable build | 0；`Morrow-2.0.0-x64-portable.exe` 100,541,544 bytes |
 | NSIS build | BLOCKED；installer stub exit 2/挂起 |
 | portable launch | BLOCKED；宿主 Electron 0xC0000005 |
 
@@ -54,9 +54,9 @@
 
 - `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe`
 - `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe.sha256`
-- `evals/morrow-v2-rc/results/20261105T191500Z-rc-ac00627.json`
-- `evals/morrow-v2-rc/transcripts/20261105T191500Z-rc-ac00627.md`
-- `docs/ui/evidence/rc-20261105T191500Z-rc-ac00627/`（built-app 截图，非 installed-app）
+- `evals/morrow-v2-rc/results/20261105T195500Z-rc-fad6a94.json`
+- `evals/morrow-v2-rc/transcripts/20261105T195500Z-rc-fad6a94.md`
+- `docs/ui/evidence/rc-20261105T195500Z-rc-fad6a94/`（built-app 截图，非 installed-app）
 - `docs/install/windows-installation-guide.md`
 
 ## 7. 结论

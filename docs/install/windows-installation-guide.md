@@ -3,8 +3,8 @@
 - 版本：2.0.0
 - RC 类型：Windows x64 portable（NSIS 安装包在当前构建宿主被阻断）
 - Portable 文件：`evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe`
-- SHA256：`cf662590c2ad2d3f5574bc758d933276082f3fb405e71b2d28117d07dec98e67`
-- 大小：100,541,545 bytes
+- SHA256：`fd584ffd53f74ffb3d7c93804a8d92a308a84c7ffb2d04b9da7532f73e8ab1da`
+- 大小：100,541,544 bytes
 
 ## 1. 系统要求
 
