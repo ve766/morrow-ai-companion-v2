@@ -5,7 +5,7 @@
 ## 1. 前置条件
 
 - Windows 10/11 x64
-- PowerShell 5.1+
+- Windows PowerShell 5.1+（workflow 使用 `shell: powershell`，不要求 PowerShell 7）
 - Node.js 22+、npm、git
 - 至少 5 GB 空闲磁盘
 - 仓库为私有仓库 `ve766/morrow-ai-companion-v2`
@@ -42,11 +42,26 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/setup-self-hosted
 
 ## 4. 运行自托管 CI
 
+### 4.1 首选：workflow_dispatch
+
 1. 在 GitHub Actions 页面选择 **Self-hosted Windows CI**。
 2. 点击 **Run workflow**，选择分支 `feat/morrow-v2-final-closure`。
-3. workflow 先运行 guard：只允许 repo `ve766/morrow-ai-companion-v2`、ref `refs/heads/feat/morrow-v2-final-closure`、actor `ve766`。
-4. guard 通过后，checkout 触发 SHA，执行完整验证并归档到 `%LOCALAPPDATA%\Morrow\CI\<UTC timestamp>-<sha>`。
-5. 不依赖 GitHub Actions artifact upload；storage 用量不增加。
+
+> GitHub 要求 `workflow_dispatch` 的 workflow 文件已存在于默认分支 `main`。本任务不允许修改 main；如果 Actions 页面没有 Run workflow，使用 4.2 的 tag 触发。
+
+### 4.2 无默认分支改动：tag 触发
+
+在 PR #54 的精确 HEAD 上创建并推送 tag：
+
+```bash
+git fetch origin feat/morrow-v2-final-closure
+git tag ci-self-hosted-$(git rev-parse origin/feat/morrow-v2-final-closure)
+git push origin ci-self-hosted-$(git rev-parse origin/feat/morrow-v2-final-closure)
+```
+
+workflow 的 guard 会校验 tag 名必须等于 `ci-self-hosted-<完整 SHA>`、repo/actor 受信；checkout 的 SHA 就是该 tag 指向的提交。tag 只用于触发，不创建 Release。
+
+guard 通过后，checkout 触发 SHA，执行完整验证并归档到 `%LOCALAPPDATA%\Morrow\CI\<UTC timestamp>-<sha>`。不依赖 GitHub Actions artifact upload；storage 用量不增加。
 
 ## 5. Runner 离线 / 队列
 
@@ -68,3 +83,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/setup-self-hosted
 - 自托管 Runner 不提供 Ubuntu 环境；本轮只交付 Windows 全量验收。Linux 兼容性需要用户已有 WSL/Docker，不能作为付费前置条件。
 - GitHub-hosted workflow 已改为 `workflow_dispatch` 手动触发，避免额度耗尽时自动产生 4 个失败 job。
 - 分支保护 API 在私有免费仓库不可读；若仓库有 required checks，需要管理员在 Settings 中手动确认/调整，Agent 不猜测。
+- 自托管 workflow 需要先存在于默认分支才能用 workflow_dispatch；否则使用 4.2 的 tag 触发。

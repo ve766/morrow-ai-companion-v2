@@ -22,14 +22,17 @@ New-Item -ItemType Directory -Force -Path $logsDir, $resultsDir, $installersDir,
 $steps = [System.Collections.Generic.List[object]]::new()
 $failure = $null
 $startedAt = (Get-Date).ToUniversalTime().ToString('o')
+$installerHash = $null
+$nodeReported = $null
+$npmReported = $null
 
-function Redact-Log([string]$Path) {
-  if (-not (Test-Path $Path)) { return }
-  $text = Get-Content -Raw -Path $Path
-  $text = [regex]::Replace($text, '(?i)(authorization:\s*bearer\s+)\S+', '$1[REDACTED]')
-  $text = [regex]::Replace($text, 'sk-[A-Za-z0-9_-]{10,}', '[REDACTED]')
-  $text = [regex]::Replace($text, '(?i)(api[_-]?key\s*[:=]\s*)\S+', '$1[REDACTED]')
-  Set-Content -NoNewline -Path $Path -Value $text
+function Redact-Text([string]$Text) {
+  $Text = [regex]::Replace($Text, '(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+', '$1[REDACTED]')
+  $Text = [regex]::Replace($Text, 'sk-[A-Za-z0-9_-]{10,}', '[REDACTED]')
+  $Text = [regex]::Replace($Text, 'gh[pousr]_[A-Za-z0-9]{20,}', '[REDACTED]')
+  $Text = [regex]::Replace($Text, 'github_pat_[A-Za-z0-9_]{20,}', '[REDACTED]')
+  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token)"?\s*[:=]\s*"?)[^"\s,}]+', '$1[REDACTED]')
+  return $Text
 }
 
 function Invoke-CiStep([string]$Name, [string]$Exe, [string[]]$Arguments) {
@@ -37,10 +40,12 @@ function Invoke-CiStep([string]$Name, [string]$Exe, [string[]]$Arguments) {
   $log = Join-Path $logsDir ("{0:D2}-{1}.log" -f ($steps.Count + 1), $safeName)
   $start = (Get-Date).ToUniversalTime()
   Write-Host "==> $Name"
-  & $Exe @Arguments 2>&1 | Tee-Object -FilePath $log
+  $output = (& $Exe @Arguments 2>&1 | Out-String)
   $code = $LASTEXITCODE
   $end = (Get-Date).ToUniversalTime()
-  Redact-Log $log
+  $redacted = Redact-Text $output
+  Set-Content -NoNewline -Path $log -Value $redacted
+  Write-Host $redacted
   $steps.Add([pscustomobject]@{
     name = $Name
     command = "$Exe $($Arguments -join ' ')"
@@ -56,6 +61,12 @@ function Invoke-CiStep([string]$Name, [string]$Exe, [string[]]$Arguments) {
 
 try {
   Push-Location $repo
+  $nodeVersion = (& node.exe --version).Trim()
+  $nodeReported = $nodeVersion
+  if ([int]($nodeVersion.TrimStart('v').Split('.')[0]) -lt 22) {
+    throw "Node 22+ is required; found $nodeVersion"
+  }
+  $npmReported = (& npm.cmd --version).Trim()
   Invoke-CiStep 'node-version' 'node.exe' @('--version')
   Invoke-CiStep 'npm-version' 'npm.cmd' @('--version')
   Invoke-CiStep 'git-head' 'git.exe' @('rev-parse', 'HEAD')
@@ -71,17 +82,45 @@ try {
   Invoke-CiStep 'offline-evaluation' 'npm.cmd' @('run', 'evaluate')
   Invoke-CiStep 'cognitive-evaluation' 'npm.cmd' @('run', 'evaluate:cognition')
   Invoke-CiStep 'build' 'npm.cmd' @('run', 'build')
+  $smokeProfile = Join-Path $runDir 'smoke-profile'
+  New-Item -ItemType Directory -Force -Path $smokeProfile | Out-Null
+  $env:MORROW_SMOKE_PROFILE = $smokeProfile
   Invoke-CiStep 'electron-smoke' 'npm.cmd' @('run', 'smoke')
   Invoke-CiStep 'product-path-smoke' 'npm.cmd' @('run', 'smoke:product-path')
   Invoke-CiStep 'persistence-migration-tests' 'npx.cmd' @('vitest', 'run', 'src/persistence')
   Invoke-CiStep 'windows-nsis-package' 'npm.cmd' @('run', 'package:win')
+  $installer = Get-ChildItem (Join-Path $repo 'release') -Filter 'Morrow-Setup-*.exe' -File |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $installer) { throw 'NSIS installer was not produced.' }
+  $installProcess = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -PassThru
+  if (-not $installProcess.WaitForExit(180000)) {
+    $installProcess.Kill()
+    throw 'NSIS installer did not finish within 180 seconds.'
+  }
+  if ($installProcess.ExitCode -ne 0) { throw "NSIS installer exited with $($installProcess.ExitCode)." }
+  $installedCandidates = @(
+    (Join-Path $env:LOCALAPPDATA 'Programs\Morrow\Morrow.exe'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\morrow-ai-companion-v2\Morrow.exe')
+  ) | Where-Object { Test-Path $_ }
+  if (-not $installedCandidates) {
+    $installedCandidates = Get-ChildItem -Path $env:LOCALAPPDATA -Recurse -Filter 'Morrow.exe' -ErrorAction SilentlyContinue |
+      Select-Object -First 1 -ExpandProperty FullName
+  }
+  if (-not $installedCandidates) { throw 'Installed Morrow executable was not found.' }
+  $installedExe = @($installedCandidates)[0]
+  $env:MORROW_SMOKE_EXECUTABLE = $installedExe
+  $env:MORROW_SMOKE_EXPECT_VERSION = '2.0.0'
+  Invoke-CiStep 'installed-app-smoke' 'node.exe' @('scripts/smoke.mjs', '--verify-upgrade')
 } catch {
   $failure = $_.Exception.Message
 } finally {
   try {
+    $runStart = [datetime]::Parse($startedAt).ToUniversalTime()
     $evidenceRoot = Join-Path $repo 'docs\ui\evidence'
     if (Test-Path $evidenceRoot) {
-      $latest = Get-ChildItem $evidenceRoot -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+      $latest = Get-ChildItem $evidenceRoot -Directory |
+        Where-Object { $_.LastWriteTimeUtc -ge $runStart } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
       if ($latest) {
         Copy-Item -Recurse -Force $latest.FullName (Join-Path $screenshotsDir $latest.Name)
       }
@@ -89,14 +128,19 @@ try {
     $resultsSource = Join-Path $repo 'evals\morrow-v2-final\results'
     $transcriptsSource = Join-Path $repo 'evals\morrow-v2-final\transcripts'
     if (Test-Path $resultsSource) {
-      Get-ChildItem $resultsSource -File | Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
+      Get-ChildItem $resultsSource -File |
+        Where-Object { $_.LastWriteTimeUtc -ge $runStart } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
         Copy-Item -Destination $resultsDir -Force
     }
     if (Test-Path $transcriptsSource) {
-      Get-ChildItem $transcriptsSource -File | Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
+      Get-ChildItem $transcriptsSource -File |
+        Where-Object { $_.LastWriteTimeUtc -ge $runStart } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 5 |
         Copy-Item -Destination $resultsDir -Force
     }
     $installer = Get-ChildItem (Join-Path $repo 'release') -Filter 'Morrow-Setup-*.exe' -File -ErrorAction SilentlyContinue |
+      Where-Object { $_.LastWriteTimeUtc -ge $runStart } |
       Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($installer) {
       Copy-Item -Force $installer.FullName (Join-Path $installersDir $installer.Name)
@@ -108,55 +152,63 @@ try {
   }
 
   $finishedAt = (Get-Date).ToUniversalTime().ToString('o')
-  $manifest = [pscustomobject]@{
-    repo = 've766/morrow-ai-companion-v2'
-    ref = $env:GITHUB_REF
-    sha = $sha
-    expectedSha = $ExpectedSha
-    runUrl = $env:MORROW_CI_RUN_URL
-    runner = [pscustomobject]@{
-      name = $env:RUNNER_NAME
-      os = $env:RUNNER_OS
-      arch = $env:RUNNER_ARCH
-      labels = @('self-hosted', 'Windows', 'X64', 'morrow-ci')
+  try {
+    $manifest = [pscustomobject]@{
+      repo = 've766/morrow-ai-companion-v2'
+      ref = $env:GITHUB_REF
+      sha = $sha
+      expectedSha = $ExpectedSha
+      runUrl = $env:MORROW_CI_RUN_URL
+      runner = [pscustomobject]@{
+        name = $env:RUNNER_NAME
+        os = $env:RUNNER_OS
+        arch = $env:RUNNER_ARCH
+        labels = @('self-hosted', 'Windows', 'X64', 'morrow-ci')
+      }
+      node = $nodeReported
+      npm = $npmReported
+      actor = $env:GITHUB_ACTOR
+      triggeringActor = $env:GITHUB_TRIGGERING_ACTOR
+      startedAt = $startedAt
+      finishedAt = $finishedAt
+      steps = $steps
+      installerSha256 = $installerHash
+      failure = $failure
+      status = if ($failure) { 'FAILED' } else { 'PASS' }
     }
-    node = (node --version)
-    npm = (npm --version)
-    actor = $env:GITHUB_ACTOR
-    startedAt = $startedAt
-    finishedAt = $finishedAt
-    steps = $steps
-    failure = $failure
-    status = if ($failure) { 'FAILED' } else { 'PASS' }
-  }
-  $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $runDir 'run-manifest.json') -Encoding UTF8
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $runDir 'run-manifest.json') -Encoding UTF8
 
-  $readme = @(
-    'Morrow V2 self-hosted CI run',
-    "SHA: $sha",
-    "Started: $startedAt",
-    "Finished: $finishedAt",
-    "Status: $($manifest.status)",
-    "Failure: $($failure)",
-    '',
-    'Steps:',
-    ($steps | ForEach-Object { "  $($_.name): exit $($_.exitCode) -> $($_.log)" }) -join "`n",
-    '',
-    'Archive contains logs, machine results, installer (if produced), screenshots (if produced), and checksums.',
-    'No GitHub Actions artifact upload was performed; storage usage is unchanged.'
-  ) -join "`n"
-  Set-Content -Path (Join-Path $runDir 'README.txt') -Value $readme -Encoding UTF8
+    $readme = @(
+      'Morrow V2 self-hosted CI run',
+      "SHA: $sha",
+      "Started: $startedAt",
+      "Finished: $finishedAt",
+      "Status: $($manifest.status)",
+      "Failure: $($failure)",
+      "Installer SHA256: $installerHash",
+      '',
+      'Steps:',
+      (($steps | ForEach-Object { "  $($_.name): exit $($_.exitCode) -> $($_.log)" }) -join "`n"),
+      '',
+      'Archive contains logs, machine results, installer (if produced), screenshots (if produced), and checksums.',
+      'No GitHub Actions artifact upload was performed; storage usage is unchanged.'
+    ) -join "`n"
+    Set-Content -Path (Join-Path $runDir 'README.txt') -Value $readme -Encoding UTF8
 
-  $checksumLines = Get-ChildItem $runDir -Recurse -File | Where-Object { $_.Name -ne 'checksums.sha256' } | ForEach-Object {
-    $relative = $_.FullName.Substring($runDir.Length).TrimStart('\')
-    "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()) *$relative"
+    $checksumLines = Get-ChildItem $runDir -Recurse -File | Where-Object { $_.Name -ne 'checksums.sha256' } | ForEach-Object {
+      $relative = $_.FullName.Substring($runDir.Length).TrimStart('\')
+      "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()) *$relative"
+    }
+    Set-Content -Path (Join-Path $runDir 'checksums.sha256') -Value $checksumLines -Encoding UTF8
+  } catch {
+    if (-not $failure) { $failure = "Manifest/checksum write failed: $($_.Exception.Message)" }
+    Write-Host "ARCHIVE-ERROR: $($_.Exception.Message)"
   }
-  Set-Content -Path (Join-Path $runDir 'checksums.sha256') -Value $checksumLines -Encoding UTF8
 
   Write-Host "archive=$runDir"
   if ($failure) { Write-Host "FAILED: $failure" }
+  Pop-Location
 }
 
-Pop-Location
 if ($failure) { exit 1 }
 exit 0

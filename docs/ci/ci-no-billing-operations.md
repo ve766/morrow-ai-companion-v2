@@ -10,7 +10,10 @@
 ## 2. 一次性用户操作
 
 1. 按 `docs/ci/self-hosted-runner-setup-windows.md` 注册本机 Windows Runner，labels：`self-hosted, Windows, X64, morrow-ci`。
-2. 在 GitHub Actions 选择 **Self-hosted Windows CI** → **Run workflow** → 分支 `feat/morrow-v2-final-closure`。
+2. 触发方式二选一：
+   - 若 Actions 页面已出现 **Self-hosted Windows CI**：Run workflow → `feat/morrow-v2-final-closure`。`workflow_dispatch` 要求 workflow 已在默认分支 `main`；本任务不修改 main。
+   - 否则用 tag 回退（推荐，且不需要 main）：在 PR #54 精确 HEAD 上执行
+     `git tag ci-self-hosted-$(git rev-parse origin/feat/morrow-v2-final-closure)` 并 `git push origin <tag>`。guard 校验 tag 必须等于 `ci-self-hosted-<完整 SHA>`；tag 只触发 CI，不创建 Release。
 3. 等 guard 与 verify 完成；若 Runner 离线，job 保持 queued，先启动本机 Runner。
 
 Agent 不会远程注册或控制用户电脑；未注册前状态为 **PENDING_USER_ACTION / BLOCKED_RUNNER_NOT_REGISTERED**，不是 CI PASS。
@@ -24,6 +27,7 @@ Agent 不会远程注册或控制用户电脑；未注册前状态为 **PENDING_
   - `results\`（产品路径/连续性 JSON/transcript）
   - `installers\`（NSIS 安装包 + SHA256）
   - `screenshots\`（若 smoke 产生）
+  - 安装验证：静默安装 NSIS 包后，对已安装的 `Morrow.exe` 运行 `scripts/smoke.mjs --verify-upgrade`（隔离 profile、期望版本 2.0.0）；日志在 `logs\NN-installed-app-smoke.log`
   - `checksums.sha256`
   - `README.txt`
 - 本地归档不自动提交 git，不上传 GitHub artifact（storage 已满）。

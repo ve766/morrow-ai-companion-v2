@@ -5,6 +5,11 @@ name: Self-hosted Windows CI
 # to a GitHub-hosted runner and never uploads artifacts by default.
 on:
   workflow_dispatch:
+  # Fallback until this workflow is present on the default branch: push a tag
+  # named ci-self-hosted-<full SHA> at the exact commit to verify.
+  push:
+    tags:
+      - 'ci-self-hosted-*'
 
 permissions:
   contents: read
@@ -20,14 +25,20 @@ jobs:
     # actor is not trusted, this job is skipped and the verify job never runs.
     if: >-
       github.repository == 've766/morrow-ai-companion-v2' &&
-      github.ref == 'refs/heads/feat/morrow-v2-final-closure' &&
-      github.actor == 've766'
+      (github.ref == 'refs/heads/feat/morrow-v2-final-closure' ||
+       startsWith(github.ref, 'refs/tags/ci-self-hosted-')) &&
+      github.actor == 've766' &&
+      github.triggering_actor == 've766'
     runs-on: [self-hosted, Windows, X64, morrow-ci]
     timeout-minutes: 10
     steps:
       - name: Record trigger identity (no repository checkout)
-        shell: pwsh
+        shell: powershell
         run: |
+          if ($env:GITHUB_REF -like 'refs/tags/ci-self-hosted-*') {
+            $expectedTag = 'ci-self-hosted-' + $env:GITHUB_SHA
+            if ($env:GITHUB_REF_NAME -ne $expectedTag) { throw "Tag must equal $expectedTag" }
+          }
           Write-Host "repo=${{ github.repository }}"
           Write-Host "ref=${{ github.ref }}"
           Write-Host "sha=${{ github.sha }}"
@@ -50,7 +61,7 @@ jobs:
           persist-credentials: false
 
       - name: Verify checkout identity
-        shell: pwsh
+        shell: powershell
         run: |
           $actual = (git rev-parse HEAD).Trim()
           if ($actual -ne "${{ github.sha }}") {
@@ -62,16 +73,16 @@ jobs:
           Write-Host "os=$env:RUNNER_OS arch=$env:RUNNER_ARCH runner=$env:RUNNER_NAME"
 
       - name: Run full local verification and archive evidence
-        shell: pwsh
+        shell: powershell
         env:
           MORROW_CI_EXPECTED_SHA: ${{ github.sha }}
           MORROW_CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/ci/run-self-hosted-ci.ps1 -ExpectedSha $env:MORROW_CI_EXPECTED_SHA
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/run-self-hosted-ci.ps1 -ExpectedSha $env:MORROW_CI_EXPECTED_SHA
 
       - name: Print local archive location
         if: always()
-        shell: pwsh
+        shell: powershell
         run: |
           $root = Join-Path $env:LOCALAPPDATA 'Morrow\CI'
           if (Test-Path $root) {
