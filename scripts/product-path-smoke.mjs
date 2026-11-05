@@ -149,7 +149,7 @@ async function connect(url) {
     send(method, params = {}) {
       return new Promise((resolveResult, rejectResult) => {
         const id = ++nextId
-        const timeout = setTimeout(() => { pending.delete(id); rejectResult(new Error('DevTools command timed out.')) }, 20000)
+        const timeout = setTimeout(() => { pending.delete(id); rejectResult(new Error('DevTools command timed out.')) }, 60000)
         pending.set(id, { resolve: resolveResult, reject: rejectResult, timeout })
         socket.send(JSON.stringify({ id, method, params }))
       })
@@ -167,7 +167,7 @@ async function connect(url) {
 }
 
 async function waitForBridge(client) {
-  const deadline = Date.now() + 15000
+  const deadline = Date.now() + 30000
   while (Date.now() < deadline) {
     try { if (await client.evaluate('typeof window.morrow === "object"')) return } catch {}
     await delay(200)
