@@ -148,8 +148,23 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
     feedback('已设为默认对话 Provider')
     await loadProfiles()
   }))
+  let deleteArmed = false
+  let deleteTimer: ReturnType<typeof setTimeout> | undefined
+  const disarmDelete = (): void => {
+    deleteArmed = false
+    remove.textContent = '删除'
+    delete remove.dataset.confirm
+    if (deleteTimer) clearTimeout(deleteTimer)
+  }
   remove.addEventListener('click', () => void run(async () => {
-    if (typeof window.confirm === 'function' && !window.confirm(`删除配置「${profile.displayName ?? profile.id}」？这会同时删除本机安全存储中的密钥，且无法恢复。`)) return
+    if (!deleteArmed) {
+      deleteArmed = true
+      remove.textContent = '确认删除'
+      remove.dataset.confirm = 'true'
+      deleteTimer = setTimeout(disarmDelete, 5000)
+      return
+    }
+    disarmDelete()
     unwrap(await window.morrow.providers.deleteProfile({ profileId: profile.id }))
     notifyProviderChange()
     feedback('配置已删除')

@@ -128,21 +128,27 @@ describe('provider profile renderer', () => {
     expect(elements['provider-profile-feedback']!.textContent).toContain('连接成功')
   })
 
-  it('does not delete a profile when the danger confirmation is declined', async () => {
+  it('requires a second click before deleting a profile', async () => {
     const calls = bridge()
-    const window_ = (globalThis as unknown as { window: { confirm?: (message: string) => boolean } }).window
-    window_.confirm = vi.fn(() => false)
     const elements = await load()
     const actions = elements['provider-profile-list']!.children[0]!.children[1]!
-    await actions.children[4]!.listeners[0]!()
+    const remove = actions.children[4]!
+    await remove.listeners[0]!()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(calls.deleteProfile).not.toHaveBeenCalled()
+    expect(remove.textContent).toBe('确认删除')
+    expect(remove.dataset.confirm).toBe('true')
+    await remove.listeners[0]!()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(calls.deleteProfile).toHaveBeenCalledWith({ profileId: profile.id })
   })
 
   it('deletes and sets default only through the bridge', async () => {
     const calls = bridge()
     const elements = await load()
     const actions = elements['provider-profile-list']!.children[0]!.children[1]!
+    await actions.children[4]!.listeners[0]!()
+    await new Promise((resolve) => setTimeout(resolve, 0))
     await actions.children[4]!.listeners[0]!()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(calls.deleteProfile).toHaveBeenCalledWith({ profileId: profile.id })

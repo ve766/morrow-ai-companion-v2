@@ -678,6 +678,8 @@ try {
     const remove = card?.querySelector('button.button-danger')
     if (!(remove instanceof HTMLButtonElement)) throw new Error('Delete control is unavailable.')
     remove.click()
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    remove.click()
     const deleteDeadline = Date.now() + 8000
     while (Date.now() < deleteDeadline) {
       const list = await window.morrow.providers.listProfiles()
