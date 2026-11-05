@@ -31,7 +31,7 @@
 | `npm run build` | 0 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
-| portable build | 0；`Morrow-2.0.0-x64-portable.exe` 100,541,544 bytes |
+| portable build | 0；`Morrow-2.0.0-x64-portable.exe` 100,542,249 bytes |
 | NSIS build | BLOCKED；installer stub exit 2/挂起 |
 | portable launch | BLOCKED；宿主 Electron 0xC0000005 |
 

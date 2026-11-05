@@ -38,8 +38,8 @@
 ### C. Windows RC
 
 - **Portable RC 已构建**：`evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe`
-  - 大小：100,541,544 bytes
-  - SHA256：`fd584ffd53f74ffb3d7c93804a8d92a308a84c7ffb2d04b9da7532f73e8ab1da`
+  - 大小：100,542,249 bytes
+  - SHA256：`e18a13a5e209c70df09f6ff3c6b657d15385bf5a9f0c23368043c47151e40c1b`
   - 版本：2.0.0 · win32-x64
 - **NSIS 安装包 BLOCKED_HOST_EXECUTION_POLICY**：electron-builder 生成 NSIS stub 后必须执行它来提取 uninstaller；本机执行返回 exit 2 / 挂起，无法产出完整 NSIS 安装包。Portable target 成功。
 - **安装/启动 BLOCKED_HOST_ELECTRON_CRASH**：本机 Electron 44 即使 `--no-sandbox` 也以 0xC0000005 退出；无法完成安装后启动和安装后截图。

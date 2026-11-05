@@ -1,96 +1,90 @@
-# Morrow V2 Windows RC File Review Matrix (Issue #55, PR #54, frozen HEAD `29d4645`)
+# Morrow V2 Windows RC File Review Matrix — Delta Re-review (Issue #55, PR #54, code `fad6a94`, HEAD `e0fbbcf`)
 
-Independent reviewer: separate context; did not write this implementation. Only this file and `docs/audit/morrow-v2-rc-independent-review.md` were written. No product code, test, migration, CI, existing doc, evidence, or RC binary was modified. The worktree was clean before the review; after the review the only changes are the two new review documents (untracked).
+Independent reviewer: separate context; did not write this implementation. Only this file and `docs/audit/morrow-v2-rc-independent-review.md` were updated. No product code, test, migration, CI, existing doc, evidence, or RC binary was modified. The worktree was clean before the review; after the review the only changes are the two updated review documents.
 
 ## 0. Scope and method
 
-- Frozen RC HEAD: `29d464545d081836c4aa36e76e2b9f950b020f2f`.
-- RC code/test SHA: `ac00627d0dc50677fc3b21ab0ae19c29f08fe9f7`.
+- Frozen RC HEAD: `e0fbbcff0a9fbfebd6dd50a293d877060de74d75`.
+- RC code/test SHA: `fad6a94eef19ce5cfbdca9f4c0e1af0aca08074c`.
+- Previous reviewed HEAD: `29d464545d081836c4aa36e76e2b9f950b020f2f` (code `ac00627`).
 - Base: `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`.
-- `29d4645`'s parent is `ac00627`. `git diff ac00627 29d4645` contains **only docs/evidence/installer** (25 files, no production code). The RC code delta is `ac00627` vs its parent `ff5b787` (17 files), plus the adjacent `df8f802` discovery-limit fix (2 files). Both are listed below so every production file changed in this RC round is covered.
-- Evidence used: `git diff --name-status eac8fbd 29d4645` (46 files), `git diff ff5b787 ac00627` (17 files), `git diff eac8fbd df8f802` (2 files), `git diff ac00627 29d4645` (25 files); full `npx vitest run` (129 files / 1156 tests / 0 skipped, exit 0); targeted 4 files / 31 tests (exit 0); `npx tsc --noEmit` (0); `npm run build` (0); `npm run evaluate` and `npm run evaluate:cognition` (0 with `TEMP`/`TMP` set to `<repo>/.tmp/es`); `node --check scripts/product-path-smoke.mjs` (0).
+- Delta commits:
+  - `fad6a94` (7 files): source fixes for smoke, copy, 1280 composer, provider metadata, per-row allowlist, design-system, and the prior audit docs.
+  - `e0fbbcf` (19 files): RC docs/result/transcript/screenshots and the rebuilt portable binary.
+- Evidence: full `npx vitest run` (129 files / 1156 tests / 0 skipped, exit 0, 174.83s); targeted 4 files / 31 tests (exit 0); `npx tsc --noEmit` (0); `npm run build` (0); `npm run evaluate` / `evaluate:cognition` (0 with `TEMP`/`TMP` set to `<repo>/.tmp/es`); binary hash/size/PE/payload/asar probes; CI API queries for run `42023327920`.
 
-## 1. Production / test / script files — RC code delta `ff5b787..ac00627` (17 files)
-
-| # | File | Change | One-line conclusion |
-| --- | --- | --- | --- |
-| 1 | `evals/provider-multi-source/run.ts` | `dataPolicy` fixture literal updated | Harness-only fixture update; consistent with the new `AppInfo` union; PASS. |
-| 2 | `scripts/product-path-smoke.mjs` | Tautology removed; real restart baseline read; goal task/progress fixture; per-table reason + added-row keys | B3 is materially improved and syntactically valid, but the new script is not executed on the RC SHA and the allowlist is table-level, not per-field; **PARTIAL**. |
-| 3 | `src/app/backup-ipc.test.ts` | 3 `dataPolicy` fixture literals updated | Test fixture only; full suite passes; PASS. |
-| 4 | `src/app/index.ts` | `dataPolicy` generalized; consent Bearer sentence corrected for local HTTP | Both B2 fixes are correct and user-visible; PASS. |
-| 5 | `src/app/ipc.test.ts` | `dataPolicy` fixture updated | Test fixture only; PASS. |
-| 6 | `src/app/provider-multi-source-ipc.integration.test.ts` | `dataPolicy` fixture updated | Test fixture only; PASS. |
-| 7 | `src/app/stage4-goal-candidate-e2e.test.ts` | `dataPolicy` fixture updated | Test fixture only; PASS. |
-| 8 | `src/providers/openai-compatible.test.ts` | Added non-stream oversized (1,048,577) reject + valid JSON parse | Covers the primary B4 regression; missing exact-1-MiB/UTF-8/empty/parse-failure adapter cases; PASS with P3. |
-| 9 | `src/providers/openai-compatible.ts` | Non-stream success uses `readBoundedText(1_048_576)`; redundant catch branch | Real byte-counted 1 MiB bound, cancel, UTF-8, no body leak; PASS with P3 style/coverage. |
-| 10 | `src/renderer/index.html` | Local-priority caveat added at line 377 | B2 incomplete: line 369 still claims unconditional local priority and line 395 still says “DeepSeek 发送”; both ship in `app.asar`; **PARTIAL**. |
-| 11 | `src/renderer/src/companion-ui.ts` | 3 “DeepSeek 请求” strings generalized to “模型服务请求” | B2 copy fixed in all 3 locations; PASS. |
-| 12 | `src/renderer/src/presence-ui.ts` | Reduced-motion path draws once and stops the rAF loop; resize/pointer redraw | No continuous redraw under reduced motion; PASS. |
-| 13 | `src/renderer/src/provider-profiles-ui.ts` | `providerUiReady` set after `loadProfiles()` finally; built-in delete disabled; disarm on edit/card click | Real loading state and built-in guard are correct; `save()` does not disarm delete; PASS with P3. |
-| 14 | `src/renderer/src/style.css` | Range focus ring; light `--muted:#66676d`; wrapping for chat/memory/suggestion/goal/provider facts; 390 nav wrap and self-model single column; ≤1180 chat height | Contrast passes (4.649–5.636); 1280 composer unchanged and `.pending-item-meta` unwrapped; PASS with P3. |
-| 15 | `src/shared/contracts.ts` | `AppInfo.dataPolicy` union value updated | Type is consistent with `src/app/index.ts`; PASS. |
-| 16 | `tests/design-tokens.test.ts` | New WCAG contrast test for both themes (bg + panel) | Recomputable guard; does not test `--bg-soft` (`#ede9df`, 4.649) but actual value passes; PASS. |
-| 17 | `tests/provider-profiles-ui.test.ts` | New built-in local delete-disabled test | Asserts `disabled` and the reason title; PASS. |
-
-## 2. Adjacent RC-chain files — discovery 1 MiB fix `eac8fbd..df8f802` (2 files)
+## 1. `fad6a94` source-fix delta (7 files)
 
 | # | File | Change | One-line conclusion |
 | --- | --- | --- | --- |
-| 18 | `src/app/companion-service.ts` | `MAX_DISCOVERY_BODY_BYTES` 1,000,000 → 1,048,576 | Exact 1 MiB restored; PASS. |
-| 19 | `src/app/provider-multi-source.integration.test.ts` | Oversized `Content-Length` header 1,000,001 → 1,048,577 | Boundary test matches the exact limit; PASS. |
+| 1 | `scripts/smoke.mjs` | `dataPolicy` assertion updated to `local-first-consented-provider-egress-memory-goals-reminders` | **PASS** — matches `src/app/index.ts:77` exactly; the prior blocking CI smoke defect is closed in source. |
+| 2 | `src/renderer/index.html` | Local-provider copy now “没有显式默认 Provider 时…”; cognitive copy now “每次模型服务发送…” | **PASS in source** — both residual DeepSeek/local-priority claims fixed; the shipped binary does not contain them. |
+| 3 | `src/renderer/src/style.css` | Adds `@media (max-width: 1320px)` chat height/presence padding; `.pending-item-meta { overflow-wrap: anywhere; }` | **PASS in source** — 1280 rule and provider-metadata wrapping present; visual outcome unverified; shipped binary lacks both. |
+| 4 | `docs/ui/design-system.md` | Light `--muted` corrected to `#66676d`; contrast wording fixed to “纸面对 `#f3f0e8` 约 4.95:1” | **PASS** — token matches the code; 4.95 is correct for `#f3f0e8` (4.649 for `#ede9df`, still ≥4.5). |
+| 5 | `scripts/product-path-smoke.mjs` | `allowedAdditions[table]` now `added.map((key) => ({ key, reason }))` | **PASS structurally; P3** — per-row shape is correct, but the reason is still the table-level constant and the script is not executed on the RC SHA. |
+| 6 | `docs/audit/morrow-v2-rc-independent-review.md` | Prior `29d4645` review | Superseded by this delta review; now documents `fad6a94`/`e0fbbcf`. |
+| 7 | `docs/audit/morrow-v2-rc-file-review-matrix.md` | Prior `29d4645` matrix | Superseded by this delta matrix; now documents `fad6a94`/`e0fbbcf`. |
 
-## 3. Files added/changed by the frozen docs/binary commit `ac00627..29d4645` (25 files)
-
-| # | File | Change | One-line conclusion |
-| --- | --- | --- | --- |
-| 20 | `docs/install/windows-installation-guide.md` | New user guide | Portable run, first config, local model, data/key paths, backup/rollback, and all BLOCKED limits are honest; PASS. |
-| 21 | `docs/reports/morrow-v2-rc-delivery-report.md` | New RC delivery report | PARTIAL, no COMPLETE claim; NSIS/install/launch/CI marked blocked; CI cause omits the billing annotation, 1280 claim inaccurate; PASS with P3. |
-| 22 | `docs/reports/morrow-v2-rc-evidence-index.md` | New evidence index | Artifact/hash/tests honest; screenshots explicitly parent-code and not installed; ac00627 run ID missing; PASS with P3. |
-| 23 | `docs/reports/morrow-v2-rc-work-log.md` | New work log | Commands/exit codes and blockers recorded; CI cause generic; PASS with P3. |
-| 24 | `docs/testing/morrow-v2-rc-acceptance-matrix.md` | New acceptance matrix | CI/NSIS/install/screenshots BLOCKED honestly; line 20 “PASS (code/local test)” overstates the unexecuted B3 script; PASS with P3. |
-| 25 | `docs/ui/evidence/rc-20261105T191500Z-rc-ac00627/manifest.md` | New screenshot manifest | Explicitly says source is parent code `6f5fe47` run `20261105T084141Z-45483dd6` and not installed-app; PASS (directory name still says `rc-ac00627`, a labeling risk). |
-| 26 | `.../chat-1440x900.png` | New built-app screenshot | Parent-code image; no secret/user data; does not evidence RC-SHA changes; PASS as labeled. |
-| 27 | `.../chat-1280x800.png` | New built-app screenshot | Shows composer partly below the 800px fold; parent-code layout; P3 evidence gap. |
-| 28 | `.../chat-390x844.png` | New built-app screenshot | Parent-code image; not installed-app; PASS as labeled. |
-| 29 | `.../memory-1440x900.png` | New built-app screenshot | Parent-code image; no secret/user data; PASS as labeled. |
-| 30 | `.../memory-1280x800.png` | New built-app screenshot | Parent-code image; PASS as labeled. |
-| 31 | `.../memory-390x844.png` | New built-app screenshot | Shows the pre-fix 390 nav cut (`04 设…`); cannot verify the B1 fix; P3 evidence gap. |
-| 32 | `.../settings-1440x900.png` | New built-app screenshot | Parent-code image; shows “密钥：已保存在本机安全存储”, no key value; PASS as labeled. |
-| 33 | `.../settings-1280x800.png` | New built-app screenshot | Parent-code image; PASS as labeled. |
-| 34 | `.../settings-390x844.png` | New built-app screenshot | Shows the pre-fix 390 nav cut; P3 evidence gap. |
-| 35 | `evals/morrow-v2-rc/results/20261105T191500Z-rc-ac00627.json` | New machine result | PARTIAL; lists PASS for tsc/tests/build/evals and BLOCKED for NSIS/launch/product-path/provider/local; honest. |
-| 36 | `evals/morrow-v2-rc/transcripts/20261105T191500Z-rc-ac00627.md` | New readable transcript | Same status; explicitly says screenshots are not installed-app; honest. |
-| 37 | `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe` | New RC binary | 100,541,545 bytes, SHA256 `cf662590…8e67`, real PE32 NSIS+7z Electron payload, app.asar 2.0.0 with `ac00627` markers; **PASS**. |
-| 38 | `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe.sha256` | New checksum | Matches the computed SHA256; PASS. |
-| 39 | `docs/reports/morrow-v2-final-delivery-report.md` | Issue #53 historical banner + SHA label | Historical banner present; residual “最终 HEAD” wording mitigated by banner; P3. |
-| 40 | `docs/reports/morrow-v2-final-evidence-index.md` | Historical banner + SHA label | Historical banner present; internal “最终 HEAD” wording remains; P3. |
-| 41 | `docs/reports/morrow-v2-final-work-log.md` | Historical banner | Historical banner present; internal “最终 HEAD `eede520` CI 4/4 PASS” remains; P3. |
-| 42 | `docs/testing/morrow-v2-final-acceptance-matrix.md` | Historical banner + empty HEAD field replaced | The former empty “最终 HEAD” field is fixed; historical banner present; P3. |
-| 43 | `docs/ui/acceptance-matrix.md` | Historical banner | Banner present; 390 PASS claim still contradicted by the committed screenshot; P3. |
-| 44 | `docs/ui/design-system.md` | Contrast line updated | Token table still lists `#6e6f73` (code `#66676d`) and line 70 has a typo/4.95-only-on-bg claim; P3. |
-
-## 4. Prior-review docs modified earlier in the same round (`ff5b787`, docs-only)
+## 2. `e0fbbcf` docs/evidence/binary delta (19 files)
 
 | # | File | Change | One-line conclusion |
 | --- | --- | --- | --- |
-| 45 | `docs/audit/morrow-v2-final-independent-review.md` | Prior Issue #53 review on `df8f802` | Historical review; does not cover the RC `ac00627` fixes and is not used as RC evidence; P3 context only. |
-| 46 | `docs/audit/morrow-v2-final-file-review-matrix.md` | Prior Issue #53 matrix | Historical matrix; same limitation; P3 context only. |
+| 8 | `docs/install/windows-installation-guide.md` | New size/hash | **PASS** — 100,541,544 bytes / `fd584ffd…b1da`; NSIS/launch limits remain honest. |
+| 9 | `docs/reports/morrow-v2-rc-delivery-report.md` | New SHA/hash/size | **PASS with P3** — PARTIAL and blockers honest; CI cause still generic, no run `42023327920`; the “Portable RC 已构建” claim implies a rebuild that the payload does not support. |
+| 10 | `docs/reports/morrow-v2-rc-evidence-index.md` | New SHA/hash/size, billing annotation, new run paths | **PASS with P3** — billing annotation and user action now recorded; build time still `19:05:00Z` (old) and the CI table lacks run `42023327920`. |
+| 11 | `docs/reports/morrow-v2-rc-work-log.md` | New SHA/size/run paths | **PASS with P3** — build/test log updated; CI cause still generic, no billing annotation. |
+| 12 | `docs/testing/morrow-v2-rc-acceptance-matrix.md` | New code SHA and size | **FAIL (P2)** — row 6 still lists the old SHA256 `cf662590…8e67` while the size is the new 100,541,544; a verifier gets a mismatch. |
+| 13 | `docs/ui/evidence/rc-20261105T195500Z-rc-fad6a94/chat-1440x900.png` | New evidence file | **P3** — byte-identical copy of the parent-code `6f5fe47` screenshot; not new RC-SHA evidence. |
+| 14 | `.../chat-1280x800.png` | New evidence file | **P3** — parent-code copy; cannot verify the new 1320px rule. |
+| 15 | `.../chat-390x844.png` | New evidence file | **P3** — parent-code copy. |
+| 16 | `.../memory-1440x900.png` | New evidence file | **P3** — parent-code copy. |
+| 17 | `.../memory-1280x800.png` | New evidence file | **P3** — parent-code copy. |
+| 18 | `.../memory-390x844.png` | New evidence file | **P3** — parent-code copy; still shows the pre-fix nav cut. |
+| 19 | `.../settings-1440x900.png` | New evidence file | **P3** — parent-code copy. |
+| 20 | `.../settings-1280x800.png` | New evidence file | **P3** — parent-code copy. |
+| 21 | `.../settings-390x844.png` | New evidence file | **P3** — parent-code copy; still shows the pre-fix nav cut. |
+| 22 | `.../manifest.md` | New screenshot manifest | **PASS** — explicitly says parent code `6f5fe47`, not installed-app; the directory name still implies the new RC. |
+| 23 | `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe` | New binary | **FAIL (P1)** — hash/size match the claim (`fd584ffd…b1da`, 100,541,544) and it is a real PE32 NSIS+7z, but its embedded payload/asar are byte-identical to the old `ac00627` build; the `fad6a94` renderer fixes are not shipped. |
+| 24 | `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe.sha256` | New checksum | **PASS** — matches the new hash, but the file it describes is the stale payload (see #23). |
+| 25 | `evals/morrow-v2-rc/results/20261105T195500Z-rc-fad6a94.json` | New machine result | **PASS with P3** — codeSha/hash/size correct; PASS claims for tsc/tests/build/evals are reproducible; the “Windows portable RC PASS” is only hash/size, not content. |
+| 26 | `evals/morrow-v2-rc/transcripts/20261105T195500Z-rc-fad6a94.md` | New transcript | **PASS with P3** — status and hash correct; BLOCKED section still says “CI on `ac00627`” instead of `fad6a94`/`e0fbbcf`. |
 
-## 5. Regression introduced by omission (not changed in the RC round)
+## 3. Carried-forward RC code delta `ac00627`/`df8f802` (19 files)
 
-| # | File | Change | One-line conclusion |
-| --- | --- | --- | --- |
-| 47 | `scripts/smoke.mjs` | **Not changed**; line 514 still asserts the old `dataPolicy` | **FAIL / blocking CI**: the app returns `local-first-consented-provider-egress-memory-goals-reminders`, so the CI Electron smoke step fails deterministically even after the GitHub billing block is removed. Fix the assertion to the new value. |
+These files are unchanged since the prior review; the prior conclusions still hold.
 
-## 6. Summary
+| # | File | One-line conclusion |
+| --- | --- | --- |
+| 27 | `evals/provider-multi-source/run.ts` | dataPolicy fixture updated; harness-only; PASS. |
+| 28 | `src/app/backup-ipc.test.ts` | dataPolicy fixture updated; PASS. |
+| 29 | `src/app/companion-service.ts` | discovery limit exactly 1,048,576; PASS. |
+| 30 | `src/app/index.ts` | dataPolicy + consent Bearer copy corrected; PASS. |
+| 31 | `src/app/ipc.test.ts` | dataPolicy fixture updated; PASS. |
+| 32 | `src/app/provider-multi-source-ipc.integration.test.ts` | dataPolicy fixture updated; PASS. |
+| 33 | `src/app/provider-multi-source.integration.test.ts` | oversized header 1,048,577; PASS. |
+| 34 | `src/app/stage4-goal-candidate-e2e.test.ts` | dataPolicy fixture updated; PASS. |
+| 35 | `src/providers/openai-compatible.test.ts` | non-stream oversized + valid; PASS with P3 (missing exact/UTF-8/empty/parse-failure). |
+| 36 | `src/providers/openai-compatible.ts` | bounded non-stream 1 MiB; PASS with P3 redundant catch. |
+| 37 | `src/renderer/src/companion-ui.ts` | 3 “模型服务请求” copy fixes; PASS. |
+| 38 | `src/renderer/src/presence-ui.ts` | reduced-motion static draw; PASS. |
+| 39 | `src/renderer/src/provider-profiles-ui.ts` | providerUiReady after load, builtin delete disabled, disarm on edit/card; save not; PASS with P3. |
+| 40 | `src/shared/contracts.ts` | dataPolicy union updated; PASS. |
+| 41 | `tests/design-tokens.test.ts` | WCAG test for bg/panel both themes; PASS (bg-soft untested but 4.649). |
+| 42 | `tests/provider-profiles-ui.test.ts` | builtin local delete disabled test; PASS. |
+| 43 | `src/renderer/index.html` (carried) | prior B2 fixes; now also fixed in `fad6a94`; source PASS, binary stale. |
+| 44 | `src/renderer/src/style.css` (carried) | prior B1 fixes; now also fixed in `fad6a94`; source PASS, binary stale. |
+| 45 | `scripts/product-path-smoke.mjs` (carried) | prior B3 fixes; now per-row; source PASS, unexecuted. |
+
+The prior omission regression (`scripts/smoke.mjs` old dataPolicy) is **CLOSED** by `fad6a94`; it is now a PASS row in section 1.
+
+## 4. Summary
 
 | Category | Files | Verdict |
 | --- | --- | --- |
-| RC code delta `ff5b787..ac00627` | 17 | 14 PASS, 3 PARTIAL (index.html, style.css, product-path-smoke.mjs) |
-| Adjacent discovery fix `eac8fbd..df8f802` | 2 | PASS |
-| Frozen docs/binary commit `ac00627..29d4645` | 25 | artifact PASS; docs PARTIAL/P3 |
-| Prior review docs `ff5b787` | 2 | docs-only historical context |
-| Omission regression | 1 (`scripts/smoke.mjs`) | **FAIL / blocking CI** |
-| Total changed files in the full RC round `eac8fbd..29d4645` | 46 (44 production/docs/evidence/artifact + 2 prior audit docs) | Overall **PARTIAL** |
+| `fad6a94` source fixes | 7 | 6 PASS / 1 PASS structurally (P3); no new code P1/P2 |
+| `e0fbbcf` docs/evidence/binary | 19 | binary **FAIL (P1)**; acceptance matrix hash **FAIL (P2)**; docs P3 |
+| Carried-forward RC code delta | 19 | unchanged; PASS with P3 residuals |
+| Overall code review | — | **PASS_WITH_NON_BLOCKING_BACKLOG** |
+| Overall RC | — | **PARTIAL** (artifact FAIL + NSIS/install/CI/external blockers) |
 
-No file-level finding is a secret leak, data corruption, or runtime product regression. The blocking items are the stale smoke assertion (F1) and the external/acceptance blockers (NSIS, install/launch, frozen-SHA CI billing), as detailed in `docs/audit/morrow-v2-rc-independent-review.md`.
+The delta source fixes are correct and fully tested. The blocking issue is the artifact: the new portable reuses the old `ac00627` app payload byte-for-byte, so the B1/B2 renderer fixes are not in the delivered binary. Rebuild with `npm run build` followed by electron-builder from a clean `out/`/`win-unpacked`, re-hash, then correct `docs/testing/morrow-v2-rc-acceptance-matrix.md:14` and the stale build-time/CI-run references.

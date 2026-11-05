@@ -12,9 +12,9 @@
 | 文件 | `evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe` |
 | 类型 | Windows portable RC（NSIS installer BLOCKED） |
 | 版本 | 2.0.0 |
-| 大小 | 100,541,544 bytes |
-| SHA256 | `fd584ffd53f74ffb3d7c93804a8d92a308a84c7ffb2d04b9da7532f73e8ab1da` |
-| 构建时间 | 2026-11-05T19:05:00Z |
+| 大小 | 100,542,249 bytes |
+| SHA256 | `e18a13a5e209c70df09f6ff3c6b657d15385bf5a9f0c23368043c47151e40c1b` |
+| 构建时间 | 2026-11-05T20:15:00Z |
 | 构建环境 | Windows 10.0.26200 x64 · Electron 44.9.3 · electron-builder 26.15.3 |
 | 构建命令 | `npx electron-builder --win portable --x64 --publish never --config.electronDist=node_modules/electron/dist --config.directories.output=.tmp/rc-portable --config.win.signAndEditExecutable=false` |
 

@@ -11,7 +11,7 @@
 | 3 | Windows upgrade/migration CI | **BLOCKED_CI_INFRA** | 父代码 run `41995422882` upgrade PASS；RC SHA 无新 run |
 | 4 | Windows package/install/installed-app smoke | **BLOCKED** | NSIS 构建在本机 exit 2/挂起；CI 0-step |
 | 5 | Windows x64 安装包 | **BLOCKED_HOST_EXECUTION_POLICY** | NSIS stub 无法执行；portable RC 已产出 |
-| 6 | Portable RC 文件/SHA256/大小 | **PASS** | `Morrow-2.0.0-x64-portable.exe`，100,541,544 bytes，SHA256 `cf662590…8e67` |
+| 6 | Portable RC 文件/SHA256/大小 | **PASS** | `Morrow-2.0.0-x64-portable.exe`，100,542,249 bytes，SHA256 `e18a13a5e209c70df09f6ff3c6b657d15385bf5a9f0c23368043c47151e40c1b` |
 | 7 | 安装/首次启动/重启/已有数据启动 | **BLOCKED_HOST_ELECTRON_CRASH** | 本机 Electron 0xC0000005；未伪装 PASS |
 | 8 | 安装后截图（1440/1280/390） | **BLOCKED** | 无 installed-app 截图；built-app 9 张已标注 |
 | 9 | Windows upgrade/migration 到 v49 | **PASS（测试）** | 迁移测试 6 组；真实安装升级 BLOCKED |
