@@ -1,0 +1,380 @@
+{
+  "runId": "20261105T071402Z-608ab4c9",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-05T07:14:02.810Z",
+  "finishedAt": "2026-11-05T07:14:17.359Z",
+  "status": "PASS",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": false,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory 3aa71ccc-46ce-4d9a-87fe-713883211257, goal 1707ec22-d0c0-4010-82b4-4ff0c75d1ea8, conversation 51f50ad5-46cd-4eaf-b86a-8f23178784dd"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "UI evidence screenshots captured",
+      "ok": true,
+      "detail": "9 screenshots at 1440×900 / 1280×800 / 390×844"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    },
+    {
+      "name": "profiles and OS secrets survive restart",
+      "ok": true,
+      "detail": "both profiles read back configured after restart"
+    },
+    {
+      "name": "continuity unchanged across restart",
+      "ok": true,
+      "detail": "baseline={\"interests\":2,\"memories\":1,\"goals\":1} after={\"interests\":2,\"memories\":1,\"goals\":1}"
+    },
+    {
+      "name": "endpoint change clears the old secret and disables the remote profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。"
+    },
+    {
+      "name": "only the changed profile secret was removed",
+      "ok": true,
+      "detail": "B ciphertext unchanged"
+    },
+    {
+      "name": "SQLite continuity rows preserved across restart",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across restart",
+      "ok": true,
+      "detail": "removed=[] changed=[] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":1,\"interest_evidence\":1,\"reflection_findings\":1,\"reflection_finding_routes\":1,\"reflection_runs\":1,\"event_journal\":8}"
+    },
+    {
+      "name": "re-entering a key re-enables the profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "rekey writes a new OS secret without touching the other profile",
+      "ok": true,
+      "detail": "A ciphertext rotated, B unchanged"
+    },
+    {
+      "name": "switch A → B → A through the product bridge",
+      "ok": true,
+      "detail": "A is default again"
+    },
+    {
+      "name": "continuity unchanged across provider switch",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "delete profile B through the renderer",
+      "ok": true,
+      "detail": "B removed from the list"
+    },
+    {
+      "name": "deleting B removes only B’s OS secret",
+      "ok": true,
+      "detail": "A secret retained"
+    },
+    {
+      "name": "SQLite continuity rows preserved across provider switch",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across provider switch",
+      "ok": true,
+      "detail": "removed=[] changed=[] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":1,\"interest_evidence\":1,\"reflection_findings\":1,\"reflection_finding_routes\":1,\"reflection_runs\":3,\"event_journal\":18}"
+    },
+    {
+      "name": "final restart keeps only A configured",
+      "ok": true,
+      "detail": "one configured profile remains"
+    },
+    {
+      "name": "final continuity unchanged",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "full-field continuity final A",
+      "ok": true,
+      "detail": "removed=[] changed=[] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"9dc60a93-4699-4444-9692-06c0d5f3a16a\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"9c250e5b-eb2f-4901-8c5b-a31dbf313f89\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":1,\"interest_evidence\":1,\"reflection_findings\":1,\"reflection_finding_routes\":1,\"reflection_runs\":4,\"event_journal\":23}"
+    }
+  ],
+  "continuity": {
+    "bridge": {
+      "baselineSha256": "14c10c475509bfde6e641f036f0f7f644ce887bf716c1f729ae6c3ac95445fe8",
+      "afterRestartSha256": "14c10c475509bfde6e641f036f0f7f644ce887bf716c1f729ae6c3ac95445fe8",
+      "afterSwitchSha256": "14c10c475509bfde6e641f036f0f7f644ce887bf716c1f729ae6c3ac95445fe8",
+      "finalSha256": "14c10c475509bfde6e641f036f0f7f644ce887bf716c1f729ae6c3ac95445fe8"
+    },
+    "databaseCounts": {
+      "baselineSha256": "7173a5653dcc87a2a05be645dde695e267ffa28da5223a4150a45ca073910705",
+      "afterRestartSha256": "cc1f585f0c6a293f3dfea40a012dbadd3952d5dbe6a62177a5aefa08977c20f7",
+      "afterSwitchSha256": "cc1f585f0c6a293f3dfea40a012dbadd3952d5dbe6a62177a5aefa08977c20f7",
+      "tables": [
+        "personality_profiles",
+        "self_model_entries",
+        "interests",
+        "memories",
+        "goals",
+        "relationship_threads",
+        "conversations",
+        "messages",
+        "cognitive_pending_items",
+        "reflection_findings",
+        "reflection_finding_routes"
+      ]
+    },
+    "fullField": {
+      "restart": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "status",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "strength",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "confidence",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "profile_json",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "strength",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "confidence",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          }
+        ],
+        "allowedAdditions": {
+          "interests": 1,
+          "interest_evidence": 1,
+          "reflection_findings": 1,
+          "reflection_finding_routes": 1,
+          "reflection_runs": 1,
+          "event_journal": 8
+        }
+      },
+      "switch": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "status",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "strength",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "confidence",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "profile_json",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "strength",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "confidence",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          }
+        ],
+        "allowedAdditions": {
+          "interests": 1,
+          "interest_evidence": 1,
+          "reflection_findings": 1,
+          "reflection_finding_routes": 1,
+          "reflection_runs": 3,
+          "event_journal": 18
+        }
+      },
+      "final": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "status",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "strength",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "confidence",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "interests",
+            "key": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+            "field": "profile_json",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "strength",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "confidence",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          }
+        ],
+        "allowedAdditions": {
+          "interests": 1,
+          "interest_evidence": 1,
+          "reflection_findings": 1,
+          "reflection_finding_routes": 1,
+          "reflection_runs": 4,
+          "event_journal": 23
+        }
+      }
+    }
+  },
+  "secrets": {
+    "a": {
+      "before": "38b4193a2c31730d6622aaa8bc7fcbc0fd05500b2968c3c0497705837cc53c07",
+      "afterChange": null,
+      "afterRekey": "e782bc30785f0882a06aae98a6d8f5472acbf71188c8f596a62270d8262956b8"
+    },
+    "b": {
+      "before": "1a4a1545ac1827e0d5115dc105373e3691dabc650520a4c24f6e78681d6b2064",
+      "afterChange": "1a4a1545ac1827e0d5115dc105373e3691dabc650520a4c24f6e78681d6b2064",
+      "afterDelete": null
+    }
+  },
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.",
+  "controlledRequest": {
+    "mode": "service-level",
+    "status": "COVERED_BY_INTEGRATION_TEST",
+    "detail": "Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated."
+  },
+  "uiEvidence": [
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\chat-1440x900.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\chat-1280x800.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\chat-390x844.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\memory-1440x900.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\memory-1280x800.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\memory-390x844.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\settings-1440x900.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\settings-1280x800.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T071402Z-608ab4c9\\settings-390x844.png"
+  ],
+  "continuityFixture": {
+    "firstMessage": "fd896d0a-f89c-48e3-9baf-1986b4ab7074",
+    "secondMessage": "5352778e-8a72-4931-a085-243a53c8cec1",
+    "selfModel": "9570ee42-f157-4e3c-b354-aa429583ce22",
+    "interest": "9dc60a93-4699-4444-9692-06c0d5f3a16a",
+    "thread": "9c250e5b-eb2f-4901-8c5b-a31dbf313f89"
+  },
+  "profiles": {
+    "a": "17d04004-7f80-4ab2-92af-4d2d42e4435f",
+    "b": "e3e1e9e8-6174-4a95-b045-d426d58ccf5a"
+  }
+}

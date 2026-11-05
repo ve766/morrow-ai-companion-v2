@@ -12,8 +12,8 @@
 - product-path 收敛（优雅退出、UI 就绪、continuity）：`d07b3f4b951fab2bd522413c789850055a49fe61`
 - 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - UI/A/B/C 实现：`9af9c3413039453aac70685e9c5d2406a440cbfe`
-- 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`019c2c2520ba5e28db9e7a779fa95ad27a1b4009`
-- 最终 HEAD：`771cbaaa3c9b829e95e76a1eee89a2390d44201d`；代码/测试以 `019c2c2` 为准
+- 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`8797ab9e2dea171a159d92c349babeb4180dbf84`
+- 最终 HEAD：`8797ab9e2dea171a159d92c349babeb4180dbf84`；代码/测试以 `8797ab9` 为准
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围
@@ -50,12 +50,12 @@
 | 项目 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | PASS（无输出，退出码 0） |
-| `vitest run` | PASS：127 文件 / 1148 测试，0 skipped |
+| `vitest run` | PASS：128 文件 / 1153 测试，0 skipped |
 | `npm run evaluate` | PASS：M3 检索 + M4 reminders 合成评估 |
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
 | `npm run package:win` | 本机执行；安装包产物在 `release/`；CI Windows package/install smoke PASS |
-| CI | 最终运行 [41964006554](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41964006554) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
+| CI | 最终运行 [41984709521](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41984709521) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
 
 测试新增覆盖：
 
@@ -74,7 +74,7 @@
 | `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`；HTTP 403，latency 586ms，attempts 1，stream deltas 0，exit 0；未写成 PASS |
 | `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json`；HTTP 403，latency 318ms，attempts 1，stream deltas 0，exit 0 |
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
-| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T034317Z-8dc025dc`，a845889；最终 HEAD 92bc4ed 的 CI 4/4 PASS） |
+| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T071402Z-608ab4c9`，最终 HEAD 8797ab9 的 CI 4/4 PASS） |
 
 运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`（Provider 代码此后未变；`d07b3f4` 只改 product-path/CI 脚本）。
 
@@ -88,7 +88,7 @@
 4. 删除/默认切换只通过 typed bridge/UI。
 5. 不触发原生 consent 对话框；脚本明确记录该限制。consent 拒绝 0 fetch 与连接测试不进入聊天/记忆由同 SHA 的服务层集成测试证明。
 
-CI Windows 产品路径 **PASS**：run `20261105T034317Z-8dc025dc`，Electron 44.9.3，sandbox 启用，18 项检查全部通过；artifact `morrow-product-path-windows-latest` 包含 JSON + transcript。本机因宿主 Electron 崩溃未完成 UI 执行，已如实保留 `20261104T124142Z-933adad0.json` 作为宿主阻塞证据，不冒充 PASS。
+CI Windows 产品路径 **PASS**：run `20261105T071402Z-608ab4c9`，Electron 44.9.3，sandbox 启用，22 项检查全部通过；artifact `morrow-product-path-windows-latest` 包含 JSON + transcript。本机因宿主 Electron 崩溃未完成 UI 执行，已如实保留 `20261104T124142Z-933adad0.json` 作为宿主阻塞证据，不冒充 PASS。
 
 ## 5. Stage 4 回归
 
@@ -128,7 +128,7 @@ CI Windows 产品路径 **PASS**：run `20261105T034317Z-8dc025dc`，Electron 44
 - 记忆页：新增自我模型/兴趣面板（更正/撤回/暂停/恢复），保留来源/修订链/敏感级/删除语义。
 - 设置页：分区索引 + 双栏 Provider + 官方 DeepSeek 兼容入口 + 本地模型 + 认知 + 备份。
 - 主题：深空默认 / 纸面切换；只改 CSS token，不触碰数据。
-- 截图：Windows Electron 真实窗口，run `20261105T034317Z-8dc025dc`，`docs/ui/evidence/20261105T034317Z-8dc025dc/`（chat/memory/settings × 1440/1280/390，共 9 张）。
+- 截图：Windows Electron 真实窗口，run `20261105T071402Z-608ab4c9`，`docs/ui/evidence/20261105T071402Z-608ab4c9/`（chat/memory/settings × 1440/1280/390，共 9 张）。
 - 功能修正：对话发送门禁改用默认/自定义 Provider，而不是只看旧 DeepSeek 表单；Provider 保存/切换/删除后通过 `morrow:providers-changed` 刷新聊天就绪状态。
 
 ### 9.2 修复 A：Consent 展示
@@ -150,15 +150,15 @@ CI Windows 产品路径 **PASS**：run `20261105T034317Z-8dc025dc`，Electron 44
 - `scripts/product-path-smoke.mjs` 在 A baseline / A restart / B switch / final A 四个时点导出完整 SQLite 快照（personality、self-model、interests、memories、goals、relationship、conversations/messages、pending/reflection、feeling state、event journal 等）。
 - 每个字段存 SHA-256；`diffFullSnapshots` 逐字段比较，删除/未允许的修改/意外新增都会失败。
 - 允许变化显式 allowlist：`*_at` 维护时间戳、feeling state 派生字段、启动反思新增的 interest/reflection/event 行；每项记录在结果 JSON 的 `allowedAdditions`。
-- 结果：run `20261105T034317Z-8dc025dc` 三次 diff 均 `removed=0 changed=0 unexpectedAdded=0`。
+- 结果：run `20261105T071402Z-608ab4c9` 三次 diff 均 `removed=0 changed=0 unexpectedAdded=0`。
 - 限制：Provider B 的“受控请求”仍由服务层测试覆盖；Electron 原生 consent 对话框无法由 CDP 自动点击，未用 mock 冒充真实产品路径。
 
 ### 9.5 验证
 
 - `tsc --noEmit`: 0
-- `vitest run`: 127 files / 1148 tests passed
+- `vitest run`: 128 files / 1153 tests passed
 - `npm run build`: passed
-- CI run 41964006554（head `771cbaa`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
+- CI run 41984709521（head `8797ab9`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
 - 真实 Provider 仍 BLOCKED_QUOTA；本地服务仍 BLOCKED_LOCAL_SERVICE_NOT_RUNNING
 
 ### 9.6 状态
