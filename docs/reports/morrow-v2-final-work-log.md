@@ -113,7 +113,7 @@
 | 7 | 重启后立即提交表单，UI 尚未初始化 | 等待 `#provider-profile-list[aria-busy=false]` |
 | 8 | **全部 PASS** | run `41859315790`：Ubuntu smoke、Windows smoke/product-path、Windows package/install、Windows upgrade 4/4 |
 
-Windows product-path PASS run：`20261104T154241Z-1430f856`（Electron 44.9.3，sandbox 启用，18 项检查）。
+Windows product-path PASS run：`20261105T071402Z-608ab4c9`（Electron 44.9.3，sandbox 启用，22 项检查）。
 
 ## 6. Git 记录
 

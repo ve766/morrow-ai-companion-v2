@@ -1,6 +1,7 @@
 # Morrow V2 最终验收矩阵（Issue #53）
 
 - 实现 SHA：`8797ab9e2dea171a159d92c349babeb4180dbf84`
+- 最终 HEAD：`140fd303f700e8bb4761c653aa6492c4ee9ddb9b`
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 

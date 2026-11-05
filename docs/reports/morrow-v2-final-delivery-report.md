@@ -13,7 +13,7 @@
 - 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - UI/A/B/C 实现：`9af9c3413039453aac70685e9c5d2406a440cbfe`
 - 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`8797ab9e2dea171a159d92c349babeb4180dbf84`
-- 最终 HEAD：`8797ab9e2dea171a159d92c349babeb4180dbf84`；代码/测试以 `8797ab9` 为准
+- 最终 HEAD：`140fd303f700e8bb4761c653aa6492c4ee9ddb9b`（docs/evidence）；代码/测试以 `8797ab9` 为准
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围
@@ -55,7 +55,7 @@
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
 | `npm run package:win` | 本机执行；安装包产物在 `release/`；CI Windows package/install smoke PASS |
-| CI | 最终运行 [41984709521](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41984709521) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
+| CI | 最终运行 [41986955154](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154) **4/4 PASS**：Ubuntu smoke、Windows smoke + product-path、Windows package/install、Windows upgrade |
 
 测试新增覆盖：
 
@@ -74,7 +74,7 @@
 | `https://api.supxh.xin` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135205Z-75b01260.json`；HTTP 403，latency 586ms，attempts 1，stream deltas 0，exit 0；未写成 PASS |
 | `https://speed26.toter.me` | **BLOCKED_QUOTA** | `evals/provider-multi-source/results/20261104T135210Z-abf69f16.json`；HTTP 403，latency 318ms，attempts 1，stream deltas 0，exit 0 |
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
-| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T071402Z-608ab4c9`，最终 HEAD 8797ab9 的 CI 4/4 PASS） |
+| 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T071402Z-608ab4c9`，最终 HEAD 140fd30 的 CI 4/4 PASS） |
 
 运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`（Provider 代码此后未变；`d07b3f4` 只改 product-path/CI 脚本）。
 
@@ -158,7 +158,8 @@ CI Windows 产品路径 **PASS**：run `20261105T071402Z-608ab4c9`，Electron 44
 - `tsc --noEmit`: 0
 - `vitest run`: 128 files / 1153 tests passed
 - `npm run build`: passed
-- CI run 41984709521（head `8797ab9`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
+- 最终 HEAD CI run 41986955154（head `140fd30`）：4/4 PASS
+- 代码 SHA CI run 41984709521（head `8797ab9`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
 - 真实 Provider 仍 BLOCKED_QUOTA；本地服务仍 BLOCKED_LOCAL_SERVICE_NOT_RUNNING
 
 ### 9.6 状态

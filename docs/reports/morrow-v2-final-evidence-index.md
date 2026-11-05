@@ -63,9 +63,9 @@
   - Windows：`Electron smoke` + `Electron product-path acceptance`
   - Windows：`Windows package, install and installed-app smoke`
   - Windows：`Windows upgrade path (schema migrations under the real app)`
-- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41984709521（4/4 job PASS，head `8797ab9`）
+- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154（4/4 job PASS，head `140fd30`）
 - 最终 HEAD PASS 证据：`evals/morrow-v2-final/results/20261105T071402Z-608ab4c9.json` + transcript；Electron 44.9.3，22 项检查，sandbox 启用。
-- 最终代码 SHA 证据：`evals/morrow-v2-final/results/20261104T154241Z-1430f856.json` + transcript；同一脚本，18 项检查 PASS。
+- 最终代码 SHA 证据：`evals/morrow-v2-final/results/20261105T071402Z-608ab4c9.json` + transcript；22 项检查 PASS。
 - 本机失败证据：`evals/morrow-v2-final/results/20261104T124142Z-933adad0.json`（FAILED，宿主 Electron 0xC0000005）；不冒充 PASS。
 - CI artifact：`morrow-product-path-windows-latest`，包含 JSON + transcript。
 
@@ -82,11 +82,11 @@
 | `npm run eval:provider-multi-source`（speed26） | 0（结果 BLOCKED_QUOTA） |
 | `node scripts/product-path-smoke.mjs`（本机） | 1（宿主 Electron 崩溃；已保留 FAILED 证据） |
 | `npm run smoke:product-path`（CI Windows） | 0；最终 HEAD run `20261105T071402Z-608ab4c9` PASS |
-| CI run 41984709521 | 4/4 job PASS |
+| CI run 41986955154 | 4/4 job PASS |
 
 ## 7. 一致性
 
-- 报告、矩阵、基线中的最终代码 SHA 为 `8797ab9e2dea171a159d92c349babeb4180dbf84`；最终 HEAD 为 `8797ab9e2dea171a159d92c349babeb4180dbf84`；Provider P1/P2 核心修复为 `d9b28ae`。
+- 报告、矩阵、基线中的最终代码 SHA 为 `8797ab9e2dea171a159d92c349babeb4180dbf84`；最终 HEAD 为 `140fd303f700e8bb4761c653aa6492c4ee9ddb9b`；Provider P1/P2 核心修复为 `d9b28ae`。
 - PR head 会随文档/复审提交前进；PR 描述与最终评论给出当时 head SHA。
 - 历史 PR #40/#51/#52 的 SHA 与报告未被改写。
 
@@ -100,7 +100,7 @@
 | UI 实施与回归 | `docs/ui/implementation-and-regression-report.md` |
 | UI 验收矩阵 | `docs/ui/acceptance-matrix.md` |
 | 真实 Electron 截图 | `docs/ui/evidence/20261105T071402Z-608ab4c9/`（9 张） |
-| UI/A/B/C CI run | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41984709521（4/4 PASS） |
+| UI/A/B/C CI run | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154（4/4 PASS） |
 | 全字段 continuity 结果 | `evals/morrow-v2-final/results/20261105T071402Z-608ab4c9.json` |
 | continuity transcript | `evals/morrow-v2-final/transcripts/20261105T071402Z-608ab4c9.md` |
 | consent 展示测试 | `src/providers/consent-presentation.test.ts` |
