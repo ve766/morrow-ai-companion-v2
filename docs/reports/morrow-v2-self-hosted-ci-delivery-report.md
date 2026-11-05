@@ -7,7 +7,8 @@
 - 基线 HEAD：`70e89f1d92975d506e803fff511b83191c9148d0`
 - 首版实现提交：`ee24aa5b00db6eac91509a56ce2fde2c259e54c7`（parent `70e89f1`）
 - 复审修复提交：`d5ae25df072156b7a302fb8dffca32cccdcc3728`（parent `ee24aa5`）
-- 验收文档提交：本文件所在提交（PR #54 head；Issue #56 comment 记录最终 full SHA 与 parent）
+- 复审收口提交：`53acb9cfe81321d5bcac0988aa3538ee8693d85b`（parent `902cf5e`；脱敏/归档/manifest 收口）
+- 最终 HEAD 与 parent：以 Issue #56 comment 为准（PR #54 head）
 - 最终状态：**PARTIAL / PENDING_USER_ACTION**（代码/脚本/静态验收完成；用户尚未注册 Runner，未执行真实自托管 run）
 
 ## 1. 根因证据
@@ -75,7 +76,8 @@
 ## 6. 风险与回滚
 
 - 自托管 Runner 在用户电脑执行仓库代码；guard 只允许 repo/ref/actor/triggering_actor，触发是手动的；不要注册 organization-wide。
-- tag 触发是 push 事件：任何能推送 `ci-self-hosted-*` tag 的写权限成员都会触发；guard 仍限制 actor 为 `ve766`，且 tag 名必须等于 SHA。用完可删除 tag（不删除 workflow、不删除历史证据）。
+- tag 触发是 push 事件：任何能推送 `ci-self-hosted-*` tag 的写权限成员都会触发；guard 仍限制 actor/triggering_actor 为 `ve766`，且 tag 名必须等于 SHA。用完可删除 tag（不删除 workflow、不删除历史证据）。
+- tag 触发的 workflow 文件来自被 tag 的提交。有写权限的协作者若推送一个改动 workflow 的提交并在其上打 tag，可绕过 actor 白名单；但该协作者本就有分支写权限，不构成越权或 fork 提权。若要绝对白名单，需在 guard 增加“tag 提交必须是被信任分支的祖先”校验；本轮未实现，记录为残余风险。
 - Runner 使用专用低权限用户；CI 使用隔离 profile，不读取真实用户数据。
 - 分支保护 API 在私有免费仓库不可读；如存在 required checks，需要管理员手动确认/调整，Agent 不猜测。
 - `actions/checkout@v4` 为 tag 固定而非 SHA 固定；与现有 workflow 一致，属于后续供应链加固项。

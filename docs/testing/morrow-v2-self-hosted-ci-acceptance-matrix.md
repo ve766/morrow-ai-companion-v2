@@ -20,8 +20,8 @@
 | 12 | 完整命令集 | PASS（静态） | typecheck/test/evaluate/cognition/build/smoke/product-path/persistence/package |
 | 13 | 安装包静默安装 + 已安装应用 smoke | PASS（实现）/ PENDING（执行） | NSIS `/S` + `smoke.mjs --verify-upgrade`；需 Runner 实机执行 |
 | 14 | 本地归档 manifest/logs/results/installers/screenshots/checksums | PASS（脚本） | `run-self-hosted-ci.ps1` |
-| 15 | 只归档本次 run 新文件 | PASS（脚本） | `LastWriteTimeUtc -ge $runStart` 过滤 |
-| 16 | 控制台 + 日志脱敏 | PASS | `Redact-Text` 同时写日志和 `Write-Host`；探针覆盖 JSON 引号形式 |
+| 15 | 只归档本次 run 新文件 | PASS（脚本） | `LastWriteTimeUtc -ge $runStart` 过滤；截图逐文件复制并保留结构 |
+| 16 | 控制台 + 日志脱敏 | PASS | `Redact-Text` 同时写日志和 `Write-Host`；整段引号值替换，探针覆盖 `"authorization": "Bearer …"`、`"apiKey": "… …"` |
 | 17 | Node 22 硬性检查 | PASS | run 脚本第 61-63 行；setup 脚本第 14 行 |
 | 18 | 不读取真实用户数据 | PASS（设计） | 隔离 profile；归档在 LOCALAPPDATA |
 | 19 | 不修改产品运行时/schema/测试 | PASS | 本轮仅 CI 文件/脚本/文档 |
@@ -32,6 +32,8 @@
 | 24 | 真实 NSIS/安装/启动 | **PENDING_USER_ACTION** | 脚本已实现；取决于 Runner 宿主；失败需保留日志 |
 | 25 | 无新增 hosted compute/storage | PASS（设计） | 托管 workflow 手动；无 artifact upload |
 | 26 | main/release 未被修改 | PASS | 本分支改动；`main`/`release` 仍为旧触发 |
+| 27 | tag 触发的 workflow 来源风险 | 残余（P3） | workflow 取自被 tag 提交；仅写权限协作者可利用，非 fork 提权；见交付报告第 6 节 |
+| 28 | 独立复审 | PARTIAL | pre-fix BLOCKED 与 post-fix 复审文档均在 `docs/audit/`；未把 PENDING 改写为 PASS |
 
 ## 结论
 

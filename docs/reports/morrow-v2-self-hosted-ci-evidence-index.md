@@ -3,7 +3,8 @@
 - 基线 HEAD：`70e89f1d92975d506e803fff511b83191c9148d0`
 - 首版实现提交：`ee24aa5b00db6eac91509a56ce2fde2c259e54c7`（parent `70e89f1`）
 - 复审修复提交：`d5ae25df072156b7a302fb8dffca32cccdcc3728`（parent `ee24aa5`）
-- 验收文档提交：本文件所在提交（PR #54 head；Issue #56 comment 记录最终 full SHA 与 parent）
+- 复审收口提交：`53acb9cfe81321d5bcac0988aa3538ee8693d85b`（parent `902cf5e`）
+- 最终 HEAD 与 parent：以 Issue #56 comment 为准（PR #54 head）
 - 最终状态：**PARTIAL / PENDING_USER_ACTION**
 
 ## 1. 文件
@@ -77,7 +78,10 @@ Authorization: [REDACTED] [REDACTED]
 
 ## 6. 独立复审
 
-- 复审文档：`docs/audit/morrow-v2-self-hosted-ci-independent-review.md`（冻结 HEAD 与逐项结论以该文件为准）。
+- 复审文档：
+  - `docs/audit/morrow-v2-self-hosted-ci-independent-review.md`（冻结 HEAD `ee24aa5`，pre-fix：BLOCKED，F1-F12）
+  - `docs/audit/morrow-v2-self-hosted-ci-independent-review-postfix.md`（冻结 HEAD `902cf5e`，post-fix：F1/F2/F7 PASS，F3 实现 PASS/执行 PENDING，F4/F5/F6 PARTIAL，F8 待 Issue comment 补齐）
+- 复审指出的 F4（JSON 引号值尾部泄漏）、F5（截图目录 mtime）、F6（BOM/Pop-Location）已在 `53acb9c` 修复；F12（tag 触发的 workflow 来自被 tag 提交）作为残余风险记录，不构成越权。
 - 本文件不把复审的 PENDING/BLOCKED 项改写为 PASS。
 
 ## 7. 结论
