@@ -86,7 +86,7 @@
 
 ## 7. 一致性
 
-- 报告、矩阵、基线中的最终代码 SHA 为 `6f5fe47a897fe63b00ec474812abde7cb9ec8f79`；最终 HEAD 为 `6f5fe47a897fe63b00ec474812abde7cb9ec8f79`；Provider P1/P2 核心修复为 `d9b28ae`。
+- 报告、矩阵、基线中的最终代码 SHA 为 `6f5fe47a897fe63b00ec474812abde7cb9ec8f79`；最终 HEAD 为 （docs/evidence）；Provider P1/P2 核心修复为 `d9b28ae`。
 - PR head 会随文档/复审提交前进；PR 描述与最终评论给出当时 head SHA。
 - 历史 PR #40/#51/#52 的 SHA 与报告未被改写。
 

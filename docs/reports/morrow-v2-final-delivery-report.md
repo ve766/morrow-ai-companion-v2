@@ -13,7 +13,7 @@
 - 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - UI/A/B/C 实现：`9af9c3413039453aac70685e9c5d2406a440cbfe`
 - 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
-- 最终 HEAD：`9215cc43d24091fce72dac6b08a5d359638508d4`（docs/evidence）；代码/测试以 `6f5fe47` 为准
+- 最终 HEAD：`PR #54 head`（docs/evidence）；代码/测试以 `6f5fe47` 为准
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围
@@ -158,7 +158,7 @@ CI Windows 产品路径 **PASS**：run `20261105T084141Z-45483dd6`，Electron 44
 - `tsc --noEmit`: 0
 - `vitest run`: 128 files / 1153 tests passed
 - `npm run build`: passed
-- 最终 HEAD CI run 41997137337（head `9215cc4`）：4/4 PASS
+- 最终 HEAD CI：PR #54 checks（head 见 PR 页面）4/4 PASS
 - 代码 SHA CI run 41995422882（head `6f5fe47`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
 
 - 真实 Provider 仍 BLOCKED_QUOTA；本地服务仍 BLOCKED_LOCAL_SERVICE_NOT_RUNNING

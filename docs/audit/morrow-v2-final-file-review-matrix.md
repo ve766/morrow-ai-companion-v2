@@ -1,13 +1,14 @@
-# Morrow V2 Final File Review Matrix (PR #54, re-review after P2 fixes)
+# Morrow V2 Final File Review Matrix (PR #54, frozen HEAD bb97c9b)
 
-- Reviewed candidate HEAD: `140fd303f700e8bb4761c653aa6492c4ee9ddb9b`
-- Actual PR head at review close: `eede52046b4ad18ba02be1e707a002b7fef0b932` (docs-only over `140fd30`, pushed during the review)
-- Final code/test SHA: `8797ab9e2dea171a159d92c349babeb4180dbf84`
+- Frozen final HEAD: `bb97c9ba89a5f144ff1d97e96140681b755cf095`
+- Final code/test SHA: `6f5fe47a897fe63b00ec474812abde7cb9ec8f79`
 - Base: `3812b185398c0442fcc0d0ba5b180713cafee1d9`
-- Requested-HEAD CI: run `41986955154`, 4/4 PASS; actual-head CI run `41989744603`: in progress at review close (Windows upgrade/Ubuntu/package pass, Windows typecheck/tests pending)
-- Code-SHA CI: run `41984709521`, 4/4 PASS (Windows product-path step pass)
-- Diff vs base: 222 files changed, 24,394 insertions, 1,234 deletions.
-- Worktree: `eede520` clean at review start; after writing, only this file and the independent review are modified and uncommitted.
+- PR #54 head: `bb97c9ba89a5f144ff1d97e96140681b755cf095`, `OPEN`, `MERGEABLE`, `UNSTABLE`
+- Frozen-HEAD CI: run `41999916963` — **failure**: all 4 jobs failed in 2 s with 0 steps and no job log (CI startup/infrastructure failure; the commit is docs/evidence-only and does not touch `.github/`)
+- Prior docs-HEAD CI: run `41997137337` (head `9215cc4`), 4/4 PASS
+- Code-SHA CI: run `41995422882` (head `6f5fe47`), 4/4 PASS (Windows product-path step pass)
+- Diff vs base: 233 files changed, 24,828 insertions, 1,234 deletions.
+- Worktree: clean at review start; after writing, only this file and the independent review are modified and uncommitted.
 
 Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed with a non-blocking residual; **P2** = open blocking finding; **HISTORICAL** = prior-stage evidence retained, not final-SHA proof.
 
@@ -15,9 +16,9 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 
 | # | File | Change reviewed | Conclusion |
 | --- | --- | --- | --- |
-| 1 | `.github/workflows/ci.yml` | Windows product-path only; package/install/upgrade jobs; artifact upload. | PASS — final HEAD run 41986955154 has 4/4 jobs pass, including the Windows product-path step. |
+| 1 | `.github/workflows/ci.yml` | Windows product-path only; package/install/upgrade jobs; artifact upload. | PASS — prior docs-HEAD `9215cc4` run `41997137337` and code-SHA `6f5fe47` run `41995422882` are 4/4; frozen HEAD `bb97c9b` run `41999916963` failed at startup with 0 steps (infrastructure). |
 | 2 | `package.json` | `smoke:product-path`, provider evaluation scripts. | PASS — scripts resolve; no new runtime dependency. |
-| 3 | `scripts/product-path-smoke.mjs` | Full SQLite snapshot/diff; seeded messages, self-model, interest/evidence, relationship/evidence; two-step delete in the flow; explicit `controlledRequest`. | PASS+P3 — full-field restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowed changes are per-field with reasons; P3: `continuityAfterRestart = continuityBefore` makes the bridge restart check tautological, goal progress is not seeded, allowed additions are table-level, Provider B is service-level only (explicitly stated). |
+| 3 | `scripts/product-path-smoke.mjs` | Full SQLite snapshot/diff; seeded messages, self-model, interest/evidence, relationship/evidence; two-step delete; readiness-marker wait; explicit `controlledRequest`. | PASS+P3 — full-field restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowed changes per field with reasons; P3: `continuityAfterRestart = continuityBefore` makes the bridge restart check tautological, goal progress is not seeded, allowed additions are table-level, Provider B is service-level only (explicitly stated). |
 | 4 | `src/app/companion-service.ts` | Provider lifecycle, secret transactions, discovery consent/policy, bounded discovery body, `requireConfigured()` priority. | PASS+P3 — discovery uses `1_000_000` bytes, not 1,048,576; no secret/body leak. |
 | 5 | `src/app/index.ts` | Production startup composition; consent dialog uses `presentProviderConsent` and one preview. | PASS+P3 — consent target/model/hash from one preview; detail still says HTTPS Bearer for local HTTP; `dataPolicy` still names `deepseek-egress`. |
 | 6 | `src/app/ipc.ts` | Profile CRUD/discovery handlers, trusted-sender gate, validation, pending decisions. | PASS — parsers reject official/private-network overrides; no secret in results. |
@@ -41,7 +42,7 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 | 24 | `src/renderer/index.html` | Four-view shell, provider profile form, official/local cards, settings index anchors. | PASS+P3 — existing IDs/flows retained; local "优先于 DeepSeek" and cognitive "DeepSeek 请求" copy is misleading for non-DeepSeek active providers. |
 | 25 | `src/renderer/src/companion-ui.ts` | Active-profile readiness/selection, provider-change refresh, consent-safe copy. | PASS — prior P2s closed: `isProviderUsable` allows local without token; `selectChatProvider` mirrors `requireConfigured()`; submit guard and re-enable use the same helper. P3: DeepSeek-specific cognitive copy remains. |
 | 26 | `src/renderer/src/provider-readiness.ts` | New pure readiness/selection helper. | PASS — local loopback usable without credential; remote requires key; order default → local → spark → deepseek → custom; 4 unit tests and independent probe. |
-| 27 | `src/renderer/src/provider-profiles-ui.ts` | Profile list/create/edit/test/discover/default/delete; masked endpoint; no key display; two-step delete. | PASS — prior P2 closed: first click arms `确认删除` for 5 s, second deletes; unit test asserts no bridge call on first click. P3: armed state not cleared by other actions; built-in local delete enabled but service returns FORBIDDEN; no save/discover loading state. |
+| 27 | `src/renderer/src/provider-profiles-ui.ts` | Profile list/create/edit/test/discover/default/delete; masked endpoint; no key display; two-step delete; readiness marker. | PASS — prior P2 closed: first click arms `确认删除` for 5 s, second deletes; unit test asserts no bridge call on first click. P3: armed state not cleared by other actions; built-in local delete enabled but service returns FORBIDDEN; test-only `data-provider-ui-ready` marker set before `loadProfiles()` completes. |
 | 28 | `src/renderer/src/companion.css` | Companion-only refinements; old styles moved to `style.css`. | PASS+P3 — several old classes (`revision-list`, `correction-form`, `reminder-list`, `task-warning`, etc.) have no rule, so some existing details lose their prior visual treatment. |
 | 29 | `src/renderer/src/goal-candidates-ui.ts` | Candidate/formal goal rendering, accept/reject through existing bridge. | PASS — textContent only; request guards; no execution. |
 | 30 | `src/renderer/src/goals-ui.ts` | Exports `refreshGoalViews` for candidate acceptance. | PASS — no behavior change. |
@@ -84,13 +85,13 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 
 | Group | Files | Conclusion |
 | --- | --- | --- |
-| 16 fixed deliverables | `docs/audit/morrow-v2-final-closure-baseline.md`, `docs/ui/reference-inventory.md`, `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md`, `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md`, `docs/ui/evidence/`, `docs/testing/morrow-v2-final-acceptance-matrix.md`, `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md`, `docs/audit/morrow-v2-final-independent-review.md`, `docs/audit/morrow-v2-final-file-review-matrix.md`, `evals/morrow-v2-final/results/<run>.json`, `evals/morrow-v2-final/transcripts/<run>.md`, optional `evals/morrow-v2-final/ui/` | **P2** — all required paths exist; the optional UI machine directory was not needed. `eede520` (docs-only over `140fd30`) partially corrects the delivery report/evidence index/acceptance matrix to `140fd30`/`41986955154`, but `eede520` is now the actual PR head and its CI `41989744603` is not cited; work log line 159 (`771cbaa`/`41984709521`), delivery report lines 79/145, and acceptance matrix lines 22/84/56/96 remain stale. |
+| 16 fixed deliverables | `docs/audit/morrow-v2-final-closure-baseline.md`, `docs/ui/reference-inventory.md`, `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md`, `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md`, `docs/ui/evidence/`, `docs/testing/morrow-v2-final-acceptance-matrix.md`, `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md`, `docs/audit/morrow-v2-final-independent-review.md`, `docs/audit/morrow-v2-final-file-review-matrix.md`, `evals/morrow-v2-final/results/<run>.json`, `evals/morrow-v2-final/transcripts/<run>.md`, optional `evals/morrow-v2-final/ui/` | **P2** — all required paths exist; the optional UI machine directory was not needed. At `bb97c9b`, docs still cite `6f5fe47`/`9215cc4`/`eede520` and `41995422882`/`41997137337`/`41989744603` as final HEAD/CI; work log 159, evidence index 89/66/85/103, acceptance matrix 4/22/85, delivery report 16/58/77/145/161, and the 1 MiB/"provider core unchanged" lines are stale. |
 | UI reference/inventory | `docs/ui/reference-inventory.md` | PASS — files, status, purpose and conflict/trade-off recorded; no fabricated reference. |
-| UI audit/design system | `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md` | PASS+P3 — audit accurate; design-system overstates light muted contrast (4.9 vs 4.41), claims every token is used (`--serif`, `--topbar`, `--radius-sm` unused), and says dangerous actions keep a native confirm (the provider delete is now an in-page two-step). |
-| UI implementation/acceptance | `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md` | PASS+P3 — mapping accurate; acceptance matrix claims self-model/goal screenshots, 390 single-column/no-overflow, keyboard focus and long-text PASS that are not all supported; provider delete now has a two-step confirmation. |
-| Final reports | `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md` | **P2** — `eede520` cites `140fd30`/`41986955154` in many places, but the actual PR head is now `eede520` and its CI `41989744603` is not cited; work log line 159 and delivery report lines 79/145 remain stale (see independent review section 9). P3: 1 MiB/1,048,576 vs 1,000,000; "provider code unchanged after c1f4450" is false. |
-| Continuity evidence | `evals/morrow-v2-final/results/20261105T071402Z-608ab4c9.json`, `evals/morrow-v2-final/transcripts/20261105T071402Z-608ab4c9.md` | PASS+P3 — seeded messages/self-model/interest/evidence/relationship/evidence; restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowedChanges per field with reasons; `controlledRequest` explicitly service-level. P3: bridge restart check tautological; goal progress not seeded; allowed additions table-level. No key/Authorization/body. |
-| Screenshots | `docs/ui/evidence/20261105T071402Z-608ab4c9/*.png` (9), `docs/ui/evidence/20261105T034317Z-8dc025dc/*.png` (9) | PASS+P3 — real Electron captures; all 9 new PNGs are byte-identical to the prior set; no secret text; chat/memory/settings × 3 sizes; no goals/reminders/self-model screenshots; memory shows a stale empty list; 390 nav last item cut; two-step delete state not captured. The older sets are historical and preserved. |
+| UI audit/design system | `docs/ui/current-ui-audit.md`, `docs/ui/design-system.md` | PASS+P3 — audit accurate; design-system overstates light muted contrast (4.9 vs 4.41), claims every token is used (`--serif`, `--topbar`, `--radius-sm` unused), and says dangerous actions keep a native confirm (provider delete is now an in-page two-step). |
+| UI implementation/acceptance | `docs/ui/implementation-and-regression-report.md`, `docs/ui/acceptance-matrix.md` | PASS+P3 — mapping accurate; acceptance matrix claims self-model/goal screenshots, 390 single-column/no-overflow, keyboard focus and long-text PASS that are not all supported. |
+| Final reports | `docs/reports/morrow-v2-final-delivery-report.md`, `docs/reports/morrow-v2-final-evidence-index.md`, `docs/reports/morrow-v2-final-work-log.md` | **P2** — final HEAD/CI citations still stale (see independent review section 9). P3: 1 MiB/1,048,576 vs 1,000,000; "provider core code unchanged after c1f4450" is false. |
+| Continuity evidence | `evals/morrow-v2-final/results/20261105T084141Z-45483dd6.json`, `evals/morrow-v2-final/transcripts/20261105T084141Z-45483dd6.md` | PASS+P3 — seeded messages/self-model/interest/evidence/relationship/evidence; restart/switch/final `removed=[] changed=[] unexpectedAdded={}`; allowedChanges per field with reasons; `controlledRequest` explicitly service-level. P3: bridge restart check tautological; goal progress not seeded; allowed additions table-level. No key/Authorization/body. |
+| Screenshots | `docs/ui/evidence/20261105T084141Z-45483dd6/*.png` (9), prior sets | PASS+P3 — real Electron captures; no secret text; chat/memory/settings × 3 sizes; no goals/reminders/self-model screenshots; memory shows a stale empty list; 390 nav last item cut; two-step delete state not captured. |
 | Historical docs | `docs/architecture/provider-multi-source-architecture.md`, `provider-security-and-consent.md`, `pr-40-*`, `provider-multi-source-*` reports/tests, `stage-4-*` reports/tests | HISTORICAL — retained with their own SHAs; not final-SHA evidence; no evidence rewritten. |
 
 ## 4. Security scan summary
@@ -98,12 +99,12 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 | Scan | Count / result |
 | --- | --- |
 | Provider-key-shaped prefix | 11 matches, 0 real keys (the `morrow-v2-risk-dependency-register` file name and an evaluation fixture ID; two are in the previous review text) |
-| `apiKey = "..."` literals | 33 matches, all offline/test/fake (`offline-*`, `test-only-*`, `test-key-*`, `synthetic-*`, `replacement-*`, `key-0123`) |
+| `apiKey = "..."` literals | 33 matches, all offline/test/fake |
 | `Bearer <literal>` | 2 matches, both `test-only-*` in a unit test |
 | AWS/GitHub/Slack/private-key patterns | 0 |
 | Product-path artifact | only SHA-256 digests of OS ciphertext; fixture IDs are random UUIDs; no key/Authorization/body |
 | Screenshots | no key text; settings shows "密钥：已保存在本机安全存储" |
-| New UI DOM/logging | no key rendered; `dataset` holds profile IDs and `confirm`; no console logging |
+| New UI DOM/logging | no key rendered; `dataset` holds profile IDs, `confirm`, and the non-sensitive `providerUiReady` marker; no console logging |
 
 ## 5. Verification commands (summary)
 
@@ -116,12 +117,12 @@ Legend: **PASS** = reviewed and consistent with the task; **PASS+P3** = reviewed
 | `TEMP=... TMP=... npx vitest run <8 Stage 4/provider files>` | 8 files / 61 tests pass | 0 |
 | `TEMP=... TMP=... npm run evaluate` | M3/M4 pass | 0 |
 | `TEMP=... TMP=... npm run evaluate:cognition` | cognitive/feeling/alpha/intent pass | 0 |
-| `.tmp/probe/companion-gate.test.ts` | 6/6 pass (local no-key, selection order, keyless custom, default custom) | 0 |
-| `.tmp/probe/provider-priority.test.ts` | service selects local over custom | 0 |
-| `gh pr checks 54` | 4/4 pass at `140fd30` | 0 |
+| `.tmp/probe/companion-gate.test.ts` + `.tmp/probe/provider-priority.test.ts` | 2 files / 7 tests pass | 0 |
+| `gh pr checks 54` | frozen `bb97c9b` run `41999916963`: 4/4 fail (0 steps, 2 s); `9215cc4` run `41997137337`: 4/4 pass; `6f5fe47` run `41995422882`: 4/4 pass | 0 |
 
 ## 6. Blocking findings carried into the verdict
 
-1. **P2 documentation consistency** — `eede520` is the actual PR head (docs-only over `140fd30`), but the docs cite `140fd30` as the final HEAD and do not cite `eede520` or its CI `41989744603` (in progress at review close). `docs/reports/morrow-v2-final-work-log.md:159` still says `771cbaa`/`41984709521`; `docs/reports/morrow-v2-final-delivery-report.md:79` still says provider code is unchanged after `c1f4450`; `:145` still says 1,048,576 bytes; `docs/testing/morrow-v2-final-acceptance-matrix.md:22,84,56,96` still labels the code-SHA/product-path run as final HEAD CI and keeps stale 1 MiB/message-count text.
+1. **Frozen-HEAD CI is red** — run `41999916963` on `bb97c9b`: all four jobs failed in 2 s with 0 steps and no job log. The commit is docs/evidence-only and does not touch `.github/`; this is a CI startup/infrastructure failure, not a code/test failure. A rerun must be green before merge.
+2. **P2 documentation consistency** — at `bb97c9b`, `docs/reports/morrow-v2-final-work-log.md:159` still says `eede520`/`41989744603`; `docs/reports/morrow-v2-final-evidence-index.md:89` says final HEAD `6f5fe47` and `:66,85,103` cite only `41995422882`; `docs/reports/morrow-v2-final-delivery-report.md:16,58,77,161` cite `9215cc4`/`41995422882`/`41997137337`, not `bb97c9b`; `docs/testing/morrow-v2-final-acceptance-matrix.md:4,22,85` say final HEAD `6f5fe47` and use `41989744603`; `:97` and delivery report `:145` say 1,048,576 bytes (code is 1,000,000); delivery report `:79` says provider core code is unchanged after `c1f4450` (false).
 
-No open code P1/P2 remains from the four prior findings. P3 residuals are listed in the independent review section 11. Overall verdict: **PARTIAL**; code verdict: **PASS_WITH_NON_BLOCKING_BACKLOG**. External Provider quota and the local model service remain blocked.
+No open code P1/P2 remains from the four prior findings. P3 residuals are listed in the independent review section 11. Code verdict: **PASS_WITH_NON_BLOCKING_BACKLOG**; overall delivery: **PARTIAL** because the frozen-HEAD CI is red, the docs P2 is open, and the external Provider quota/local model service remain blocked.
