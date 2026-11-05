@@ -74,7 +74,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | 0；124 文件 / 1129 测试 |
+| `npx vitest run` | 0；124 文件 / 1148 测试 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
 | `npm run build` | 0 |
@@ -89,3 +89,22 @@
 - 报告、矩阵、基线中的最终代码 SHA 为 `d07b3f4b951fab2bd522413c789850055a49fe61`；Provider P1/P2 核心修复为 `d9b28ae`；证据脚本起点为 `28665df`。
 - PR head 会随文档/复审提交前进；PR 描述与最终评论给出当时 head SHA。
 - 历史 PR #40/#51/#52 的 SHA 与报告未被改写。
+
+## 8. 2026-11-05 UI/A/B/C 证据
+
+| 证据 | 位置 |
+| --- | --- |
+| UI 参考资料清单 | `docs/ui/reference-inventory.md` |
+| 改造前 UI 审计 | `docs/ui/current-ui-audit.md` |
+| 设计系统/tokens | `docs/ui/design-system.md` |
+| UI 实施与回归 | `docs/ui/implementation-and-regression-report.md` |
+| UI 验收矩阵 | `docs/ui/acceptance-matrix.md` |
+| 真实 Electron 截图 | `docs/ui/evidence/20261105T031237Z-f9c9988e/`（9 张） |
+| UI/A/B/C CI run | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41959419321（4/4 PASS） |
+| 全字段 continuity 结果 | `evals/morrow-v2-final/results/20261105T031237Z-f9c9988e.json` |
+| continuity transcript | `evals/morrow-v2-final/transcripts/20261105T031237Z-f9c9988e.md` |
+| consent 展示测试 | `src/providers/consent-presentation.test.ts` |
+| bounded body 测试 | `src/providers/bounded-body.test.ts` |
+| 全字段 diff | product-path result `continuity.fullField.restart/switch/final` |
+
+本轮测试数：127 files / 1148 tests。真实 Provider 状态仍为 `BLOCKED_QUOTA` / `BLOCKED_LOCAL_SERVICE_NOT_RUNNING`。

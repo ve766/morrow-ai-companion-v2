@@ -31,6 +31,10 @@ function feedback(message: string, isError = false): void {
   target.hidden = false
 }
 
+function notifyProviderChange(): void {
+  if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('morrow:providers-changed'))
+}
+
 function maskedEndpoint(endpoint: string): string {
   try {
     const url = new URL(endpoint)
@@ -140,11 +144,13 @@ function renderProfile(profile: ProviderConfigRecord): HTMLElement {
   })
   makeDefault.addEventListener('click', () => void run(async () => {
     unwrap(await window.morrow.providers.setDefaultProfile({ profileId: profile.id }))
+    notifyProviderChange()
     feedback('已设为默认对话 Provider')
     await loadProfiles()
   }))
   remove.addEventListener('click', () => void run(async () => {
     unwrap(await window.morrow.providers.deleteProfile({ profileId: profile.id }))
+    notifyProviderChange()
     feedback('配置已删除')
     resetForm()
     await loadProfiles()
@@ -207,6 +213,7 @@ async function save(): Promise<void> {
     ...(apiKey.trim() ? { apiKey } : {})
   }
   const saved = unwrap(await window.morrow.providers.saveProfile(input))
+  notifyProviderChange()
   element<HTMLInputElement>('#provider-profile-api-key').value = ''
   if (!saved.enabled && !saved.apiKeyConfigured && saved.sourceKind !== 'local') {
     feedback(`已保存「${saved.displayName ?? saved.id}」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。`)

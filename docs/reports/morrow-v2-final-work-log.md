@@ -84,7 +84,7 @@
 | 命令 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | 0 |
-| `npx vitest run` | 0；124 文件 / 1129 测试 |
+| `npx vitest run` | 0；124 文件 / 1148 测试 |
 | `npm run evaluate` | 0 |
 | `npm run evaluate:cognition` | 0 |
 | `npm run build` | 0 |
@@ -133,3 +133,34 @@ Windows product-path PASS run：`20261104T154241Z-1430f856`（Electron 44.9.3，
 1. 独立复审报告提交到本分支，并复审最终 HEAD。
 2. 回填 PR #54 最终 head、CI 链接、复审 verdict。
 3. 不合并、不发布、不修改 release/main。
+
+## 8. 2026-11-05 收口轮（PR #54 评论）
+
+### 8.1 基线
+
+- 重新读取 PR #54：OPEN，head `884418b`，CI 4/4 PASS；工作树 clean。
+- 复核历史问题：consent DeepSeek 文案、`response.text()` 先读后限、error hint 先读后截、continuity 只比部分字段、独立复审未覆盖本轮。
+- 读取 UI 参考：`spatial.html`、`agentic-lab.html`、`designs-lab.html`、`_morrow/memory-vault.src.html`、`zcode-morrow/README.md`、`PROJECT-NOTES.md`；登记到 `docs/ui/reference-inventory.md`。
+
+### 8.2 实现
+
+- A：`consent-presentation.ts` + 6 组测试；`index.ts` 改用统一 presentation。
+- B：`bounded-body.ts` + 10 组测试；discovery 1 MiB、error hint 4 KiB；新增无 Content-Length 超限测试。
+- C：product-path 增加全字段 SQLite 快照/逐字段 diff/allowlist；CI run `20261105T031237Z-f9c9988e` 三次 diff 全 0。
+- UI：重写 `style.css`/`companion.css`，新增 `presence-ui.ts`（hero/轨道 canvas/主题/导航编号/设置索引）、`self-model-ui.ts`；保留全部既有 ID/IPC。
+- UI 功能修正：聊天发送门禁使用默认/自定义 Provider；Provider 变更事件刷新聊天状态；官方 DeepSeek 卡不再宣称“聊天保持离线”。
+
+### 8.3 验证
+
+- `tsc --noEmit`: 0
+- `vitest run`: 127 files / 1148 tests passed
+- `npm run build`: passed
+- CI run 41959419321（`9af9c34`）：4/4 PASS
+- 截图：`docs/ui/evidence/20261105T031237Z-f9c9988e/` 9 张真实 Electron 窗口
+- 真实 Provider/本地服务：仍 BLOCKED_QUOTA / BLOCKED_LOCAL_SERVICE_NOT_RUNNING
+
+### 8.4 已知限制
+
+- Provider B 的受控请求由服务层测试覆盖；Electron 原生 consent 不能由 CDP 自动确认。
+- 本机 Electron 宿主仍 0xC0000005，真实截图来自 CI Windows。
+- 纸面主题是参考系统的第二翼；未收到单独主参考图，若后续提供需重新校准。

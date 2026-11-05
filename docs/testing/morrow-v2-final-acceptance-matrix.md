@@ -62,10 +62,10 @@
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1129 测试） |
+| 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（124 文件 / 1148 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
 | 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261104T155831Z-899f5cb0`（relationship 以表计数覆盖） |
-| 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1129；全量运行 0 skipped |
+| 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1148；全量运行 0 skipped |
 
 ## 6. 真实 Provider
 
@@ -98,13 +98,13 @@
 | B3 | 超限取消 reader/body，不继续读取 | PASS | `ProviderBodyLimitError` + cancel 测试 |
 | B4 | Content-Length 缺失/偏小/偏大 | PASS | `bounded-body.test.ts` |
 | B5 | UTF-8 跨 chunk/读取错误/无 body | PASS | `bounded-body.test.ts` |
-| C1 | A→重启→B→重启→A 真实产品路径 | PASS（CI 待新 run） | `scripts/product-path-smoke.mjs` 多轮重启 |
-| C2 | 人格版本/systemRules、自我模型、兴趣、记忆、目标、关系、会话/消息全字段 diff | PASS（代码/CI 待新 run） | `snapshotFullDatabase` + `diffFullSnapshots` |
+| C1 | A→重启→B→重启→A 真实产品路径 | PASS | `scripts/product-path-smoke.mjs` 多轮重启 |
+| C2 | 人格版本/systemRules、自我模型、兴趣、记忆、目标、关系、会话/消息全字段 diff | PASS | `snapshotFullDatabase` + `diffFullSnapshots` |
 | C3 | 允许变化显式 allowlist（时间戳/派生感受状态/兴趣增长） | PASS | `TIMESTAMP_FIELDS`/`ALLOWED_ADDITION_TABLES` |
-| C4 | JSON diff + transcript | PASS（CI 待新 run） | product-path result `continuity.fullField` + transcript |
+| C4 | JSON diff + transcript | PASS | product-path result `continuity.fullField` + transcript |
 | UI1 | 主对话页空间 hero + 对话中心 | PASS | `presence-ui.ts`、`style.css`、截图 |
 | UI2 | Provider/人格/记忆/兴趣/目标/状态入口 | PASS | 现有视图 + `self-model-ui.ts` |
-| UI3 | 1280/1440/390 响应式 | PASS（CI 截图） | product-path `uiEvidence` 9 张 |
+| UI3 | 1280/1440/390 响应式 | PASS | product-path `uiEvidence` 9 张 |
 | UI4 | 键盘/焦点/aria/减弱动效 | PASS | `docs/ui/design-system.md` + 代码 |
-| UI5 | 真实 Electron 截图 | PASS（CI 待新 run） | `docs/ui/evidence/<run-id>/` |
+| UI5 | 真实 Electron 截图 | PASS | `docs/ui/evidence/<run-id>/` |
 | D1 | 最新完整 SHA 独立复审 | PARTIAL（待本轮冻结后执行） | 复审文档将覆盖本轮 HEAD |

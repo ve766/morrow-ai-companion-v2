@@ -48,7 +48,7 @@
 | 项目 | 结果 |
 | --- | --- |
 | `npx tsc --noEmit` | PASS（无输出，退出码 0） |
-| `vitest run` | PASS：124 文件 / 1129 测试，0 skipped |
+| `vitest run` | PASS：124 文件 / 1148 测试，0 skipped |
 | `npm run evaluate` | PASS：M3 检索 + M4 reminders 合成评估 |
 | `npm run evaluate:cognition` | PASS：cognitive/feeling/alpha/intent 四组合成评估 |
 | `npm run build` | PASS：main/preload/renderer 产物生成 |
@@ -114,3 +114,51 @@ CI Windows 产品路径 **PASS**：run `20261104T155831Z-899f5cb0`，Electron 44
 ## 8. 最终状态
 
 **PARTIAL**。代码、迁移、P1/P2、Stage 4 回归、离线评估、构建、Windows 安装/启动 smoke 与真实 Electron 产品路径（CI Windows）均通过；真实远程 Provider 额度与本地模型服务仍受外部条件限制。V2 不进入发布决策，等待用户审阅 PR #54。
+
+## 9. 2026-11-05 收口补充：UI 重设计 + A/B/C
+
+本轮在 PR #54 现有 head branch 上继续，未新建分支/PR。
+
+### 9.1 UI 重设计
+
+- 真实 renderer 改造：`src/renderer/index.html`、`style.css`、`companion.css`、`presence-ui.ts`、`self-model-ui.ts`、`companion-ui.ts`、`provider-profiles-ui.ts`。
+- 主对话页：空间 hero + 轨道点云 canvas + 双栏对话 + 右侧人格面板 + 输入 dock；不再是把所有面板同权堆叠。
+- 记忆页：新增自我模型/兴趣面板（更正/撤回/暂停/恢复），保留来源/修订链/敏感级/删除语义。
+- 设置页：分区索引 + 双栏 Provider + 官方 DeepSeek 兼容入口 + 本地模型 + 认知 + 备份。
+- 主题：深空默认 / 纸面切换；只改 CSS token，不触碰数据。
+- 截图：Windows Electron 真实窗口，run `20261105T031237Z-f9c9988e`，`docs/ui/evidence/20261105T031237Z-f9c9988e/`（chat/memory/settings × 1440/1280/390，共 9 张）。
+- 功能修正：对话发送门禁改用默认/自定义 Provider，而不是只看旧 DeepSeek 表单；Provider 保存/切换/删除后通过 `morrow:providers-changed` 刷新聊天就绪状态。
+
+### 9.2 修复 A：Consent 展示
+
+- 新增 `src/providers/consent-presentation.ts`，按 `official/custom-proxy/local` 生成标题、厂商标签、目标、计费说明与警告。
+- 自定义远端固定显示“自定义服务端 + host”，不显示 DeepSeek 名称/价格；本地显示“本地模型服务 + 回环地址 + 不产生 API 费用”；官方只显示自身厂商，价格未知时显示“计费信息未验证”。
+- endpoint 展示剔除 userinfo/query/fragment。
+- `requestProviderConsent` 只消费同一份 `ProviderConsentPreview`（endpoint/model/payload hash），不另造目标。
+- 测试：`consent-presentation.test.ts` 6 组。
+
+### 9.3 修复 B：有界流式 body
+
+- 新增 `src/providers/bounded-body.ts`：逐 chunk 读取、按 `byteLength` 计数、超限 cancel、Content-Length 只做提前拒绝、UTF-8 增量解码。
+- discovery 使用 1,048,576 bytes；`readProviderErrorHint` 使用 4,096 bytes。
+- 测试：`bounded-body.test.ts` 10 组 + discovery 无 Content-Length 超限 1 组。
+
+### 9.4 修复 C：全字段连续性
+
+- `scripts/product-path-smoke.mjs` 在 A baseline / A restart / B switch / final A 四个时点导出完整 SQLite 快照（personality、self-model、interests、memories、goals、relationship、conversations/messages、pending/reflection、feeling state、event journal 等）。
+- 每个字段存 SHA-256；`diffFullSnapshots` 逐字段比较，删除/未允许的修改/意外新增都会失败。
+- 允许变化显式 allowlist：`*_at` 维护时间戳、feeling state 派生字段、启动反思新增的 interest/reflection/event 行；每项记录在结果 JSON 的 `allowedAdditions`。
+- 结果：run `20261105T031237Z-f9c9988e` 三次 diff 均 `removed=0 changed=0 unexpectedAdded=0`。
+- 限制：Provider B 的“受控请求”仍由服务层测试覆盖；Electron 原生 consent 对话框无法由 CDP 自动点击，未用 mock 冒充真实产品路径。
+
+### 9.5 验证
+
+- `tsc --noEmit`: 0
+- `vitest run`: 127 files / 1148 tests passed
+- `npm run build`: passed
+- CI run 41959419321（head `9af9c34`）：4/4 PASS，包含 Windows product-path + 9 张真实截图 + Windows package/install + Windows upgrade
+- 真实 Provider 仍 BLOCKED_QUOTA；本地服务仍 BLOCKED_LOCAL_SERVICE_NOT_RUNNING
+
+### 9.6 状态
+
+仍为 **PARTIAL**：UI/A/B/C 与 CI 通过，外部 Provider/本地模型未恢复；不自动合并/发版。

@@ -71,13 +71,14 @@ export function initializeCompanion(): void {
   const state: {
     conversationId: string
     provider: ProviderConfigRecord | null
+    officialProvider: ProviderConfigRecord | null
     localProvider: ProviderConfigRecord | null
     providerStorageUnverified: boolean
     sending: boolean
     requestId: string
     retry: { conversationId: string; requestId: string; content: string; includeSensitive: boolean } | undefined
     streaming: HTMLElement | undefined
-  } = { conversationId: '', provider: null, localProvider: null, providerStorageUnverified: false, sending: false, requestId: '', retry: undefined, streaming: undefined }
+  } = { conversationId: '', provider: null, officialProvider: null, localProvider: null, providerStorageUnverified: false, sending: false, requestId: '', retry: undefined, streaming: undefined }
 
   const setStatus = (message: string, isError = false): void => {
     const status = element<HTMLParagraphElement>('#chat-feedback')
@@ -99,25 +100,30 @@ export function initializeCompanion(): void {
     state.streaming = undefined
   }
 
-  const updateProviderStatus = (provider: ProviderConfigRecord | null, localProvider: ProviderConfigRecord | null = state.localProvider): void => {
+  const updateProviderStatus = (provider: ProviderConfigRecord | null, officialProvider: ProviderConfigRecord | null = state.officialProvider, localProvider: ProviderConfigRecord | null = state.localProvider): void => {
     state.provider = provider
+    state.officialProvider = officialProvider
     state.localProvider = localProvider
     const status = element<HTMLSpanElement>('#provider-status')
     if (state.providerStorageUnverified) status.textContent = '系统安全存储状态未确认；聊天已暂停。请重启应用后复查，未确认前不要发送。'
-    else if (!provider) status.textContent = '尚未配置；聊天保持离线。'
-    else if (!provider.apiKeyConfigured) status.textContent = '没有可用的系统安全存储密钥；聊天保持离线。'
-    else if (!provider.enabled) status.textContent = 'DeepSeek 已配置但未启用。'
-    else status.textContent = 'DeepSeek-V4.1-Flash-1017 已配置；每次发送前都会显示精确请求并单独确认。'
+    else if (!officialProvider) status.textContent = '官方连接未配置。'
+    else if (!officialProvider.apiKeyConfigured) status.textContent = '官方连接没有可用密钥。'
+    else if (!officialProvider.enabled) status.textContent = '官方连接已配置但未启用。'
+    else status.textContent = '官方连接已配置；每次发送前都会显示精确请求并单独确认。'
     const localStatus = element<HTMLSpanElement>('#local-provider-status')
     if (state.providerStorageUnverified) localStatus.textContent = '系统安全存储状态未确认；聊天已暂停。'
     else if (!localProvider) localStatus.textContent = '未配置'
     else if (!localProvider.enabled) localStatus.textContent = '已配置但未启用'
     else localStatus.textContent = `已启用：${localProvider.model}`
-    const deepseekReady = Boolean(provider?.enabled && provider.apiKeyConfigured)
+    const chatReady = Boolean(provider?.enabled && provider.apiKeyConfigured)
     const localReady = Boolean(localProvider?.enabled)
-    const ready = Boolean(!state.providerStorageUnverified && (deepseekReady || localReady))
+    const officialReady = Boolean(officialProvider?.enabled && officialProvider.apiKeyConfigured)
+    const ready = Boolean(!state.providerStorageUnverified && chatReady)
     element<HTMLButtonElement>('#chat-send').disabled = !ready || state.sending
-    element<HTMLButtonElement>('#provider-test').disabled = !deepseekReady || state.sending
+    element<HTMLButtonElement>('#provider-test').disabled = !officialReady || state.sending
+    if (!state.sending) {
+      element<HTMLSpanElement>('#chat-state').textContent = provider ? (chatReady ? `${provider.displayName ?? provider.id} · 已就绪` : 'Provider 尚未就绪') : '尚未配置 Provider'
+    }
     element<HTMLButtonElement>('#local-provider-test').disabled = !localReady || state.sending
     element<HTMLButtonElement>('#conversation-new').disabled = state.sending
     element<HTMLButtonElement>('#conversation-delete').disabled = state.sending
@@ -134,10 +140,16 @@ export function initializeCompanion(): void {
 
   const loadProvider = async (): Promise<void> => {
     state.providerStorageUnverified = false
-    const deepseek = unwrap(await window.morrow.providers.get({ providerId: 'deepseek' }))
+    const profiles = unwrap(await window.morrow.providers.listProfiles())
+    const chatProvider = profiles.find((profile) => profile.isDefault && profile.enabled)
+      ?? profiles.find((profile) => profile.enabled && profile.sourceKind === 'custom-proxy')
+      ?? profiles.find((profile) => profile.enabled && profile.sourceKind === 'local')
+      ?? profiles.find((profile) => profile.enabled)
+      ?? null
+    const official = unwrap(await window.morrow.providers.get({ providerId: 'deepseek' }))
     const local = unwrap(await window.morrow.providers.get({ providerId: 'local-openai' }))
-    updateProviderStatus(deepseek, local)
-    element<HTMLInputElement>('#provider-enabled').checked = state.provider?.enabled ?? false
+    updateProviderStatus(chatProvider, official, local)
+    element<HTMLInputElement>('#provider-enabled').checked = state.officialProvider?.enabled ?? false
     element<HTMLInputElement>('#provider-api-key').value = ''
     element<HTMLInputElement>('#local-provider-enabled').checked = state.localProvider?.enabled ?? false
     element<HTMLInputElement>('#local-provider-endpoint').value = state.localProvider?.endpoint ?? ''
@@ -223,7 +235,7 @@ export function initializeCompanion(): void {
   const renderMessages = (messages: ConversationMessage[]): void => {
     const list = element<HTMLDivElement>('#chat-messages')
     if (messages.length === 0) {
-      list.replaceChildren(node('p', 'companion-muted', '这段对话还没有消息。发送前会弹出系统确认，未确认时不会向 DeepSeek 请求。'))
+      list.replaceChildren(node('p', 'companion-muted', '这段对话还没有消息。发送前会弹出系统确认，未确认时不会向模型服务请求。'))
       return
     }
     const items = messages.map((message) => {
@@ -365,7 +377,7 @@ export function initializeCompanion(): void {
     try {
       const provider = unwrap(await window.morrow.providers.clearCredential())
       state.providerStorageUnverified = false
-      updateProviderStatus(provider)
+      updateProviderStatus(state.provider, provider, state.localProvider)
       setProviderFeedback('API 密钥已从本机安全存储移除；聊天保持离线。')
     } catch (error) {
       markProviderStorageUnverified(error)
@@ -378,13 +390,13 @@ export function initializeCompanion(): void {
     buttonControl.disabled = true
     setProviderFeedback('会发送固定测试消息，不含对话和记忆；需在系统确认框中允许，且可能产生 API 费用。')
     try {
-      const result = unwrap(await window.morrow.providers.testConnection({ providerId: 'deepseek' }))
-      setProviderFeedback(`连接成功。DeepSeek 返回模型标识：${result.model}`)
+      const result = unwrap(await window.morrow.providers.testConnection({ providerId: state.officialProvider?.id ?? 'deepseek' }))
+      setProviderFeedback(`连接成功。模型服务返回模型标识：${result.model}`)
     } catch (error) {
       markProviderStorageUnverified(error)
       setProviderFeedback(errorText(error), true)
     } finally {
-      buttonControl.disabled = state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured
+      buttonControl.disabled = state.providerStorageUnverified || !state.officialProvider?.enabled || !state.officialProvider.apiKeyConfigured
     }
   })
 
@@ -565,7 +577,7 @@ export function initializeCompanion(): void {
     element<HTMLSelectElement>('#conversation-select').disabled = true
     element<HTMLButtonElement>('#provider-clear-key').disabled = true
     state.streaming = undefined
-    setStatus('等待系统级发送确认；在确认前不会连接 DeepSeek。')
+    setStatus('等待系统级发送确认；在确认前不会连接模型服务。')
     try {
       const result = unwrap(await window.morrow.chat.send({ conversationId: state.conversationId, requestId, content, includeSensitive }))
       state.retry = undefined
@@ -617,6 +629,10 @@ export function initializeCompanion(): void {
       if (body) body.textContent += event.delta
     }
     list.scrollTop = list.scrollHeight
+  })
+
+  window.addEventListener('morrow:providers-changed', () => {
+    void loadProvider().catch((error) => setStatus(errorText(error), true))
   })
 
   void Promise.all([loadCurrentProviderSafe(), loadConversations(), loadPersonality(), loadCognitive()]).catch((error) => setStatus(errorText(error), true))
