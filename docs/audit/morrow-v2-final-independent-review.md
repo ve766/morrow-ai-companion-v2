@@ -8,14 +8,16 @@ Independent reviewer: separate context; did not write this implementation. No pr
 | --- | --- |
 | Repository | `ve766/morrow-ai-companion-v2` (`E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo`) |
 | Branch | `feat/morrow-v2-final-closure` |
-| Final candidate HEAD | `140fd303f700e8bb4761c653aa6492c4ee9ddb9b` (docs/evidence only over the code SHA) |
+| Final candidate HEAD (requested) | `140fd303f700e8bb4761c653aa6492c4ee9ddb9b` (docs/evidence only over the code SHA) |
+| Actual PR head at review close | `eede52046b4ad18ba02be1e707a002b7fef0b932` (docs-only over `140fd30`; pushed during the review) |
 | Final code/test SHA | `8797ab9e2dea171a159d92c349babeb4180dbf84` |
 | Base | `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9` |
-| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, not draft, `MERGEABLE`, merge state `CLEAN` |
-| PR head SHA (live) | `140fd303f700e8bb4761c653aa6492c4ee9ddb9b` |
-| Final HEAD CI | [41986955154](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154), head `140fd30`, conclusion `success`, 4/4 jobs pass |
+| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, not draft, `MERGEABLE`, merge state `UNSTABLE` (actual-head CI still running) |
+| PR head SHA (live) | `eede52046b4ad18ba02be1e707a002b7fef0b932` |
+| Requested-HEAD CI | [41986955154](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154), head `140fd30`, conclusion `success`, 4/4 jobs pass |
+| Actual-head CI | [41989744603](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41989744603), head `eede520`, `in_progress`: Windows upgrade, Ubuntu, package/install pass; Windows typecheck/tests pending at review close |
 | Code-SHA CI | [41984709521](https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41984709521), head `8797ab9`, conclusion `success`, 4/4 jobs pass; Windows product-path step pass |
-| Worktree | clean at review start; after writing, only the two review files are modified and uncommitted |
+| Worktree | clean at review start; `eede520` is the current HEAD; after writing, only the two review files are modified and uncommitted |
 
 Final HEAD CI jobs (`gh pr checks 54`):
 
@@ -26,7 +28,7 @@ Final HEAD CI jobs (`gh pr checks 54`):
 | Windows package, install and installed-app smoke | pass (3m27s) | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154/job/127109836914 |
 | Windows upgrade path (schema migrations under the real app) | pass (1m37s) | https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41986955154/job/127109837363 |
 
-The committed product-path evidence (`20261105T071402Z-608ab4c9`, 22 checks, PASS) was produced by run `41984709521` at the code SHA. The final HEAD run `41986955154` also executed the Windows product-path step successfully.
+The committed product-path evidence (`20261105T071402Z-608ab4c9`, 22 checks, PASS) was produced by run `41984709521` at the code SHA. The requested HEAD run `41986955154` also executed the Windows product-path step successfully. During the review the PR head moved to `eede520` (docs-only over `140fd30`); its run `41989744603` was still in progress at review close (Windows upgrade, Ubuntu and package/install pass; Windows typecheck/tests pending), so the actual PR head is not yet CI-green.
 
 ## 1. Verdict
 
@@ -34,7 +36,7 @@ The committed product-path evidence (`20261105T071402Z-608ab4c9`, 22 checks, PAS
 
 **Code review: PASS_WITH_NON_BLOCKING_BACKLOG.** All four code P2 findings from the previous review are closed and independently reproduced. The remaining code issues are P3.
 
-**Overall: PARTIAL.** One P2 documentation-consistency finding remains open: the repository docs still name `8797ab9` as the final HEAD and `41984709521` as the final CI run; the actual final HEAD `140fd30` and its green run `41986955154` are not recorded, and the evidence index still calls `20261104T154241Z` "final code SHA evidence". External provider quota and the local model service also remain blocked. If the docs are corrected to the actual final HEAD/CI, the code verdict is `PASS_WITH_NON_BLOCKING_BACKLOG`; delivery stays PARTIAL only for the external provider/local-service blockers.
+**Overall: PARTIAL.** Two non-code blockers remain. First, the actual PR head moved to `eede520` (docs-only over `140fd30`) during the review; its CI run `41989744603` was still in progress at review close (Windows upgrade, Ubuntu and package/install pass; Windows typecheck/tests pending), so the actual PR head is not yet green. Second, the docs P2 is not fully closed: `eede520` corrects many references to `140fd30`/`41986955154`, but it cites `140fd30` as the final HEAD (the actual head is now `eede520`), does not cite `41989744603`, and still leaves `docs/reports/morrow-v2-final-work-log.md:159` (`771cbaa`/`41984709521`), `docs/reports/morrow-v2-final-delivery-report.md:79` (provider code unchanged after `c1f4450`), `:145` (1,048,576 bytes), and `docs/testing/morrow-v2-final-acceptance-matrix.md:22,84,56,96` stale. If `eede520` CI completes green and those lines are corrected to `eede520`/`41989744603`, the code verdict is `PASS_WITH_NON_BLOCKING_BACKLOG`; delivery stays PARTIAL only for the external provider/local-service blockers.
 
 ## 2. P2 closure status
 
@@ -44,7 +46,7 @@ The committed product-path evidence (`20261105T071402Z-608ab4c9`, 22 checks, PAS
 | UI selection order differed from `requireConfigured()` | `provider-readiness.ts:13-21` `selectChatProvider`: explicit default → local-openai → spark → deepseek → enabled non-official custom; `companion-ui.ts:145` uses it | `tests/provider-readiness.test.ts:33-50` covers default/local/spark/deepseek/custom/disabled default; independent probe shows Local OpenAI selected over Relay A with no default; service priority probe still returns `local-openai` | **CLOSED** |
 | Provider profile delete had no confirmation | `src/renderer/src/provider-profiles-ui.ts:151-168` two-step in-page confirmation: first click changes the button to `确认删除` for 5 s, second click deletes; `dataset.confirm` and timeout reset | `tests/provider-profiles-ui.test.ts:131-144` asserts first click does not call `deleteProfile`, text is `确认删除`, second click deletes; product-path run clicks twice (150 ms apart) and deletes B | **CLOSED** |
 | Continuity fixture lacked messages, self-model, interest/evidence, relationship/evidence; Provider B only service-level | `scripts/product-path-smoke.mjs:389-419` seeds two messages, one self-model entry, one interest + evidence, one relationship thread + evidence after the app is stopped and before the baseline snapshot; full-field diff compares restart/switch/final | New result `20261105T071402Z-608ab4c9`: `removed=[] changed=[] unexpectedAdded={}` at all three points; allowed changes are explicit `deterministic_interest_reconciliation` / `deterministic_evidence_recompute` fields and `*_at` maintenance timestamps, listed per field in JSON; `controlledRequest` explicitly says `mode: service-level` | **CLOSED** for the required categories; P3 caveats below |
-| Docs presented old SHA/CI as final | Docs were updated to `8797ab9` / `41984709521` / product-path `20261105T071402Z` | Actual final HEAD is `140fd30` and final HEAD CI is `41986955154`; neither appears anywhere in `docs/` or `evals/`. `docs/reports/morrow-v2-final-delivery-report.md:16` calls `8797ab9` the final HEAD; `docs/reports/morrow-v2-final-evidence-index.md:89` does the same; `docs/reports/morrow-v2-final-work-log.md:159` still calls `771cbaa` the final HEAD with run `41984709521`; `docs/reports/morrow-v2-final-evidence-index.md:68` still calls `20261104T154241Z` final code evidence | **OPEN P2** |
+| Docs presented old SHA/CI as final | Docs were updated to `8797ab9` / `41984709521` / product-path `20261105T071402Z`; a further docs commit `eede520` was pushed during the review | `eede520` now cites `140fd30` / `41986955154` in the delivery report and evidence index, but `140fd30` is no longer the actual PR head (`eede520` is), `41989744603` is not cited, and `docs/reports/morrow-v2-final-work-log.md:159` still calls `771cbaa` the final HEAD with run `41984709521`; delivery report lines 79/145 and acceptance matrix lines 22/84/56/96 remain stale | **OPEN P2** |
 
 ## 3. UI review after the fixes
 
@@ -158,28 +160,31 @@ Allowed changes are explicit and per field: interest `status`, `strength`, `conf
 
 ## 9. Docs and evidence consistency
 
-**OPEN P2.** The new code/evidence SHA and product-path run are correctly cited in many places, but the final HEAD/CI are still wrong or missing:
+**OPEN P2.** At the requested HEAD `140fd30`, the committed docs still named `8797ab9` as the final HEAD and `41984709521` as the final CI run. During the review, commit `eede520` (docs-only over `140fd30`) was pushed and became the actual PR head. It partially corrects the references:
+
+- `docs/reports/morrow-v2-final-delivery-report.md:16,58,77,161` now cite `140fd30` / `41986955154` (with `41984709521` as the code-SHA run).
+- `docs/reports/morrow-v2-final-evidence-index.md:66,68,85,89,103` now cite `140fd30` / `41986955154` and the new `20261105T071402Z-608ab4c9` evidence.
+- `docs/testing/morrow-v2-final-acceptance-matrix.md:4` now adds `140fd30`.
+
+The docs P2 is still open because `eede520` is now the actual PR head, but the docs still call `140fd30` the final HEAD and do not cite `eede520` or its run `41989744603`; the run was still in progress at review close. The following lines remain stale or mislabeled:
 
 | File / location | Problem |
 | --- | --- |
-| `docs/reports/morrow-v2-final-delivery-report.md:16` | Calls `8797ab9` the "最终 HEAD"; actual final HEAD is `140fd30`. |
-| `docs/reports/morrow-v2-final-delivery-report.md:58,77,161` | Cites final CI `41984709521` (code SHA); final HEAD run `41986955154` is not mentioned. Line 77 calls `8797ab9` the final HEAD. |
-| `docs/reports/morrow-v2-final-delivery-report.md:79` | Says provider code is unchanged after `c1f4450`; false after the A/B and UI fixes. |
-| `docs/reports/morrow-v2-final-delivery-report.md:145` | Says discovery is 1,048,576 bytes; code is 1,000,000. |
-| `docs/reports/morrow-v2-final-evidence-index.md:66,85,89,103` | Cites CI `41984709521` and calls `8797ab9` the final HEAD; `140fd30`/`41986955154` absent. |
-| `docs/reports/morrow-v2-final-evidence-index.md:67-68` | Calls the code-SHA product-path evidence "最终 HEAD PASS 证据"; line 68 still calls `20261104T154241Z` "最终代码 SHA 证据". |
-| `docs/reports/morrow-v2-final-work-log.md:159` | Calls `771cbaa` the final HEAD with run `41984709521`; both are wrong for this HEAD. |
-| `docs/testing/morrow-v2-final-acceptance-matrix.md:3,21,84` | Header uses code SHA `8797ab9` without final HEAD; CI row uses `41984709521`; line 84 calls product-path run `20261105T071402Z` a final HEAD CI run (it is a product-path run ID). |
+| `docs/reports/morrow-v2-final-work-log.md:159` | Still says `771cbaa` is the final HEAD with run `41984709521`; both are wrong for this HEAD. |
+| `docs/reports/morrow-v2-final-delivery-report.md:79` | Still says provider code is unchanged after `c1f4450`; false after the A/B and UI fixes. |
+| `docs/reports/morrow-v2-final-delivery-report.md:145` | Still says discovery is 1,048,576 bytes; code is 1,000,000. |
+| `docs/reports/morrow-v2-final-evidence-index.md:84` | Calls product-path run `20261105T071402Z` a "final HEAD run"; it is a product-path run ID, not a CI run. |
+| `docs/testing/morrow-v2-final-acceptance-matrix.md:22,84` | Line 22 cites the code-SHA CI run; line 84 calls product-path run `20261105T071402Z` a final HEAD CI run. |
 | `docs/testing/morrow-v2-final-acceptance-matrix.md:56,96` | Row 4.4 still says personality version/relationship/message content are only table counts; discovery row says 1 MiB (code is 1,000,000). |
 | `docs/ui/acceptance-matrix.md:13-15,24-26,33,39` | Claims self-model/goal screenshots, 390 single-column/no-overflow, native dialog for the provider delete, keyboard focus and long-text PASS; the new screenshot set has no goals/self-model, the self-model grid is two columns, the delete is an in-page two-step, range focus is missing, and long text is not tested. |
 | `docs/ui/design-system.md:70` | Claims light muted ~4.9:1; actual 4.41:1 on `#f3f0e8` and 4.14:1 on `#ede9df`. |
 | `docs/ui/current-ui-audit.md:46` | Says dangerous actions retain confirm; the provider delete now has an in-page two-step (functionally true, but not a native confirm). |
 
-The 16 fixed deliverables exist. The optional `evals/morrow-v2-final/ui/<run-id>/` was not needed. Test counts in the updated sections (128 files / 1153 tests) match the local run. The final HEAD CI `41986955154` is green; the docs must record it.
+The 16 fixed deliverables exist; the optional `evals/morrow-v2-final/ui/<run-id>/` was not needed. Test counts in the updated sections (128 files / 1153 tests) match the local run. The requested HEAD CI `41986955154` is green, but the actual PR head `eede520` still needs a green run and docs references to itself; the work log line 159 and the remaining stale lines must be corrected.
 
 ## 10. Commands and exit codes
 
-All commands were run at `140fd30` with a clean worktree. `TEMP`/`TMP` were set to `<repo>/.tmp/es`.
+All code/test commands were run at `140fd30` (code SHA `8797ab9`). During the review the docs-only commit `eede520` became the actual PR head; it does not change code/tests. `TEMP`/`TMP` were set to `<repo>/.tmp/es`.
 
 | Command | Result | Exit |
 | --- | --- | --- |
@@ -192,9 +197,10 @@ All commands were run at `140fd30` with a clean worktree. `TEMP`/`TMP` were set 
 | `TEMP=... TMP=... npm run evaluate:cognition` | cognitive/feeling/alpha/intent pass | 0 |
 | `TEMP=... TMP=... npx vitest run --config .tmp/probe/vitest.config.ts .tmp/probe/companion-gate.test.ts` | 6/6 pass (local no-key, local/custom order, keyless custom, default custom, keyless remote) | 0 |
 | `TEMP=... TMP=... npx vitest run --config .tmp/probe/vitest.config.ts .tmp/probe/provider-priority.test.ts` | 1/1 pass; service picks local over custom | 0 |
-| `gh pr view 54` | OPEN, MERGEABLE, CLEAN, head `140fd30` | 0 |
-| `gh pr checks 54` | 4/4 pass | 0 |
-| `git status --porcelain` (before writing) | empty | 0 |
+| `gh pr view 54` | OPEN, MERGEABLE, UNSTABLE, head `eede520` (requested candidate `140fd30`) | 0 |
+| `gh pr checks 54` | requested `140fd30` run `41986955154`: 4/4 pass; actual `eede520` run `41989744603`: Windows upgrade/Ubuntu/package pass, Windows typecheck/tests pending at review close | 0 |
+| `gh run view 41989744603` | `in_progress`, head `eede520`; Windows typecheck/tests pending | 0 |
+| `git status --porcelain` (before writing) | empty at `140fd30`; `eede520` docs commit arrived during review | 0 |
 | `git status --porcelain` (after writing) | only the two review files modified, uncommitted | 0 |
 
 ## 11. Residual P3 backlog
@@ -216,6 +222,6 @@ All commands were run at `140fd30` with a clean worktree. `TEMP`/`TMP` were set 
 
 ## 12. Final statement
 
-**Overall PARTIAL; code PASS_WITH_NON_BLOCKING_BACKLOG.** All four prior code P2s are closed and independently reproduced: local no-token chat works, selection mirrors `requireConfigured()`, provider delete has a two-step confirmation, and the continuity fixture now seeds messages/self-model/interest/evidence/relationship/evidence with full-field diffs passing and explicit allowed changes. CI is green on both `140fd30` (4/4) and `8797ab9` (4/4); `tsc`, 128 files / 1153 tests, build and evaluations pass; no real secret was found.
+**Overall PARTIAL; code PASS_WITH_NON_BLOCKING_BACKLOG.** All four prior code P2s are closed and independently reproduced: local no-token chat works, selection mirrors `requireConfigured()`, provider delete has a two-step confirmation, and the continuity fixture now seeds messages/self-model/interest/evidence/relationship/evidence with full-field diffs passing and explicit allowed changes. The requested HEAD `140fd30` CI `41986955154` is 4/4 green; the code-SHA CI `41984709521` is 4/4 green; `tsc`, 128 files / 1153 tests, build and evaluations pass; no real secret was found.
 
-The only open P2 is documentation consistency: the repo docs still name `8797ab9` as the final HEAD and `41984709521` as the final CI run, do not mention `140fd30`/`41986955154`, and still call `20261104T154241Z` final code evidence. Correct those references and the delivery can move to PASS_WITH_NON_BLOCKING_BACKLOG for the code; the delivery status remains PARTIAL while the external Provider quota and local model service are unavailable. Do not merge or release until the docs are corrected and the user reviews.
+Two non-code blockers remain. First, the actual PR head moved to `eede520` (docs-only over `140fd30`) during the review; its CI run `41989744603` was still in progress at review close (Windows upgrade, Ubuntu and package/install pass; Windows typecheck/tests pending), so the actual head is not yet green. Second, the docs P2 is not fully closed: `eede520` corrects many references to `140fd30`/`41986955154`, but it cites `140fd30` as the final HEAD (the actual head is `eede520`), does not cite `41989744603`, and still leaves `docs/reports/morrow-v2-final-work-log.md:159` (`771cbaa`/`41984709521`), `docs/reports/morrow-v2-final-delivery-report.md:79` (provider code unchanged after `c1f4450`), `:145` (1,048,576 bytes), and `docs/testing/morrow-v2-final-acceptance-matrix.md:22,84,56,96` stale. Complete and commit those corrections after `eede520` CI finishes green; then the code verdict can move to PASS_WITH_NON_BLOCKING_BACKLOG. The delivery status remains PARTIAL while the external Provider quota and local model service are unavailable. Do not merge or release until the actual-head CI is green, the docs are corrected, and the user reviews.

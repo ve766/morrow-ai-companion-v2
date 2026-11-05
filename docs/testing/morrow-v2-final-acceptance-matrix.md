@@ -19,7 +19,7 @@
 | 1.6 | 迁移中断/回滚 | PASS | `migrations.test.ts` “rolls back a failed v49 rebuild…” |
 | 1.7 | 身份不匹配 fail closed | PASS | `migrations.test.ts` 外来名称；`provider-multi-source.integration.test.ts` 结构不符 |
 | 1.8 | pending/reflection/outbox 数据保留 | PASS | 全量 vitest；Stage 4 集成测试；v48/v49 迁移测试 |
-| 1.9 | Windows 升级 CI | PASS | run 41984709521：Windows upgrade job PASS（schema migrations under the real app） |
+| 1.9 | Windows 升级 CI | PASS | run 41989744603：Windows upgrade job PASS（schema migrations under the real app） |
 
 ## 2. Provider P1
 
@@ -54,7 +54,7 @@
 | 4.1 | renderer 创建两个 custom profile，不同 fake key，隔离 | PASS | CI Windows run `20261105T071402Z-608ab4c9`：真实 renderer 表单创建 A/B，OS 密文文件摘要不同 |
 | 4.2 | 真实 OS SafeStorage 保存/回读/更新/删除/重启 | PASS | 同上：保存、重启回读、endpoint 变更清除 A、rekey 轮换、删除 B 仅删 B；密文摘要见 JSON |
 | 4.3 | 拒绝 consent 时 fetch=0；切换 endpoint/model 后旧 consent 无效 | PASS（服务层） | `provider-multi-source.integration.test.ts`；`provider-manual-chat.integration.test.ts`；原生对话框无法由 CDP 驱动，已在脚本 limitation 记录 |
-| 4.4 | A→重启→B→A 连续性 | PASS | 同上 run：人格 systemRules、self-model、interests、memory、goals、conversation 的基线 ID 与内容保留；启动新增 1 个 interest 属正常增长。P3：personality version/relationship/message 内容未逐项比较，仅表计数 |
+| 4.4 | A→重启→B→A 连续性 | PASS | 同上 run：完整 SQLite 快照逐字段比较 personality、self-model、interests、memory、goals、relationship、conversation/messages；removed=0 changed=0；仅时间戳/兴趣聚合/关系强度重算列入显式 allowlist |
 | 4.5 | 连接测试不进入聊天/记忆/成长 | PASS（服务层） | `provider-manual-chat.integration.test.ts` 固定 prompt、无聊天/记忆写入 |
 | 4.6 | quota/401/403/404/429/5xx/timeout/cancel/DNS/SSRF 错误状态 | PASS（服务层） | `openai-compatible.test.ts`、`provider-retry.test.ts`、`endpoint-security.test.ts`、health 分类测试 |
 | 4.7 | Windows 打包/安装/启动 smoke | PASS | CI `windows-package-smoke` 安装 NSIS 并用 `--verify-upgrade` 启动已安装程序；本机启动仍受宿主 0xC0000005 阻塞，已如实记录 |
@@ -65,7 +65,7 @@
 | --- | --- | --- | --- |
 | 5.1 | confirmation / pending / reflection / outbox / restart | PASS | 全量 vitest（128 文件 / 1153 测试） |
 | 5.2 | Issue #47 12 项 findings 不回退 | PASS | 原修复测试与 `stage4-*` 集成测试全部通过 |
-| 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261105T071402Z-608ab4c9`（relationship 以表计数覆盖） |
+| 5.3 | personality/self-model/memory/interest/goal/relationship/conversation 连续性 | PASS | `provider-continuity.integration.test.ts`；产品路径 run `20261105T071402Z-608ab4c9` 完整快照逐字段 diff |
 | 5.4 | 不删除、不跳过、不弱化测试 | PASS | 测试数由 1083/1044 增至 1153；全量运行 0 skipped |
 
 ## 6. 真实 Provider
@@ -94,7 +94,7 @@
 | A3 | endpoint 展示剔除 userinfo/query/fragment | PASS | `sanitizeConsentEndpoint` 测试 |
 | A4 | 未知价格显示“计费信息未验证” | PASS | 官方 profile 测试 |
 | A5 | consent 目标/模型/payload 来自同一 preview | PASS | `requestProviderConsent` 只消费 `ProviderConsentPreview` |
-| B1 | discovery 1 MiB 按真实字节流式限制 | PASS | `bounded-body.ts` + 10 组单测；无 Content-Length 超限测试 |
+| B1 | discovery 1 MiB（1,048,576 bytes）按真实字节流式限制 | PASS | `bounded-body.ts` + 10 组单测；无 Content-Length 超限测试 |
 | B2 | error hint 4 KiB 流式限制 | PASS | `readBoundedText(response, 4096)`；4 KiB 边界测试 |
 | B3 | 超限取消 reader/body，不继续读取 | PASS | `ProviderBodyLimitError` + cancel 测试 |
 | B4 | Content-Length 缺失/偏小/偏大 | PASS | `bounded-body.test.ts` |

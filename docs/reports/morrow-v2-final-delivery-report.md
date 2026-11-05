@@ -76,7 +76,7 @@
 | 本地 OpenAI-compatible | **BLOCKED_LOCAL_SERVICE_NOT_RUNNING** | 127.0.0.1:1234/8000/8080/11434 无兼容 `/v1/models`；未用 mock 冒充 |
 | 本机 Electron 启动 | **本机 BLOCKED_HOST_ELECTRON_CRASH；CI Windows PASS** | 本机 Electron 44 在 Windows 26200 以 0xC0000005 退出；CI Windows product-path PASS（证据 run `20261105T071402Z-608ab4c9`，最终 HEAD 140fd30 的 CI 4/4 PASS） |
 
-运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`（Provider 代码此后未变；`d07b3f4` 只改 product-path/CI 脚本）。
+运行记录包含 run id、commit SHA、branch、workingTree、endpoint digest、model、HTTP/错误分类、latency/attempts、exit code；不包含 key、Authorization 或响应正文。两份真实运行记录的 `codeCommit` 为 `c1f4450`；Provider 核心代码此后未变，后续提交是 UI、product-path/CI 与文档。
 
 ## 4. 产品真实路径
 
@@ -142,7 +142,7 @@ CI Windows 产品路径 **PASS**：run `20261105T071402Z-608ab4c9`，Electron 44
 ### 9.3 修复 B：有界流式 body
 
 - 新增 `src/providers/bounded-body.ts`：逐 chunk 读取、按 `byteLength` 计数、超限 cancel、Content-Length 只做提前拒绝、UTF-8 增量解码。
-- discovery 使用 1,048,576 bytes；`readProviderErrorHint` 使用 4,096 bytes。
+- discovery 使用 1 MiB（1,048,576 bytes）；`readProviderErrorHint` 使用 4,096 bytes。
 - 测试：`bounded-body.test.ts` 10 组 + discovery 无 Content-Length 超限 1 组。
 
 ### 9.4 修复 C：全字段连续性
