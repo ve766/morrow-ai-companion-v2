@@ -350,8 +350,13 @@ function diffFullSnapshots(baseline, final) {
         if (next[field] === digest) continue
         const change = { table, key, field }
         const timestamp = field !== 'created_at' && field.endsWith('_at')
-        if (timestamp || (table === 'cognitive_feeling_state' && ['revision', 'state_json', 'dirty'].includes(field))) {
-          result.allowedChanges.push({ ...change, reason: timestamp ? 'normal_maintenance_timestamp' : 'derived_startup_state' })
+        if (timestamp || (table === 'cognitive_feeling_state' && ['revision', 'state_json', 'dirty'].includes(field)) || (table === 'relationship_threads' && ['strength', 'confidence'].includes(field))) {
+          const reason = timestamp
+            ? 'normal_maintenance_timestamp'
+            : table === 'relationship_threads'
+              ? 'deterministic_evidence_recompute'
+              : 'derived_startup_state'
+          result.allowedChanges.push({ ...change, reason })
         } else {
           result.changed.push(change)
         }
