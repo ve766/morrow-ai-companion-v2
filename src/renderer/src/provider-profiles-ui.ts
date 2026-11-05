@@ -259,5 +259,6 @@ export function initializeProviderProfiles(): void {
     event.preventDefault()
     void save().catch((error: unknown) => feedback(error instanceof ProfileUiError ? error.message : '保存失败，请检查输入。', true))
   })
+  if (document.body) document.body.dataset.providerUiReady = 'true'
   void loadProfiles()
 }

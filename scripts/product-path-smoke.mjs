@@ -179,8 +179,7 @@ async function waitForProviderUi(client) {
   const ready = await client.evaluate(`(async () => {
     const deadline = Date.now() + 10000
     while (Date.now() < deadline) {
-      const list = document.querySelector('#provider-profile-list')
-      if (list && list.getAttribute('aria-busy') === 'false') return true
+      if (document.body?.dataset.providerUiReady === 'true') return true
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     return false
