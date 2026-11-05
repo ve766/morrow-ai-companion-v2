@@ -1,0 +1,217 @@
+# PS 5.1 regression probes for the self-hosted CI install isolation.
+#
+# These probes never touch a real Morrow installation. Every fixture lives under
+# a unique temporary directory and is removed at the end. Run with:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1
+
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'self-hosted-ci-helpers.ps1')
+
+$results = New-Object System.Collections.Generic.List[object]
+function Record([string]$Name, [string]$Status, [string]$Detail) {
+  $results.Add([pscustomobject]@{ name = $Name; status = $Status; detail = $Detail })
+  Write-Host ("{0,-6} {1} {2}" -f $Status, $Name, $(if ($Detail) { "($Detail)" } else { '' }))
+}
+function Assert-True([string]$Name, [bool]$Condition, [string]$Detail = '') {
+  if ($Condition) { Record $Name 'PASS' $Detail } else { Record $Name 'FAIL' $Detail }
+}
+function Assert-Throws([string]$Name, [scriptblock]$Block) {
+  try { & $Block | Out-Null; Record $Name 'FAIL' 'expected a throw, none happened' }
+  catch { Record $Name 'PASS' $_.Exception.Message }
+}
+function Get-Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+
+$root = Join-Path ([System.IO.Path]::GetTempPath()) ("morrow ci probe " + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force -Path $root | Out-Null
+$env:STUB_OUT = Join-Path $root 'stub-out.txt'
+
+try {
+  # 1. NSIS argument keeps spaces and the required /D ordering.
+  $spaceTarget = Join-Path $root 'run dir with spaces\installed-app'
+  $argument = Get-NsisInstallArgument $spaceTarget
+  Assert-True 'nsis-argument-spaces' ($argument -eq "/S /D=$spaceTarget") $argument
+  Assert-True 'nsis-argument-no-quotes' (-not $argument.Contains('"')) 'no quote characters'
+
+  # 2. The raw argument string reaches a child process intact.
+  $stub = Join-Path $root 'argument stub.cmd'
+  Set-Content -LiteralPath $stub -Value @('@echo off', 'echo %* > "%STUB_OUT%"', 'exit /b 3')
+  $raw = Invoke-ProcessWithTimeout -FilePath $stub -Arguments $argument -WorkingDirectory $root -TimeoutSeconds 30
+  $observed = if (Test-Path -LiteralPath $env:STUB_OUT) { (Get-Content -LiteralPath $env:STUB_OUT -Raw).Trim() } else { '' }
+  Assert-True 'raw-argument-exit-code' ($raw.ExitCode -eq 3) "exit=$($raw.ExitCode)"
+  Assert-True 'raw-argument-preserved' ($observed -eq $argument) $observed
+
+  # 3. A pre-existing install target fails closed and keeps its bytes.
+  $runExisting = Join-Path $root 'run-existing'
+  $existingTarget = Join-Path $runExisting 'installed-app'
+  New-Item -ItemType Directory -Force -Path $existingTarget | Out-Null
+  $keep = Join-Path $existingTarget 'keep.txt'
+  Set-Content -LiteralPath $keep -Value 'keep-me'
+  $keepHash = Get-Hash $keep
+  Assert-Throws 'existing-target-fails-closed' { Assert-IsolatedInstallTarget -RunDir $runExisting -InstallDir $existingTarget }
+  Assert-True 'existing-target-unchanged' ((Get-Hash $keep) -eq $keepHash) 'byte-identical'
+
+  # 4. Path traversal is rejected.
+  $runTraversal = Join-Path $root 'run-traversal'
+  New-Item -ItemType Directory -Force -Path $runTraversal | Out-Null
+  Assert-Throws 'path-traversal-rejected' { Assert-IsolatedInstallTarget -RunDir $runTraversal -InstallDir (Join-Path $runTraversal '..\outside') }
+
+  # 5. A junction in the target chain is rejected, and cleanup refuses it.
+  $outside = Join-Path $root 'outside-target'
+  New-Item -ItemType Directory -Force -Path $outside | Out-Null
+  Set-Content -LiteralPath (Join-Path $outside 'outside.txt') -Value 'outside'
+  $runJunction = Join-Path $root 'run-junction'
+  New-Item -ItemType Directory -Force -Path $runJunction | Out-Null
+  $junction = Join-Path $runJunction 'linked'
+  & cmd.exe /c mklink /J "$junction" "$outside" 2>&1 | Out-Null
+  Assert-True 'junction-created' (Test-Path -LiteralPath $junction) $junction
+  Assert-Throws 'junction-target-rejected' { Assert-IsolatedInstallTarget -RunDir $runJunction -InstallDir (Join-Path $junction 'installed-app') }
+  $junctionCleanup = Remove-IsolatedPaths -RunDir $runJunction -RelativePaths @('linked')
+  Assert-True 'junction-cleanup-refused' ($junctionCleanup.Status -eq 'CLEANUP_FAILED') ($junctionCleanup.Errors -join '; ')
+  Assert-True 'junction-outside-intact' (Test-Path -LiteralPath (Join-Path $outside 'outside.txt')) 'outside content kept'
+
+  # 6. A fixture old user installation is never read, launched, changed or deleted.
+  $oldInstall = Join-Path $root 'user profile\AppData\Local\Programs\Morrow'
+  New-Item -ItemType Directory -Force -Path $oldInstall | Out-Null
+  $oldExe = Join-Path $oldInstall 'Morrow.exe'
+  Set-Content -LiteralPath $oldExe -Value 'OLD-USER-INSTALL'
+  $oldSentinel = Join-Path $oldInstall 'sentinel.bin'
+  Set-Content -LiteralPath $oldSentinel -Value 'sentinel'
+  $oldExeHash = Get-Hash $oldExe
+  $oldSentinelHash = Get-Hash $oldSentinel
+  $runOld = Join-Path $root 'run-old'
+  New-Item -ItemType Directory -Force -Path $runOld | Out-Null
+  Assert-Throws 'old-install-target-rejected' { Assert-IsolatedInstallTarget -RunDir $runOld -InstallDir (Join-Path $oldInstall 'installed-app') }
+  $oldCleanup = Remove-IsolatedPaths -RunDir $runOld -RelativePaths @('..\user profile\AppData\Local\Programs\Morrow')
+  Assert-True 'old-install-cleanup-rejected' ($oldCleanup.Status -eq 'CLEANUP_FAILED') ($oldCleanup.Errors -join '; ')
+  Assert-True 'old-install-exe-unchanged' ((Get-Hash $oldExe) -eq $oldExeHash) 'byte-identical'
+  Assert-True 'old-install-sentinel-unchanged' ((Get-Hash $oldSentinel) -eq $oldSentinelHash) 'byte-identical'
+  Assert-True 'old-install-file-count' (@(Get-ChildItem -LiteralPath $oldInstall -File).Count -eq 2) 'no files added'
+
+  # 7. Normal cleanup removes only the run children and is idempotent.
+  $runClean = Join-Path $root 'run-clean'
+  $cleanInstall = Join-Path $runClean 'installed-app'
+  $cleanProfile = Join-Path $runClean 'smoke-profile'
+  New-Item -ItemType Directory -Force -Path $cleanInstall, $cleanProfile | Out-Null
+  Set-Content -LiteralPath (Join-Path $cleanInstall 'Morrow.exe') -Value 'fake'
+  Set-Content -LiteralPath (Join-Path $cleanProfile 'profile.db') -Value 'fake'
+  $cleanup1 = Remove-IsolatedPaths -RunDir $runClean -RelativePaths @('installed-app', 'smoke-profile')
+  Assert-True 'cleanup-success' ($cleanup1.Status -eq 'PASS' -and $cleanup1.RemovedPaths.Count -eq 2) ($cleanup1.RemovedPaths -join ',')
+  Assert-True 'cleanup-removed-targets' (-not (Test-Path -LiteralPath $cleanInstall) -and -not (Test-Path -LiteralPath $cleanProfile)) 'both gone'
+  $cleanup2 = Remove-IsolatedPaths -RunDir $runClean -RelativePaths @('installed-app', 'smoke-profile')
+  Assert-True 'cleanup-idempotent' ($cleanup2.Status -eq 'PASS' -and $cleanup2.RemovedPaths.Count -eq 0) 'second pass no-op'
+
+  # 8. A locked file produces CLEANUP_FAILED and keeps the directory.
+  $runLocked = Join-Path $root 'run-locked'
+  $lockedInstall = Join-Path $runLocked 'installed-app'
+  New-Item -ItemType Directory -Force -Path $lockedInstall | Out-Null
+  $lockedFile = Join-Path $lockedInstall 'locked.bin'
+  Set-Content -LiteralPath $lockedFile -Value 'locked'
+  $handle = [System.IO.File]::Open($lockedFile, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+  try {
+    $lockedCleanup = Remove-IsolatedPaths -RunDir $runLocked -RelativePaths @('installed-app')
+    Assert-True 'cleanup-locked-file-fails' ($lockedCleanup.Status -eq 'CLEANUP_FAILED') ($lockedCleanup.Errors -join '; ')
+    Assert-True 'cleanup-locked-file-kept' (Test-Path -LiteralPath $lockedInstall) 'directory kept for inspection'
+  } finally {
+    $handle.Close()
+  }
+
+  # 9. Uninstaller discovery uses the real file name and rejects ambiguity.
+  $runUninstall = Join-Path $root 'run-uninstall'
+  $uninstallDir = Join-Path $runUninstall 'installed-app'
+  New-Item -ItemType Directory -Force -Path $uninstallDir | Out-Null
+  Copy-Item -LiteralPath $env:ComSpec -Destination (Join-Path $uninstallDir 'Uninstall Morrow.exe')
+  $found = Get-Uninstaller $uninstallDir
+  Assert-True 'uninstaller-discovered' ($found -like '*Uninstall Morrow.exe') $found
+  Copy-Item -LiteralPath $env:ComSpec -Destination (Join-Path $uninstallDir 'Uninstall Extra.exe')
+  Assert-Throws 'uninstaller-ambiguous-rejected' { Get-Uninstaller $uninstallDir }
+
+  # 10. Uninstaller exit code and timeout are surfaced.
+  $uninstallStub = Join-Path $root 'uninstall stub.cmd'
+  Set-Content -LiteralPath $uninstallStub -Value @('@echo off', 'exit /b 5')
+  $uninstallResult = Invoke-IsolatedUninstall -InstallDir $uninstallDir -UninstallerPath $uninstallStub -TimeoutSeconds 30
+  Assert-True 'uninstall-exit-code' ($uninstallResult.ExitCode -eq 5 -and -not $uninstallResult.TimedOut) "exit=$($uninstallResult.ExitCode)"
+  $timeoutStub = Join-Path $root 'timeout stub.cmd'
+  Set-Content -LiteralPath $timeoutStub -Value @('@echo off', 'ping -n 30 127.0.0.1 > nul')
+  $timeoutResult = Invoke-IsolatedUninstall -InstallDir $uninstallDir -UninstallerPath $timeoutStub -TimeoutSeconds 1
+  Assert-True 'uninstall-timeout-surfaced' ($timeoutResult.TimedOut -and $null -eq $timeoutResult.ExitCode) "timedOut=$($timeoutResult.TimedOut)"
+
+  # 11. Redaction covers header, JSON, assignment and token forms; benign text survives.
+  $sentinel = 'FAKE_SENTINEL_9f7a3c'
+  $secretText = @(
+    "Authorization: Bearer $sentinel",
+    "{`"authorization`":`"Bearer $sentinel`"}",
+    '{"apiKey":"FAKE VALUE WITH SPACES"}',
+    "api_key=$sentinel",
+    "token: $sentinel",
+    "refresh_token=$sentinel",
+    'ghp_aaaaaaaaaaaaaaaaaaaaaaaa',
+    ('s' + 'k-' + 'abcdefghijklmnop'),
+    'ordinary diagnostic text'
+  ) -join "`n"
+  $redacted = Redact-Text $secretText
+  Assert-True 'redaction-removes-sentinel' (-not $redacted.Contains($sentinel)) 'sentinel absent'
+  Assert-True 'redaction-removes-spaced-value' (-not $redacted.Contains('FAKE VALUE WITH SPACES')) 'spaced JSON value absent'
+  Assert-True 'redaction-keeps-benign-text' ($redacted.Contains('ordinary diagnostic text')) 'benign line kept'
+  Assert-True 'redaction-marks-values' ($redacted.Contains('[REDACTED]')) 'placeholder present'
+  Assert-True 'redaction-residual-clean' (@(Test-RedactionResidual $redacted).Count -eq 0) 'second pass clean'
+  Assert-True 'redaction-residual-detects-raw' (@(Test-RedactionResidual $secretText).Count -gt 0) 'raw text detected'
+
+  # 12. Evidence archive accepts only fresh files from the allowed root.
+  $allowed = Join-Path $root 'repo\docs\ui\evidence'
+  $source = Join-Path $allowed 'run-1'
+  New-Item -ItemType Directory -Force -Path $source | Out-Null
+  $oldEvidence = Join-Path $source 'old.png'
+  Set-Content -LiteralPath $oldEvidence -Value 'old'
+  (Get-Item -LiteralPath $oldEvidence).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddHours(-2)
+  $newEvidence = Join-Path $source 'new.png'
+  Set-Content -LiteralPath $newEvidence -Value 'new'
+  $destination = Join-Path $root 'archive\screenshots\run-1'
+  $entries = @(Copy-ArchiveEvidence -SourceRoot $source -DestinationRoot $destination -RunStart (Get-Date).ToUniversalTime().AddMinutes(-5) -AllowedRoot $allowed)
+  Assert-True 'evidence-fresh-only' ($entries.Count -eq 1 -and $entries[0].source -like '*new.png') "entries=$($entries.Count)"
+  Assert-True 'evidence-hash-recorded' ($entries[0].sha256 -eq (Get-Hash $newEvidence)) $entries[0].sha256
+  Assert-Throws 'evidence-outside-root-rejected' { Copy-ArchiveEvidence -SourceRoot $root -DestinationRoot $destination -RunStart (Get-Date).AddMinutes(-5) -AllowedRoot $allowed }
+
+  # 13. Installer selection ignores stale installers and records the fresh one.
+  $fakeRepo = Join-Path $root 'fake-repo'
+  $fakeRelease = Join-Path $fakeRepo 'release'
+  New-Item -ItemType Directory -Force -Path $fakeRelease | Out-Null
+  $staleInstaller = Join-Path $fakeRelease 'Morrow-Setup-1.0.0-x64.exe'
+  Set-Content -LiteralPath $staleInstaller -Value 'stale'
+  (Get-Item -LiteralPath $staleInstaller).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddHours(-2)
+  Assert-Throws 'stale-installer-rejected' { Get-FreshInstaller -Repo $fakeRepo -RunStart (Get-Date).ToUniversalTime().AddMinutes(-5) }
+  $freshInstaller = Join-Path $fakeRelease 'Morrow-Setup-2.0.0-x64.exe'
+  Set-Content -LiteralPath $freshInstaller -Value 'fresh'
+  $selected = Get-FreshInstaller -Repo $fakeRepo -RunStart (Get-Date).ToUniversalTime().AddMinutes(-5)
+  Assert-True 'fresh-installer-selected' ($selected.Name -eq 'Morrow-Setup-2.0.0-x64.exe') $selected.Name
+  Assert-True 'fresh-installer-hash' ($selected.Sha256 -eq (Get-Hash $freshInstaller)) $selected.Sha256
+
+  # 14. Installed executable lookup is exact and never scans a tree.
+  $exactDir = Join-Path $root 'exact-install'
+  $nestedDir = Join-Path $exactDir 'nested\other'
+  New-Item -ItemType Directory -Force -Path $nestedDir | Out-Null
+  Set-Content -LiteralPath (Join-Path $nestedDir 'Morrow.exe') -Value 'nested'
+  Assert-Throws 'installed-exe-no-recursive-scan' { Get-InstalledExecutable -InstallDir $exactDir }
+  Copy-Item -LiteralPath $env:ComSpec -Destination (Join-Path $exactDir 'Morrow.exe')
+  $exact = Get-InstalledExecutable -InstallDir $exactDir
+  Assert-True 'installed-exe-exact-path' ($exact.FullName -eq (Join-Path $exactDir 'Morrow.exe')) $exact.FullName
+  Assert-Throws 'installed-version-mismatch-rejected' { Assert-InstalledVersion -ExePath $exact.FullName -ExpectedVersion '2.0.0' }
+
+  # 15. The runner script contains no recursive user-install discovery.
+  $runnerText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run-self-hosted-ci.ps1') -Raw
+  Assert-True 'runner-no-recursive-morrow-scan' (-not ($runnerText -match 'Get-ChildItem[^\r\n]*-Recurse[^\r\n]*Morrow\.exe')) 'no recursive exe scan'
+  Assert-True 'runner-no-localappdata-program-scan' (-not ($runnerText -match 'LOCALAPPDATA[^\r\n]*Programs')) 'no LOCALAPPDATA program scan'
+} finally {
+  if (Test-Path -LiteralPath $root) {
+    try { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop } catch { Write-Host "probe cleanup warning: $($_.Exception.Message)" }
+  }
+}
+
+$failed = @($results | Where-Object { $_.status -eq 'FAIL' })
+$passed = @($results | Where-Object { $_.status -eq 'PASS' })
+Write-Host ''
+Write-Host ("probe summary: passed={0} failed={1} total={2}" -f $passed.Count, $failed.Count, $results.Count)
+if ($failed.Count -gt 0) {
+  $failed | ForEach-Object { Write-Host ("FAILED: {0} ({1})" -f $_.name, $_.detail) }
+  exit 1
+}
+exit 0

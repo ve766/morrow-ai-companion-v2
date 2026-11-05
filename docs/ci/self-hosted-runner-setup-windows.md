@@ -78,6 +78,20 @@ guard 通过后，checkout 触发 SHA，执行完整验证并归档到 `%LOCALAP
 - 归档目录默认在 `%LOCALAPPDATA%\Morrow\CI`，不在仓库内，不会被 git 提交。
 - 日志会脱敏 `Authorization: Bearer …`、`sk-…`、`api_key=…`；仍建议用户上传 Issue 前人工复核。
 
+## 6.1 安装测试隔离（Issue #57）
+
+`run-self-hosted-ci.ps1` 的 NSIS 安装 smoke 只在本次 run 目录内工作：
+
+- 安装目标固定为 `<runDir>\installed-app`；目录已存在、路径越界或父路径含 junction/symlink/reparse point 时直接 fail closed，不清理、不复用。
+- 安装参数为 `/S /D=<runDir>\installed-app`，`/D=` 必须是最后一个参数且路径不加引号（含空格的路径已在 PS 5.1 探针中验证原样传递）。
+- 安装后只检查 `<runDir>\installed-app\Morrow.exe`，版本必须等于 `package.json` 的版本；**不再递归扫描 `%LOCALAPPDATA%` 或磁盘**。
+- smoke 使用 `<runDir>\smoke-profile`，不继承用户真实 profile。
+- 收尾时只终止可执行文件路径精确等于本次安装 exe 的进程；用本次安装目录内的 `Uninstall*.exe /S` 卸载，然后只删除 `installed-app` 与 `smoke-profile`。
+- 卸载失败或文件被锁定时保留目录并记录 `cleanup.status=CLEANUP_FAILED`，整体状态为 FAILED，不强行删除 runDir 之外的任何内容。
+- 本机探针：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1`（不接触真实安装）。
+
+用户只需在 PR #54 的最终 SHA 上运行一次；不要在其他 SHA 上运行安装测试，也不要在 Runner 电脑上同时打开自己的 Morrow 实例做人工操作。
+
 ## 7. 当前限制
 
 - 自托管 Runner 不提供 Ubuntu 环境；本轮只交付 Windows 全量验收。Linux 兼容性需要用户已有 WSL/Docker，不能作为付费前置条件。
