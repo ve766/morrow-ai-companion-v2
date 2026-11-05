@@ -53,6 +53,7 @@
 2. 再用 `npx electron-builder` 构建 **CI 专用安装器** `release-ci\Morrow-CI-Setup-*.exe`：
    - `-c.appId=com.morrow.ai-companion.ci`
    - `-c.nsis.guid=3f2b8c1e-7d4a-4f6b-9c2e-8a1d5e7f9b3c`（唯一 GUID，卸载键/互斥量/安装键均隔离）
+   - `-c.win.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}`（必须用 `win.artifactName`；`package.json` 的 `build.win.artifactName` 会覆盖顶层 `-c.artifactName`，否则 CI 变体仍叫 `Morrow-Setup-*`，`Get-FreshInstaller` 会 fail closed）
    - `-c.nsis.createDesktopShortcut=false`、`-c.nsis.createStartMenuShortcut=false`、`-c.nsis.runAfterFinish=false`
 3. 只有 CI 专用安装器会被 `/S /D=<runDir>\installed-app` 安装；安装前 `Test-NsisProcessCheckAvailable` 确认 NSIS 的进程检查可用，否则拒绝安装，避免回退到按进程名 `taskkill`。
 4. manifest 同时记录 `installer`（CI 变体，被安装）与 `releaseInstaller`（用户安装器，未执行）及各自 SHA256。

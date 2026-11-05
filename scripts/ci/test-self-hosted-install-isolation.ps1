@@ -236,6 +236,7 @@ try {
   Assert-True 'runner-builds-ci-installer' ($runnerText -match 'Morrow-CI-Setup-' -and $runnerText -match 'release-ci') 'CI-only installer variant wired'
   Assert-True 'runner-installs-ci-variant' ($runnerText -match 'Invoke-IsolatedInstall -InstallerPath \$installer\.FullName') 'only the CI variant is installed'
   Assert-True 'runner-unique-nsis-guid' ($runnerText -match '-c\.nsis\.guid=') 'unique GUID isolates uninstall keys'
+  Assert-True 'runner-ci-artifact-name-wins' ($runnerText -match '-c\.win\.artifactName=Morrow-CI-Setup-') 'win.artifactName overrides build.win.artifactName'
 } finally {
   if (Test-Path -LiteralPath $root) {
     try { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop } catch { Write-Host "probe cleanup warning: $($_.Exception.Message)" }

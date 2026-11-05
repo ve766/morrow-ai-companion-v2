@@ -136,7 +136,7 @@ try {
     '-c.nsis.createDesktopShortcut=false',
     '-c.nsis.createStartMenuShortcut=false',
     '-c.nsis.runAfterFinish=false',
-    '-c.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}',
+    '-c.win.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}',
     '-c.directories.output=release-ci'
   ) 1800
   $installer = Get-FreshInstaller -Repo $repo -RunStart $runStartUtc -RelativeDirectory 'release-ci' -Pattern 'Morrow-CI-Setup-*.exe'

@@ -10,7 +10,7 @@
 | --- | --- |
 | `scripts/ci/self-hosted-ci-helpers.ps1` | 隔离路径、NSIS 参数、安装/卸载、进程终止、清理、证据复制、脱敏与二次扫描 |
 | `scripts/ci/run-self-hosted-ci.ps1` | 完整 run 编排、安装状态机、finally 清理、manifest/README/checksums |
-| `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 回归探针（42 项） |
+| `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 回归探针（55 项） |
 | `docs/ci/self-hosted-runner-setup-windows.md` | Runner 注册 + 6.1 安装隔离说明 |
 | `docs/ci/ci-no-billing-operations.md` | 零账单操作 + 失败/清理说明 |
 | `docs/reports/morrow-v2-self-hosted-ci-hardening-report.md` | 根因、实现、状态机、探针、未执行项 |

@@ -13,6 +13,7 @@
 | 6 | 旧安装 fixture 不被读取/启动/覆盖/卸载/删除 | PASS | 探针 `old-install-*`（4 项） |
 | 7 | NSIS `/S /D=` 顺序、无引号、含空格路径真实传递 | PASS | 探针 `nsis-argument-*`、`raw-argument-*` |
 | 7b | 用户安装器只构建不执行；CI 变体唯一 GUID/appId/无快捷方式 | PASS（静态）/ PENDING（真实构建） | `windows-nsis-ci-package` 参数；探针 `runner-builds-ci-installer`、`runner-unique-nsis-guid` |
+| 7b2 | CI 变体产物名用 `win.artifactName` 覆盖 `build.win.artifactName` | PASS | 探针 `runner-ci-artifact-name-wins`；复审 N1 |
 | 7c | 安装前确认 NSIS 走 `$INSTDIR` 路径匹配，避免按名字 taskkill | PASS | `Test-NsisProcessCheckAvailable`；探针 `nsis-process-check-available` |
 | 8 | 安装后只取精确 exe 并校验版本 | PASS（探针）/ PENDING（真实安装） | `Get-InstalledExecutable`、`Assert-InstalledVersion`；`installed-version-mismatch-rejected` |
 | 9 | 卸载器按真实文件名发现，歧义拒绝 | PASS | 探针 `uninstaller-discovered`、`uninstaller-ambiguous-rejected` |
