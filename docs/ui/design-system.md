@@ -67,7 +67,7 @@
 - 所有导航是 `<button>`，active 同时有 `aria-current="page"`。
 - 表单 label 与控件显式 `for/id`；错误/成功反馈 `role="status"` / `aria-live="polite"`。
 - 焦点环 2px accent，offset 3px；不使用 `outline:none` 无替代。
-- 颜色对比：主文字/背景 ≥ 12:1（深空）、≥ 12:1（纸面）；muted 在深空约 5.6:1，在纸面约 4.9:1；关键信息不只用 muted。
+- 颜色对比：主文字/背景 ≥ 12:1（深空）、≥ 12:1（纸面）；muted 在深空约 5.6:1，在纸面  对  约 4.95:1（由 tests/design-tokens.test.ts 复算）；关键信息不只用 muted。
 - 动态 canvas `aria-hidden="true"`，不承载唯一信息。
 - 危险操作保留原生 confirm/二次确认；不靠颜色单独表达。
 

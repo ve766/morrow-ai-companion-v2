@@ -1,3 +1,5 @@
+> 历史基线（Issue #53）：以下截图/CI 是当轮记录；Issue #55 RC 的截图与状态见 `docs/reports/morrow-v2-rc-evidence-index.md`。
+
 # UI 验收矩阵
 
 - 真实 renderer：Electron 44 + `src/renderer/index.html`

@@ -1,3 +1,5 @@
+> 历史基线（Issue #53）：以下 SHA/CI/截图是当轮记录，不是 Issue #55 RC 最终结果。RC 状态见 `docs/reports/morrow-v2-rc-delivery-report.md`。
+
 # Morrow V2 最终证据索引
 
 - 分支：`feat/morrow-v2-final-closure`
@@ -86,7 +88,7 @@
 
 ## 7. 一致性
 
-- 报告、矩阵、基线中的最终代码 SHA 为 `df8f8020d3a9f90b17ed43796a72b99cc497a512`；最终 HEAD 为 PR #54 head（含本复审）；Provider P1/P2 核心修复为 `d9b28ae`。
+- 报告、矩阵、基线中的历史代码 SHA 为 `df8f8020d3a9f90b17ed43796a72b99cc497a512`；Issue #55 RC 见 `docs/reports/morrow-v2-rc-evidence-index.md`；Provider P1/P2 核心修复为 `d9b28ae`。
 - PR head 会随文档/复审提交前进；PR 描述与最终评论给出当时 head SHA。
 - 历史 PR #40/#51/#52 的 SHA 与报告未被改写。
 

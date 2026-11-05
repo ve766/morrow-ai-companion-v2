@@ -1,3 +1,5 @@
+> 历史基线（Issue #53）：以下 SHA/CI/截图是当轮记录，不是 Issue #55 RC 最终结果。RC 状态见 `docs/reports/morrow-v2-rc-delivery-report.md`。
+
 # Morrow V2 最终收口交付报告（Issue #53）
 
 - 仓库：`ve766/morrow-ai-companion-v2`
@@ -13,7 +15,7 @@
 - 产品路径脚本与真实运行证据起点：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - UI/A/B/C 实现：`9af9c3413039453aac70685e9c5d2406a440cbfe`
 - 最终代码/测试 SHA（聊天 Provider 门禁 + 证据）：`df8f8020d3a9f90b17ed43796a72b99cc497a512`
-- 最终 HEAD：`PR #54 head`（docs/evidence）；代码/测试以 `df8f802` 为准
+- 历史代码 SHA：`df8f8020d3a9f90b17ed43796a72b99cc497a512`（Issue #53）；Issue #55 RC 见 `docs/reports/morrow-v2-rc-delivery-report.md`
 - 最终状态：**PARTIAL**
 
 ## 1. 交付范围

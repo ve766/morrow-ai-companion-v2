@@ -1,7 +1,9 @@
+> 历史基线（Issue #53）：以下 SHA/CI/截图是当轮记录，不是 Issue #55 RC 最终结果。RC 状态见 `docs/reports/morrow-v2-rc-delivery-report.md`。
+
 # Morrow V2 最终验收矩阵（Issue #53）
 
 - 实现 SHA：`df8f8020d3a9f90b17ed43796a72b99cc497a512`
-- 最终 HEAD：PR #54 head（含本复审）
+- 历史代码 SHA：`df8f8020d3a9f90b17ed43796a72b99cc497a512`（Issue #53）；RC 状态见 Issue #55 文档
 - 证据/脚本 SHA：`28665dfbcb724749ec56df0b8cfdb80578a3f84c`
 - 目标 base：`release/morrow-v2-final-delivery` @ `3812b18`
 

@@ -1,3 +1,5 @@
+> 历史基线（Issue #53）：以下 SHA/CI/截图是当轮记录，不是 Issue #55 RC 最终结果。RC 状态见 `docs/reports/morrow-v2-rc-delivery-report.md`。
+
 # Morrow V2 最终收口工作日志（Issue #53）
 
 - 分支：`feat/morrow-v2-final-closure`
