@@ -63,7 +63,7 @@
   - Windows：`Electron smoke` + `Electron product-path acceptance`
   - Windows：`Windows package, install and installed-app smoke`
   - Windows：`Windows upgrade path (schema migrations under the real app)`
-- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41995422882（4/4 job PASS，head `140fd30`）
+- CI run：https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41995422882（4/4 job PASS，head `6f5fe47`）
 - 最终 HEAD PASS 证据：`evals/morrow-v2-final/results/20261105T084141Z-45483dd6.json` + transcript；Electron 44.9.3，22 项检查，sandbox 启用。
 - 最终代码 SHA 证据：`evals/morrow-v2-final/results/20261105T084141Z-45483dd6.json` + transcript；22 项检查 PASS。
 - 本机失败证据：`evals/morrow-v2-final/results/20261104T124142Z-933adad0.json`（FAILED，宿主 Electron 0xC0000005）；不冒充 PASS。
