@@ -31,8 +31,13 @@ function Redact-Text([string]$Text) {
   $Text = [regex]::Replace($Text, 'sk-[A-Za-z0-9_-]{10,}', '[REDACTED]')
   $Text = [regex]::Replace($Text, 'gh[pousr]_[A-Za-z0-9]{20,}', '[REDACTED]')
   $Text = [regex]::Replace($Text, 'github_pat_[A-Za-z0-9_]{20,}', '[REDACTED]')
-  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token)"?\s*[:=]\s*"?)[^"\s,}]+', '$1[REDACTED]')
+  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token)"?\s*[:=]\s*")[^"]*(")', '$1[REDACTED]$2')
+  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token)"?\s*[:=]\s*''?)(?!(?:bearer|token|basic)\b)[^\s"'',}]+', '$1[REDACTED]')
   return $Text
+}
+
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+  [System.IO.File]::WriteAllText($Path, $Content, (New-Object System.Text.UTF8Encoding($false)))
 }
 
 function Invoke-CiStep([string]$Name, [string]$Exe, [string[]]$Arguments) {
@@ -44,7 +49,7 @@ function Invoke-CiStep([string]$Name, [string]$Exe, [string[]]$Arguments) {
   $code = $LASTEXITCODE
   $end = (Get-Date).ToUniversalTime()
   $redacted = Redact-Text $output
-  Set-Content -NoNewline -Path $log -Value $redacted
+  Write-Utf8NoBom $log $redacted
   Write-Host $redacted
   $steps.Add([pscustomobject]@{
     name = $Name
@@ -119,10 +124,17 @@ try {
     $evidenceRoot = Join-Path $repo 'docs\ui\evidence'
     if (Test-Path $evidenceRoot) {
       $latest = Get-ChildItem $evidenceRoot -Directory |
-        Where-Object { $_.LastWriteTimeUtc -ge $runStart } |
+        Where-Object { Get-ChildItem $_.FullName -Recurse -File | Where-Object { $_.LastWriteTimeUtc -ge $runStart } } |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
       if ($latest) {
-        Copy-Item -Recurse -Force $latest.FullName (Join-Path $screenshotsDir $latest.Name)
+        $dest = Join-Path $screenshotsDir $latest.Name
+        Get-ChildItem $latest.FullName -Recurse -File |
+          Where-Object { $_.LastWriteTimeUtc -ge $runStart } | ForEach-Object {
+            $relative = $_.FullName.Substring($latest.FullName.Length).TrimStart('\')
+            $target = Join-Path $dest $relative
+            New-Item -ItemType Directory -Force -Path (Split-Path $target -Parent) | Out-Null
+            Copy-Item -Force $_.FullName $target
+          }
       }
     }
     $resultsSource = Join-Path $repo 'evals\morrow-v2-final\results'
@@ -145,7 +157,7 @@ try {
     if ($installer) {
       Copy-Item -Force $installer.FullName (Join-Path $installersDir $installer.Name)
       $installerHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-      Set-Content -NoNewline -Path (Join-Path $installersDir "$($installer.Name).sha256") -Value $installerHash
+      Write-Utf8NoBom (Join-Path $installersDir "$($installer.Name).sha256") $installerHash
     }
   } catch {
     if (-not $failure) { $failure = "Archive collection failed: $($_.Exception.Message)" }
@@ -176,7 +188,7 @@ try {
       failure = $failure
       status = if ($failure) { 'FAILED' } else { 'PASS' }
     }
-    $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $runDir 'run-manifest.json') -Encoding UTF8
+    $manifest | ConvertTo-Json -Depth 8 | ForEach-Object { Write-Utf8NoBom (Join-Path $runDir 'run-manifest.json') $_ }
 
     $readme = @(
       'Morrow V2 self-hosted CI run',
@@ -193,13 +205,13 @@ try {
       'Archive contains logs, machine results, installer (if produced), screenshots (if produced), and checksums.',
       'No GitHub Actions artifact upload was performed; storage usage is unchanged.'
     ) -join "`n"
-    Set-Content -Path (Join-Path $runDir 'README.txt') -Value $readme -Encoding UTF8
+    Write-Utf8NoBom (Join-Path $runDir 'README.txt') $readme
 
     $checksumLines = Get-ChildItem $runDir -Recurse -File | Where-Object { $_.Name -ne 'checksums.sha256' } | ForEach-Object {
       $relative = $_.FullName.Substring($runDir.Length).TrimStart('\')
       "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()) *$relative"
     }
-    Set-Content -Path (Join-Path $runDir 'checksums.sha256') -Value $checksumLines -Encoding UTF8
+    Write-Utf8NoBom (Join-Path $runDir 'checksums.sha256') (($checksumLines) -join "`r`n")
   } catch {
     if (-not $failure) { $failure = "Manifest/checksum write failed: $($_.Exception.Message)" }
     Write-Host "ARCHIVE-ERROR: $($_.Exception.Message)"
@@ -207,7 +219,7 @@ try {
 
   Write-Host "archive=$runDir"
   if ($failure) { Write-Host "FAILED: $failure" }
-  Pop-Location
+  try { Pop-Location } catch { Write-Host "POP-LOCATION-ERROR: $($_.Exception.Message)" }
 }
 
 if ($failure) { exit 1 }
