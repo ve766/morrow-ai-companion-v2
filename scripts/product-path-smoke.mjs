@@ -402,8 +402,10 @@ function seedContinuityRows(seed) {
       .run(selfModel, 'fact', 'CONTINUITY_MARKER_SELF_MODEL：用户重视本机与可控性。', 'active', 64, null, null, now, now)
     database.prepare('INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json, profile_json, origin, stale_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)')
       .run(interest, 'CONTINUITY_MARKER_INTEREST', 'active', 1, 1, 0.6, 70, firstMessage, seed.conversationId, now, now, now, '["连续性"]', '{}', 'user')
+    database.prepare('INSERT INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(interest, firstMessage, 'message', seed.conversationId, 'support', 0.7, 'continuity_seed', now)
     database.prepare('INSERT INTO relationship_threads(id, kind, value, status, strength, confidence, source_message_id, conversation_id, supersedes_thread_id, first_seen_at, last_seen_at, expires_at, tombstoned_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?)')
-      .run(thread, 'shared_topic', 'CONTINUITY_MARKER_THREAD', 'active', 0.6, 70, firstMessage, seed.conversationId, now, now, now, now)
+      .run(thread, 'address_preference', 'CONTINUITY_MARKER_THREAD', 'active', 0.6, 70, firstMessage, seed.conversationId, now, now, now, now)
     database.prepare('INSERT INTO relationship_thread_evidence(thread_id, source_message_id, conversation_id, polarity, weight, created_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(thread, firstMessage, seed.conversationId, 'support', 0.6, now)
     return { firstMessage, secondMessage, selfModel, interest, thread }
