@@ -44,6 +44,7 @@ Agent 不会远程注册或控制用户电脑；未注册前状态为 **PENDING_
 - 每个 step 有超时（安装/卸载 180s，测试/打包按步骤设置）；超时会终止进程树并记录 `timedOut=true`。
 - 日志脱敏后保存；脱敏后还会做二次 secret-pattern 扫描，若发现残留则抑制该 step 输出、阻止归档并整体 FAILED。
 - NSIS 只安装到本次 run 目录的 `installed-app`；目标已存在/路径越界/reparse point 一律 fail closed。安装失败也会执行 finally，尝试卸载并只清理本次目录。
+- 用户安装器 `release\Morrow-Setup-*.exe` 只构建并归档，不执行；实际安装的是唯一 GUID、无快捷方式的 `release-ci\Morrow-CI-Setup-*.exe`，因此不会卸载用户已有 Morrow。
 - 卸载失败或文件锁定：保留安装目录，`cleanup.status=CLEANUP_FAILED`，整体 FAILED，保留日志供排查。
 - NSIS/安装/Electron smoke 若因宿主策略/0xC0000005 失败，记录真实错误，不改写为 PASS。
 - 真实 Provider 403 BLOCKED_QUOTA、本地服务未启动保持外部阻塞，不重复空转。

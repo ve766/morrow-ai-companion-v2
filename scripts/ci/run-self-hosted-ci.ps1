@@ -27,6 +27,7 @@ $failure = $null
 $startedAt = (Get-Date).ToUniversalTime().ToString('o')
 $runStartUtc = [datetime]::Parse($startedAt).ToUniversalTime()
 $installer = $null
+$releaseInstaller = $null
 $installerHash = $null
 $nodeReported = $null
 $npmReported = $null
@@ -56,26 +57,12 @@ function Invoke-CiStep([string]$Name, [string]$Exe, [string[]]$Arguments, [int]$
   $stderr = Join-Path $logsDir ("{0:D2}-{1}.stderr.tmp" -f ($steps.Count + 1), $safeName)
   $start = (Get-Date).ToUniversalTime()
   Write-Host "==> $Name"
-  $file = $Exe
-  $argumentString = $Arguments -join ' '
-  if ($Exe -match '\.(cmd|bat)$') {
-    $file = $env:ComSpec
-    $argumentString = '/d /s /c "' + $Exe + ' ' + $argumentString + '"'
-  }
-  $process = Start-Process -FilePath $file -ArgumentList $argumentString -WorkingDirectory $repo `
-    -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -NoNewWindow
-  $timedOut = $false
-  if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-    $timedOut = $true
-    & taskkill.exe /PID $process.Id /T /F 2>&1 | Out-Null
-    try { $process.WaitForExit(10000) | Out-Null } catch { }
-  }
-  $raw = ''
-  if (Test-Path -LiteralPath $stdout) { $raw += (Get-Content -LiteralPath $stdout -Raw) }
-  if (Test-Path -LiteralPath $stderr) { $raw += (Get-Content -LiteralPath $stderr -Raw) }
+  $captured = Invoke-CapturedProcess -Exe $Exe -Arguments $Arguments -WorkingDirectory $repo `
+    -StdoutPath $stdout -StderrPath $stderr -TimeoutSeconds $TimeoutSeconds
+  $raw = $captured.Output
+  $timedOut = $captured.TimedOut
+  $code = $captured.ExitCode
   Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
-  $code = $null
-  if (-not $timedOut) { try { $code = $process.ExitCode } catch { $code = $null } }
   $end = (Get-Date).ToUniversalTime()
   $redacted = Redact-Text $raw
   if (@(Test-RedactionResidual $redacted).Count -gt 0) {
@@ -136,9 +123,27 @@ try {
   Invoke-CiStep 'product-path-smoke' 'npm.cmd' @('run', 'smoke:product-path') 1200
   Invoke-CiStep 'persistence-migration-tests' 'npx.cmd' @('vitest', 'run', 'src/persistence') 600
   Invoke-CiStep 'windows-nsis-package' 'npm.cmd' @('run', 'package:win') 1800
-
-  $installer = Get-FreshInstaller -Repo $repo -RunStart $runStartUtc
+  $releaseInstaller = Get-FreshInstaller -Repo $repo -RunStart $runStartUtc -RelativeDirectory 'release' -Pattern 'Morrow-Setup-*.exe'
+  # The user-facing installer must never be executed here: electron-builder's
+  # NSIS calls uninstallOldVersion for the appId-derived GUID before installing,
+  # which could uninstall an existing Morrow installation even with /D=.
+  # Build a CI-only installer with a unique GUID, a unique appId and no
+  # shortcuts, then install that variant into the isolated run directory.
+  Invoke-CiStep 'windows-nsis-ci-package' 'npx.cmd' @(
+    'electron-builder', '--win', 'nsis', '--x64', '--publish', 'never',
+    '-c.appId=com.morrow.ai-companion.ci',
+    '-c.nsis.guid=3f2b8c1e-7d4a-4f6b-9c2e-8a1d5e7f9b3c',
+    '-c.nsis.createDesktopShortcut=false',
+    '-c.nsis.createStartMenuShortcut=false',
+    '-c.nsis.runAfterFinish=false',
+    '-c.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}',
+    '-c.directories.output=release-ci'
+  ) 1800
+  $installer = Get-FreshInstaller -Repo $repo -RunStart $runStartUtc -RelativeDirectory 'release-ci' -Pattern 'Morrow-CI-Setup-*.exe'
   $installerHash = $installer.Sha256
+  if (-not (Test-NsisProcessCheckAvailable)) {
+    throw 'NSIS would fall back to name-based taskkill; refusing to install on this host.'
+  }
   $installDir = Assert-IsolatedInstallTarget -RunDir $runDir -InstallDir $installDir
   $installAttempted = $true
   $installResult = Invoke-IsolatedInstall -InstallerPath $installer.FullName -InstallDir $installDir -TimeoutSeconds 180
@@ -223,6 +228,10 @@ try {
         Copy-Item -LiteralPath $installer.FullName -Destination (Join-Path $installersDir $installer.Name) -Force
         Write-Utf8NoBom (Join-Path $installersDir "$($installer.Name).sha256") $installer.Sha256
       }
+      if ($releaseInstaller -and (Test-Path -LiteralPath $releaseInstaller.FullName)) {
+        Copy-Item -LiteralPath $releaseInstaller.FullName -Destination (Join-Path $installersDir $releaseInstaller.Name) -Force
+        Write-Utf8NoBom (Join-Path $installersDir "$($releaseInstaller.Name).sha256") $releaseInstaller.Sha256
+      }
     } catch {
       if (-not $failure) { $failure = "Archive collection failed: $($_.Exception.Message)" }
     }
@@ -255,6 +264,8 @@ try {
         target = $installDir
         installer = if ($installer) { $installer.Name } else { $null }
         installerSha256 = $installerHash
+        releaseInstaller = if ($releaseInstaller) { $releaseInstaller.Name } else { $null }
+        releaseInstallerSha256 = if ($releaseInstaller) { $releaseInstaller.Sha256 } else { $null }
         installExitCode = if ($installResult) { $installResult.ExitCode } else { $null }
         installedExe = if ($installedInfo) { $installedInfo.FullName } else { $null }
         installedExeSha256 = if ($installedInfo) { $installedInfo.Sha256 } else { $null }
@@ -286,7 +297,8 @@ try {
       "Finished: $finishedAt",
       "Status: $($manifest.status)",
       "Failure: $($failure)",
-      "Installer: $($installer.Name) $($installerHash)",
+      "Installer (CI variant): $($installer.Name) $($installerHash)",
+      "Release installer (not executed): $($releaseInstaller.Name) $($releaseInstaller.Sha256)",
       "Install target: $installDir",
       "Cleanup: $($cleanup.status) (uninstaller exit $($cleanup.uninstallerExitCode))",
       '',

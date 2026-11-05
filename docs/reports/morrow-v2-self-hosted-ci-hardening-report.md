@@ -33,7 +33,9 @@
 | `Get-InstalledExecutable` | 只检查 `<installDir>\Morrow.exe`，不递归；记录大小/SHA256/版本 |
 | `Assert-InstalledVersion` | ProductVersion/FileVersion 必须等于 `package.json` 版本 |
 | `Get-Uninstaller` | 只从本次安装目录枚举 `Uninstall*.exe`，0 个或多个都报错 |
-| `Invoke-ProcessWithTimeout` | 启动安装器/卸载器，超时用 `taskkill /T /F` 终止并返回 `TimedOut` |
+| `Invoke-ProcessWithTimeout` | 启动安装器/卸载器，超时用 `taskkill /T /F` 终止并返回 `TimedOut`；PS 5.1 下显式 `WaitForExit()` 后再读 `ExitCode` |
+| `Invoke-CapturedProcess` | 用 `System.Diagnostics.Process` 重定向 stdout/stderr；PS 5.1 下 `Start-Process -PassThru` 的 `ExitCode` 为 null，这里直接读 .NET 进程退出码 |
+| `Test-NsisProcessCheckAvailable` | 安装前确认 NSIS 能走 `$INSTDIR` 路径匹配；否则 NSIS 会回退到 `taskkill /IM Morrow.exe`，此时拒绝安装 |
 | `Invoke-IsolatedInstall` | 使用 `/S /D=...` 安装到隔离目录 |
 | `Invoke-IsolatedUninstall` | 使用本次安装目录内的卸载器 `/S`，返回退出码/超时 |
 | `Stop-ProcessesUnderPath` | 只终止 `ExecutablePath` 精确等于本次 exe 的进程；路径不可读时跳过，绝不按名字全局 kill |
@@ -41,7 +43,23 @@
 | `Copy-ArchiveEvidence` | 只复制允许根目录内、本次 run 新生成的文件；记录 source/destination/size/SHA256；拒绝 reparse、路径逃逸、同名不同内容 |
 | `Redact-Text` / `Test-RedactionResidual` | 脱敏与二次 secret-pattern 扫描 |
 
-### 2.2 安装与清理状态机
+### 2.2 安装器归属：用户安装器只构建、不执行
+
+独立复审发现 electron-builder 26.15.3 的 NSIS 模板在安装前无条件调用 `uninstallOldVersion`，按 `appId` 派生的 GUID 读取 HKCU 卸载键；`/D=` 只改安装目录，不能阻止它卸载同 appId 的既有安装（`installSection.nsh:52`、`installUtil.nsh:142-176`、`NsisTarget.js:157`）。
+
+因此脚本改为：
+
+1. `npm run package:win` 构建**用户安装器** `release\Morrow-Setup-*.exe`，记录名称/大小/SHA256，**只归档、不执行**。
+2. 再用 `npx electron-builder` 构建 **CI 专用安装器** `release-ci\Morrow-CI-Setup-*.exe`：
+   - `-c.appId=com.morrow.ai-companion.ci`
+   - `-c.nsis.guid=3f2b8c1e-7d4a-4f6b-9c2e-8a1d5e7f9b3c`（唯一 GUID，卸载键/互斥量/安装键均隔离）
+   - `-c.nsis.createDesktopShortcut=false`、`-c.nsis.createStartMenuShortcut=false`、`-c.nsis.runAfterFinish=false`
+3. 只有 CI 专用安装器会被 `/S /D=<runDir>\installed-app` 安装；安装前 `Test-NsisProcessCheckAvailable` 确认 NSIS 的进程检查可用，否则拒绝安装，避免回退到按进程名 `taskkill`。
+4. manifest 同时记录 `installer`（CI 变体，被安装）与 `releaseInstaller`（用户安装器，未执行）及各自 SHA256。
+
+这保证即使用户电脑上已有 Morrow，CI 也不会匹配其卸载键、创建/删除快捷方式或按名字终止其进程。真实 NSIS 安装/卸载仍需 Runner 实机执行，属 PENDING_USER_ACTION。
+
+### 2.3 安装与清理状态机
 
 `scripts/ci/run-self-hosted-ci.ps1` 现在：
 
@@ -84,14 +102,14 @@ manifest 新增：
 }
 ```
 
-### 2.3 日志与证据
+### 2.4 日志与证据
 
-- 每个 step 用 `Start-Process` 重定向 stdout/stderr，等待完成或超时；退出码来自真实子进程。
+- 每个 step 用 `Invoke-CapturedProcess`（.NET `Process` + 重定向）执行，等待完成或超时；退出码来自真实子进程。PS 5.1 的 `Start-Process -PassThru` 在重定向时 `ExitCode` 为 null，已由该实现规避并用真实 `node --version` / `exit 7` / 超时探针验证。
 - 输出先 `Redact-Text`，再 `Test-RedactionResidual`；发现残留时抑制输出、写占位日志、阻止归档并整体 FAILED。
 - 归档只接受 `docs/ui/evidence`、`evals/morrow-v2-final/results`、`evals/morrow-v2-final/transcripts` 下本次 run 新生成的文件；每个文件记录 source/destination/size/SHA256；无证据时 manifest 为空数组。
 - checksums 覆盖归档内除 `checksums.sha256` 外的所有文件。
 
-### 2.4 超时
+### 2.5 超时
 
 - 安装/卸载 180 秒；typecheck 600；全量测试 1800；evaluate 600；build 900；smoke 900；product-path 1200；persistence 600；package 1800。
 - 超时会终止进程树、记录 `timedOut=true` 并进入 finally 清理。
@@ -101,15 +119,15 @@ manifest 新增：
 
 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1`
 
-- 42 项全部 PASS，0 FAIL，exit 0。
-- 覆盖：含空格 `/D=` 原样传递、预存在目标 fail closed 且字节不变、路径穿越拒绝、junction 目标/清理拒绝、旧安装 fixture 未被读取/修改/删除、清理成功与幂等、锁定文件 `CLEANUP_FAILED` 且保留目录、卸载器发现/歧义/退出码/超时、脱敏正反向与二次扫描、证据只收新文件、stale installer 拒绝、精确 exe 查找、版本不匹配拒绝、脚本无递归扫描。
+- 55 项全部 PASS，0 FAIL，exit 0。
+- 覆盖：含空格 `/D=` 原样传递、`Invoke-CapturedProcess` 的 0/7/超时退出码、预存在目标 fail closed 且字节不变、路径穿越拒绝、junction 与 dangling junction 目标/清理拒绝、旧安装 fixture 未被读取/修改/删除、清理成功与幂等、锁定文件 `CLEANUP_FAILED` 且保留目录、卸载器发现/歧义/退出码/超时、脱敏正反向与二次扫描（含 `client_secret`/`password`/`secret`）、证据只收新文件且嵌套 junction 拒绝、stale installer 拒绝、CI 变体安装器选择、精确 exe 查找、版本不匹配拒绝、脚本无递归扫描且只安装 CI 变体。
 - 旧安装 fixture 仅位于临时目录，不涉及真实用户安装。
 
 ## 4. 未执行
 
-- 本机无法构建 NSIS（宿主执行策略阻塞），因此**没有真实安装/卸载实测**；该验收只能由用户 Runner 执行。
+- 本机无法构建 NSIS（宿主执行策略阻塞），因此**没有真实安装/卸载实测**；该验收只能由用户 Runner 执行。CI 变体安装器的实际构建/安装同样未在本机发生。
 - `actions/runners` 仍为 0，没有真实 self-hosted run。
-- 全量测试/typecheck 在最终提交上重跑；结果见 Issue #57 comment 与证据索引。
+- 全量测试/typecheck 在本提交上重跑：`npm run typecheck` exit 0；`npm test` 129 files / 1156 tests passed / 0 failed / 0 skipped。
 - 状态：**PARTIAL / PENDING_USER_ACTION**，不是 COMPLETE，不是 CI PASS。
 
 ## 5. 风险与回滚

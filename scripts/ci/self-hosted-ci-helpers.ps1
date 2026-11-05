@@ -28,8 +28,8 @@ function Test-ReparsePointChain([string]$Path, [string]$StopAt) {
   $current = Get-NormalizedPath $Path
   $stop = Get-NormalizedPath $StopAt
   while ($true) {
-    if (Test-Path -LiteralPath $current) {
-      $item = Get-Item -LiteralPath $current -Force
+    $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+    if ($item) {
       if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $true }
     }
     if ($current.Equals($stop, [System.StringComparison]::OrdinalIgnoreCase)) { break }
@@ -50,7 +50,8 @@ function Assert-IsolatedInstallTarget([string]$RunDir, [string]$InstallDir) {
   if (-not (Test-PathWithin -Child $installFull -Parent $runFull)) {
     throw "Install target must be a strict child of the run directory: $installFull"
   }
-  if (Test-Path -LiteralPath $installFull) {
+  $existing = Get-Item -LiteralPath $installFull -Force -ErrorAction SilentlyContinue
+  if ($existing) {
     throw "Refusing to reuse an existing install target: $installFull"
   }
   if (Test-ReparsePointChain -Path $installFull -StopAt $runFull) {
@@ -70,15 +71,17 @@ function Get-NsisInstallArgument([string]$InstallDir) {
   return "/S /D=$full"
 }
 
-function Get-FreshInstaller([string]$Repo, [datetime]$RunStart) {
-  $release = Join-Path $Repo 'release'
+function Get-FreshInstaller([string]$Repo, [datetime]$RunStart, [string]$RelativeDirectory = 'release', [string]$Pattern = 'Morrow-Setup-*.exe') {
+  $repoFull = Get-NormalizedPath $Repo
+  $release = Get-NormalizedPath (Join-Path $repoFull $RelativeDirectory)
+  if (-not (Test-PathWithin -Child $release -Parent $repoFull)) { throw "Installer directory escaped the repository: $release" }
   if (-not (Test-Path -LiteralPath $release -PathType Container)) { throw "Release directory not found: $release" }
-  $candidates = @(Get-ChildItem -LiteralPath $release -Filter 'Morrow-Setup-*.exe' -File |
+  $candidates = @(Get-ChildItem -LiteralPath $release -Filter $Pattern -File |
     Where-Object { $_.LastWriteTimeUtc -ge $RunStart.ToUniversalTime() })
-  if ($candidates.Count -eq 0) { throw 'No NSIS installer produced by this run.' }
+  if ($candidates.Count -eq 0) { throw "No installer matching $Pattern produced by this run in $release." }
   $installer = $candidates | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
   if (-not (Test-PathWithin -Child $installer.FullName -Parent $release)) {
-    throw "Installer escaped the release directory: $($installer.FullName)"
+    throw "Installer escaped its release directory: $($installer.FullName)"
   }
   return [pscustomobject]@{
     FullName = $installer.FullName
@@ -138,9 +141,65 @@ function Invoke-ProcessWithTimeout([string]$FilePath, [string]$Arguments, [strin
   }
   $code = $null
   if (-not $timedOut) {
-    try { $code = $process.ExitCode } catch { $code = $null }
+    try {
+      # Windows PowerShell 5.1 leaves ExitCode unset after WaitForExit(ms);
+      # the parameterless overload (or touching Handle) populates it.
+      $process.WaitForExit()
+      $code = $process.ExitCode
+    } catch { $code = $null }
   }
   return [pscustomobject]@{ ExitCode = $code; TimedOut = $timedOut; ProcessId = $process.Id }
+}
+
+function Invoke-CapturedProcess([string]$Exe, [string[]]$Arguments, [string]$WorkingDirectory, [string]$StdoutPath, [string]$StderrPath, [int]$TimeoutSeconds) {
+  $file = $Exe
+  $argumentString = $Arguments -join ' '
+  if ($Exe -match '\.(cmd|bat)$') {
+    $file = $env:ComSpec
+    $argumentString = '/d /s /c "' + $Exe + ' ' + $argumentString + '"'
+  }
+  # Start-Process -PassThru leaves ExitCode null under Windows PowerShell 5.1
+  # when output is redirected. System.Diagnostics.Process populates it.
+  $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+  $startInfo.FileName = $file
+  $startInfo.Arguments = $argumentString
+  $startInfo.WorkingDirectory = $WorkingDirectory
+  $startInfo.UseShellExecute = $false
+  $startInfo.RedirectStandardOutput = $true
+  $startInfo.RedirectStandardError = $true
+  $startInfo.CreateNoWindow = $true
+  $process = New-Object System.Diagnostics.Process
+  $process.StartInfo = $startInfo
+  [void]$process.Start()
+  $outTask = $process.StandardOutput.ReadToEndAsync()
+  $errTask = $process.StandardError.ReadToEndAsync()
+  $timedOut = $false
+  if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+    $timedOut = $true
+    & taskkill.exe /PID $process.Id /T /F 2>&1 | Out-Null
+    try { $process.WaitForExit(10000) | Out-Null } catch { }
+  } else {
+    $process.WaitForExit()
+  }
+  $outText = ''
+  $errText = ''
+  try { if ($outTask.Wait(5000)) { $outText = $outTask.Result } } catch { }
+  try { if ($errTask.Wait(5000)) { $errText = $errTask.Result } } catch { }
+  $code = $null
+  if (-not $timedOut) { try { $code = $process.ExitCode } catch { $code = $null } }
+  if ($StdoutPath) { Write-Utf8NoBom $StdoutPath $outText }
+  if ($StderrPath) { Write-Utf8NoBom $StderrPath $errText }
+  return [pscustomobject]@{ ExitCode = $code; TimedOut = $timedOut; Output = ($outText + $errText); ProcessId = $process.Id }
+}
+
+function Test-NsisProcessCheckAvailable {
+  # electron-builder's NSIS installer only checks processes under $INSTDIR when
+  # PowerShell + Get-CimInstance are usable. Otherwise it falls back to
+  # taskkill /IM Morrow.exe, which could terminate a user's running app. Refuse
+  # to install when that fallback would be used.
+  $command = '-NoProfile -Command "if ((Get-Command Get-CimInstance -ErrorAction SilentlyContinue) -and ((Get-ExecutionPolicy -Scope Process) -ne ''Restricted'')) { exit 0 } else { exit 1 }"'
+  $result = Invoke-ProcessWithTimeout -FilePath 'powershell.exe' -Arguments $command -WorkingDirectory $env:SystemRoot -TimeoutSeconds 60
+  return (-not $result.TimedOut -and $result.ExitCode -eq 0)
 }
 
 function Invoke-IsolatedInstall([string]$InstallerPath, [string]$InstallDir, [int]$TimeoutSeconds = 180) {
@@ -223,6 +282,11 @@ function Copy-ArchiveEvidence([string]$SourceRoot, [string]$DestinationRoot, [da
     throw "Evidence source is outside the allowed root: $sourceFull"
   }
   if (-not (Test-Path -LiteralPath $sourceFull -PathType Container)) { return @() }
+  $reparse = @(Get-ChildItem -LiteralPath $sourceFull -Recurse -Force -ErrorAction SilentlyContinue |
+    Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 })
+  if ($reparse.Count -gt 0) {
+    throw "Evidence source contains a reparse point: $($reparse[0].FullName)"
+  }
   $entries = @()
   $files = @(Get-ChildItem -LiteralPath $sourceFull -Recurse -File -Force)
   foreach ($file in $files) {
@@ -258,8 +322,8 @@ function Redact-Text([string]$Text) {
   $Text = [regex]::Replace($Text, 'sk-[A-Za-z0-9_-]{10,}', '[REDACTED]')
   $Text = [regex]::Replace($Text, 'gh[pousr]_[A-Za-z0-9]{20,}', '[REDACTED]')
   $Text = [regex]::Replace($Text, 'github_pat_[A-Za-z0-9_]{20,}', '[REDACTED]')
-  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token)"?\s*[:=]\s*")[^"]*(")', '$1[REDACTED]$2')
-  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token)"?\s*[:=]\s*''?)(?!(?:bearer|token|basic)\b)[^\s"'',}]+', '$1[REDACTED]')
+  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret)"?\s*[:=]\s*")[^"]*(")', '$1[REDACTED]$2')
+  $Text = [regex]::Replace($Text, '(?i)("?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret)"?\s*[:=]\s*''?)(?!(?:bearer|token|basic)\b)[^\s"'',}]+', '$1[REDACTED]')
   return $Text
 }
 
@@ -269,7 +333,7 @@ function Test-RedactionResidual([string]$Text) {
     'gh[pousr]_[A-Za-z0-9]{20,}',
     'github_pat_[A-Za-z0-9_]{20,}',
     '(?i)authorization:\s*(?:bearer|token|basic)\s+(?!\[REDACTED\])[^\s]+',
-    '(?i)"?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token)"?\s*[:=]\s*"?(?!\[REDACTED\])(?!bearer\b|token\b|basic\b)[^"\s,}]+'
+    '(?i)"?(?:api[_-]?key|apikey|authorization|token|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret)"?\s*[:=]\s*"?(?!\[REDACTED\])(?!bearer\b|token\b|basic\b)[^"\s,}]+'
   )
   $matches = @()
   foreach ($pattern in $patterns) {

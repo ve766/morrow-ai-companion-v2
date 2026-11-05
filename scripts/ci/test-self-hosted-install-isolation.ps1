@@ -40,6 +40,18 @@ try {
   Assert-True 'raw-argument-exit-code' ($raw.ExitCode -eq 3) "exit=$($raw.ExitCode)"
   Assert-True 'raw-argument-preserved' ($observed -eq $argument) $observed
 
+  # 2b. Captured step runner propagates real exit codes on PS 5.1.
+  $capOut = Join-Path $root 'capture-node.out'
+  $capErr = Join-Path $root 'capture-node.err'
+  $nodeCapture = Invoke-CapturedProcess -Exe 'node.exe' -Arguments @('--version') -WorkingDirectory $root -StdoutPath $capOut -StderrPath $capErr -TimeoutSeconds 60
+  Assert-True 'captured-process-exit-code' ($nodeCapture.ExitCode -eq 0) "exit=$($nodeCapture.ExitCode)"
+  Assert-True 'captured-process-output' ($nodeCapture.Output -match '^v\d+\.') $nodeCapture.Output.Trim()
+  $exitCapture = Invoke-CapturedProcess -Exe $env:ComSpec -Arguments @('/d', '/s', '/c', 'exit 7') -WorkingDirectory $root -StdoutPath (Join-Path $root 'cap7.out') -StderrPath (Join-Path $root 'cap7.err') -TimeoutSeconds 60
+  Assert-True 'captured-process-nonzero' ($exitCapture.ExitCode -eq 7) "exit=$($exitCapture.ExitCode)"
+  $timeoutCapture = Invoke-CapturedProcess -Exe $env:ComSpec -Arguments @('/d', '/s', '/c', 'ping -n 30 127.0.0.1 > nul') -WorkingDirectory $root -StdoutPath (Join-Path $root 'capt.out') -StderrPath (Join-Path $root 'capt.err') -TimeoutSeconds 1
+  Assert-True 'captured-process-timeout' ($timeoutCapture.TimedOut -and $null -eq $timeoutCapture.ExitCode) "timedOut=$($timeoutCapture.TimedOut)"
+  Assert-True 'nsis-process-check-available' (Test-NsisProcessCheckAvailable) 'PowerShell Get-CimInstance usable'
+
   # 3. A pre-existing install target fails closed and keeps its bytes.
   $runExisting = Join-Path $root 'run-existing'
   $existingTarget = Join-Path $runExisting 'installed-app'
@@ -68,6 +80,11 @@ try {
   $junctionCleanup = Remove-IsolatedPaths -RunDir $runJunction -RelativePaths @('linked')
   Assert-True 'junction-cleanup-refused' ($junctionCleanup.Status -eq 'CLEANUP_FAILED') ($junctionCleanup.Errors -join '; ')
   Assert-True 'junction-outside-intact' (Test-Path -LiteralPath (Join-Path $outside 'outside.txt')) 'outside content kept'
+  $dangling = Join-Path $runJunction 'dangling'
+  & cmd.exe /c mklink /J "$dangling" "$root\does-not-exist" 2>&1 | Out-Null
+  $danglingItem = Get-Item -LiteralPath $dangling -Force -ErrorAction SilentlyContinue
+  Assert-True 'dangling-junction-created' ($danglingItem -and (($danglingItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) 'reparse attribute present'
+  Assert-Throws 'dangling-junction-target-rejected' { Assert-IsolatedInstallTarget -RunDir $runJunction -InstallDir (Join-Path $dangling 'installed-app') }
 
   # 6. A fixture old user installation is never read, launched, changed or deleted.
   $oldInstall = Join-Path $root 'user profile\AppData\Local\Programs\Morrow'
@@ -144,6 +161,9 @@ try {
     "api_key=$sentinel",
     "token: $sentinel",
     "refresh_token=$sentinel",
+    "client_secret=$sentinel",
+    "password=$sentinel",
+    "secret: $sentinel",
     'ghp_aaaaaaaaaaaaaaaaaaaaaaaa',
     ('s' + 'k-' + 'abcdefghijklmnop'),
     'ordinary diagnostic text'
@@ -170,6 +190,12 @@ try {
   Assert-True 'evidence-fresh-only' ($entries.Count -eq 1 -and $entries[0].source -like '*new.png') "entries=$($entries.Count)"
   Assert-True 'evidence-hash-recorded' ($entries[0].sha256 -eq (Get-Hash $newEvidence)) $entries[0].sha256
   Assert-Throws 'evidence-outside-root-rejected' { Copy-ArchiveEvidence -SourceRoot $root -DestinationRoot $destination -RunStart (Get-Date).AddMinutes(-5) -AllowedRoot $allowed }
+  $evidenceJunction = Join-Path $allowed 'run-junction-evidence'
+  $outsideEvidence = Join-Path $root 'outside-evidence'
+  New-Item -ItemType Directory -Force -Path $evidenceJunction, $outsideEvidence | Out-Null
+  Set-Content -LiteralPath (Join-Path $outsideEvidence 'outside.png') -Value 'outside'
+  & cmd.exe /c mklink /J "$evidenceJunction\nested" "$outsideEvidence" 2>&1 | Out-Null
+  Assert-Throws 'evidence-nested-junction-rejected' { Copy-ArchiveEvidence -SourceRoot $evidenceJunction -DestinationRoot (Join-Path $root 'archive\screenshots\junction') -RunStart (Get-Date).AddMinutes(-5) -AllowedRoot $allowed }
 
   # 13. Installer selection ignores stale installers and records the fresh one.
   $fakeRepo = Join-Path $root 'fake-repo'
@@ -184,6 +210,13 @@ try {
   $selected = Get-FreshInstaller -Repo $fakeRepo -RunStart (Get-Date).ToUniversalTime().AddMinutes(-5)
   Assert-True 'fresh-installer-selected' ($selected.Name -eq 'Morrow-Setup-2.0.0-x64.exe') $selected.Name
   Assert-True 'fresh-installer-hash' ($selected.Sha256 -eq (Get-Hash $freshInstaller)) $selected.Sha256
+  $ciRelease = Join-Path $fakeRepo 'release-ci'
+  New-Item -ItemType Directory -Force -Path $ciRelease | Out-Null
+  $ciInstaller = Join-Path $ciRelease 'Morrow-CI-Setup-2.0.0-x64.exe'
+  Set-Content -LiteralPath $ciInstaller -Value 'ci-fresh'
+  $ciSelected = Get-FreshInstaller -Repo $fakeRepo -RunStart (Get-Date).ToUniversalTime().AddMinutes(-5) -RelativeDirectory 'release-ci' -Pattern 'Morrow-CI-Setup-*.exe'
+  Assert-True 'ci-installer-selected' ($ciSelected.Name -eq 'Morrow-CI-Setup-2.0.0-x64.exe') $ciSelected.Name
+  Assert-Throws 'ci-installer-not-in-release' { Get-FreshInstaller -Repo $fakeRepo -RunStart (Get-Date).ToUniversalTime().AddMinutes(-5) -RelativeDirectory 'release' -Pattern 'Morrow-CI-Setup-*.exe' }
 
   # 14. Installed executable lookup is exact and never scans a tree.
   $exactDir = Join-Path $root 'exact-install'
@@ -200,6 +233,9 @@ try {
   $runnerText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run-self-hosted-ci.ps1') -Raw
   Assert-True 'runner-no-recursive-morrow-scan' (-not ($runnerText -match 'Get-ChildItem[^\r\n]*-Recurse[^\r\n]*Morrow\.exe')) 'no recursive exe scan'
   Assert-True 'runner-no-localappdata-program-scan' (-not ($runnerText -match 'LOCALAPPDATA[^\r\n]*Programs')) 'no LOCALAPPDATA program scan'
+  Assert-True 'runner-builds-ci-installer' ($runnerText -match 'Morrow-CI-Setup-' -and $runnerText -match 'release-ci') 'CI-only installer variant wired'
+  Assert-True 'runner-installs-ci-variant' ($runnerText -match 'Invoke-IsolatedInstall -InstallerPath \$installer\.FullName') 'only the CI variant is installed'
+  Assert-True 'runner-unique-nsis-guid' ($runnerText -match '-c\.nsis\.guid=') 'unique GUID isolates uninstall keys'
 } finally {
   if (Test-Path -LiteralPath $root) {
     try { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop } catch { Write-Host "probe cleanup warning: $($_.Exception.Message)" }

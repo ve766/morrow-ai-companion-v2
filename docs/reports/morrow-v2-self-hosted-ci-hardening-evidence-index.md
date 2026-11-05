@@ -21,7 +21,7 @@
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1
-# 实测：passed=42 failed=0 total=42；exit 0
+# 实测：passed=55 failed=0 total=55；exit 0
 ```
 
 ```powershell
@@ -50,20 +50,28 @@ npm test
 
 结果见 Issue #57 comment；本文件不预填未执行的结果。
 
-## 3. 探针覆盖（42 项）
+## 3. 探针覆盖（55 项）
 
 - 含空格 `/D=` 参数：字符串正确、无引号、子进程 `%*` 原样收到 `/S /D=<带空格路径>`、退出码传播。
+- 捕获式 step：`node --version` exit 0、`exit 7` 透传、1 秒超时 `TimedOut=true`；覆盖 PS 5.1 `Start-Process -PassThru` 的 `ExitCode=null` 缺陷。
 - 预存在目标：fail closed，`keep.txt` SHA256 不变。
 - 路径穿越：`runDir\..\outside` 拒绝。
-- junction：目标链拒绝；清理拒绝且 junction 指向的外部文件保留。
+- junction：目标链拒绝；清理拒绝且 junction 指向的外部文件保留；dangling junction 同样拒绝。
 - 旧安装 fixture：目标/清理均拒绝，`Morrow.exe` 与 sentinel 字节不变，文件数不变。
 - 清理：成功删除两个子目录；第二次幂等；锁定文件返回 `CLEANUP_FAILED` 且目录保留。
 - 卸载：发现 `Uninstall Morrow.exe`；多个卸载器拒绝；退出码 5 透传；1 秒超时返回 `TimedOut=true`、`ExitCode=null`。
-- 脱敏：Bearer、JSON `authorization`、含空格 `apiKey`、`api_key=`、`token:`、`refresh_token=`、`ghp_`、`sk-` 全部替换；普通文本保留；二次扫描 0 残留；原始文本可检出。
-- 证据：只复制 `LastWriteTimeUtc >= runStart` 的文件；记录 SHA256；允许根之外拒绝。
-- 安装器：stale 拒绝；fresh 选中并记录 SHA256。
+- 脱敏：Bearer、JSON `authorization`、含空格 `apiKey`、`api_key=`、`token:`、`refresh_token=`、`client_secret=`、`password=`、`secret:`、`ghp_`、`sk-` 全部替换；普通文本保留；二次扫描 0 残留；原始文本可检出。
+- 证据：只复制 `LastWriteTimeUtc >= runStart` 的文件；记录 SHA256；允许根之外拒绝；嵌套 junction 拒绝。
+- 安装器：stale 拒绝；`release` 的 `Morrow-Setup-*` 与 `release-ci` 的 `Morrow-CI-Setup-*` 分别选中并记录 SHA256；CI 变体不会从 `release` 误取。
 - 精确 exe：嵌套 `Morrow.exe` 不被发现；顶层存在时只返回顶层；版本不匹配拒绝。
-- 静态：runner 脚本无递归 `Morrow.exe` 扫描、无 `LOCALAPPDATA ... Programs` 扫描。
+- 静态：runner 脚本无递归 `Morrow.exe` 扫描、无 `LOCALAPPDATA ... Programs` 扫描、只安装 CI 变体、带唯一 NSIS GUID。
+
+## 3.1 安装器归属证据（B2）
+
+- electron-builder 26.15.3 `installSection.nsh:52` 在安装前调用 `uninstallOldVersion`。
+- `include/installUtil.nsh:155-176` 读取 `UNINSTALL_REGISTRY_KEY` 的 `UninstallString`/`InstallLocation` 并执行旧卸载器。
+- `out/targets/nsis/NsisTarget.js:157`：`guid = options.guid || UUID.v5(appInfo.id, ...)`。
+- 因此 CI 变体使用 `-c.nsis.guid=3f2b8c1e-...`、`-c.appId=com.morrow.ai-companion.ci`、禁用快捷方式；用户安装器只归档不执行。
 
 ## 4. 真实运行
 
