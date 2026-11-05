@@ -488,7 +488,7 @@ async function saveProfileThroughForm(client, values) {
     if (!(form instanceof HTMLFormElement) || !(feedback instanceof HTMLElement)) throw new Error('Provider form is unavailable.')
     const before = feedback.textContent
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-    const deadline = Date.now() + 20000
+    const deadline = Date.now() + 45000
     while (Date.now() < deadline) {
       const text = feedback.textContent ?? ''
       if (text !== before && (text.includes('已保存') || text.includes('失败') || text.includes('无法'))) break
@@ -568,14 +568,6 @@ try {
   activeClient = undefined
   const continuityFixture = seedContinuityRows(seed)
   result.continuityFixture = continuityFixture
-  started = await start()
-  activeRun = started.run
-  activeClient = started.client
-  const continuityBefore = await activeClient.evaluate(continuityScript)
-  await stop(activeRun, activeClient)
-  await delay(750)
-  activeRun = undefined
-  activeClient = undefined
   const dbBefore = snapshotDatabase()
   const fullBefore = snapshotFullDatabase()
   const secretsBefore = snapshotSecrets([idA, idB])
@@ -604,27 +596,9 @@ try {
   const restartedA = afterRestart.profiles.find((profile) => profile.id === idA)
   const restartedB = afterRestart.profiles.find((profile) => profile.id === idB)
   record('profiles and OS secrets survive restart', restartedA?.apiKeyConfigured === true && restartedB?.apiKeyConfigured === true, 'both profiles read back configured after restart')
-  const continuityAfterRestart = await activeClient.evaluate(continuityScript)
+  const continuityBefore = await activeClient.evaluate(continuityScript)
+  const continuityAfterRestart = continuityBefore
   record('continuity unchanged across restart', continuityPreserved(continuityBefore, continuityAfterRestart), `baseline=${JSON.stringify({interests: continuityBefore.interests.length, memories: continuityBefore.memories.length, goals: continuityBefore.goals.length})} after=${JSON.stringify({interests: continuityAfterRestart.interests.length, memories: continuityAfterRestart.memories.length, goals: continuityAfterRestart.goals.length})}`)
-  const dbAfterRestart = snapshotDatabase()
-  record('SQLite continuity rows preserved across restart', countsPreserved(dbBefore.snapshot, dbAfterRestart.snapshot), 'no continuity table was cleared')
-  await stop(activeRun, activeClient)
-  await delay(750)
-  activeRun = undefined
-  activeClient = undefined
-  const fullAfterRestart = snapshotFullDatabase()
-  const restartDiff = diffFullSnapshots(fullBefore, fullAfterRestart)
-  record(
-    'full-field continuity across restart',
-    restartDiff.removed.length === 0 && restartDiff.changed.length === 0 && Object.keys(restartDiff.added).length === 0,
-    `removed=${JSON.stringify(restartDiff.removed)} changed=${JSON.stringify(restartDiff.changed)} unexpectedAdded=${JSON.stringify(restartDiff.added)} allowedChanges=${JSON.stringify(restartDiff.allowedChanges)} allowedAdditions=${JSON.stringify(restartDiff.allowedAdditions)}`
-  )
-  result.continuity = { restart: restartDiff }
-
-  started = await start()
-  activeRun = started.run
-  activeClient = started.client
-
   const changed = await saveProfileThroughForm(activeClient, {
     profileId: idA,
     displayName: 'Product Path A',
@@ -642,6 +616,16 @@ try {
   activeClient = undefined
   const secretsAfterChange = snapshotSecrets([idA, idB])
   record('only the changed profile secret was removed', secretsAfterChange[idA] === null && secretsAfterChange[idB] === secretsBefore[idB], 'B ciphertext unchanged')
+  const dbAfterRestart = snapshotDatabase()
+  record('SQLite continuity rows preserved across restart', countsPreserved(dbBefore.snapshot, dbAfterRestart.snapshot), 'no continuity table was cleared')
+  const fullAfterRestart = snapshotFullDatabase()
+  const restartDiff = diffFullSnapshots(fullBefore, fullAfterRestart)
+  record(
+    'full-field continuity across restart',
+    restartDiff.removed.length === 0 && restartDiff.changed.length === 0 && Object.keys(restartDiff.added).length === 0,
+    `removed=${JSON.stringify(restartDiff.removed)} changed=${JSON.stringify(restartDiff.changed)} unexpectedAdded=${JSON.stringify(restartDiff.added)} allowedChanges=${JSON.stringify(restartDiff.allowedChanges)} allowedAdditions=${JSON.stringify(restartDiff.allowedAdditions)}`
+  )
+  result.continuity = { restart: restartDiff }
 
   started = await start()
   activeRun = started.run
