@@ -120,7 +120,7 @@ manifest 新增：
 
 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1`
 
-- 55 项全部 PASS，0 FAIL，exit 0。
+- 56 项全部 PASS，0 FAIL，exit 0。
 - 覆盖：含空格 `/D=` 原样传递、`Invoke-CapturedProcess` 的 0/7/超时退出码、预存在目标 fail closed 且字节不变、路径穿越拒绝、junction 与 dangling junction 目标/清理拒绝、旧安装 fixture 未被读取/修改/删除、清理成功与幂等、锁定文件 `CLEANUP_FAILED` 且保留目录、卸载器发现/歧义/退出码/超时、脱敏正反向与二次扫描（含 `client_secret`/`password`/`secret`）、证据只收新文件且嵌套 junction 拒绝、stale installer 拒绝、CI 变体安装器选择、精确 exe 查找、版本不匹配拒绝、脚本无递归扫描且只安装 CI 变体。
 - 旧安装 fixture 仅位于临时目录，不涉及真实用户安装。
 

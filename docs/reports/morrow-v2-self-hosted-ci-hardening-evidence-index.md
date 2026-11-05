@@ -10,7 +10,7 @@
 | --- | --- |
 | `scripts/ci/self-hosted-ci-helpers.ps1` | 隔离路径、NSIS 参数、安装/卸载、进程终止、清理、证据复制、脱敏与二次扫描 |
 | `scripts/ci/run-self-hosted-ci.ps1` | 完整 run 编排、安装状态机、finally 清理、manifest/README/checksums |
-| `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 回归探针（55 项） |
+| `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 回归探针（56 项） |
 | `docs/ci/self-hosted-runner-setup-windows.md` | Runner 注册 + 6.1 安装隔离说明 |
 | `docs/ci/ci-no-billing-operations.md` | 零账单操作 + 失败/清理说明 |
 | `docs/reports/morrow-v2-self-hosted-ci-hardening-report.md` | 根因、实现、状态机、探针、未执行项 |
@@ -21,7 +21,7 @@
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1
-# 实测：passed=55 failed=0 total=55；exit 0
+# 实测：passed=56 failed=0 total=56；exit 0
 ```
 
 ```powershell
@@ -50,7 +50,7 @@ npm test
 
 结果见 Issue #57 comment；本文件不预填未执行的结果。
 
-## 3. 探针覆盖（55 项）
+## 3. 探针覆盖（56 项）
 
 - 含空格 `/D=` 参数：字符串正确、无引号、子进程 `%*` 原样收到 `/S /D=<带空格路径>`、退出码传播。
 - 捕获式 step：`node --version` exit 0、`exit 7` 透传、1 秒超时 `TimedOut=true`；覆盖 PS 5.1 `Start-Process -PassThru` 的 `ExitCode=null` 缺陷。

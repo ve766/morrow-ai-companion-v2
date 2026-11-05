@@ -29,7 +29,7 @@
 | 18 | 证据来源越界/reparse/同名冲突拒绝 | PASS | `evidence-outside-root-rejected`、`evidence-nested-junction-rejected`；代码审查 |
 | 19 | checksums 覆盖归档全部文件 | PASS（代码审查） | `checksums.sha256` 生成逻辑 |
 | 20 | 无证据时 manifest 为空数组 | PASS | 缺失 Node 探针 `evidence` 全 0 |
-| 21 | PowerShell 5.1 解析与运行 | PASS | Parser `helpers OK`、`run OK`；55 项探针 exit 0 |
+| 21 | PowerShell 5.1 解析与运行 | PASS | Parser `helpers OK`、`run OK`；56 项探针 exit 0 |
 | 22 | 全量测试与 typecheck | PASS | `npm run typecheck` exit 0；`npm test` 129 files / 1156 tests passed / 0 failed / 0 skipped |
 | 23 | 不修改产品运行时/schema/测试语义 | PASS | diff 仅 CI/scripts/docs |
 | 24 | 无 hosted run、无 artifact upload、无付费操作 | PASS | 0 runners；无 dispatch；无 upload-artifact |
