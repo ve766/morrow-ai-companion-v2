@@ -332,6 +332,31 @@ function Write-AtomicJson([string]$Path, [object]$Object) {
   Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
 
+function New-CiInstallerIdentity([string]$RunId) {
+  if ([string]::IsNullOrWhiteSpace($RunId)) { throw 'RunId is required for the CI installer identity.' }
+  return [pscustomobject]@{
+    RunId = $RunId
+    AppId = 'com.morrow.ai-companion.ci'
+    NsisGuid = [guid]::NewGuid().ToString()
+  }
+}
+
+function Get-CiInstallerArguments([object]$Identity) {
+  if (-not $Identity -or [string]::IsNullOrWhiteSpace($Identity.NsisGuid)) { throw 'CI installer identity is required.' }
+  if ($Identity.AppId -eq 'com.morrow.ai-companion') { throw 'CI appId must not equal the user appId.' }
+  $parsed = [guid]::Empty
+  if (-not [guid]::TryParse($Identity.NsisGuid, [ref]$parsed)) { throw "Invalid CI NSIS GUID: $($Identity.NsisGuid)" }
+  return @(
+    'electron-builder', '--win', 'nsis', '--x64', '--publish', 'never',
+    "-c.appId=$($Identity.AppId)",
+    "-c.nsis.guid=$($Identity.NsisGuid)",
+    '-c.nsis.shortcutName=Morrow CI',
+    '-c.nsis.runAfterFinish=false',
+    '-c.win.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}',
+    '-c.directories.output=release-ci'
+  )
+}
+
 function New-UniqueRunDirectory([string]$ArchiveRoot, [string]$Sha, [string]$RunId, [string]$Stamp = $null) {
   if ([string]::IsNullOrWhiteSpace($RunId)) { throw 'RunId is required.' }
   if ($Sha -notmatch '^[0-9a-fA-F]{7,64}$') { throw "Sha must be hexadecimal without path separators: $Sha" }

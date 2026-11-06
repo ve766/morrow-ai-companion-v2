@@ -16,6 +16,7 @@ if ($sha -ne $ExpectedSha.Trim()) {
 $startedAt = (Get-Date).ToUniversalTime().ToString('o')
 $runStartUtc = [datetime]::Parse($startedAt).ToUniversalTime()
 $runId = [guid]::NewGuid().ToString('N')
+$ciIdentity = New-CiInstallerIdentity -RunId $runId
 $runInfo = New-UniqueRunDirectory -ArchiveRoot $ArchiveRoot -Sha $sha -RunId $runId
 $runDir = $runInfo.RunDir
 $logsDir = Join-Path $runDir 'logs'
@@ -25,6 +26,8 @@ $installersDir = Join-Path $runDir 'installers'
 $screenshotsDir = Join-Path $runDir 'screenshots'
 Write-AtomicJson (Join-Path $runDir 'run-identity.json') ([pscustomobject]@{
   runId = $runId
+  ciAppId = $ciIdentity.AppId
+  ciNsisGuid = $ciIdentity.NsisGuid
   runDir = $runDir
   archiveRoot = $runInfo.ArchiveRoot
   expectedSha = $ExpectedSha
@@ -147,16 +150,7 @@ try {
   # The user-facing installer must never be executed here: electron-builder's
   # NSIS calls uninstallOldVersion for the appId-derived GUID before installing,
   # which could uninstall an existing Morrow installation even with /D=.
-  Invoke-CiStep 'windows-nsis-ci-package' 'npx.cmd' @(
-    'electron-builder', '--win', 'nsis', '--x64', '--publish', 'never',
-    '-c.appId=com.morrow.ai-companion.ci',
-    '-c.nsis.guid=3f2b8c1e-7d4a-4f6b-9c2e-8a1d5e7f9b3c',
-    '-c.nsis.createDesktopShortcut=false',
-    '-c.nsis.createStartMenuShortcut=false',
-    '-c.nsis.runAfterFinish=false',
-    '-c.win.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}',
-    '-c.directories.output=release-ci'
-  ) 1800
+  Invoke-CiStep 'windows-nsis-ci-package' 'npx.cmd' (Get-CiInstallerArguments -Identity $ciIdentity) 1800
   $installer = Get-FreshInstaller -Repo $repo -RunStart $runStartUtc -RelativeDirectory 'release-ci' -Pattern 'Morrow-CI-Setup-*.exe'
   $installerHash = $installer.Sha256
   if (-not (Test-NsisProcessCheckAvailable)) {
@@ -298,6 +292,8 @@ try {
     repo = 've766/morrow-ai-companion-v2'
     ref = $env:GITHUB_REF
     runId = $runId
+    ciAppId = $ciIdentity.AppId
+    nsisGuid = $ciIdentity.NsisGuid
     runDir = $runDir
     archiveRoot = $runInfo.ArchiveRoot
     sha = $sha
@@ -352,6 +348,7 @@ try {
   $readme = @(
     'Morrow V2 self-hosted CI run',
     "Run ID: $runId",
+    "CI appId: $($ciIdentity.AppId) CI NSIS GUID: $($ciIdentity.NsisGuid)",
     "SHA: $sha",
     "Started: $startedAt",
     "Finished: $finishedAt",

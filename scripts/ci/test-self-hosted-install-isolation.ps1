@@ -20,6 +20,17 @@ function Assert-Throws([string]$Name, [scriptblock]$Block) {
   catch { Record $Name 'PASS' $_.Exception.Message }
 }
 function Get-Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Get-Inventory([string]$Directory) {
+  $rootFull = (Resolve-Path -LiteralPath $Directory).Path
+  return @(Get-ChildItem -LiteralPath $rootFull -Recurse -File -Force | Sort-Object FullName | ForEach-Object {
+    [pscustomobject]@{
+      Relative = $_.FullName.Substring($rootFull.Length).TrimStart('\')
+      Sha256 = Get-Hash $_.FullName
+      Length = $_.Length
+      LastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o')
+    }
+  })
+}
 
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ("morrow ci probe " + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $root | Out-Null
@@ -231,12 +242,15 @@ try {
 
   # 15. The runner script contains no recursive user-install discovery.
   $runnerText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'run-self-hosted-ci.ps1') -Raw
+  $helperText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'self-hosted-ci-helpers.ps1') -Raw
   Assert-True 'runner-no-recursive-morrow-scan' (-not ($runnerText -match 'Get-ChildItem[^\r\n]*-Recurse[^\r\n]*Morrow\.exe')) 'no recursive exe scan'
   Assert-True 'runner-no-localappdata-program-scan' (-not ($runnerText -match 'LOCALAPPDATA[^\r\n]*Programs')) 'no LOCALAPPDATA program scan'
   Assert-True 'runner-builds-ci-installer' ($runnerText -match 'Morrow-CI-Setup-' -and $runnerText -match 'release-ci') 'CI-only installer variant wired'
   Assert-True 'runner-installs-ci-variant' ($runnerText -match 'Invoke-IsolatedInstall -InstallerPath \$installer\.FullName') 'only the CI variant is installed'
-  Assert-True 'runner-unique-nsis-guid' ($runnerText -match '-c\.nsis\.guid=') 'unique GUID isolates uninstall keys'
-  Assert-True 'runner-ci-artifact-name-wins' ($runnerText -match '-c\.win\.artifactName=Morrow-CI-Setup-') 'win.artifactName overrides build.win.artifactName'
+  Assert-True 'runner-unique-nsis-guid' ($helperText -match '-c\.nsis\.guid=') 'unique GUID isolates uninstall keys'
+  Assert-True 'runner-dynamic-nsis-guid' ($runnerText -match 'New-CiInstallerIdentity' -and $runnerText -match 'Get-CiInstallerArguments' -and $runnerText -notmatch '3f2b8c1e-7d4a-4f6b') 'GUID is generated per run, no fixed GUID'
+  Assert-True 'runner-ci-appid-separated' ($helperText -match 'com\.morrow\.ai-companion\.ci') 'CI appId separate from user appId'
+  Assert-True 'runner-ci-artifact-name-wins' ($helperText -match '-c\.win\.artifactName=Morrow-CI-Setup-') 'win.artifactName overrides build.win.artifactName'
   # 16. Unique run directory: atomic creation, reuse rejected, old bytes unchanged.
   $uniqueRoot = Join-Path $root 'archive-unique'
   $fixedStamp = '20260101T000000Z'
@@ -390,6 +404,63 @@ try {
     foreach ($processId in $started) { Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }
     if ($sleepOutside) { Stop-Process -Id $sleepOutside.Id -Force -ErrorAction SilentlyContinue }
   }
+
+  # 18b. Dynamic CI installer identity and cross-run archive immutability.
+  $identities = @(1..50 | ForEach-Object { New-CiInstallerIdentity -RunId ([guid]::NewGuid().ToString('N')) })
+  $uniqueGuids = @($identities | ForEach-Object { $_.NsisGuid } | Sort-Object -Unique)
+  $validGuids = @($identities | Where-Object { $parsedGuid = [guid]::Empty; [guid]::TryParse($_.NsisGuid, [ref]$parsedGuid) })
+  Assert-True 'ci-identity-guid-unique' ($uniqueGuids.Count -eq 50) "unique=$($uniqueGuids.Count)"
+  Assert-True 'ci-identity-guid-valid' ($validGuids.Count -eq 50) "valid=$($validGuids.Count)"
+  Assert-True 'ci-identity-appid-separated' (@($identities | Where-Object { $_.AppId -ne 'com.morrow.ai-companion' }).Count -eq 50) 'CI appId differs from the user appId'
+  $ciArgs = @(Get-CiInstallerArguments -Identity $identities[0])
+  Assert-True 'ci-args-dynamic-guid' ($ciArgs -contains "-c.nsis.guid=$($identities[0].NsisGuid)") 'dynamic GUID injected'
+  Assert-True 'ci-args-no-fixed-guid' (-not ($ciArgs -match '3f2b8c1e-7d4a-4f6b-9c2e-8a1d5e7f9b3c')) 'no fixed GUID remains'
+
+  $crossRoot = Join-Path $root 'archive-cross-run'
+  $runAId = [guid]::NewGuid().ToString('N')
+  $identityA = New-CiInstallerIdentity -RunId $runAId
+  $runA = New-UniqueRunDirectory -ArchiveRoot $crossRoot -Sha ('a' * 40) -RunId $runAId -Stamp '20260101T010101Z'
+  $installA = Join-Path $runA.RunDir 'installed-app'
+  New-Item -ItemType Directory -Force -Path $installA | Out-Null
+  Set-Content -LiteralPath (Join-Path $installA 'Morrow.exe') -Value 'run-a-exe'
+  Set-Content -LiteralPath (Join-Path $installA 'resources.bin') -Value 'run-a-resources'
+  $hiddenA = Join-Path $installA '.hidden-a'
+  Set-Content -LiteralPath $hiddenA -Value 'run-a-hidden'
+  (Get-Item -LiteralPath $hiddenA).Attributes = (Get-Item -LiteralPath $hiddenA).Attributes -bor [System.IO.FileAttributes]::Hidden
+  $manifestA = [pscustomobject]@{ status = 'CLEANUP_FAILED'; failedStage = 'cleanup'; exitCode = 1; runId = $runAId; nsisGuid = $identityA.NsisGuid }
+  $resultA = Complete-RunArchive -RunDir $runA.RunDir -Manifest $manifestA -ReadmeText 'run A cleanup failure retained'
+  $inventoryA = @(Get-Inventory $runA.RunDir)
+  $manifestHashA = Get-Hash (Join-Path $runA.RunDir 'run-manifest.json')
+  $checksumHashA = Get-Hash (Join-Path $runA.RunDir 'checksums.sha256')
+
+  $runBId = [guid]::NewGuid().ToString('N')
+  $identityB = New-CiInstallerIdentity -RunId $runBId
+  $runB = New-UniqueRunDirectory -ArchiveRoot $crossRoot -Sha ('b' * 40) -RunId $runBId -Stamp '20260101T010102Z'
+  $installB = Join-Path $runB.RunDir 'installed-app'
+  New-Item -ItemType Directory -Force -Path $installB | Out-Null
+  Set-Content -LiteralPath (Join-Path $installB 'Morrow.exe') -Value 'run-b-exe'
+  $manifestB = [pscustomobject]@{ status = 'PASS'; failedStage = $null; exitCode = 0; runId = $runBId; nsisGuid = $identityB.NsisGuid }
+  $resultB = Complete-RunArchive -RunDir $runB.RunDir -Manifest $manifestB -ReadmeText 'run B'
+  $removalB = Remove-IsolatedPaths -RunDir $runB.RunDir -RelativePaths @('installed-app')
+
+  $inventoryA2 = @(Get-Inventory $runA.RunDir)
+  $inventorySame = ($inventoryA.Count -eq $inventoryA2.Count)
+  if ($inventorySame) {
+    for ($i = 0; $i -lt $inventoryA.Count; $i++) {
+      if ($inventoryA[$i].Relative -ne $inventoryA2[$i].Relative -or
+          $inventoryA[$i].Sha256 -ne $inventoryA2[$i].Sha256 -or
+          $inventoryA[$i].Length -ne $inventoryA2[$i].Length -or
+          $inventoryA[$i].LastWriteTimeUtc -ne $inventoryA2[$i].LastWriteTimeUtc) { $inventorySame = $false; break }
+    }
+  }
+  Assert-True 'cross-run-a-cleanup-failed' ($resultA.Status -eq 'CLEANUP_FAILED' -and [int]$manifestA.exitCode -eq 1) "status=$($resultA.Status)"
+  Assert-True 'cross-run-b-pass' ($resultB.Status -eq 'PASS' -and $removalB.Status -eq 'PASS') "status=$($resultB.Status)"
+  Assert-True 'cross-run-guid-differs' ($identityA.NsisGuid -ne $identityB.NsisGuid) 'run A and run B identities differ'
+  Assert-True 'cross-run-a-inventory-immutable' $inventorySame "files=$($inventoryA.Count)"
+  Assert-True 'cross-run-a-manifest-immutable' ((Get-Hash (Join-Path $runA.RunDir 'run-manifest.json')) -eq $manifestHashA) 'manifest unchanged'
+  Assert-True 'cross-run-a-checksums-immutable' ((Get-Hash (Join-Path $runA.RunDir 'checksums.sha256')) -eq $checksumHashA) 'checksums unchanged'
+  Assert-True 'cross-run-a-install-retained' (Test-Path -LiteralPath (Join-Path $installA 'Morrow.exe')) 'run A install kept'
+  Assert-True 'cross-run-b-install-removed' (-not (Test-Path -LiteralPath $installB)) 'run B install removed only'
 
   # 19. Runner static wiring for the three fixes.
   Assert-True 'runner-unique-run-dir' ($runnerText -match 'New-UniqueRunDirectory') 'uses atomic unique run dir'
