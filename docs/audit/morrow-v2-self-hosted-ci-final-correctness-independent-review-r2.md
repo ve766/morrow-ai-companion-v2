@@ -22,7 +22,7 @@ Prior review: `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent
 | Diff `ba8e479..e325b48` | 7 files: 4 docs (`3 reports` modified, prior review file added) + 3 `scripts/ci` modified; +333 / -36 |
 | Diff `e325b48..b7acd4c` | 4 docs files (this R2 file + 3 reports); +285 / -7; **no code, test, or workflow change** |
 | Product runtime/schema/test changes | none |
-| Worktree | clean at `b7acd4c`; this R2 file is the only repository write in this review (the `b7acd4c` docs follow-up includes it) |
+| Worktree | clean at `b7acd4c`; this R2 file is the only repository write (the current worktree shows only this file modified relative to `b7acd4c`) |
 | Registered self-hosted runners | `0` (`actions/runners` total_count=0) |
 | Workflow runs on reviewed SHA | `0` (`actions/runs?head_sha=e325b48...` total_count=0) |
 | Artifacts from reviewed SHA | none (35 historical artifacts from other SHAs; newest 2026-11-05T08:58Z) |
@@ -55,7 +55,7 @@ This file is authoritative for the reviewed code SHA `e325b48859bda287f2b2b65cec
 | Real NSIS install/uninstall | **ABSENT / PENDING_USER_ACTION** |
 | Real self-hosted run | **ABSENT / PENDING_USER_ACTION** — 0 runners, 0 runs |
 
-No BLOCKER or HIGH finding exists. The three MEDIUM findings from the first review are fixed or reduced to LOW residuals. The overall status remains **PARTIAL / PENDING_USER_ACTION** solely because no real NSIS install/uninstall and no real self-hosted workflow run exist.
+No BLOCKER or HIGH finding exists. The three MEDIUM findings from the first review are fixed (F1 in the docs-only `b7acd4c`; F2/F3 in `e325b48`; F2 retains LOW edge residuals F18/F19). The overall status remains **PARTIAL / PENDING_USER_ACTION** solely because no real NSIS install/uninstall and no real self-hosted workflow run exist.
 
 ## 2. Commands and real exit codes
 
@@ -219,7 +219,7 @@ Honest:
 
 - No CI PASS: closeout/evidence index say `PARTIAL / PENDING_USER_ACTION`, not CI PASS.
 - No registered runner: `actions/runners total_count=0` is stated and true.
-- No real self-hosted run: stated as PENDING/BLOCKED and true (0 runs on `e325b48...`).
+- No real self-hosted run: stated as PENDING/BLOCKED and true (0 runs on `e325b48` and `b7acd4c`).
 - Real NSIS install/uninstall and real process-tree cleanup remain explicitly not executed.
 - 92/92 probe count and 56+36 split match my rerun.
 - The missing-Node manifest fields in the evidence index (`processTree.records: []`, `readmeWritten`, `errors`, policy text, fileCount 2) match my independent reproduction.
