@@ -12,22 +12,16 @@
 
 ### 1.1 原仓库路径启动崩溃（宿主/路径交互，未完全归因）
 
-- 同一 Electron 44.9.3 从原仓库路径 `E:\Hasee\Documents\morrow v2\...` 启动时 `--version` 失败、最小窗口 `0xC0000005`。
-- 复制到以下路径均可正常启动（`--version` 成功、最小窗口可见）：
-  - `%LOCALAPPDATA%\et44\dist`（C:，无空格）
-  - `E:\morrow-et`（E:，无空格）
-  - `E:\morrow test`（E:，短路径含空格）
-  - `C:\Users\Hasee\morrow test`（C:，含空格）
-  - `C:\Users\Hasee\AppData\Local\this is a very long acceptance path with spaces`（C:，长路径含空格）
-  - `E:\Hasee\Documents\morrowv2\...`（E:，仓库同长度但无空格）
-- 因此不能把原因简化为“空格/驱动器/路径长度”；可确认的是**原仓库路径不可作为部署路径**，`%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 部署可用。
+- Electron 44.9.3 从原仓库路径 `E:\Hasee\Documents\morrow v2\...` 启动时 `--version` 失败、最小窗口 `0xC0000005`。
+- 同一 Electron 44.9.3 复制到 `%LOCALAPPDATA%\et44\dist`（C:，无空格）可正常启动；Electron 35.7.5 复制到 E: 无空格、E: 短空格、C: 含空格、C: 长空格路径也均可启动。
+- 因此**原仓库路径不可作为部署路径**，`%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 部署可用；但具体触发因素未能用同一版本完整隔离，不能简化为“空格/驱动器/路径长度”。
 - 应用 asar 从无空格部署路径仍会在强制沙箱启动时崩溃，见 1.2；这是本次真正修复的代码层原因。
 
 ### 1.2 `app.enableSandbox()` 在 Windows 26200 上强制沙箱启动
 
 - 应用启动时无条件调用 `app.enableSandbox()`，即使传 `--no-sandbox`，仍会走 Windows 26200 的 sandbox 启动路径并崩溃。
 - 最小启动探针（无 DB/服务、空白页）在 `new BrowserWindow` 后崩溃；加上验收专用 `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` + `--no-sandbox` 后，主进程执行到 `did-finish-load`，完整 UI 加载。
-- Issue #59 的 `0xC0000005` 不是产品业务代码缺陷；是宿主沙箱路径 + 路径空格。
+- Issue #59 的 `0xC0000005` 不是产品业务代码缺陷；是 Windows 26200 的强制沙箱启动路径（以及原仓库路径不可用）。
 
 ### 1.3 修复（默认行为不变）
 
@@ -76,7 +70,7 @@
 - 启动参数：`--no-sandbox --disable-gpu --user-data-dir=<隔离目录>`；环境变量：
   - `MORROW_LOCAL_ACCEPTANCE_USER_DATA=<隔离目录>`
   - `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1`
-- 窗口：`Morrow · AI 伴侣`，PID 19656；`window-state.json` / `stability-visible.json` 记录 `iconic=false`、`visible=true`、`responding=true`、rect `429,166,1529,926`（在屏内）。
+- 窗口：`Morrow · AI 伴侣`，PID 8956；`window-state.json` / `stability-visible.json` 记录 `iconic=false`、`visible=true`、`responding=true`、rect `410,160,1510,920`（在屏内）。
 - 5 分钟可见稳定性（V1 退役后、最终 PID）：300 秒采样，窗口保持可见/非最小化，Responding=true；证据 `stability-visible.json`。另有 300 秒存活采样 `stability-live.json`。
 - 隔离证明：`morrow.sqlite3` 位于 V2 隔离 user-data；默认 `%APPDATA%\morrow-ai-companion` 未被 V2 写入（仍 66 个 V1 文件，含 V1 的 `morrow.sqlite3`，未删除）。
 
@@ -86,7 +80,7 @@
 - 无 Provider 发送：状态显示“尚未配置 Provider”，未新增消息、未伪造 AI 回复。
 - 记忆：写入非敏感测试记忆“验收测试记忆：Morrow V2 在本机 Build 26200 已启动”，保存成功；完全重启应用后仍存在。
 - Provider 真实请求：用户尚未在 UI 内配置；`PENDING_USER_ACTION`。此前协议级 200/400 证据见 Issue #59，不代表本机 UI 验收。
-- 证据：`ui-live.json` / `ui-evidence.json`，PID 19656，时间戳 `2026-11-06T09:54:03Z`（不含聊天隐私/密钥）。
+- 证据：`ui-uia.json`，PID 8956，时间戳 `2026-11-06T10:33:56Z`（不含聊天隐私/密钥）。
 
 ## 5. 测试与构建
 
@@ -96,8 +90,8 @@
 | `npm test` | 0 | 130 files / 1159 tests passed / 0 failed / 0 skipped（176.86s） |
 | `npm run build` | 0 | main/preload/renderer 成功 |
 | `electron-builder --win dir --x64 --publish never -c.electronDist=node_modules/electron/dist` | 0 | unpacked app 生成 |
-| 本机窗口启动 + 5 分钟可见稳定性 | PASS | PID 19656，窗口可见、非最小化、Responding=true |
-| 设置/无 Provider/记忆重启 | PASS | `ui-evidence.json` |
+| 本机窗口启动 + 5 分钟可见稳定性 | PASS | PID 8956，窗口可见、非最小化、Responding=true |
+| 设置/无 Provider/记忆重启 | PASS | `ui-uia.json` |
 
 ## 6. 未完成项
 
