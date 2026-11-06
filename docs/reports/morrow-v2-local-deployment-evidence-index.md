@@ -23,8 +23,10 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| `stability.json`（PID 15068，300 秒，窗口 `Morrow · AI 伴侣`，Responding=true） | `9a8ad291ec4583ff6d1056fa2b3b8755ad1629ce93d4c5775ff59283a131db81` |
-| `ui-evidence.json`（设置页、无 Provider、记忆写入/重启） | `75f4fb4e7229e8c54c2134c8d43f840de8b9eb87df16459bb54e0515f73bd0e5` |
+| `stability-visible.json`（PID 19656，300 秒，iconic=false/visible=true/responding=true，rect 429,166,1529,926） | `dadab7dfd0d73aa5dad12326b12f8e4d40a78b7a817631ce55f80f41ded61e66` |
+| `stability-live.json`（PID 19656，300 秒存活采样） | `0a25131ffada3cbfb88f72663b913914ec957a5a849020400684a32356d023a1` |
+| `ui-live.json` / `ui-evidence.json`（PID 19656，设置/无 Provider/记忆） | `583141f4f0a461a23190e728f6de603cf9199bd4101c3b40757934e401d8f947` |
+| `window-state.json` | `fc924f63e9c3250c179433f0f1f4067888db9e0000bd3470bee82084094ff95f` |
 | `v1-retirement-result.json` | `9112c3538240edb1b9a61ea5f0de332d1bf2587ab39ba8df3a8e630a62d5e0ad` |
 
 ## 3. V1 备份与退役
@@ -45,7 +47,8 @@
 | 检查 | 结果 |
 | --- | --- |
 | Electron 44.9.3 从 `%LOCALAPPDATA%\et44\dist` 启动 | `--version` = v44.9.3，exit 0；最小窗口可见 |
-| 同一 Electron 从仓库路径（含空格 `morrow v2`）启动 | `0xC0000005`，无窗口 |
+| 同一 Electron 从原仓库路径（`morrow v2`）启动 | `0xC0000005`，无窗口 |
+| 复制到 E: 无空格、E: 短空格、C: 空格、C: 长空格路径 | 均可启动；因此不把原因简化为空格/驱动器/长度 |
 | 应用 asar 最小启动（空页面、无 DB） | `new BrowserWindow` 后崩溃 |
 | 应用 asar + `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` + `--no-sandbox` | 主进程到达 `did-finish-load`，完整 UI 加载 |
 | 默认路径 | 仍调用 `app.enableSandbox()`；仅验收环境变量跳过 |
@@ -55,6 +58,7 @@
 - 设置页：模型接入配置、官方 DeepSeek、本地模型、本地认知、备份恢复区块可见；密钥仅进入 OS 安全存储。
 - 无 Provider 发送：状态“尚未配置 Provider”，未新增消息、未伪造回复。
 - 记忆：`验收测试记忆：Morrow V2 在本机 Build 26200 已启动` 保存成功；完全重启后仍存在；位于 V2 隔离 user-data。
+- 以上 UI 证据来自 PID 19656（`ui-live.json`，时间戳 `2026-11-06T09:54:03Z`），与 5 分钟可见稳定性同一进程。
 
 ## 6. 命令与退出码
 

@@ -86,7 +86,7 @@ $env:MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX = '1'
 & (Join-Path $root "app\$run\Morrow.exe") --no-sandbox --disable-gpu "--user-data-dir=$data"
 ```
 
-- 必须使用**无空格**的部署路径；仓库路径 `morrow v2` 会触发 Electron/Chromium 启动崩溃。
+- 不要从原仓库路径（`morrow v2` 等）运行 Electron；本机实测该路径启动崩溃，而 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 部署可用。不要把原因简化为空格/路径长度。
 - `MORROW_LOCAL_ACCEPTANCE_USER_DATA` 必须是绝对路径；未设置时应用使用正式用户 profile。
 - `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 只用于本机验收，默认构建仍启用 `app.enableSandbox()`；不要把它作为正式发布默认值。
 - app/user-data/logs/evidence 均在 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 下，按 run ID 隔离。

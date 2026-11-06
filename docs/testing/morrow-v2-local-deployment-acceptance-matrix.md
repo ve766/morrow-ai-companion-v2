@@ -1,6 +1,7 @@
 # Morrow V2 本机部署验收矩阵（Issue #60 修订版）
 
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
+- 代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（parent `bb6eb8c`）
 - 最终状态：**DEPLOYED_USER_TEST_PENDING**
 
 | # | 验收项 | 状态 | 证据 |
@@ -14,9 +15,9 @@
 | 7 | V1 profile 历史数据保留 | PASS | `%APPDATA%\morrow-ai-companion` 66 文件 |
 | 8 | V2 side-by-side 部署、无 V1 身份冲突 | PASS | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\app\final-1793955356` |
 | 9 | V2 userData/database 隔离 | PASS | `morrow.sqlite3` 在 V2 隔离目录；默认 profile 未变 |
-| 10 | V2 窗口真实可见 | PASS | `Morrow · AI 伴侣`，PID 15068 |
-| 11 | 5 分钟稳定性 | PASS | `stability.json` 300 秒，Responding=true |
-| 12 | 设置页可打开、Provider 区块可见 | PASS | `ui-evidence.json` |
+| 10 | V2 窗口真实可见 | PASS | `Morrow · AI 伴侣`，PID 19656；`window-state.json`：iconic=false、visible=true、rect 在屏内 |
+| 11 | 5 分钟可见稳定性 | PASS | `stability-visible.json` 300 秒，iconic=false、visible=true、Responding=true |
+| 12 | 设置页可打开、Provider 区块可见 | PASS | `ui-live.json`（PID 19656） |
 | 13 | 无 Provider 时明确反馈、不伪造回复 | PASS | 状态“尚未配置 Provider”，无新消息 |
 | 14 | 记忆写入 + 完全重启后仍存在 | PASS | 测试记忆保存在 V2 隔离 DB，重启后可见 |
 | 15 | Provider 真实 UI 配置/请求 | **PENDING_USER_ACTION** | 用户未在 UI 内配置；不读取/索取 key |

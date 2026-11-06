@@ -10,7 +10,7 @@
 
 ### 已定位的 Morrow 根因（2026-11-06）
 
-- **路径含空格**：同一 Electron 44.9.3 从 `%LOCALAPPDATA%\et44\dist` 启动正常（`--version` v44.9.3、最小窗口可见）；从仓库路径 `E:\...\morrow v2\...` 启动则 `0xC0000005`。部署必须使用无空格路径。
+- **原仓库路径不可用**：同一 Electron 44.9.3 从原仓库路径 `E:\...\morrow v2\...` 启动 `0xC0000005`；复制到 `%LOCALAPPDATA%\et44`、`E:\morrow-et`、`E:\morrow test`、C: 含空格/长空格路径均可正常启动。不能把原因简化为空格/驱动器/长度；部署到 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 已实测可用。
 - **强制沙箱**：应用无条件调用 `app.enableSandbox()`，即使传 `--no-sandbox` 仍走 Windows 26200 的 sandbox 启动路径并崩溃。应用 asar 在最小启动（空页面、无 DB）时仍在 `new BrowserWindow` 后崩溃；加上验收专用 `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 后主进程到达 `did-finish-load`，完整 UI 加载。
 - 修复：仅验收模式跳过 `enableSandbox` 并追加 `no-sandbox`；默认构建仍启用沙箱。V1 已安全退役并备份，V2 已在本机真实打开并稳定运行。
 
