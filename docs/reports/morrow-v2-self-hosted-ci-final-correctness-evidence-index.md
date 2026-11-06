@@ -1,7 +1,8 @@
 # 自托管 CI 最终正确性证据索引（Issue #58）
 
 - 基线 HEAD：`60a445e2a7aecf300816b8941ad4611c561aebe0`（parent `4428477`）
-- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #58 comment 为准）
+- 代码 SHA：`e325b48859bda287f2b2b65cec79c8d2ad52a96b`（parent `ba8e479`；最终复审对象）
+- 文档 HEAD：本文件所在提交（仅文档，不改代码）
 - 最终状态：**PARTIAL / PENDING_USER_ACTION**
 
 ## 1. 文件
@@ -13,7 +14,8 @@
 | `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 探针，92 项 |
 | `docs/reports/morrow-v2-self-hosted-ci-final-correctness-closeout.md` | 根因/实现/状态机/进程归属/测试 |
 | `docs/reports/morrow-v2-self-hosted-ci-final-correctness-acceptance-matrix.md` | 逐项验收 |
-| `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review.md` | 独立复审（最终代码 SHA） |
+| `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review.md` | 首轮复审（`ba8e479`，3 个 MEDIUM，无 BLOCKER/HIGH） |
+| `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review-r2.md` | 最终复审（`e325b48`，无 BLOCKER/HIGH，PARTIAL/PENDING_USER_ACTION） |
 
 ## 2. 命令与实测退出码
 

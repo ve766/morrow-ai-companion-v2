@@ -5,7 +5,8 @@
 - Branch: `feat/morrow-v2-final-closure`
 - Base: `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 基线 HEAD：`60a445e2a7aecf300816b8941ad4611c561aebe0`（parent `4428477`）
-- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #58 comment 为准）
+- 代码 SHA：`e325b48859bda287f2b2b65cec79c8d2ad52a96b`（parent `ba8e479`；最终复审对象）
+- 文档 HEAD：本文件所在提交（仅文档，不改代码）
 - 最终状态：**PARTIAL / PENDING_USER_ACTION**（代码/探针/静态验收完成；Runner 未注册，真实 NSIS 与 self-hosted run 未执行）
 
 ## 1. 三个根因
@@ -102,5 +103,12 @@ npm test
 ## 6. 独立复审
 
 - 首轮复审（代码 SHA `ba8e479ebc12e960e5678fbcc33a34a35449fec9`）：**PARTIAL / PENDING_USER_ACTION，无 BLOCKER/HIGH**；3 个 MEDIUM：docs 未写 reviewed SHA、checksums 未覆盖 hidden/`.tmp` 文件、`processTree` 未持久化完整归属记录。报告：`docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review.md`。
-- 修复：checksums 改用 `-Force` 并移除 `.tmp` 排除；manifest 增加 `archive.readmeWritten`/`archive.errors`；`processTree.records` 写入完整 PID/PPID/路径/创建时间/原因；移除死代码 `Stop-ProcessesUnderPath`；`-ExcludePids` 同时作用于后代遍历。
-- 修复后探针 92/92；最终复审见 `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review-r2.md`（以该文件记录的 SHA 为准）。
+- 修复（代码 SHA `e325b48859bda287f2b2b65cec79c8d2ad52a96b`）：checksums 改用 `-Force` 并移除 `.tmp` 排除；manifest 增加 `archive.readmeWritten`/`archive.errors`；`processTree.records` 写入完整 PID/PPID/路径/创建时间/原因；移除死代码 `Stop-ProcessesUnderPath`；`-ExcludePids` 同时作用于后代遍历。
+- 最终复审（`e325b48`）：**PARTIAL / PENDING_USER_ACTION，无 BLOCKER/HIGH**；F2/F3/F4/F7/F10 已修复；F1 仅剩 docs 表述，已在本提交修正。报告：`docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review-r2.md`。
+- 已知 LOW 残余（不阻塞，记录在案）：
+  - manifest 本身写入失败时没有终态 manifest，只有 `finalization-error.txt` 和非零退出；
+  - 父进程已退出且子进程可执行文件不在安装目录内的孤儿后代无法凭路径归属；
+  - `Stopped` 在停止后未再复核，生产路径的 `Remaining`/`Errors` 仍准确；
+  - 嵌套同名 `checksums.sha256` 文件或预先存在的 `run-manifest.json.tmp` 属于极端边界；
+  - workflow 的 `if: always()` 归档路径打印在 runDir 创建前失败时可能显示上一个归档；
+  - checkout 为 tag 固定，worktree 清洁度未写入 manifest。

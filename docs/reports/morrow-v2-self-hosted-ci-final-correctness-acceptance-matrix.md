@@ -28,11 +28,14 @@
 | 21 | 原有 56 项探针继续通过 | PASS | 92 项总探针，0 FAIL |
 | 22 | PS 5.1 parser、typecheck、全量测试、YAML、diff check | PASS | Parser 3/3；typecheck 0；129 files / 1156 tests；YAML OK；`git diff --check` 0 |
 | 23 | 不修改产品运行时/schema/测试语义 | PASS | diff 仅 scripts/ci + docs |
-| 24 | 独立复审最终代码 SHA | **PENDING** | 复审完成后更新；不得复用 R3 旧结论 |
+| 24 | 独立复审最终代码 SHA | PASS（无 BLOCKER/HIGH） | 最终复审 `e325b48`：`docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review-r2.md`；首轮 `ba8e479` 的 3 个 MEDIUM 已修复 |
 | 25 | 真实 NSIS 安装/卸载 | **PENDING_USER_ACTION** | 宿主 NSIS 构建被策略阻塞 |
 | 26 | 真实 self-hosted workflow | **PENDING_USER_ACTION / BLOCKED_RUNNER_NOT_REGISTERED** | 0 runners，0 runs |
 | 27 | PR #54 保持 OPEN、未合并、未发布 Release | PASS | `gh pr view 54` OPEN |
+| 28 | manifest 写入失败时保留最小诊断 | PASS（LOW 残余） | `finalization-error.txt` + exit 1；无 PASS manifest |
+| 29 | 父进程退出且路径在安装目录外的孤儿后代 | 残余（LOW） | 已记录；Electron 子进程均在安装目录内 |
+| 30 | 嵌套同名 checksums / 预存 manifest tmp | 残余（LOW） | 极端边界，已记录 |
 
 ## 结论
 
-三个正确性缺口均已修复并通过 92 项 PS 5.1 探针、typecheck 与全量测试；真实 NSIS/self-hosted 运行与最终独立复审仍待完成。整体 **PARTIAL / PENDING_USER_ACTION**，不是 COMPLETE，不是 CI PASS。
+三个正确性缺口均已修复并通过 92 项 PS 5.1 探针、typecheck 与全量测试；最终独立复审 `e325b48` 无 BLOCKER/HIGH。真实 NSIS/self-hosted 运行仍为 PENDING_USER_ACTION。整体 **PARTIAL / PENDING_USER_ACTION**，不是 COMPLETE，不是 CI PASS。
