@@ -2,6 +2,7 @@ node_modules/
 out/
 release/
 release-ci*/
+release-local/
 dist/
 *.log
 *.tsbuildinfo

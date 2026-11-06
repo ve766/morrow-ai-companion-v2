@@ -36,6 +36,13 @@ import { ApplicationError } from '../shared/errors'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
 import { createSecureWindowOptions, isTrustedRendererUrl, resolveTrustedRendererUrl } from '../security/security'
+import { resolveAcceptanceUserData } from './acceptance-data-path'
+
+const acceptanceUserData = resolveAcceptanceUserData(process.env.MORROW_LOCAL_ACCEPTANCE_USER_DATA)
+if (acceptanceUserData) {
+  app.setPath('userData', acceptanceUserData)
+  app.setPath('sessionData', acceptanceUserData)
+}
 
 const logger = createLogger({ minimumLevel: 'info' })
 

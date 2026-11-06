@@ -73,7 +73,23 @@ Start-Process -FilePath .\Morrow-Setup-2.0.0-x64.exe -ArgumentList '/S /D=C:\pat
 - 升级前先导出备份；回滚时恢复迁移前的 `morrow.sqlite3` 与 `secrets/`。
 - 若升级失败，应用会 fail closed，不会在缺列/缺表状态下打开。
 
-## 7. 当前构建宿主的限制（必须阅读）
+## 7. 本机隔离验收部署（Issue #60）
+
+不运行正式安装器、不触碰旧版 Morrow 的 side-by-side 方式：
+
+```powershell
+$root = Join-Path $env:LOCALAPPDATA 'MorrowV2-LocalAcceptance'
+$run = '<run-id>'
+$data = Join-Path $root "user-data\$run"
+$env:MORROW_LOCAL_ACCEPTANCE_USER_DATA = $data
+& (Join-Path $root "app\$run\Morrow.exe") "--user-data-dir=$data"
+```
+
+- `MORROW_LOCAL_ACCEPTANCE_USER_DATA` 必须是绝对路径；未设置时应用使用正式用户 profile。
+- app/user-data/logs/evidence 均在 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 下，按 run ID 隔离。
+- 该方式不会运行 NSIS、不会改动 `F:\morrow1` 或旧版注册表；当前 Windows 26200 宿主仍会因 Electron 运行时崩溃，详见 `docs/reports/morrow-v2-local-deployment-report.md`。
+
+## 8. 当前构建宿主的限制（必须阅读）
 
 - NSIS 安装器已成功构建并记录 SHA256，但**未在本机执行安装**：本机已存在 Morrow 1.0.0（`F:\morrow1`，同一用户 appId/GUID），运行正式安装器会按设计卸载旧版，属于用户数据风险。
 - 本机 Electron 运行时无法启动：最小 Electron 应用与打包后的 `Morrow.exe` 都在启动阶段以 `0xC0000005`（3221225477）退出，`electron.exe --version` 也以 exit 3 失败。这是宿主运行时/驱动/系统策略问题，不是 Morrow 产品代码或安装器构建失败。

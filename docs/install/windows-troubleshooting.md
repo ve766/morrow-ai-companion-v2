@@ -11,8 +11,32 @@
 ### 本机已确认的证据
 
 - 最小 Electron 应用（仅 `app.whenReady()` 后打印并退出）也崩溃：`electron.exe .tmp/electron-min --no-sandbox --disable-gpu` 段错误。
-- `electron.exe --version` 退出码 3，无输出。
+- 一个只创建窗口并保持 15 秒的最小 Electron 应用同样以 `0xC0000005` 退出。
+- `electron.exe --version` 退出码 3（raw `0x80000003`），三个版本 44.9.3 / 44.10.2 / 45.2.3 均失败。
+- Morrow 2.0.0 部署实例：WER `APPCRASH Morrow.exe 2.0.0.0`，`0xc0000005`，faulting module `Morrow.exe`，offset `0x357db3a`。
 - 因此崩溃发生在 Electron/Chromium 运行时初始化，与 Morrow 的业务代码、数据库、Provider 配置无关。
+
+### Windows 11 build 26200 已知问题
+
+Windows 11 build 26200（25H2/Insider 系列）已有公开的 Electron/Chromium 启动或退出崩溃报告：
+
+- electron/electron#55011：Windows 11 25H2 build 26200，Electron 43/44 在 `app.exit` 时偶发 `0xC0000005` / `0x80000003`。
+- MicrosoftEdge/WebView2Feedback#5777：build 26200 上 Chromium GPU/Audio utility 进程崩溃循环。
+- OpenAI Codex Desktop #29425：build 26200 上 Electron 启动即 `0xC0000005`，含 `chrome.dll`/sandbox 初始化失败。
+
+当前没有仓库内可安全实施的修复；任务禁止关闭系统安全策略绕过。优先使用稳定的非 26200 Windows 10/11 版本，或等待 Microsoft/Electron 修复。
+
+### 本机隔离验收启动方式
+
+```powershell
+$root = Join-Path $env:LOCALAPPDATA 'MorrowV2-LocalAcceptance'
+$run = '<run-id>'
+$data = Join-Path $root "user-data\$run"
+$env:MORROW_LOCAL_ACCEPTANCE_USER_DATA = $data
+& (Join-Path $root "app\$run\Morrow.exe") "--user-data-dir=$data"
+```
+
+`MORROW_LOCAL_ACCEPTANCE_USER_DATA` 只接受绝对路径；未设置时使用正式用户 profile。不要在本机运行正式 NSIS 安装器（会卸载 `F:\morrow1` 旧版）。
 
 ### 用户侧诊断步骤
 
