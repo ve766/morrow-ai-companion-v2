@@ -13,19 +13,30 @@ if ($sha -ne $ExpectedSha.Trim()) {
   throw "Checkout SHA mismatch: expected $ExpectedSha, got $sha"
 }
 
-$stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
-$runDir = Get-NormalizedPath (Join-Path $ArchiveRoot "$stamp-$sha")
+$startedAt = (Get-Date).ToUniversalTime().ToString('o')
+$runStartUtc = [datetime]::Parse($startedAt).ToUniversalTime()
+$runId = [guid]::NewGuid().ToString('N')
+$runInfo = New-UniqueRunDirectory -ArchiveRoot $ArchiveRoot -Sha $sha -RunId $runId
+$runDir = $runInfo.RunDir
 $logsDir = Join-Path $runDir 'logs'
 $resultsDir = Join-Path $runDir 'results'
 $transcriptsDir = Join-Path $runDir 'results\transcripts'
 $installersDir = Join-Path $runDir 'installers'
 $screenshotsDir = Join-Path $runDir 'screenshots'
-New-Item -ItemType Directory -Force -Path $logsDir, $resultsDir, $transcriptsDir, $installersDir, $screenshotsDir | Out-Null
+Write-AtomicJson (Join-Path $runDir 'run-identity.json') ([pscustomobject]@{
+  runId = $runId
+  runDir = $runDir
+  archiveRoot = $runInfo.ArchiveRoot
+  expectedSha = $ExpectedSha
+  actualSha = $sha
+  startedAt = $startedAt
+  status = 'RUNNING'
+  note = 'Non-terminal. run-manifest.json is authoritative.'
+})
 
 $steps = [System.Collections.Generic.List[object]]::new()
 $failure = $null
-$startedAt = (Get-Date).ToUniversalTime().ToString('o')
-$runStartUtc = [datetime]::Parse($startedAt).ToUniversalTime()
+$failedStage = $null
 $installer = $null
 $releaseInstaller = $null
 $installerHash = $null
@@ -37,6 +48,14 @@ $installAttempted = $false
 $installResult = $null
 $installedInfo = $null
 $smokeProfile = Join-Path $runDir 'smoke-profile'
+$smokeStartedAt = $null
+$processTree = [pscustomobject]@{
+  status = 'NOT_REQUIRED'
+  ownedCount = 0
+  stopped = @()
+  remaining = @()
+  errors = @()
+}
 $cleanup = [pscustomobject]@{
   status = 'NOT_REQUIRED'
   uninstaller = $null
@@ -117,7 +136,7 @@ try {
   Invoke-CiStep 'offline-evaluation' 'npm.cmd' @('run', 'evaluate') 600
   Invoke-CiStep 'cognitive-evaluation' 'npm.cmd' @('run', 'evaluate:cognition') 600
   Invoke-CiStep 'build' 'npm.cmd' @('run', 'build') 900
-  New-Item -ItemType Directory -Force -Path $smokeProfile | Out-Null
+  New-Item -ItemType Directory -Path $smokeProfile -ErrorAction Stop | Out-Null
   $env:MORROW_SMOKE_PROFILE = $smokeProfile
   Invoke-CiStep 'electron-smoke' 'npm.cmd' @('run', 'smoke') 900
   Invoke-CiStep 'product-path-smoke' 'npm.cmd' @('run', 'smoke:product-path') 1200
@@ -127,8 +146,6 @@ try {
   # The user-facing installer must never be executed here: electron-builder's
   # NSIS calls uninstallOldVersion for the appId-derived GUID before installing,
   # which could uninstall an existing Morrow installation even with /D=.
-  # Build a CI-only installer with a unique GUID, a unique appId and no
-  # shortcuts, then install that variant into the isolated run directory.
   Invoke-CiStep 'windows-nsis-ci-package' 'npx.cmd' @(
     'electron-builder', '--win', 'nsis', '--x64', '--publish', 'never',
     '-c.appId=com.morrow.ai-companion.ci',
@@ -155,17 +172,37 @@ try {
   Assert-InstalledVersion -ExePath $installedInfo.FullName -ExpectedVersion $packageVersion | Out-Null
   $env:MORROW_SMOKE_EXECUTABLE = $installedInfo.FullName
   $env:MORROW_SMOKE_EXPECT_VERSION = $packageVersion
+  $smokeStartedAt = (Get-Date).ToUniversalTime().AddSeconds(-1)
   Invoke-CiStep 'installed-app-smoke' 'node.exe' @('scripts/smoke.mjs', '--verify-upgrade') 1200
 } catch {
   $failure = $_.Exception.Message
+  if (-not $failedStage) { $failedStage = 'execution' }
 } finally {
   try {
-    if ($installedInfo) {
-      $stopped = @(Stop-ProcessesUnderPath -ExecutablePath $installedInfo.FullName)
-      if ($stopped.Count -gt 0) { Write-Host "stopped-installed-app-pids=$($stopped -join ',')" }
+    if ($installedInfo -and $smokeStartedAt) {
+      try {
+        $owned = @(Get-OwnedProcesses -InstallDir $installDir -Since $smokeStartedAt)
+        $processTree.ownedCount = $owned.Count
+        if ($owned.Count -gt 0) {
+          $stop = Stop-OwnedProcessTree -Owned $owned -InstallDir $installDir -GraceSeconds 5
+          $processTree.stopped = @($stop.Stopped)
+          $processTree.remaining = @($stop.Remaining)
+          $processTree.errors = @($stop.Errors)
+          $still = @(Get-OwnedProcesses -InstallDir $installDir -Since $smokeStartedAt)
+          if ($still.Count -gt 0) {
+            $processTree.remaining = @($still)
+            $processTree.errors = @($processTree.errors + "Process tree still has $($still.Count) process(es).")
+          }
+        }
+        if ($processTree.errors.Count -gt 0) { $processTree.status = 'CLEANUP_FAILED' } else { $processTree.status = 'PASS' }
+      } catch {
+        $processTree.status = 'CLEANUP_FAILED'
+        $processTree.errors = @($processTree.errors + "Process tree cleanup failed: $($_.Exception.Message)")
+      }
     }
     $uninstallErrors = @()
-    if ($installAttempted -and (Test-Path -LiteralPath $installDir)) {
+    $treeOk = $processTree.status -ne 'CLEANUP_FAILED'
+    if ($installAttempted -and (Test-Path -LiteralPath $installDir) -and $treeOk) {
       try {
         $uninstall = Invoke-IsolatedUninstall -InstallDir $installDir -TimeoutSeconds 180
         $cleanup.uninstaller = $uninstall.Uninstaller
@@ -178,13 +215,15 @@ try {
       } catch {
         $uninstallErrors += "Uninstall failed: $($_.Exception.Message)"
       }
+    } elseif ($installAttempted -and -not $treeOk) {
+      $uninstallErrors += 'Uninstall skipped: process tree was not confirmed stopped.'
     }
     $relativePaths = @('smoke-profile')
-    if ($uninstallErrors.Count -eq 0) { $relativePaths = @('installed-app', 'smoke-profile') }
+    if ($uninstallErrors.Count -eq 0 -and $treeOk) { $relativePaths = @('installed-app', 'smoke-profile') }
     $removal = Remove-IsolatedPaths -RunDir $runDir -RelativePaths $relativePaths
     $cleanup.removedPaths = @($removal.RemovedPaths)
     $cleanup.errors = @($uninstallErrors + $removal.Errors)
-    if ($uninstallErrors.Count -gt 0 -or $removal.Status -eq 'CLEANUP_FAILED') {
+    if ($uninstallErrors.Count -gt 0 -or $removal.Status -eq 'CLEANUP_FAILED' -or -not $treeOk) {
       $cleanup.status = 'CLEANUP_FAILED'
     } elseif ($installAttempted) {
       $cleanup.status = 'PASS'
@@ -197,6 +236,7 @@ try {
   }
   if ($cleanup.status -eq 'CLEANUP_FAILED' -and -not $failure) {
     $failure = "Cleanup failed: $($cleanup.errors -join '; ')"
+    $failedStage = 'cleanup'
   }
 
   if (-not $redactionBlocked) {
@@ -233,98 +273,118 @@ try {
         Write-Utf8NoBom (Join-Path $installersDir "$($releaseInstaller.Name).sha256") $releaseInstaller.Sha256
       }
     } catch {
-      if (-not $failure) { $failure = "Archive collection failed: $($_.Exception.Message)" }
+      if (-not $failure) { $failure = "Archive collection failed: $($_.Exception.Message)"; $failedStage = 'archive' }
     }
   } elseif (-not $failure) {
     $failure = 'Redaction residual blocked archiving.'
+    $failedStage = 'redaction'
   }
+
+  try { Pop-Location } catch { if (-not $failure) { $failure = "Pop-Location failed: $($_.Exception.Message)"; $failedStage = 'location' } }
+
+  $status = 'PASS'
+  if ($cleanup.status -eq 'CLEANUP_FAILED') {
+    $status = 'CLEANUP_FAILED'
+    $failedStage = 'cleanup'
+  } elseif ($failure) {
+    $status = 'FAILED'
+  }
+  if ($status -ne 'PASS' -and -not $failedStage) { $failedStage = 'execution' }
 
   $finishedAt = (Get-Date).ToUniversalTime().ToString('o')
-  try {
-    $manifest = [pscustomobject]@{
-      repo = 've766/morrow-ai-companion-v2'
-      ref = $env:GITHUB_REF
-      sha = $sha
-      expectedSha = $ExpectedSha
-      runUrl = $env:MORROW_CI_RUN_URL
-      runner = [pscustomobject]@{
-        name = $env:RUNNER_NAME
-        os = $env:RUNNER_OS
-        arch = $env:RUNNER_ARCH
-        labels = @('self-hosted', 'Windows', 'X64', 'morrow-ci')
-      }
-      node = $nodeReported
-      npm = $npmReported
-      actor = $env:GITHUB_ACTOR
-      triggeringActor = $env:GITHUB_TRIGGERING_ACTOR
-      startedAt = $startedAt
-      finishedAt = $finishedAt
-      steps = $steps
-      installation = [pscustomobject]@{
-        target = $installDir
-        installer = if ($installer) { $installer.Name } else { $null }
-        installerSha256 = $installerHash
-        releaseInstaller = if ($releaseInstaller) { $releaseInstaller.Name } else { $null }
-        releaseInstallerSha256 = if ($releaseInstaller) { $releaseInstaller.Sha256 } else { $null }
-        installExitCode = if ($installResult) { $installResult.ExitCode } else { $null }
-        installedExe = if ($installedInfo) { $installedInfo.FullName } else { $null }
-        installedExeSha256 = if ($installedInfo) { $installedInfo.Sha256 } else { $null }
-        installedVersion = if ($installedInfo) { $installedInfo.ProductVersion } else { $null }
-        smokeProfile = $smokeProfile
-      }
-      cleanup = [pscustomobject]@{
-        status = $cleanup.status
-        uninstaller = $cleanup.uninstaller
-        uninstallerExitCode = $cleanup.uninstallerExitCode
-        removedPaths = @($cleanup.removedPaths)
-        errors = @($cleanup.errors)
-      }
-      evidence = [pscustomobject]@{
-        screenshots = @($evidence.screenshots)
-        results = @($evidence.results)
-        transcripts = @($evidence.transcripts)
-      }
-      redactionResidual = $redactionBlocked
-      failure = $failure
-      status = if ($failure -or $cleanup.status -eq 'CLEANUP_FAILED') { 'FAILED' } else { 'PASS' }
+  $manifest = [pscustomobject]@{
+    repo = 've766/morrow-ai-companion-v2'
+    ref = $env:GITHUB_REF
+    runId = $runId
+    runDir = $runDir
+    archiveRoot = $runInfo.ArchiveRoot
+    sha = $sha
+    expectedSha = $ExpectedSha
+    actualSha = $sha
+    runUrl = $env:MORROW_CI_RUN_URL
+    runner = [pscustomobject]@{
+      name = $env:RUNNER_NAME
+      os = $env:RUNNER_OS
+      arch = $env:RUNNER_ARCH
+      labels = @('self-hosted', 'Windows', 'X64', 'morrow-ci')
     }
-    $manifest | ConvertTo-Json -Depth 10 | ForEach-Object { Write-Utf8NoBom (Join-Path $runDir 'run-manifest.json') $_ }
-
-    $readme = @(
-      'Morrow V2 self-hosted CI run',
-      "SHA: $sha",
-      "Started: $startedAt",
-      "Finished: $finishedAt",
-      "Status: $($manifest.status)",
-      "Failure: $($failure)",
-      "Installer (CI variant): $($installer.Name) $($installerHash)",
-      "Release installer (not executed): $($releaseInstaller.Name) $($releaseInstaller.Sha256)",
-      "Install target: $installDir",
-      "Cleanup: $($cleanup.status) (uninstaller exit $($cleanup.uninstallerExitCode))",
-      '',
-      'Steps:',
-      (($steps | ForEach-Object { "  $($_.name): exit $($_.exitCode) timedOut=$($_.timedOut) -> $($_.log)" }) -join "`n"),
-      '',
-      'The NSIS install target is a new child of this run directory; no existing user installation is searched, launched, modified or uninstalled.',
-      'The archive contains only files produced by this run and a SHA256 for every evidence file.',
-      'No GitHub Actions artifact upload was performed; storage usage is unchanged.'
-    ) -join "`n"
-    Write-Utf8NoBom (Join-Path $runDir 'README.txt') $readme
-
-    $checksumLines = Get-ChildItem -LiteralPath $runDir -Recurse -File | Where-Object { $_.Name -ne 'checksums.sha256' } | ForEach-Object {
-      $relative = $_.FullName.Substring($runDir.Length).TrimStart('\')
-      "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()) *$relative"
+    node = $nodeReported
+    npm = $npmReported
+    actor = $env:GITHUB_ACTOR
+    triggeringActor = $env:GITHUB_TRIGGERING_ACTOR
+    startedAt = $startedAt
+    finishedAt = $finishedAt
+    status = $status
+    failedStage = $failedStage
+    exitCode = $(if ($status -eq 'PASS') { 0 } else { 1 })
+    steps = $steps
+    installation = [pscustomobject]@{
+      target = $installDir
+      installer = if ($installer) { $installer.Name } else { $null }
+      installerSha256 = $installerHash
+      releaseInstaller = if ($releaseInstaller) { $releaseInstaller.Name } else { $null }
+      releaseInstallerSha256 = if ($releaseInstaller) { $releaseInstaller.Sha256 } else { $null }
+      installExitCode = if ($installResult) { $installResult.ExitCode } else { $null }
+      installedExe = if ($installedInfo) { $installedInfo.FullName } else { $null }
+      installedExeSha256 = if ($installedInfo) { $installedInfo.Sha256 } else { $null }
+      installedVersion = if ($installedInfo) { $installedInfo.ProductVersion } else { $null }
+      smokeProfile = $smokeProfile
     }
-    Write-Utf8NoBom (Join-Path $runDir 'checksums.sha256') (($checksumLines) -join "`r`n")
-  } catch {
-    if (-not $failure) { $failure = "Manifest/checksum write failed: $($_.Exception.Message)" }
-    Write-Host "ARCHIVE-ERROR: $($_.Exception.Message)"
+    processTree = $processTree
+    cleanup = [pscustomobject]@{
+      status = $cleanup.status
+      uninstaller = $cleanup.uninstaller
+      uninstallerExitCode = $cleanup.uninstallerExitCode
+      removedPaths = @($cleanup.removedPaths)
+      errors = @($cleanup.errors)
+    }
+    evidence = [pscustomobject]@{
+      screenshots = @($evidence.screenshots)
+      results = @($evidence.results)
+      transcripts = @($evidence.transcripts)
+    }
+    redactionResidual = $redactionBlocked
+    failure = $failure
   }
 
+  $readme = @(
+    'Morrow V2 self-hosted CI run',
+    "Run ID: $runId",
+    "SHA: $sha",
+    "Started: $startedAt",
+    "Finished: $finishedAt",
+    "Status: see run-manifest.json (authoritative)",
+    "Provisional status at archive time: $status",
+    "Failed stage: $failedStage",
+    "Failure: $($failure)",
+    "Installer (CI variant): $($installer.Name) $($installerHash)",
+    "Release installer (not executed): $($releaseInstaller.Name) $($releaseInstaller.Sha256)",
+    "Install target: $installDir",
+    "Process tree: $($processTree.status) owned=$($processTree.ownedCount) remaining=$(@($processTree.remaining).Count)",
+    "Cleanup: $($cleanup.status) (uninstaller exit $($cleanup.uninstallerExitCode))",
+    '',
+    'Steps:',
+    (($steps | ForEach-Object { "  $($_.name): exit $($_.exitCode) timedOut=$($_.timedOut) -> $($_.log)" }) -join "`n"),
+    '',
+    'The NSIS install target is a new child of this run directory; no existing user installation is searched, launched, modified or uninstalled.',
+    'The archive contains only files produced by this run. checksums.sha256 lists every archive file except run-manifest.json and itself; the manifest records the checksum file SHA256.',
+    'No GitHub Actions artifact upload was performed; storage usage is unchanged.'
+  ) -join "`n"
+
+  try {
+    $archiveResult = Complete-RunArchive -RunDir $runDir -Manifest $manifest -ReadmeText $readme
+  } catch {
+    $archiveResult = [pscustomobject]@{ Status = 'FAILED'; FailedStage = 'manifest'; Errors = @($_.Exception.Message) }
+    try { Write-Utf8NoBom (Join-Path $runDir 'finalization-error.txt') $_.Exception.Message } catch { }
+  }
+  if ($archiveResult.Status -ne 'PASS' -and $archiveResult.FailedStage -eq 'manifest') {
+    try {
+      Write-Utf8NoBom (Join-Path $runDir 'finalization-error.txt') (($archiveResult.Errors) -join "`r`n")
+    } catch { }
+  }
   Write-Host "archive=$runDir"
-  if ($failure) { Write-Host "FAILED: $failure" }
-  try { Pop-Location } catch { Write-Host "POP-LOCATION-ERROR: $($_.Exception.Message)" }
+  Write-Host "status=$($archiveResult.Status) stage=$($archiveResult.FailedStage)"
 }
 
-if ($failure -or $cleanup.status -eq 'CLEANUP_FAILED') { exit 1 }
+if ($archiveResult.Status -ne 'PASS') { exit 1 }
 exit 0

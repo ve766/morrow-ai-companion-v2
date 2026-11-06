@@ -237,6 +237,161 @@ try {
   Assert-True 'runner-installs-ci-variant' ($runnerText -match 'Invoke-IsolatedInstall -InstallerPath \$installer\.FullName') 'only the CI variant is installed'
   Assert-True 'runner-unique-nsis-guid' ($runnerText -match '-c\.nsis\.guid=') 'unique GUID isolates uninstall keys'
   Assert-True 'runner-ci-artifact-name-wins' ($runnerText -match '-c\.win\.artifactName=Morrow-CI-Setup-') 'win.artifactName overrides build.win.artifactName'
+  # 16. Unique run directory: atomic creation, reuse rejected, old bytes unchanged.
+  $uniqueRoot = Join-Path $root 'archive-unique'
+  $fixedStamp = '20260101T000000Z'
+  $fixedRunId = 'a' * 32
+  $uniqueInfo = New-UniqueRunDirectory -ArchiveRoot $uniqueRoot -Sha ('b' * 40) -RunId $fixedRunId -Stamp $fixedStamp
+  Assert-True 'run-dir-created' (Test-Path -LiteralPath $uniqueInfo.RunDir -PathType Container) $uniqueInfo.RunDir
+  Assert-True 'run-dir-subdirs' ((@('logs', 'results', 'results\transcripts', 'installers', 'screenshots') | ForEach-Object { Test-Path -LiteralPath (Join-Path $uniqueInfo.RunDir $_) } | Where-Object { -not $_ }).Count -eq 0) 'all subdirectories exist'
+  $uniqueMarker = Join-Path $uniqueInfo.RunDir 'logs\marker.txt'
+  Set-Content -LiteralPath $uniqueMarker -Value 'keep-unique'
+  $uniqueMarkerHash = Get-Hash $uniqueMarker
+  $uniqueMarkerTime = (Get-Item -LiteralPath $uniqueMarker).LastWriteTimeUtc
+  Assert-Throws 'run-dir-reuse-rejected' { New-UniqueRunDirectory -ArchiveRoot $uniqueRoot -Sha ('b' * 40) -RunId $fixedRunId -Stamp $fixedStamp }
+  Assert-True 'run-dir-old-bytes-unchanged' ((Get-Hash $uniqueMarker) -eq $uniqueMarkerHash) 'marker byte-identical'
+  Assert-True 'run-dir-old-timestamp-unchanged' ((Get-Item -LiteralPath $uniqueMarker).LastWriteTimeUtc -eq $uniqueMarkerTime) 'marker timestamp unchanged'
+
+  $preRoot = Join-Path $root 'archive-preexisting'
+  $preRun = Join-Path $preRoot "$fixedStamp-$('c' * 40)-$fixedRunId"
+  New-Item -ItemType Directory -Force -Path $preRun | Out-Null
+  $preFile = Join-Path $preRun 'keep.txt'
+  Set-Content -LiteralPath $preFile -Value 'keep-preexisting'
+  $preHash = Get-Hash $preFile
+  Assert-Throws 'run-dir-preexisting-rejected' { New-UniqueRunDirectory -ArchiveRoot $preRoot -Sha ('c' * 40) -RunId $fixedRunId -Stamp $fixedStamp }
+  Assert-True 'run-dir-preexisting-unchanged' ((Get-Hash $preFile) -eq $preHash) 'pre-existing bytes unchanged'
+
+  Assert-Throws 'run-dir-sha-traversal-rejected' { New-UniqueRunDirectory -ArchiveRoot $uniqueRoot -Sha '..\evil' -RunId $fixedRunId -Stamp $fixedStamp }
+  $junctionRoot = Join-Path $root 'archive-junction'
+  New-Item -ItemType Directory -Force -Path $junctionRoot | Out-Null
+  $junctionTarget = Join-Path $root 'junction-outside-run'
+  New-Item -ItemType Directory -Force -Path $junctionTarget | Out-Null
+  Set-Content -LiteralPath (Join-Path $junctionTarget 'outside.txt') -Value 'outside'
+  $junctionRun = Join-Path $junctionRoot "$fixedStamp-$('d' * 40)-$fixedRunId"
+  & cmd.exe /c mklink /J "$junctionRun" "$junctionTarget" 2>&1 | Out-Null
+  Assert-Throws 'run-dir-junction-rejected' { New-UniqueRunDirectory -ArchiveRoot $junctionRoot -Sha ('d' * 40) -RunId $fixedRunId -Stamp $fixedStamp }
+  Assert-True 'run-dir-junction-outside-intact' (Test-Path -LiteralPath (Join-Path $junctionTarget 'outside.txt')) 'outside kept'
+
+  # 17. Manifest finalization: PASS only when README, checksums and manifest all succeed.
+  $archiveNormal = Join-Path $root 'archive-normal'
+  New-Item -ItemType Directory -Force -Path $archiveNormal | Out-Null
+  Set-Content -LiteralPath (Join-Path $archiveNormal 'result.json') -Value '{"ok":true}'
+  $normalManifest = [pscustomobject]@{ status = 'PASS'; failedStage = $null; exitCode = 0; runId = 'r1'; sha = 's1' }
+  $normalResult = Complete-RunArchive -RunDir $archiveNormal -Manifest $normalManifest -ReadmeText 'normal run'
+  $normalParsed = Get-Content -LiteralPath (Join-Path $archiveNormal 'run-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+  Assert-True 'manifest-normal-pass' ($normalResult.Status -eq 'PASS' -and $normalParsed.status -eq 'PASS' -and [int]$normalParsed.exitCode -eq 0) "status=$($normalResult.Status)"
+  $normalChecksumPath = Join-Path $archiveNormal 'checksums.sha256'
+  Assert-True 'manifest-normal-checksum-hash' ($normalParsed.archive.checksumsFileSha256 -eq (Get-Hash $normalChecksumPath)) $normalParsed.archive.checksumsFileSha256
+  $normalChecksumText = Get-Content -LiteralPath $normalChecksumPath -Raw
+  Assert-True 'manifest-normal-no-cycle' (-not $normalChecksumText.Contains('run-manifest.json') -and -not $normalChecksumText.Contains('checksums.sha256')) 'manifest and checksum file excluded'
+
+  $archiveReadmeFault = Join-Path $root 'archive-readme-fault'
+  New-Item -ItemType Directory -Force -Path $archiveReadmeFault | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $archiveReadmeFault 'README.txt') | Out-Null
+  $readmeFaultManifest = [pscustomobject]@{ status = 'PASS'; failedStage = $null; exitCode = 0 }
+  $readmeFaultResult = Complete-RunArchive -RunDir $archiveReadmeFault -Manifest $readmeFaultManifest -ReadmeText 'x'
+  $readmeFaultParsed = Get-Content -LiteralPath (Join-Path $archiveReadmeFault 'run-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+  Assert-True 'manifest-readme-failure' ($readmeFaultResult.Status -eq 'FAILED' -and $readmeFaultResult.FailedStage -eq 'readme' -and $readmeFaultParsed.status -eq 'FAILED' -and [int]$readmeFaultParsed.exitCode -eq 1) "status=$($readmeFaultResult.Status) stage=$($readmeFaultResult.FailedStage)"
+
+  $archiveChecksumFault = Join-Path $root 'archive-checksum-fault'
+  New-Item -ItemType Directory -Force -Path $archiveChecksumFault | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $archiveChecksumFault 'checksums.sha256') | Out-Null
+  $checksumFaultManifest = [pscustomobject]@{ status = 'PASS'; failedStage = $null; exitCode = 0 }
+  $checksumFaultResult = Complete-RunArchive -RunDir $archiveChecksumFault -Manifest $checksumFaultManifest -ReadmeText 'x'
+  $checksumFaultParsed = Get-Content -LiteralPath (Join-Path $archiveChecksumFault 'run-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+  Assert-True 'manifest-checksum-failure' ($checksumFaultResult.Status -eq 'FAILED' -and $checksumFaultResult.FailedStage -eq 'checksums' -and $checksumFaultParsed.status -eq 'FAILED') "status=$($checksumFaultResult.Status) stage=$($checksumFaultResult.FailedStage)"
+
+  $archiveManifestFault = Join-Path $root 'archive-manifest-fault'
+  New-Item -ItemType Directory -Force -Path $archiveManifestFault | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $archiveManifestFault 'run-manifest.json.tmp') | Out-Null
+  $manifestFaultManifest = [pscustomobject]@{ status = 'PASS'; failedStage = $null; exitCode = 0 }
+  $manifestFaultResult = Complete-RunArchive -RunDir $archiveManifestFault -Manifest $manifestFaultManifest -ReadmeText 'x'
+  $manifestFaultPath = Join-Path $archiveManifestFault 'run-manifest.json'
+  $manifestFaultPass = $false
+  if (Test-Path -LiteralPath $manifestFaultPath -PathType Leaf) {
+    $manifestFaultPass = ((Get-Content -LiteralPath $manifestFaultPath -Raw -Encoding UTF8 | ConvertFrom-Json).status -eq 'PASS')
+  }
+  Assert-True 'manifest-write-failure' ($manifestFaultResult.Status -eq 'FAILED' -and $manifestFaultResult.FailedStage -eq 'manifest' -and -not $manifestFaultPass) "status=$($manifestFaultResult.Status) stage=$($manifestFaultResult.FailedStage)"
+
+  $archiveFailedManifest = [pscustomobject]@{ status = 'FAILED'; failedStage = 'archive'; exitCode = 1 }
+  $archiveFailedRun = Join-Path $root 'archive-failed'
+  New-Item -ItemType Directory -Force -Path $archiveFailedRun | Out-Null
+  $archiveFailedResult = Complete-RunArchive -RunDir $archiveFailedRun -Manifest $archiveFailedManifest -ReadmeText 'x'
+  $archiveFailedParsed = Get-Content -LiteralPath (Join-Path $archiveFailedRun 'run-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+  Assert-True 'manifest-archive-failure-preserved' ($archiveFailedResult.Status -eq 'FAILED' -and $archiveFailedParsed.failedStage -eq 'archive' -and [int]$archiveFailedParsed.exitCode -eq 1) "status=$($archiveFailedResult.Status)"
+
+  # 18. Process tree ownership and bounded termination.
+  $fakeInstall = Join-Path $root 'fake-install'
+  New-Item -ItemType Directory -Force -Path $fakeInstall | Out-Null
+  $fakeExe = Join-Path $fakeInstall 'Morrow.exe'
+  Copy-Item -LiteralPath (Get-Process -Id $PID).Path -Destination $fakeExe
+  $started = @()
+  $sleepOutside = $null
+  try {
+    $rootProcess = Start-Process -FilePath $fakeExe -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 30"' -PassThru
+    $started += $rootProcess.Id
+    $owned = @(Get-OwnedProcesses -InstallDir $fakeInstall -Since (Get-Date).AddSeconds(-10))
+    Assert-True 'process-tree-owned-root' (@($owned | Where-Object ProcessId -eq $rootProcess.Id).Count -eq 1) "owned=$($owned.Count)"
+    $treeResult = Stop-OwnedProcessTree -Owned $owned -InstallDir $fakeInstall -GraceSeconds 0
+    Assert-True 'process-tree-stopped' ($treeResult.Remaining.Count -eq 0 -and $treeResult.Errors.Count -eq 0) ($treeResult.Errors -join '; ')
+    $rootExited = $false
+    try { $rootExited = $rootProcess.WaitForExit(5000) } catch { $rootExited = $false }
+    Assert-True 'process-tree-root-gone' ($rootExited -or $rootProcess.HasExited) 'root exited'
+
+    $childScript = Join-Path $root 'spawn-child.ps1'
+    Set-Content -LiteralPath $childScript -Value @(
+      ("Start-Process -FilePath '" + $fakeExe + "' -ArgumentList '-NoProfile -Command `"Start-Sleep -Seconds 30`"'"),
+      'Start-Sleep -Seconds 1'
+    )
+    $parentProcess = Start-Process -FilePath $fakeExe -ArgumentList ("-NoProfile -File `"$childScript`"") -PassThru
+    $started += $parentProcess.Id
+    Start-Sleep -Seconds 3
+    $childOwned = @(Get-OwnedProcesses -InstallDir $fakeInstall -Since (Get-Date).AddSeconds(-15))
+    Assert-True 'process-tree-child-owned' ($childOwned.Count -ge 1) "owned=$($childOwned.Count)"
+    $childStop = Stop-OwnedProcessTree -Owned $childOwned -InstallDir $fakeInstall -GraceSeconds 0
+    Assert-True 'process-tree-child-stopped' ($childStop.Remaining.Count -eq 0) ($childStop.Errors -join '; ')
+    $started = @($started | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+
+    $sleepOutside = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 30"' -PassThru
+    $started += $sleepOutside.Id
+    $notOwned = @(Get-OwnedProcesses -InstallDir $fakeInstall -Since (Get-Date).AddSeconds(-10))
+    Assert-True 'process-tree-user-process-not-owned' (@($notOwned | Where-Object ProcessId -eq $sleepOutside.Id).Count -eq 0) "owned=$($notOwned.Count)"
+
+    $fakeRecord = [pscustomobject]@{ ProcessId = $PID; ParentProcessId = 0; Name = 'powershell.exe'; ExecutablePath = (Join-Path $fakeInstall 'Morrow.exe'); CreationDate = $null; Reason = 'install-path' }
+    Assert-True 'process-tree-pid-path-mismatch' (-not (Test-ProcessRecordOwned -Record $fakeRecord -InstallDir $fakeInstall)) 'foreign path not owned'
+    $mismatchStop = Stop-OwnedProcessTree -Owned @($fakeRecord) -InstallDir $fakeInstall -GraceSeconds 0
+    Assert-True 'process-tree-no-mismatch-kill' ($null -ne (Get-Process -Id $PID -ErrorAction SilentlyContinue)) 'current process alive'
+
+    $denyProcess = Start-Process -FilePath $fakeExe -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 30"' -PassThru
+    $started += $denyProcess.Id
+    Start-Sleep -Milliseconds 500
+    $denyOwned = @(Get-OwnedProcesses -InstallDir $fakeInstall -Since (Get-Date).AddSeconds(-10) | Where-Object ProcessId -eq $denyProcess.Id)
+    $denyResult = Stop-OwnedProcessTree -Owned $denyOwned -InstallDir $fakeInstall -GraceSeconds 0 -StopAction { param($id) throw [System.UnauthorizedAccessException]::new('denied for probe') }
+    Assert-True 'process-tree-access-denied' ($denyResult.Errors.Count -gt 0 -and $denyResult.Remaining.Count -gt 0) ($denyResult.Errors -join '; ')
+    Stop-Process -Id $denyProcess.Id -Force -ErrorAction SilentlyContinue
+    $started = @($started | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+
+    $timeoutProcess = Start-Process -FilePath $fakeExe -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 30"' -PassThru
+    $started += $timeoutProcess.Id
+    Start-Sleep -Milliseconds 500
+    $timeoutOwned = @(Get-OwnedProcesses -InstallDir $fakeInstall -Since (Get-Date).AddSeconds(-10) | Where-Object ProcessId -eq $timeoutProcess.Id)
+    $timeoutResult = Stop-OwnedProcessTree -Owned $timeoutOwned -InstallDir $fakeInstall -GraceSeconds 0 -StopAction { param($id) }
+    Assert-True 'process-tree-timeout-remaining' ($timeoutResult.Errors.Count -gt 0 -and $timeoutResult.Remaining.Count -gt 0) ($timeoutResult.Errors -join '; ')
+    Stop-Process -Id $timeoutProcess.Id -Force -ErrorAction SilentlyContinue
+    $started = @($started | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+  } finally {
+    foreach ($processId in $started) { Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }
+    if ($sleepOutside) { Stop-Process -Id $sleepOutside.Id -Force -ErrorAction SilentlyContinue }
+  }
+
+  # 19. Runner static wiring for the three fixes.
+  Assert-True 'runner-unique-run-dir' ($runnerText -match 'New-UniqueRunDirectory') 'uses atomic unique run dir'
+  Assert-True 'runner-no-run-dir-force' ($runnerText -notmatch 'New-Item[^\r\n]*-ItemType Directory[^\r\n]*-Force[^\r\n]*\$runDir') 'no -Force on run dir'
+  Assert-True 'runner-finalizer' ($runnerText -match 'Complete-RunArchive') 'single finalizer'
+  Assert-True 'runner-process-tree' ($runnerText -match 'Get-OwnedProcesses' -and $runnerText -match 'Stop-OwnedProcessTree') 'process tree cleanup wired'
+  Assert-True 'runner-no-name-taskkill' ($runnerText -notmatch 'taskkill[^\r\n]*/IM') 'no name-based taskkill'
+  Assert-True 'runner-manifest-exit-code' ($runnerText -match 'exitCode') 'manifest records exit code'
+
 } finally {
   if (Test-Path -LiteralPath $root) {
     try { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop } catch { Write-Host "probe cleanup warning: $($_.Exception.Message)" }
