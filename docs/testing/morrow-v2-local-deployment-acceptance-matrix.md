@@ -15,10 +15,10 @@
 | 7 | V1 profile 历史数据保留 | PASS | `%APPDATA%\morrow-ai-companion` 66 文件 |
 | 8 | V2 side-by-side 部署、无 V1 身份冲突 | PASS | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\app\final-1793955356` |
 | 9 | V2 userData/database 隔离 | PASS | `morrow.sqlite3` 在 V2 隔离目录；默认 profile 未变 |
-| 10 | V2 窗口真实可见 | PASS | `Morrow · AI 伴侣`，PID 8956；`window-state.json`：iconic=false、visible=true、rect 在屏内 |
-| 11 | 5 分钟可见稳定性 | PASS | `stability-visible.json` 300 秒，iconic=false、visible=true、Responding=true |
-| 12 | 设置页可打开、Provider 区块可见 | PASS | `ui-uia.json`（PID 8956） |
-| 13 | 无 Provider 时明确反馈、不伪造回复 | PASS | 状态“尚未配置 Provider”，无新消息 |
+| 10 | V2 窗口真实可见 | PASS | `Morrow · AI 伴侣`，PID 20732；`window-state.json`：iconic=false、visible=true、rect 在屏内 |
+| 11 | 5 分钟可见稳定性 | PASS | `stability-steady.json` 300 秒无交互，iconic=false、visible=true、Responding=true |
+| 12 | 设置页可打开、Provider 区块可见 | PASS | `ui-uia-final.json`（PID 20732） |
+| 13 | 无 Provider 时明确反馈、不伪造回复 | PASS | `ui-chat-final.json`：状态“尚未配置 Provider”，无新消息、无伪造回复 |
 | 14 | 记忆写入 + 完全重启后仍存在 | PASS | 测试记忆保存在 V2 隔离 DB，重启后可见 |
 | 15 | Provider 真实 UI 配置/请求 | **PENDING_USER_ACTION** | 用户未在 UI 内配置；不读取/索取 key |
 | 16 | 用户手动体验（点击/聊天/设置） | **PENDING_USER_ACTION** | 窗口已留给用户 |

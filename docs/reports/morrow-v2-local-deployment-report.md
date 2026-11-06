@@ -5,14 +5,15 @@
 - Branch: `feat/morrow-v2-final-closure`
 - Base: `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
-- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
+- 代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（parent `bb6eb8c`）
+- 文档 HEAD：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
 - 最终状态：**DEPLOYED_USER_TEST_PENDING**（V2 窗口已真实打开并稳定运行；用户手动体验与 Provider 配置待用户完成）
 
 ## 1. 根因（已定位并修复）
 
 ### 1.1 原仓库路径启动崩溃（宿主/路径交互，未完全归因）
 
-- Electron 44.9.3 从原仓库路径 `E:\Hasee\Documents\morrow v2\...` 启动时 `--version` 失败、最小窗口 `0xC0000005`。
+- Electron 44.9.3 从原仓库 checkout 路径启动时 `--version` 失败、最小窗口 `0xC0000005`。
 - 同一 Electron 44.9.3 复制到 `%LOCALAPPDATA%\et44\dist`（C:，无空格）可正常启动；Electron 35.7.5 复制到 E: 无空格、E: 短空格、C: 含空格、C: 长空格路径也均可启动。
 - 因此**原仓库路径不可作为部署路径**，`%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 部署可用；但具体触发因素未能用同一版本完整隔离，不能简化为“空格/驱动器/路径长度”。
 - 应用 asar 从无空格部署路径仍会在强制沙箱启动时崩溃，见 1.2；这是本次真正修复的代码层原因。
@@ -67,11 +68,11 @@
 - 数据：`%LOCALAPPDATA%\MorrowV2-LocalAcceptance\user-data\final-1793955356\`
 - 日志/证据：`...\logs\final-1793955356\`、`...\evidence\final-1793955356\`
 - `Morrow.exe`：246,820,352 bytes，SHA256 `e89d1a36a5744a89d0ef1f21db5b6e27038deabeb7c932763ee696f8ca96daef`
-- 启动参数：`--no-sandbox --disable-gpu --user-data-dir=<隔离目录>`；环境变量：
+- 启动参数：`--no-sandbox --disable-gpu --force-renderer-accessibility --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --user-data-dir=<隔离目录>`；环境变量：
   - `MORROW_LOCAL_ACCEPTANCE_USER_DATA=<隔离目录>`
   - `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1`
-- 窗口：`Morrow · AI 伴侣`，PID 8956；`window-state.json` / `stability-visible.json` 记录 `iconic=false`、`visible=true`、`responding=true`、rect `410,160,1510,920`（在屏内）。
-- 5 分钟可见稳定性（V1 退役后、最终 PID）：300 秒采样，窗口保持可见/非最小化，Responding=true；证据 `stability-visible.json`。另有 300 秒存活采样 `stability-live.json`。
+- 窗口：`Morrow · AI 伴侣`，PID 20732；`window-state.json` / `stability-steady.json` 记录 `iconic=false`、`visible=true`、`responding=true`、rect `410,160,1510,920`（在屏内）。
+- 5 分钟可见稳定性（V1 退役后、最终 PID）：300 秒无交互采样，窗口保持可见/非最小化，Responding=true；证据 `stability-steady.json`。
 - 隔离证明：`morrow.sqlite3` 位于 V2 隔离 user-data；默认 `%APPDATA%\morrow-ai-companion` 未被 V2 写入（仍 66 个 V1 文件，含 V1 的 `morrow.sqlite3`，未删除）。
 
 ## 4. 真实 UI 验证
@@ -80,7 +81,7 @@
 - 无 Provider 发送：状态显示“尚未配置 Provider”，未新增消息、未伪造 AI 回复。
 - 记忆：写入非敏感测试记忆“验收测试记忆：Morrow V2 在本机 Build 26200 已启动”，保存成功；完全重启应用后仍存在。
 - Provider 真实请求：用户尚未在 UI 内配置；`PENDING_USER_ACTION`。此前协议级 200/400 证据见 Issue #59，不代表本机 UI 验收。
-- 证据：`ui-uia.json`，PID 8956，时间戳 `2026-11-06T10:33:56Z`（不含聊天隐私/密钥）。
+- 证据：`ui-uia-final.json`（设置/记忆，11:06:11Z）与 `ui-chat-final.json`（无 Provider，11:06:46Z），PID 20732（不含聊天隐私/密钥）。
 
 ## 5. 测试与构建
 
@@ -90,8 +91,8 @@
 | `npm test` | 0 | 130 files / 1159 tests passed / 0 failed / 0 skipped（176.86s） |
 | `npm run build` | 0 | main/preload/renderer 成功 |
 | `electron-builder --win dir --x64 --publish never -c.electronDist=node_modules/electron/dist` | 0 | unpacked app 生成 |
-| 本机窗口启动 + 5 分钟可见稳定性 | PASS | PID 8956，窗口可见、非最小化、Responding=true |
-| 设置/无 Provider/记忆重启 | PASS | `ui-uia.json` |
+| 本机窗口启动 + 5 分钟可见稳定性 | PASS | PID 20732，窗口可见、非最小化、Responding=true |
+| 设置/无 Provider/记忆重启 | PASS | `ui-uia-final.json` |
 
 ## 6. 未完成项
 

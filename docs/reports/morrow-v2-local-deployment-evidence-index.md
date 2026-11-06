@@ -1,7 +1,8 @@
 # Morrow V2 本机部署证据索引（Issue #60 修订版）
 
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
-- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
+- 代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（parent `bb6eb8c`）
+- 文档 HEAD：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
 - 最终状态：**DEPLOYED_USER_TEST_PENDING**
 - Run ID：`final-1793955356`
 
@@ -23,10 +24,12 @@
 
 | 文件 | SHA256 |
 | --- | --- |
-| `stability-visible.json`（PID 8956，300 秒，iconic=false/visible=true/responding=true，rect 410,160,1510,920） | `9dbbcd50e5998a572169fcf68a179e48ec05603798083f3ae69910bc30a4a8a2` |
+| `stability-steady.json`（PID 20732，300 秒无交互，iconic=false/visible=true/responding=true，rect 410,160,1510,920） | `422bcafea74c5ac3744a73d3b6569aca6b98270744b79135f38b40230112fc71` |
+| `stability-visible.json`（更早 PID 8956 的 300 秒可见采样，历史） | `9dbbcd50e5998a572169fcf68a179e48ec05603798083f3ae69910bc30a4a8a2` |
 | `stability-live.json`（更早 PID 19656 的 300 秒存活采样，历史） | `0a25131ffada3cbfb88f72663b913914ec957a5a849020400684a32356d023a1` |
-| `ui-uia.json`（PID 8956，UIA 读取设置/无 Provider/记忆） | `33a9e42350a4f0ec02599d358cfd9658d400e858eb0312f191da9495dad82ea8` |
-| `window-state.json` | `3ae569d0a059c807b6bdcfd4c44c6aae953db7422c71031ec9f0a65440c6b24b` |
+| `ui-uia-final.json`（PID 20732，UIA 读取设置/记忆） | `977c07d481523600c2a52e7aa76db5bc1753703fb4b15055adc88d810fa839fe` |
+| `ui-chat-final.json`（PID 20732，无 Provider 对话） | `8be9eb51231365a8ce6cbefecb08590d0dd7acfe5d0bd6df673087c6e6c92acc` |
+| `window-state.json` | `1f3159c61a3b6eb0fde77bceec7621467433c1d974412de454d947290c1e9e32` |
 | `v1-retirement-result.json` | `9112c3538240edb1b9a61ea5f0de332d1bf2587ab39ba8df3a8e630a62d5e0ad` |
 
 ## 3. V1 备份与退役
@@ -58,7 +61,7 @@
 - 设置页：模型接入配置、官方 DeepSeek、本地模型、本地认知、备份恢复区块可见；密钥仅进入 OS 安全存储。
 - 无 Provider 发送：状态“尚未配置 Provider”，未新增消息、未伪造回复。
 - 记忆：`验收测试记忆：Morrow V2 在本机 Build 26200 已启动` 保存成功；完全重启后仍存在；位于 V2 隔离 user-data。
-- 以上 UI 证据来自 PID 8956（`ui-uia.json`，时间戳 `2026-11-06T10:33:56Z`），与 5 分钟可见稳定性同一进程。
+- 以上 UI 证据来自 PID 20732：`ui-uia-final.json`（设置/记忆）与 `ui-chat-final.json`（无 Provider 对话），与 5 分钟可见稳定性同一进程。
 
 ## 6. 命令与退出码
 
@@ -68,8 +71,8 @@
 | `npm test` | 0 | 130 files / 1159 tests passed / 0 failed / 0 skipped（176.86s） |
 | `npm run build` | 0 | 成功 |
 | `electron-builder --win dir --x64 --publish never -c.electronDist=node_modules/electron/dist` | 0 | unpacked app |
-| 本机启动 + 5 分钟稳定性 | PASS | PID 15068，窗口可见，Responding=true |
-| 设置/无 Provider/记忆重启 | PASS | `ui-uia.json` |
+| 本机启动 + 5 分钟稳定性 | PASS | PID 20732，`stability-steady.json` 300 秒可见/非最小化/Responding |
+| 设置/无 Provider/记忆重启 | PASS | `ui-uia-final.json` |
 | V1 卸载 | 0 | 注册项删除、程序文件 0、profile 保留 |
 
 ## 7. 结论
