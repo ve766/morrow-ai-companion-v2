@@ -69,9 +69,18 @@ describe('reflection dedupe key', () => {
     const b = dedupeKeyOf({ kind: 'memory_gap', statement: '  存在 2 次纠正 ', evidence: [{ kind: 'event', id: 'e2' }, { kind: 'event', id: 'e1' }] })
     const c = dedupeKeyOf({ kind: 'open_question', statement: '存在 2 次纠正', evidence: [{ kind: 'event', id: 'e1' }, { kind: 'event', id: 'e2' }] })
     const d = dedupeKeyOf({ kind: 'memory_gap', statement: '存在 3 次纠正', evidence: [{ kind: 'event', id: 'e1' }] })
+    // A concern is the statement, not the batch that happened to produce it.
+    const reobserved = dedupeKeyOf({ kind: 'memory_gap', statement: '存在 2 次纠正', evidence: [{ kind: 'event', id: 'e9' }] })
     expect(a).toBe(b)
+    expect(a).toBe(reobserved)
     expect(a).not.toBe(c)
     expect(a).not.toBe(d)
     expect(a).toMatch(/^[0-9a-f]{64}$/u)
+  })
+
+  it('keeps evidence in the identity of kinds whose effect consumes it', () => {
+    const first = dedupeKeyOf({ kind: 'interest_candidate', statement: '同一陈述', evidence: [{ kind: 'memory', id: 'm1' }] })
+    const second = dedupeKeyOf({ kind: 'interest_candidate', statement: '同一陈述', evidence: [{ kind: 'memory', id: 'm2' }] })
+    expect(first).not.toBe(second)
   })
 })

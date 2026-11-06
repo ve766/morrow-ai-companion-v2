@@ -1,0 +1,142 @@
+{
+  "runId": "20261104T154241Z-1430f856",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-04T15:42:41.974Z",
+  "finishedAt": "2026-11-04T15:43:11.541Z",
+  "status": "PASS",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": false,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory 44bbb3a0-8490-467d-8d3f-99c569b6d212, goal 4751f20b-b1c1-4936-85aa-ae73bebda5e4, conversation a23f57ef-1f2a-4aea-b001-3766d28a6387"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    },
+    {
+      "name": "profiles and OS secrets survive restart",
+      "ok": true,
+      "detail": "both profiles read back configured after restart"
+    },
+    {
+      "name": "continuity unchanged across restart",
+      "ok": true,
+      "detail": "baseline={\"interests\":0,\"memories\":1,\"goals\":1} after={\"interests\":1,\"memories\":1,\"goals\":1}"
+    },
+    {
+      "name": "SQLite continuity rows preserved across restart",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "endpoint change clears the old secret and disables the remote profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。"
+    },
+    {
+      "name": "only the changed profile secret was removed",
+      "ok": true,
+      "detail": "B ciphertext unchanged"
+    },
+    {
+      "name": "re-entering a key re-enables the profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "rekey writes a new OS secret without touching the other profile",
+      "ok": true,
+      "detail": "A ciphertext rotated, B unchanged"
+    },
+    {
+      "name": "switch A → B → A through the product bridge",
+      "ok": true,
+      "detail": "A is default again"
+    },
+    {
+      "name": "continuity unchanged across provider switch",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "SQLite continuity rows preserved across provider switch",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "delete profile B through the renderer",
+      "ok": true,
+      "detail": "B removed from the list"
+    },
+    {
+      "name": "deleting B removes only B’s OS secret",
+      "ok": true,
+      "detail": "A secret retained"
+    },
+    {
+      "name": "final restart keeps only A configured",
+      "ok": true,
+      "detail": "one configured profile remains"
+    },
+    {
+      "name": "final continuity unchanged",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    }
+  ],
+  "continuity": {
+    "baselineSha256": "2fb2683d438ebefaff459b1151fb9724818db3242afecdefbac8f88b6dace3a1",
+    "afterRestartSha256": "dac6d34f84e847394eb0c4cbd5d23ad4cac0014c82689ed492cd9aad2f303711",
+    "afterSwitchSha256": "dac6d34f84e847394eb0c4cbd5d23ad4cac0014c82689ed492cd9aad2f303711",
+    "finalSha256": "dac6d34f84e847394eb0c4cbd5d23ad4cac0014c82689ed492cd9aad2f303711",
+    "databaseBaselineSha256": "2d426d0b3151ac70165ceb4d25f3423074720afdaa6c4853b7737f4bea03a326",
+    "databaseAfterRestartSha256": "9594c352c760145119e49371883d434b27c1cf4436a75a692fba73c9d09bc6b2",
+    "databaseAfterSwitchSha256": "9594c352c760145119e49371883d434b27c1cf4436a75a692fba73c9d09bc6b2",
+    "tables": [
+      "personality_profiles",
+      "self_model_entries",
+      "interests",
+      "memories",
+      "goals",
+      "relationship_threads",
+      "conversations",
+      "messages",
+      "cognitive_pending_items",
+      "reflection_findings",
+      "reflection_finding_routes"
+    ]
+  },
+  "secrets": {
+    "a": {
+      "before": "69ac305ae9217fa52d0de8516f96d4cef618bad6f5e3c425271414c463a216d3",
+      "afterChange": null,
+      "afterRekey": "4f95cbd73aba00bbe1220888cfe0e7757b4af2779e2b2bdaebe53fb3e9e1c008"
+    },
+    "b": {
+      "before": "82966bc3580192379418dffe01d22a51263593c82ff0792d4844e25111b530a7",
+      "afterChange": "82966bc3580192379418dffe01d22a51263593c82ff0792d4844e25111b530a7",
+      "afterDelete": null
+    }
+  },
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. Connection tests were not triggered here to avoid an unattended native dialog.",
+  "profiles": {
+    "a": "f35c75e4-af70-4989-b5de-b11b66479e25",
+    "b": "1cbae99b-2420-4024-84b7-fa2ccc8ace0a"
+  }
+}

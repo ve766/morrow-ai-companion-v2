@@ -1,0 +1,183 @@
+{
+  "suite": "stage-4-final-repair",
+  "task": "Issue #42",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "feat/stage-4-companion-confirmation-closure",
+  "base": "release/morrow-v2-final-delivery",
+  "baseCommit": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "priorPrHead": "65d52daa9b2ba80898518c02999268609d8eb070",
+  "codeSha": "1ab1f64d561ab241e3a9321167f7dbc6c607f1b4",
+  "pr": 40,
+  "generatedAt": "2026-11-03T04:46:02Z",
+  "findings": {
+    "audit-1-goal-refresh": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "loads real pending candidates and confirms through the preload bridge",
+          "status": "PASS"
+        },
+        {
+          "test": "rejects through the bridge, not by hiding the card locally",
+          "status": "PASS"
+        },
+        {
+          "test": "lists a real candidate, accepts it through IPC, and exposes the goal in the formal list",
+          "status": "PASS"
+        },
+        {
+          "test": "rejects through IPC without creating a goal",
+          "status": "PASS"
+        }
+      ]
+    },
+    "audit-2-pending-route": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "refuses to decide a new item whose reflection route is missing",
+          "status": "PASS"
+        },
+        {
+          "test": "keeps the documented compatibility path for legacy items without a finding link",
+          "status": "PASS"
+        },
+        {
+          "test": "requires a durable audit sink for decisions",
+          "status": "PASS"
+        }
+      ]
+    },
+    "audit-3-complete-channel": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "routes accepted and rejected decisions through the single decide action",
+          "status": "PASS"
+        },
+        {
+          "test": "keeps the removed complete channel unregistered",
+          "status": "PASS"
+        }
+      ]
+    },
+    "audit-4-ingest-atomic": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "rolls the route back when the pending item cannot be written",
+          "status": "PASS"
+        }
+      ]
+    },
+    "audit-5-startup-ingest": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "the startup trigger feeds the same producer and ingestion path",
+          "status": "PASS"
+        }
+      ]
+    },
+    "audit-6-real-e2e": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "lists a real candidate, accepts it through IPC, and exposes the goal in the formal list",
+          "status": "PASS"
+        },
+        {
+          "test": "rejects through IPC without creating a goal",
+          "status": "PASS"
+        },
+        {
+          "test": "turns a single-conversation grounding gap into a linked open_question pending item",
+          "status": "PASS"
+        },
+        {
+          "test": "the startup trigger feeds the same producer and ingestion path",
+          "status": "PASS"
+        }
+      ]
+    },
+    "open_question-producer": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "turns a single-conversation grounding gap into a linked open_question pending item",
+          "status": "PASS"
+        }
+      ]
+    }
+  },
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 110,
+      "tests": 1034,
+      "passed": 1034,
+      "failed": 0
+    },
+    {
+      "command": "targeted 7 files",
+      "exitCode": 0,
+      "tests": 88,
+      "passed": 88,
+      "failed": 0
+    },
+    {
+      "command": "npm run eval:stage5",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "file": "evals/stage-5/results/20261103T042723Z-1ab1f64.json"
+    },
+    {
+      "command": "npm run eval:stage5:live",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "provider": "spark",
+      "model": "spark-x2.6",
+      "protocol": "openai-chat-completions",
+      "file": "evals/stage-5/results/20261103T042909Z-1ab1f64-stage-5.json"
+    },
+    {
+      "command": "npm run eval:stage3",
+      "exitCode": 0,
+      "PASS": 15,
+      "NOT_RUN": 1,
+      "denominator": 16
+    },
+    {
+      "command": "npm run eval:stage4a",
+      "exitCode": 0,
+      "PASS": 7,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    }
+  ],
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "localElectronSmoke": "BLOCKED_ENV"
+  },
+  "ci": {
+    "status": "PENDING",
+    "note": "CI runs on the updated PR head; the run URL is recorded in the PR and Issue comment."
+  },
+  "notes": [
+    "Results bound to code SHA 1ab1f64; the docs commit follows.",
+    "Old result files for 65d52da remain untouched.",
+    "AUD-04/AUD-08 are out of scope."
+  ]
+}

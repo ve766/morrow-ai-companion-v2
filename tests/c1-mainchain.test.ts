@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { buildTestStack, systemText } from './helpers/companion-stack'
 import { IntentReadingRepository } from '../src/persistence/intent-reading-repository'
 import { SqliteDatabase } from '../src/persistence/database'
+import { EventLogService } from '../src/persistence/event-log'
 
 const cleanup: Array<() => void> = []
 
@@ -229,7 +230,7 @@ describe('C1 main chain: survives a restart', () => {
 
     const database = SqliteDatabase.open(path)
     cleanup.push(() => database.close())
-    const readings = new IntentReadingRepository(database)
+    const readings = new IntentReadingRepository(database, new EventLogService(database))
     const after = readings.active(conversation.id)
     expect(after).toHaveLength(1)
     expect(after[0]!.messageId).toBe(before[0]!.messageId)

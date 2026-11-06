@@ -15,10 +15,18 @@ import type {
   PersonalityInput,
   PersonalityProfile,
   PersonalityRevision,
+  ProviderCapabilities,
   ProviderConfigRecord,
   ProviderConnectionRequest,
   ProviderConnectionResult,
-  ProviderId,
+  ProviderHealth,
+  ProviderHealthStatus,
+  ProviderModelsRequest,
+  ProviderModelsResult,
+  ProviderProfileId,
+  ProviderProfileSaveInput,
+  ProviderProtocolId,
+  ProviderSourceKind,
   Sensitivity
 } from '../shared/companion'
 import { DEEPSEEK_PROVIDER_ID, LOCAL_PROVIDER_ID, SPARK_PROVIDER_ID, type DeepSeekProviderConfigInput, type LocalProviderConfigInput, type ProviderConfigInput, type SparkProviderConfigInput } from '../shared/companion'
@@ -32,6 +40,7 @@ import { SqliteConversationRepository } from '../persistence/conversation-reposi
 import { ApplicationError } from '../shared/errors'
 import { dispatchToProvider, consentPreview, hashProviderInput, type ProviderConsent, type ProviderConsentPreview, type ProviderInput, type ProviderPort } from '../providers/provider-policy'
 import { OpenAICompatibleProvider } from '../providers/openai-compatible'
+import { readBoundedText, ProviderBodyLimitError } from '../providers/bounded-body'
 import { mapProviderSecretError } from '../security/provider-secret-errors'
 import type { SecretStore } from '../security/secrets'
 import { analyzeCognitiveTurnDetailed, boundCognitiveHistory } from '../cognition/cognitive-turn-analyzer'
@@ -39,7 +48,9 @@ import { isIntentReading, type IntentReading } from '../cognition/intent-reading
 import { policyForIntent, unrestrictedPolicy } from '../memory/retrieval-policy'
 import { guardAnswerFacts } from '../cognition/answer-fact-guard'
 import { readFactSlot } from '../memory/fact-slot'
-import { remoteSpecFor } from '../providers/provider-registry'
+import { isBuiltinProviderId, isModelId, isProfileId, hasProtocolAdapter, normalizeProviderConfig, remoteSpecFor, validateProviderConfig } from '../providers/provider-registry'
+import { resolveChatEndpoint, resolveModelsEndpoint, normalizeBaseUrl } from '../providers/endpoint-resolver'
+import { defaultEndpointPolicy, endpointDigest, type EndpointPolicy } from '../providers/endpoint-security'
 import type { EvidencePresentation } from '../memory/memory-context-assembler'
 import { evaluateAnswerEvidence } from '../cognition/answer-evidence-evaluation'
 import { buildTurnEvaluation, turnEvaluationEventPayload, type TurnEvaluation } from '../cognition/turn-evaluation'
@@ -48,7 +59,8 @@ import { CognitiveSettingsService } from '../cognition/cognitive-settings'
 import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/retrieval-attention'
 import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
 import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
-import type { TurnState, TurnStatePort } from '../cognition/turn-state-machine'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
+import type { TurnState, TurnStatePort, TurnTraceRecord, TurnTraceStage } from '../cognition/turn-state-machine'
 import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
@@ -289,10 +301,17 @@ export type ProviderConsentAuthorizer = (preview: ProviderConsentPreview) => Pro
 
 interface ProviderRow {
   id: string
+  display_name: string
+  source_kind: string
+  protocol_id: string
   provider_class: 'remote' | 'local'
   endpoint: string
+  endpoint_path: string | null
   model: string
   enabled: number
+  is_default: number
+  capabilities_json: string
+  last_test_json: string | null
   updated_at: string
 }
 
@@ -400,7 +419,9 @@ function connectionInput(config: ProviderConfigRecord): ProviderInput {
   return {
     prompt,
     context: { text: '', selected: [], omitted: 0, characterCount: 0 },
-    endpoint: `${config.endpoint}/chat/completions`,
+    // The connection test must hit the same URL the adapter uses for chat;
+    // endpointPath and full chat URLs are resolved by one shared resolver.
+    endpoint: resolveChatEndpoint(config.endpoint, config.endpointPath),
     maximumSensitivity: 'normal',
     // 256 rather than 32: a reasoning model spends its first tokens on a
     // preamble, and a 32-token budget returns an empty answer that looks like a
@@ -409,85 +430,268 @@ function connectionInput(config: ProviderConfigRecord): ProviderInput {
   }
 }
 
+function comparableEndpoint(endpoint: string): string {
+  try {
+    return normalizeBaseUrl(endpoint)
+  } catch {
+    return endpoint.trim()
+  }
+}
+
+/** Model lists are small; a relay streaming an unbounded body is refused. */
+const MAX_DISCOVERY_BODY_BYTES = 1_048_576
+
 export class ProviderConfigService {
   constructor(
     private readonly database: SqliteDatabase,
     private readonly secrets: SecretStore,
     private readonly authorize: ProviderConsentAuthorizer,
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => new OpenAICompatibleProvider(config, secrets)
+    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => new OpenAICompatibleProvider(config, secrets),
+    private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
+    private readonly endpointPolicy: EndpointPolicy = defaultEndpointPolicy
   ) {}
 
-  get(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
-    const row = this.database.connection.prepare('SELECT id, provider_class, endpoint, model, enabled, updated_at FROM provider_profiles WHERE id = ?')
-      .get(providerId) as unknown as ProviderRow | undefined
+  /** Every profile, default first; secrets are never included. */
+  listProfiles(): ProviderConfigRecord[] {
+    const rows = this.database.connection.prepare(`
+      SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+             model, enabled, is_default, capabilities_json, last_test_json, updated_at
+      FROM provider_profiles
+      ORDER BY is_default DESC, display_name, id
+    `).all() as unknown as ProviderRow[]
+    return rows.map((row) => this.toRecord(row))
+  }
+
+  get(providerId: ProviderProfileId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
+    const row = this.database.connection.prepare(`
+      SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+             model, enabled, is_default, capabilities_json, last_test_json, updated_at
+      FROM provider_profiles WHERE id = ?
+    `).get(providerId) as unknown as ProviderRow | undefined
     return row ? this.toRecord(row) : null
   }
 
+  getDefault(): ProviderConfigRecord | null {
+    const row = this.database.connection.prepare(`
+      SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+             model, enabled, is_default, capabilities_json, last_test_json, updated_at
+      FROM provider_profiles WHERE is_default = 1 AND enabled = 1 LIMIT 1
+    `).get() as unknown as ProviderRow | undefined
+    return row ? this.toRecord(row) : null
+  }
+
+  /** Legacy typed inputs stay supported; they write the same profile table. */
   save(input: ProviderConfigInput): ProviderConfigRecord {
     switch (input.providerId) {
-      case LOCAL_PROVIDER_ID: return this.saveLocal(input as LocalProviderConfigInput)
+      case LOCAL_PROVIDER_ID: {
+        const local = input as LocalProviderConfigInput
+        return this.saveProfile({
+          profileId: LOCAL_PROVIDER_ID,
+          displayName: 'Local OpenAI',
+          sourceKind: 'local',
+          protocolId: 'openai-chat-completions',
+          endpoint: local.endpoint,
+          endpointPath: null,
+          model: local.model,
+          enabled: local.enabled,
+          ...(local.apiKey !== undefined ? { apiKey: local.apiKey } : {})
+        })
+      }
       case DEEPSEEK_PROVIDER_ID:
-      case SPARK_PROVIDER_ID: return this.saveRemote(input as DeepSeekProviderConfigInput | SparkProviderConfigInput)
-      default: throw new ApplicationError('INVALID_INPUT')
+      case SPARK_PROVIDER_ID: {
+        const remote = input as DeepSeekProviderConfigInput | SparkProviderConfigInput
+        const spec = remoteSpecFor(remote.providerId)
+        if (!spec) throw new ApplicationError('INVALID_INPUT')
+        return this.saveProfile({
+          profileId: remote.providerId,
+          displayName: spec.label,
+          sourceKind: 'official',
+          protocolId: 'openai-chat-completions',
+          endpoint: spec.baseUrl,
+          endpointPath: null,
+          model: remote.model,
+          enabled: remote.enabled,
+          ...(remote.apiKey !== undefined ? { apiKey: remote.apiKey } : {})
+        })
+      }
+      default:
+        throw new ApplicationError('INVALID_INPUT')
     }
   }
 
-  private saveRemote(input: DeepSeekProviderConfigInput | SparkProviderConfigInput): ProviderConfigRecord {
-    const spec = remoteSpecFor(input.providerId)
-    if (!spec || !spec.modelPattern.test(input.model) || typeof input.enabled !== 'boolean') throw new ApplicationError('INVALID_INPUT')
-    let apiKey: string | undefined
-    if (input.apiKey !== undefined) {
-      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
-      apiKey = input.apiKey.trim() || undefined
+  /**
+   * Creates or updates one user profile. The id is opaque; the endpoint and
+   * model are independent of it. A change to the destination (source kind,
+   * protocol, endpoint or endpoint path) invalidates the old credential and
+   * every health/capability claim tied to it: the secret is cleared before the
+   * row is written and the profile becomes unconfigured until the user enters
+   * the key again. A failed write restores the previous secret.
+   */
+  saveProfile(input: ProviderProfileSaveInput): ProviderConfigRecord {
+    if (!input || typeof input !== 'object') throw new ApplicationError('INVALID_INPUT')
+    if (input.sourceKind === 'private-network') throw new ApplicationError('INVALID_INPUT')
+    if (input.protocolId !== 'openai-chat-completions') throw new ApplicationError('INVALID_INPUT')
+    if (typeof input.displayName !== 'string' || input.displayName.trim().length === 0 || input.displayName.length > 80) {
+      throw new ApplicationError('INVALID_INPUT')
     }
-    let existingCredential: string | undefined
-    if (apiKey || input.enabled) {
-      try {
-        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        existingCredential = this.secrets.get(input.providerId)
-      } catch (error) {
-        throw mapProviderSecretError(error)
+    if (typeof input.endpoint !== 'string' || typeof input.model !== 'string' || typeof input.enabled !== 'boolean') {
+      throw new ApplicationError('INVALID_INPUT')
+    }
+    const profileId = (input.profileId?.trim().toLowerCase() || randomUUID().toLowerCase())
+    if (!isProfileId(profileId)) throw new ApplicationError('INVALID_INPUT')
+    if (input.sourceKind === 'official' && !isBuiltinProviderId(profileId)) throw new ApplicationError('INVALID_INPUT')
+    const endpointPath = input.endpointPath?.trim() || null
+    if (isBuiltinProviderId(profileId)) {
+      const spec = remoteSpecFor(profileId)
+      if (profileId === LOCAL_PROVIDER_ID) {
+        if (input.sourceKind !== 'local') throw new ApplicationError('INVALID_INPUT')
+      } else if (
+        input.sourceKind !== 'official' ||
+        !spec ||
+        input.endpoint.trim() !== spec.baseUrl ||
+        !spec.modelPattern.test(input.model.trim()) ||
+        endpointPath !== null
+      ) {
+        throw new ApplicationError('INVALID_INPUT')
       }
     }
-    if (input.enabled && !apiKey && !existingCredential) throw new ApplicationError('PROVIDER_UNCONFIGURED')
-    const now = safeTimestamp(this.clock())
-    let transactionStarted = false
-    let credentialWriteCompleted = false
+    if (!isModelId(input.model.trim())) throw new ApplicationError('INVALID_INPUT')
+    const existing = this.get(profileId)
+
+    let apiKey: string | undefined
+    if (input.apiKey !== undefined) {
+      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) {
+        throw new ApplicationError('INVALID_INPUT')
+      }
+      apiKey = input.apiKey.trim() || undefined
+    }
+    let previousSecret: string | undefined
     try {
-      this.database.connection.exec('BEGIN IMMEDIATE')
-      transactionStarted = true
-      this.database.connection.prepare(`
-        INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at)
-        VALUES (?, 'remote', ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
-          model = excluded.model, enabled = excluded.enabled, updated_at = excluded.updated_at
-      `).run(input.providerId, spec.baseUrl, input.model, input.enabled ? 1 : 0, now)
-      if (apiKey) {
+      if (apiKey !== undefined) {
+        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+        previousSecret = this.secrets.get(profileId)
+      } else if (existing?.apiKeyConfigured) {
+        previousSecret = this.secrets.get(profileId)
+      }
+    } catch (error) {
+      throw mapProviderSecretError(error)
+    }
+
+    const destinationChanged = existing !== null && (
+      existing.sourceKind !== input.sourceKind ||
+      existing.protocolId !== input.protocolId ||
+      comparableEndpoint(existing.endpoint) !== comparableEndpoint(input.endpoint.trim()) ||
+      (existing.endpointPath ?? null) !== endpointPath
+    )
+    const credentialChanged = apiKey !== undefined && apiKey !== previousSecret
+    const modelChanged = existing !== null && existing.model !== input.model.trim()
+    const connectionSemanticsChanged = destinationChanged || modelChanged || credentialChanged
+    // A destination change without a replacement key must not reuse the old
+    // secret at the new host. Remote profiles also become disabled so the
+    // default/profile selection cannot send an unauthenticated request.
+    const willClearCredential = destinationChanged && apiKey === undefined && previousSecret !== undefined
+    const effectiveEnabled = input.enabled && !(willClearCredential && input.sourceKind !== 'local')
+    const credentialConfigured = apiKey !== undefined
+      ? true
+      : willClearCredential
+        ? false
+        : Boolean(previousSecret) || existing?.apiKeyConfigured === true
+    if (effectiveEnabled && input.sourceKind !== 'local' && !credentialConfigured) {
+      throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    }
+
+    const isDefault = input.isDefault === undefined ? existing?.isDefault === true : input.isDefault
+    const candidate: ProviderConfigRecord = normalizeProviderConfig({
+      id: profileId,
+      displayName: input.displayName.trim(),
+      sourceKind: input.sourceKind,
+      protocolId: input.protocolId,
+      providerClass: input.sourceKind === 'local' ? 'local' : 'remote',
+      endpoint: input.endpoint.trim(),
+      endpointPath,
+      model: input.model.trim(),
+      enabled: effectiveEnabled,
+      isDefault,
+      apiKeyConfigured: credentialConfigured,
+      capabilities: connectionSemanticsChanged ? defaultCapabilities() : existing?.capabilities ?? defaultCapabilities(),
+      lastTest: connectionSemanticsChanged ? null : existing?.lastTest ?? null,
+      updatedAt: this.clock()
+    })
+    const validation = validateProviderConfig(candidate)
+    if (!validation.ok) throw new ApplicationError('INVALID_INPUT')
+
+    const now = safeTimestamp(this.clock())
+    const capabilities = candidate.capabilities ?? defaultCapabilities()
+    let secretTouched = false
+    try {
+      // Secret first, row second. A row failure is compensated by restoring the
+      // previous secret; a secret failure writes no row at all.
+      if (apiKey !== undefined) {
+        secretTouched = true
         try {
-          this.secrets.set(input.providerId, apiKey)
-          credentialWriteCompleted = true
-          if (!this.secrets.isAvailable() || this.secrets.get(input.providerId) !== apiKey) {
+          this.secrets.set(profileId, apiKey)
+          if (!this.secrets.isAvailable() || this.secrets.get(profileId) !== apiKey) {
+            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
+          }
+        } catch (error) {
+          throw mapProviderSecretError(error)
+        }
+      } else if (willClearCredential) {
+        secretTouched = true
+        try {
+          this.secrets.delete(profileId)
+          if (this.secrets.get(profileId) !== undefined) {
             throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
           }
         } catch (error) {
           throw mapProviderSecretError(error)
         }
       }
-      this.database.connection.exec('COMMIT')
-      transactionStarted = false
-    } catch (error) {
-      if (transactionStarted) {
-        try {
-          this.database.connection.exec('ROLLBACK')
-        } catch {
-          transactionStarted = false
+      this.database.transaction(() => {
+        if (isDefault) {
+          this.database.connection.prepare('UPDATE provider_profiles SET is_default = 0 WHERE is_default = 1 AND id <> ?').run(profileId)
         }
-      }
-      if (credentialWriteCompleted) {
+        this.database.connection.prepare(`
+          INSERT INTO provider_profiles(
+            id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+            model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            display_name = excluded.display_name,
+            source_kind = excluded.source_kind,
+            protocol_id = excluded.protocol_id,
+            provider_class = excluded.provider_class,
+            endpoint = excluded.endpoint,
+            endpoint_path = excluded.endpoint_path,
+            model = excluded.model,
+            enabled = excluded.enabled,
+            is_default = excluded.is_default,
+            capabilities_json = excluded.capabilities_json,
+            last_test_json = excluded.last_test_json,
+            updated_at = excluded.updated_at
+        `).run(
+          profileId,
+          candidate.displayName!,
+          candidate.sourceKind!,
+          candidate.protocolId!,
+          candidate.providerClass,
+          candidate.endpoint,
+          candidate.endpointPath ?? null,
+          candidate.model,
+          candidate.enabled ? 1 : 0,
+          isDefault ? 1 : 0,
+          JSON.stringify(capabilities),
+          JSON.stringify(candidate.lastTest ?? null),
+          now,
+          now
+        )
+      })
+    } catch (error) {
+      if (secretTouched) {
         try {
-          if (existingCredential === undefined) this.secrets.delete(input.providerId)
-          else this.secrets.set(input.providerId, existingCredential)
+          if (previousSecret === undefined) this.secrets.delete(profileId)
+          else this.secrets.set(profileId, previousSecret)
         } catch {
           throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
         }
@@ -495,78 +699,47 @@ export class ProviderConfigService {
       if (error instanceof ApplicationError) throw error
       throw new ApplicationError('STORAGE_ERROR')
     }
-    const result = this.get(input.providerId)
+    const result = this.get(profileId)
     if (!result) throw new ApplicationError('STORAGE_ERROR')
-    if ((apiKey || input.enabled) && !result.apiKeyConfigured) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
     return result
   }
 
-  private saveLocal(input: LocalProviderConfigInput): ProviderConfigRecord {
-    if (!isLoopbackEndpoint(input.endpoint) || !isValidLocalModelName(input.model)) throw new ApplicationError('INVALID_INPUT')
-    let apiKey: string | undefined
-    if (input.apiKey !== undefined) {
-      if (typeof input.apiKey !== 'string' || input.apiKey.length > 10_000 || /[\u0000-\u001f\u007f]/u.test(input.apiKey)) throw new ApplicationError('INVALID_INPUT')
-      apiKey = input.apiKey.trim() || undefined
-    }
-    let existingCredential: string | undefined
-    if (apiKey) {
-      try {
-        if (!this.secrets.isAvailable()) throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        existingCredential = this.secrets.get(LOCAL_PROVIDER_ID)
-      } catch (error) {
-        throw mapProviderSecretError(error)
-      }
-    }
-    const now = safeTimestamp(this.clock())
-    let transactionStarted = false
-    let credentialWriteCompleted = false
+  deleteProfile(profileId: ProviderProfileId): void {
+    if (isBuiltinProviderId(profileId)) throw new ApplicationError('FORBIDDEN')
+    const existing = this.get(profileId)
+    if (!existing) throw new ApplicationError('NOT_FOUND')
+    let previousSecret: string | undefined
     try {
-      this.database.connection.exec('BEGIN IMMEDIATE')
-      transactionStarted = true
-      this.database.connection.prepare(`
-        INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at)
-        VALUES (?, 'local', ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET provider_class = excluded.provider_class, endpoint = excluded.endpoint,
-          model = excluded.model, enabled = excluded.enabled, updated_at = excluded.updated_at
-      `).run(LOCAL_PROVIDER_ID, input.endpoint, input.model, input.enabled ? 1 : 0, now)
-      if (apiKey) {
-        try {
-          this.secrets.set(LOCAL_PROVIDER_ID, apiKey)
-          credentialWriteCompleted = true
-          if (!this.secrets.isAvailable() || this.secrets.get(LOCAL_PROVIDER_ID) !== apiKey) {
-            throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-          }
-        } catch (error) {
-          throw mapProviderSecretError(error)
-        }
-      }
-      this.database.connection.exec('COMMIT')
-      transactionStarted = false
+      previousSecret = this.secrets.get(profileId)
+      this.secrets.delete(profileId)
+      if (this.secrets.get(profileId) !== undefined) throw new Error('secret_delete_failed')
     } catch (error) {
-      if (transactionStarted) {
-        try {
-          this.database.connection.exec('ROLLBACK')
-        } catch {
-          transactionStarted = false
-        }
+      throw mapProviderSecretError(error)
+    }
+    try {
+      this.database.connection.prepare('DELETE FROM provider_profiles WHERE id = ?').run(profileId)
+    } catch {
+      if (previousSecret !== undefined) {
+        try { this.secrets.set(profileId, previousSecret) } catch {}
       }
-      if (credentialWriteCompleted) {
-        try {
-          if (existingCredential === undefined) this.secrets.delete(LOCAL_PROVIDER_ID)
-          else this.secrets.set(LOCAL_PROVIDER_ID, existingCredential)
-        } catch {
-          throw new ApplicationError('PROVIDER_STORAGE_UNAVAILABLE')
-        }
-      }
-      if (error instanceof ApplicationError) throw error
       throw new ApplicationError('STORAGE_ERROR')
     }
-    const result = this.get(LOCAL_PROVIDER_ID)
-    if (!result) throw new ApplicationError('STORAGE_ERROR')
-    return result
   }
 
-  clearCredential(providerId: ProviderId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
+  setDefaultProfile(profileId: ProviderProfileId): ProviderConfigRecord {
+    const profile = this.get(profileId)
+    if (!profile) throw new ApplicationError('NOT_FOUND')
+    if (!profile.enabled) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    this.database.transaction(() => {
+      this.database.connection.prepare('UPDATE provider_profiles SET is_default = 0 WHERE is_default = 1').run()
+      this.database.connection.prepare('UPDATE provider_profiles SET is_default = 1, updated_at = ? WHERE id = ?').run(safeTimestamp(this.clock()), profileId)
+    })
+    const updated = this.get(profileId)
+    if (!updated) throw new ApplicationError('STORAGE_ERROR')
+    return updated
+  }
+
+  clearCredential(providerId: ProviderProfileId = DEEPSEEK_PROVIDER_ID): ProviderConfigRecord | null {
     try {
       this.secrets.delete(providerId)
       if (this.secrets.get(providerId) !== undefined) {
@@ -588,28 +761,130 @@ export class ProviderConfigService {
     if (!consent) throw new ApplicationError('FORBIDDEN')
     const verified = consentPreview('connection-test', config, input)
     if (verified.payloadSha256 !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
-    const output = await dispatchToProvider(this.providerFactory(config), input, consent)
-    return { providerId: config.id, model: output.modelId, connected: output.text.trim().length > 0 }
+    const started = Date.now()
+    try {
+      const output = await dispatchToProvider(this.providerFactory(config), input, consent)
+      const latencyMs = Date.now() - started
+      this.recordHealth(config, 'connected', latencyMs, null, output.attempts ?? 1, true)
+      return {
+        providerId: config.id,
+        model: output.modelId,
+        connected: output.text.trim().length > 0,
+        status: 'connected',
+        latencyMs,
+        attempts: output.attempts ?? 1,
+        endpointDigest: endpointDigest(config.endpoint)
+      }
+    } catch (error) {
+      const health = healthForError(error)
+      this.recordHealth(config, health.status, Date.now() - started, health.httpStatus, null, false)
+      throw error
+    }
   }
 
-  // The local provider wins when both are enabled: it keeps data on the
-  // machine and costs nothing; the consent dialog shows the exact endpoint
-  // for every request so the choice stays visible.
+  /** Optional `GET /models`; failure never prevents manual model entry. */
+  async discoverModels(request: ProviderModelsRequest): Promise<ProviderModelsResult> {
+    const stored = this.get(request.profileId)
+    if (!stored) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    const config = normalizeProviderConfig(stored)
+    // Discovery must use the same profile shape rules as chat; a stored row
+    // that predates a rule change may not be sent to the network.
+    if (!hasProtocolAdapter(config.protocolId) || !validateProviderConfig(config).ok) {
+      throw new ApplicationError('INVALID_INPUT')
+    }
+    this.assertUsable(config)
+    const url = resolveModelsEndpoint(config.endpoint, config.endpointPath)
+    // The same endpoint policy as chat: HTTPS-only for remote, loopback-only
+    // for local, DNS checked before any authenticated request.
+    try {
+      await this.endpointPolicy.assertAllowed(url, config.sourceKind)
+    } catch {
+      throw new ApplicationError('PROVIDER_ENDPOINT_BLOCKED')
+    }
+    // Discovery sends the profile credential to the endpoint. It has no user
+    // content, but it is still an authenticated egress and requires its own
+    // profile/endpoint consent action.
+    const discoveryInput: ProviderInput = {
+      prompt: '',
+      context: { text: '', selected: [], omitted: 0, characterCount: 0 },
+      endpoint: url,
+      maximumSensitivity: 'normal',
+      requestPayload: { models: true }
+    }
+    const preview = consentPreview('model-discovery', config, discoveryInput)
+    const consent = await this.authorize(preview)
+    if (!consent) throw new ApplicationError('FORBIDDEN')
+    if (consentPreview('model-discovery', config, discoveryInput).payloadSha256 !== preview.payloadSha256) {
+      throw new ApplicationError('CONFLICT')
+    }
+    let key: string | undefined
+    try {
+      key = this.secrets.get(config.id)
+    } catch (error) {
+      throw mapProviderSecretError(error)
+    }
+    if (config.providerClass === 'remote' && !key) throw new ApplicationError('PROVIDER_UNCONFIGURED')
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20_000)
+    try {
+      const response = await this.fetcher(url, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          ...(key ? { authorization: `Bearer ${key}` } : {})
+        },
+        redirect: 'error',
+        signal: controller.signal
+      })
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) throw new ApplicationError('PROVIDER_AUTH', response.status)
+        if (response.status === 429) throw new ApplicationError('PROVIDER_RATE_LIMIT', response.status)
+        if (response.status === 404) throw new ApplicationError('PROVIDER_MODEL', response.status)
+        throw new ApplicationError('PROVIDER_NETWORK', response.status)
+      }
+      let text: string
+      try {
+        text = await readBoundedText(response, MAX_DISCOVERY_BODY_BYTES)
+      } catch (error) {
+        if (error instanceof ProviderBodyLimitError) throw new ApplicationError('PROVIDER_RESPONSE')
+        throw error
+      }
+      let parsed: { data?: Array<{ id?: unknown }>; models?: Array<{ id?: unknown; name?: unknown }> }
+      try {
+        parsed = JSON.parse(text) as typeof parsed
+      } catch {
+        throw new ApplicationError('PROVIDER_RESPONSE')
+      }
+      const list: Array<{ id?: unknown; name?: unknown }> = Array.isArray(parsed.data) ? parsed.data : Array.isArray(parsed.models) ? parsed.models : []
+      const models = [...new Set(list.map((item) => typeof item.id === 'string' ? item.id : typeof item.name === 'string' ? item.name : '').filter((id) => id.length > 0 && id.length <= 128))].slice(0, 200)
+      return { profileId: config.id, models, source: 'discovered', discoveredAt: safeTimestamp(this.clock()) }
+    } catch (error) {
+      if (error instanceof ApplicationError) throw error
+      throw new ApplicationError('PROVIDER_NETWORK')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  // The explicit default wins. Otherwise the legacy priority is preserved
+  // (local before spark before deepseek), then the first enabled custom profile.
   requireConfigured(): ProviderConfigRecord {
-    const local = this.get(LOCAL_PROVIDER_ID)
-    if (local && local.enabled) {
-      this.assertUsable(local)
-      return local
+    const explicit = this.getDefault()
+    if (explicit) {
+      this.assertUsable(explicit)
+      return explicit
     }
-    const spark = this.get(SPARK_PROVIDER_ID)
-    if (spark && spark.enabled) {
-      this.assertUsable(spark)
-      return spark
+    for (const id of [LOCAL_PROVIDER_ID, SPARK_PROVIDER_ID, DEEPSEEK_PROVIDER_ID]) {
+      const config = this.get(id)
+      if (config && config.enabled) {
+        this.assertUsable(config)
+        return config
+      }
     }
-    const deepseek = this.get(DEEPSEEK_PROVIDER_ID)
-    if (deepseek && deepseek.enabled) {
-      this.assertUsable(deepseek)
-      return deepseek
+    const custom = this.listProfiles().find((profile) => profile.enabled && profile.sourceKind !== 'official')
+    if (custom) {
+      this.assertUsable(custom)
+      return custom
     }
     throw new ApplicationError('PROVIDER_UNCONFIGURED')
   }
@@ -624,28 +899,98 @@ export class ProviderConfigService {
     return this.providerFactory(config)
   }
 
+  private recordHealth(
+    config: ProviderConfigRecord,
+    status: ProviderHealthStatus,
+    latencyMs: number,
+    httpStatus: number | null,
+    attempts: number | null,
+    streamingVerified: boolean
+  ): void {
+    const health: ProviderHealth = {
+      status,
+      testedAt: safeTimestamp(this.clock()),
+      latencyMs: Math.max(0, Math.round(latencyMs)),
+      endpointDigest: endpointDigest(config.endpoint),
+      model: config.model,
+      httpStatus,
+      attempts
+    }
+    const capabilities = { ...(config.capabilities ?? defaultCapabilities()) }
+    capabilities.streaming = {
+      declared: true,
+      probed: true,
+      verified: streamingVerified
+    }
+    try {
+      this.database.connection.prepare(
+        'UPDATE provider_profiles SET capabilities_json = ?, last_test_json = ?, updated_at = ? WHERE id = ?'
+      ).run(JSON.stringify(capabilities), JSON.stringify(health), safeTimestamp(this.clock()), config.id)
+    } catch {
+      // Health is diagnostic; a failed write must not undo a successful request.
+    }
+  }
+
   private toRecord(row: ProviderRow): ProviderConfigRecord {
-    const providerId = row.id === LOCAL_PROVIDER_ID
-      ? LOCAL_PROVIDER_ID
-      : row.id === SPARK_PROVIDER_ID ? SPARK_PROVIDER_ID : DEEPSEEK_PROVIDER_ID
+    let capabilities: ProviderCapabilities = defaultCapabilities()
+    try {
+      const parsed = JSON.parse(row.capabilities_json) as ProviderCapabilities
+      if (parsed && typeof parsed === 'object' && parsed.streaming) capabilities = parsed
+    } catch {}
+    let lastTest: ProviderHealth | null = null
+    try {
+      const parsed = row.last_test_json ? JSON.parse(row.last_test_json) as ProviderHealth : null
+      if (parsed && typeof parsed === 'object' && typeof parsed.status === 'string') lastTest = parsed
+    } catch {}
     return {
-      id: providerId,
-      providerClass: row.provider_class === 'local' ? 'local' : 'remote',
+      id: row.id,
+      displayName: row.display_name,
+      sourceKind: row.source_kind as ProviderSourceKind,
+      protocolId: row.protocol_id as ProviderProtocolId,
+      providerClass: row.provider_class,
       endpoint: row.endpoint,
+      endpointPath: row.endpoint_path,
       model: row.model,
       enabled: row.enabled === 1,
-      apiKeyConfigured: this.hasCredential(providerId),
+      isDefault: row.is_default === 1,
+      apiKeyConfigured: this.hasCredential(row.id),
+      capabilities,
+      lastTest,
       updatedAt: row.updated_at
     }
   }
 
-  private hasCredential(providerId: ProviderId): boolean {
+  private hasCredential(providerId: string): boolean {
     try {
       return Boolean(this.secrets.get(providerId))
     } catch (error) {
       throw mapProviderSecretError(error)
     }
   }
+}
+
+function defaultCapabilities(): ProviderCapabilities {
+  return {
+    streaming: { declared: true, probed: false, verified: false },
+    vision: { declared: false, probed: false, verified: false },
+    toolCalling: { declared: false, probed: false, verified: false },
+    jsonMode: { declared: false, probed: false, verified: false },
+    systemRole: { declared: true, probed: false, verified: false }
+  }
+}
+
+function healthForError(error: unknown): { status: ProviderHealthStatus; httpStatus: number | null } {
+  if (error instanceof ApplicationError) {
+    const httpStatus = error.httpStatus
+    if (error.code === 'PROVIDER_AUTH') return { status: 'auth_failed', httpStatus: httpStatus ?? 401 }
+    if (error.code === 'PROVIDER_MODEL') return { status: 'model_not_found', httpStatus: httpStatus ?? 404 }
+    if (error.code === 'PROVIDER_QUOTA') return { status: 'quota', httpStatus: httpStatus ?? 403 }
+    if (error.code === 'PROVIDER_TIMEOUT' || error.code === 'PROVIDER_DEADLINE') return { status: 'timeout', httpStatus: httpStatus ?? 408 }
+    if (error.code === 'PROVIDER_ENDPOINT_BLOCKED') return { status: 'network', httpStatus: null }
+    if (error.code === 'PROVIDER_RESPONSE') return { status: 'protocol', httpStatus: null }
+    return { status: 'network', httpStatus }
+  }
+  return { status: 'network', httpStatus: null }
 }
 
 export class PersonalityService {
@@ -993,11 +1338,62 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       version: COGNITIVE_HANDLER_VERSION,
       project: () => {
         const reflection = services.reflection
-        const summary = reflection?.run('post_conversation')
+        if (!reflection) return
+        const summary = reflection.run('post_conversation')
         // D-10: the projector no longer discards its own output. Findings go
         // through the same router the manual run uses, so an automatic run and
         // a manual run leave identical durable traces.
-        if (reflection && summary && !('skipped' in summary)) services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
+        //
+        // AUD45-P1-01: a rate-limited retry must still recover findings an
+        // earlier attempt stored but could not route; otherwise the outbox row
+        // would be marked done while the findings stayed unrouted. A recovery
+        // that itself failed must throw so the outbox keeps the row retryable.
+        const recover = (): { repaired: number; failed: number } => {
+          try {
+            return services.findingRouter?.recoverUnrouted() ?? { repaired: 0, failed: 0 }
+          } catch (error) {
+            if (error instanceof PendingSchemaUnavailableError) {
+              services.events.tryRecord({
+                sourceModule: 'cognition',
+                eventType: 'cognition.pending_schema_unavailable',
+                actor: 'system',
+                subjectType: 'application',
+                subjectId: null,
+                correlationId: null,
+                payload: { component: 'reflection_projector' }
+              })
+            }
+            throw error
+          }
+        }
+        if ('skipped' in summary) {
+          const recovered = recover()
+          if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
+          return
+        }
+        try {
+          services.findingRouter?.ingestRun(summary.id, reflection.findings(summary.id))
+        } catch (error) {
+          if (error instanceof PendingSchemaUnavailableError) {
+            services.events.tryRecord({
+              sourceModule: 'cognition',
+              eventType: 'cognition.pending_schema_unavailable',
+              actor: 'system',
+              subjectType: 'application',
+              subjectId: null,
+              correlationId: summary.id,
+              payload: { component: 'reflection_projector' }
+            })
+          }
+          // Not done: the findings are durable but unrouted. The outbox must
+          // retry (or park the row) rather than report a completed projection.
+          throw error
+        }
+        // A normal (non-rate-limited) retry can find a previous attempt's
+        // stranded finding even though this run produced no new ones. The
+        // success branch must recover it before the row is marked done.
+        const recovered = recover()
+        if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
       }
     }
   ]
@@ -1231,7 +1627,7 @@ export class CompanionService {
     // the database can hold the outbox; offline callers keep the direct path.
     const outbox = selfModelLoop ? new CognitionOutbox(options.database, clock) : undefined
     const projectors = selfModelLoop ? buildCognitiveProjectors(selfModelLoop) : []
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors, options.database.schemaVersion)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -1248,15 +1644,20 @@ export class CompanionService {
     return this.chat.outboxStats()
   }
 
-  getProvider(request?: { providerId?: ProviderId }): ProviderConfigRecord | null {
+  getProvider(request?: { providerId?: ProviderProfileId }): ProviderConfigRecord | null {
     if (request?.providerId) return this.providers.get(request.providerId)
     const local = this.providers.get(LOCAL_PROVIDER_ID)
     if (local?.enabled) return local
     return this.providers.get(DEEPSEEK_PROVIDER_ID) ?? local
   }
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord { return this.providers.save(request) }
-  clearProviderCredential(request?: { providerId?: ProviderId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
+  clearProviderCredential(request?: { providerId?: ProviderProfileId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult> { return this.providers.testConnection(request) }
+  listProfiles(): ProviderConfigRecord[] { return this.providers.listProfiles() }
+  saveProfile(request: ProviderProfileSaveInput): ProviderConfigRecord { return this.providers.saveProfile(request) }
+  deleteProfile(request: { profileId: ProviderProfileId }): void { this.providers.deleteProfile(request.profileId) }
+  setDefaultProfile(request: { profileId: ProviderProfileId }): ProviderConfigRecord { return this.providers.setDefaultProfile(request.profileId) }
+  discoverModels(request: ProviderModelsRequest): Promise<ProviderModelsResult> { return this.providers.discoverModels(request) }
   createConversation(): ConversationRecord { return this.chat.createConversation() }
   listConversations(): ConversationRecord[] { return this.chat.listConversations() }
   readConversation(request: { conversationId: string }): ReturnType<ConversationService['read']> { return this.chat.readConversation(request.conversationId) }
@@ -1283,6 +1684,7 @@ export class CompanionService {
   getFeelingState(): ReturnType<CognitiveFeelingService['snapshot']> { return this.feelings.snapshot() }
   clearCognitiveHistory(): ReturnType<CognitiveFeelingService['clearHistory']> { return this.feelings.clearHistory() }
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult> { return this.chat.send(request, onDelta) }
+  getTurnTrace(conversationId: string, limit = 200): ReturnType<ChatService['getTurnTrace']> { return this.chat.getTurnTrace(conversationId, limit) }
   cancelChat(request: { conversationId: string }): boolean { return this.chat.cancel(request.conversationId) }
   listMemorySuggestions(request: { conversationId: string }): MemorySuggestion[] { return this.memorySuggestions.list(request.conversationId) }
   previewMemorySuggestions(request: MemoryProposalRequest): MemoryProposalPreview { return this.memorySuggestions.preview(request) }
@@ -1292,12 +1694,6 @@ export class CompanionService {
   /** Open internal items, highest priority first. Empty when not wired. */
   listPendingItems(limit?: number): ReturnType<PendingCognitionService['listOpen']> {
     return this.continuity?.pending.listOpen(limit) ?? []
-  }
-
-  /** Marks an item done. Returns false only when the id does not exist. */
-  completePendingItem(request: { itemId: string }): boolean {
-    if (!this.continuity) throw new ApplicationError('NOT_FOUND')
-    return this.continuity.pending.complete(normalizedUuid(request.itemId))
   }
 
   /** The recorded context of one turn, or null when it was never written. */
@@ -1416,6 +1812,11 @@ export interface PreparedTurn {
 export class ChatService {
   private readonly controllers = new Map<string, AbortController>()
   private readonly locks = new Set<string>()
+  private readonly traceSequence = new Map<string, number>()
+  private readonly traceLastAt = new Map<string, number>()
+  private readonly traceStageStartedAt = new Map<string, number>()
+  private readonly traceTurnConversations = new Map<string, string>()
+  private readonly traceIncompleteTurns = new Set<string>()
   /**
    * Stage 4-A final repair: the verified outcome of this turn's explicit
    * memory operation. prepare() runs twice per turn (consent preview, then the
@@ -1451,7 +1852,9 @@ export class ChatService {
      * cannot lose them and one failing module cannot cost the others.
      */
     private readonly outbox?: CognitionOutbox,
-    private readonly projectors: readonly CognitiveProjector[] = []
+    private readonly projectors: readonly CognitiveProjector[] = [],
+    /** v48 added the pending-decision columns; older schemas cannot write them. */
+    private readonly schemaVersion: number = 48
   ) {}
 
   /**
@@ -1495,10 +1898,130 @@ export class ChatService {
    * here and surfaces in tests through the repository instead.
    */
   private recordTurnState(conversationId: string, turnId: string, state: TurnState, reason: string | null = null): void {
+    const occurredAt = this.now()
     try {
-      this.continuity?.states?.enter({ turnId, conversationId, state, updatedAt: this.now(), reason })
+      this.continuity?.states?.enter({ turnId, conversationId, state, updatedAt: occurredAt, reason })
     } catch {
       // Intentionally silent: the chat path must not depend on the trace.
+    }
+    const stageByState: Record<TurnState, { stage: TurnTraceStage; moduleId: string }> = {
+      received: { stage: 'turn_received', moduleId: 'app/companion-service' },
+      analyzed: { stage: 'cognition_analysis', moduleId: 'cognition/analysis' },
+      context_ready: { stage: 'context_built', moduleId: 'memory/retrieval' },
+      awaiting_consent: { stage: 'consent', moduleId: 'providers/provider-policy' },
+      requesting: { stage: 'provider_request', moduleId: 'providers/openai-compatible' },
+      response_received: { stage: 'provider_delta', moduleId: 'providers/openai-compatible' },
+      committed: { stage: 'turn_completed', moduleId: 'persistence/conversation-repository' },
+      failed: { stage: 'turn_failed', moduleId: 'app/companion-service' },
+      cancelled: { stage: 'turn_cancelled', moduleId: 'app/companion-service' },
+      recovery_required: { stage: 'recovery', moduleId: 'app/companion-service' },
+      recovering: { stage: 'recovery', moduleId: 'app/companion-service' }
+    }
+    const mapped = stageByState[state]
+    const status: TurnTraceRecord['status'] = state === 'requesting'
+      ? 'started'
+      : state === 'response_received' && reason === 'no_stream_delta'
+        ? 'skipped'
+        : state === 'analyzed' && reason === 'analysis_unavailable'
+          ? 'skipped'
+          : state === 'failed' || state === 'cancelled'
+            ? 'failed'
+            : 'completed'
+    this.recordTraceStage(conversationId, turnId, mapped.stage, status, mapped.moduleId, reason, occurredAt)
+  }
+
+  /**
+   * Appends one stage event from the call site that actually performed the
+   * stage. Storage failure is recorded in memory so the UI can say the trace is
+   * incomplete; it never propagates into the chat path.
+   */
+  private recordTraceStage(
+    conversationId: string,
+    turnId: string,
+    stage: TurnTraceStage,
+    status: TurnTraceRecord['status'],
+    moduleId: string,
+    reason: string | null = null,
+    occurredAt = this.now()
+  ): void {
+    try {
+      const sequence = (this.traceSequence.get(turnId) ?? 0) + 1
+      this.traceSequence.set(turnId, sequence)
+      const previous = this.traceLastAt.get(turnId)
+      const nowMs = Date.parse(occurredAt)
+      const stageKey = `${turnId}:${stage}`
+      let durationMs: number | null
+      if (stage === 'turn_received') {
+        durationMs = null
+      } else if (status === 'started') {
+        this.traceStageStartedAt.set(stageKey, nowMs)
+        durationMs = null
+      } else {
+        const startedAt = this.traceStageStartedAt.get(stageKey)
+        durationMs = startedAt === undefined
+          ? previous === undefined || Number.isNaN(nowMs) ? null : Math.max(0, nowMs - previous)
+          : Math.max(0, nowMs - startedAt)
+        this.traceStageStartedAt.delete(stageKey)
+      }
+      this.traceLastAt.set(turnId, nowMs)
+      this.traceTurnConversations.set(turnId, conversationId)
+      // A turn cannot legitimately produce more than 200 lifecycle events; the
+      // cap keeps one corrupted retry loop from growing the trace without bound.
+      if (sequence > 200) return
+      this.continuity?.states?.appendTrace?.({
+        eventId: this.makeId(),
+        turnId,
+        conversationId,
+        sequence,
+        occurredAt,
+        stage,
+        status,
+        moduleId,
+        reason,
+        durationMs,
+        summary: reason
+      })
+      if (stage === 'turn_completed' || stage === 'turn_failed' || stage === 'turn_cancelled') {
+        for (const key of this.traceStageStartedAt.keys()) {
+          if (key.startsWith(`${turnId}:`)) this.traceStageStartedAt.delete(key)
+        }
+      }
+    } catch {
+      // Trace persistence is observability; a failure must never fail the chat.
+      // The in-memory marker lets the UI say the trace is incomplete instead of
+      // pretending the missing events are the whole story.
+      this.traceIncompleteTurns.add(turnId)
+    }
+  }
+
+  getTurnTrace(conversationId: string, limit = 200): TurnTraceRecord[] {
+    try {
+      const normalized = normalizedUuid(conversationId)
+      const stored = this.continuity?.states?.listForConversation?.(normalized, limit) ?? []
+      const synthetic: TurnTraceRecord[] = [...this.traceIncompleteTurns]
+        .filter((turnId) => this.traceTurnConversations.get(turnId) === normalized)
+        .map((turnId) => ({
+          eventId: `trace-incomplete-${turnId}`,
+          turnId,
+          conversationId: normalized,
+          sequence: Number.MAX_SAFE_INTEGER,
+          occurredAt: this.now(),
+          stage: 'recovery' as const,
+          status: 'failed' as const,
+          moduleId: 'persistence/turn-trace',
+          reason: 'TRACE_WRITE_FAILED',
+          durationMs: null,
+          summary: null
+        }))
+      return [...stored, ...synthetic]
+        .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.sequence - right.sequence)
+        .slice(-Math.max(1, Math.min(200, Math.trunc(limit))))
+    } catch (error) {
+      // The trace is read on its own IPC call, so a storage failure here cannot
+      // break a chat. It must surface instead of looking like "no events yet",
+      // because the UI has to say the trace is incomplete.
+      if (error instanceof ApplicationError) throw error
+      throw new ApplicationError('STORAGE_ERROR')
     }
   }
 
@@ -1514,7 +2037,26 @@ export class ChatService {
   createConversation(): ConversationRecord { return this.conversations.create() }
   listConversations(): ConversationRecord[] { return this.conversations.list(maxRecentConversations) }
   readConversation(id: string): ReturnType<ConversationService['read']> { return this.conversations.read(id) }
-  deleteConversation(id: string): void { this.cancel(id); this.conversations.delete(id) }
+  deleteConversation(id: string): void {
+    this.cancel(id)
+    this.conversations.delete(id)
+    const normalized = normalizedUuid(id)
+    try {
+      this.continuity?.states?.deleteTraceForConversation?.(normalized)
+    } catch {
+      // Cleanup is best effort; a stale trace row must not block deletion.
+    }
+    for (const [turnId, conversationId] of this.traceTurnConversations) {
+      if (conversationId !== normalized) continue
+      this.traceTurnConversations.delete(turnId)
+      this.traceSequence.delete(turnId)
+      this.traceLastAt.delete(turnId)
+      this.traceIncompleteTurns.delete(turnId)
+      for (const key of this.traceStageStartedAt.keys()) {
+        if (key.startsWith(`${turnId}:`)) this.traceStageStartedAt.delete(key)
+      }
+    }
+  }
 
   cancel(conversationId: string): boolean {
     const id = normalizedUuid(conversationId)
@@ -1583,6 +2125,7 @@ export class ChatService {
     this.recordTurnState(conversationId, requestId, 'received')
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
+    let terminalRecorded = false
     try {
       const settingSnapshot = this.cognitiveSettingsOrDisabled()
       const evaluationAt = this.now()
@@ -1666,13 +2209,20 @@ export class ChatService {
         }
       }
       let output: Awaited<ReturnType<typeof dispatchToProvider>>
+      let receivedDelta = false
       try {
         this.recordTurnState(conversationId, requestId, 'requesting')
         // The permission is in the payload and the call is about to happen.
         // Recorded before dispatch so a thrown call still counts as attempted.
         this.selfModel?.markExplorationAttempted?.(requestId)
-        output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => onDelta?.(delta))
-        this.recordTurnState(conversationId, requestId, 'response_received')
+        output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => {
+          if (!receivedDelta) {
+            receivedDelta = true
+            this.recordTraceStage(conversationId, requestId, 'provider_delta', 'started', 'providers/openai-compatible')
+          }
+          onDelta?.(delta)
+        })
+        this.recordTurnState(conversationId, requestId, 'response_received', receivedDelta ? null : 'no_stream_delta')
       } catch (error) {
         // A cancelled request is not a failed one: the adapter reports
         // `PROVIDER_CANCELLED` when the caller aborted, and the abort may also
@@ -1682,6 +2232,7 @@ export class ChatService {
         const cancelled = controller.signal.aborted ||
           (error instanceof ApplicationError && error.code === 'PROVIDER_CANCELLED')
         this.recordTurnState(conversationId, requestId, cancelled ? 'cancelled' : 'failed', error instanceof ApplicationError ? error.code : 'UNKNOWN')
+        terminalRecorded = true
         // A failed call is recorded as a failed call, never dropped from the
         // denominator and never counted as a model error.
         this.recordTerminalContext({
@@ -1711,6 +2262,7 @@ export class ChatService {
         })
         this.settleExploration(requestId, 'cancelled', null)
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'cancelled', answer: null })
+        terminalRecorded = true
         throw new ApplicationError('PROVIDER_CANCELLED')
       }
       // Pre-delivery fact guard: a specific personal fact may only be stated
@@ -1827,6 +2379,9 @@ export class ChatService {
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
+      // The assistant message is durable. Any later optional hook failure must
+      // not rewrite the trace as a failed turn; recovery repairs the finalization.
+      terminalRecorded = true
       // The assistant message is durable: the turn is committed, and only now can
       // the exploration permission be settled against the text that was actually
       // delivered.
@@ -1834,6 +2389,7 @@ export class ChatService {
       // R5: the reflection router grades what its injected hints achieved in
       // this exact reply (deterministic term evidence, never model self-report).
       this.selfModel?.observeConsumption?.({ turnId: requestId, reply: deliveredText })
+      this.recordTraceStage(conversationId, requestId, 'persistence', 'completed', 'persistence/conversation-repository', 'assistant_message_saved')
       this.recordTurnState(conversationId, requestId, 'committed')
       if (this.outbox && this.projectors.length > 0) {
         const drained = this.drainCognition(requestId)
@@ -1898,6 +2454,17 @@ export class ChatService {
         includedMemoryCount: verified.memory.selected.length,
         ...(evaluation ? { evaluation } : {})
       }
+    } catch (error) {
+      // Consent denial, a conflict or a storage failure before the provider
+      // call used to leave the turn in a non-terminal state, which recovery
+      // later misread as a crash. Every started turn now gets a terminal
+      // state and trace event, while the original error still reaches the UI.
+      if (!terminalRecorded) {
+        const code = error instanceof ApplicationError ? error.code : 'UNKNOWN'
+        const cancelled = controller.signal.aborted || code === 'PROVIDER_CANCELLED'
+        this.recordTurnState(conversationId, requestId, cancelled ? 'cancelled' : 'failed', code)
+      }
+      throw error
     } finally {
       this.controllers.delete(conversationId)
       this.locks.delete(conversationId)
@@ -2190,7 +2757,7 @@ export class ChatService {
       input: {
         prompt: content,
         context: memory,
-        endpoint: `${config.endpoint}/chat/completions`,
+        endpoint: resolveChatEndpoint(config.endpoint, config.endpointPath),
         maximumSensitivity: max,
         requestPayload
       }
@@ -2366,7 +2933,15 @@ export class ChatService {
    */
   private applyFinalization(record: TurnFinalizationRecord): void {
     if (!this.continuity) return
-    const pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    let pendingItemIds: string[] = []
+    if (this.schemaVersion >= 48) {
+      pendingItemIds = this.continuity.pending.persistDrafts(record.pendingDrafts)
+    } else if (record.pendingDrafts.length > 0) {
+      // A v47 database cannot store the Stage 4 decision columns. Keep the turn
+      // context and the committed answer, report the degraded capability, and
+      // do not retry an unwritable draft forever.
+      this.recordDegradation('pending_item_schema', record.turnId)
+    }
     const committedState = this.feelings.snapshot().state
     const applied = record.feelingEventId !== null &&
       committedState.sourceEventId === record.feelingEventId
@@ -2638,7 +3213,7 @@ export class MemorySuggestionService {
     const input: ProviderInput = {
       prompt: source.body,
       context: { text: '', selected: [], omitted: 0, characterCount: 0 },
-      endpoint: `${provider.endpoint}/chat/completions`,
+      endpoint: resolveChatEndpoint(provider.endpoint, provider.endpointPath),
       maximumSensitivity: 'sensitive',
       requestPayload: makeRequestPayload(provider.model, [
         { role: 'system', content: system },

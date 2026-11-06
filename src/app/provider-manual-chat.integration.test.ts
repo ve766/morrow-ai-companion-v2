@@ -200,10 +200,11 @@ describe('offline manual Provider configuration and chat path', () => {
     const context = setup({ authorize, fetcher })
     try {
       context.companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: testCredential })
-      await expect(context.companion.testProviderConnection({ providerId: 'deepseek' })).resolves.toEqual({
+      await expect(context.companion.testProviderConnection({ providerId: 'deepseek' })).resolves.toMatchObject({
         providerId: 'deepseek',
         model: DEEPSEEK_MODEL,
-        connected: true
+        connected: true,
+        status: 'connected'
       })
       expect(previews).toHaveLength(1)
       expect(previews[0]?.action).toBe('connection-test')

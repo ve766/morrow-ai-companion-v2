@@ -88,6 +88,20 @@ describe('DeepSeek V4.1 Flash adapter', () => {
     await expect(truncated.generate(input())).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE' })
   })
 
+  it('bounds a non-stream success response by real bytes and rejects an oversized body', async () => {
+    const nonStream = {
+      ...input(),
+      requestPayload: { ...(input().requestPayload as Record<string, unknown>), stream: false }
+    }
+    const oversized = new Uint8Array(1_048_577).fill(97)
+    const fetcher = async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(oversized); controller.close() }
+    }), { status: 200 })
+    await expect(makeProvider(fetcher).generate(nonStream)).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE' })
+    const valid = async () => new Response(JSON.stringify({ model: 'deepseek-flash', choices: [{ message: { content: 'pong' } }] }), { status: 200 })
+    await expect(makeProvider(valid).generate(nonStream)).resolves.toMatchObject({ text: 'pong' })
+  })
+
   it('maps authentication and rate-limit responses to safe actionable error codes', async () => {
     const unauthorized = makeProvider(async () => new Response(null, { status: 401 }))
     await expect(unauthorized.generate(input())).rejects.toMatchObject({ code: 'PROVIDER_AUTH' })

@@ -18,6 +18,9 @@ import { randomUUID } from 'node:crypto'
 import type { SqliteDatabase } from './database'
 import { isIntentReading, type IntentReading } from '../cognition/intent-reading'
 import { ApplicationError } from '../shared/errors'
+import { SqlitePendingItemRepository } from './cognitive-context-repository'
+import type { PendingAuditSink } from '../cognition/pending-items'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
 
 export interface IntentReadingRecord {
   readingId: string
@@ -46,6 +49,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}
 export class IntentReadingRepository {
   constructor(
     private readonly database: SqliteDatabase,
+    private readonly events: PendingAuditSink,
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID()
   ) {}
@@ -178,12 +182,50 @@ export class IntentReadingRepository {
     `).run(at, messageId, conversationId, messageId)
   }
 
+  /**
+   * A withdrawn request closes the internal questions it left open. The close
+   * is a real decision (dismissed) with a route terminal state and an audit
+   * event; a bare status update would let an item reach a terminal state that
+   * no user or system decision explains.
+   */
   private closeOpenItems(conversationId: string, at: string): void {
-    this.database.connection.prepare(`
-      UPDATE cognitive_pending_items
-      SET status = 'done', completed_at = ?, updated_at = ?
-      WHERE conversation_id = ? AND status = 'open' AND source = 'open_question'
-    `).run(at, at, conversationId)
+    const pending = new SqlitePendingItemRepository(this.database, this.events)
+    const rows = this.database.connection.prepare(
+      "SELECT id FROM cognitive_pending_items WHERE conversation_id = ? AND status = 'open' AND source = 'open_question' ORDER BY created_at, id"
+    ).all(conversationId) as Array<{ id: string }>
+    for (const row of rows) {
+      try {
+        pending.resolveSystem(row.id, 'intent_withdrawn', at)
+      } catch (error) {
+        if (error instanceof PendingSchemaUnavailableError) {
+          // A degraded pre-v48 schema cannot store the decision. Leaving the
+          // item open is correct; a bare status update is not. Record the
+          // capability failure and let the next upgraded start recover it.
+          this.recordClosureFailure(row.id, 'pending.schema_unavailable', 'intent_withdrawal')
+          continue
+        }
+        // The item stays open when its decision transaction fails; the intent
+        // reading itself must still save. Record the failure for diagnosis and
+        // let a later withdrawal/decision retry the closure.
+        this.recordClosureFailure(row.id, 'pending.system_dismiss_failed', 'intent_withdrawal')
+      }
+    }
+  }
+
+  private recordClosureFailure(itemId: string, eventType: string, component: string): void {
+    try {
+      this.events.recordDeterministic(`${eventType}:${itemId}`, {
+        sourceModule: 'cognition',
+        eventType,
+        actor: 'system',
+        subjectType: 'pending_item',
+        subjectId: itemId,
+        correlationId: null,
+        payload: { component }
+      })
+    } catch {
+      // The journal is not writable either; the intent reading still saves.
+    }
   }
 
   private toRecord(row: Row): IntentReadingRecord {

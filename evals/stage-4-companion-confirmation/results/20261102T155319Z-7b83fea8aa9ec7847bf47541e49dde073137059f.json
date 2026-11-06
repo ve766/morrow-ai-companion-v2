@@ -1,0 +1,158 @@
+{
+  "suite": "stage-4-companion-confirmation",
+  "task": "Issue #37",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "feat/stage-4-companion-confirmation-closure",
+  "base": "release/morrow-v2-final-delivery",
+  "baseCommit": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "codeSha": "7b83fea8aa9ec7847bf47541e49dde073137059f",
+  "pr": 40,
+  "generatedAt": "2026-11-02T15:53:19Z",
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 108,
+      "tests": 1025,
+      "passed": 1025,
+      "failed": 0
+    },
+    {
+      "command": "targeted 5 files",
+      "exitCode": 0,
+      "tests": 79,
+      "passed": 79,
+      "failed": 0
+    },
+    {
+      "command": "npm run eval:stage5",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "file": "evals/stage-5/results/20261102T153443Z-7b83fea.json"
+    },
+    {
+      "command": "npm run eval:stage5:live",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "provider": "spark",
+      "model": "spark-x2.6",
+      "protocol": "openai-chat-completions",
+      "file": "evals/stage-5/results/20261102T153557Z-7b83fea-stage-5.json"
+    },
+    {
+      "command": "npm run eval:stage3",
+      "exitCode": 0,
+      "PASS": 15,
+      "NOT_RUN": 1,
+      "denominator": 16
+    },
+    {
+      "command": "npm run eval:stage4a",
+      "exitCode": 0,
+      "PASS": 7,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    }
+  ],
+  "findings": {
+    "BL-01": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "covers every finding kind the reflection service can emit, with no fallback",
+          "status": "PASS"
+        },
+        {
+          "test": "records unroutable kinds instead of guessing a route",
+          "status": "PASS"
+        },
+        {
+          "test": "registers open_question as a pending-user route and links the item to the finding",
+          "status": "PASS"
+        }
+      ]
+    },
+    "BL-02": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "a rejected pending concern keeps its dropped status and never resurfaces",
+          "status": "PASS"
+        },
+        {
+          "test": "accepted, rejected and dismissed converge the item and route, with replay and conflict rules",
+          "status": "PASS"
+        },
+        {
+          "test": "rolls the item back when the route terminal write fails",
+          "status": "PASS"
+        },
+        {
+          "test": "writes a sanitized audit event for the decision",
+          "status": "PASS"
+        }
+      ]
+    },
+    "goal-candidate-service": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "reject is durable, audited, idempotent and conflicts with accept",
+          "status": "PASS"
+        },
+        {
+          "test": "accept then reject is a conflict, and a repeated accept returns the same goal",
+          "status": "PASS"
+        },
+        {
+          "test": "a disappeared source persists expired instead of rolling back the marker",
+          "status": "PASS"
+        },
+        {
+          "test": "accept vs reject leaves exactly one terminal state",
+          "status": "PASS"
+        }
+      ]
+    },
+    "goal-candidate-ipc-ui": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "loads real pending candidates and confirms through the preload bridge",
+          "status": "PASS"
+        },
+        {
+          "test": "rejects through the bridge, not by hiding the card locally",
+          "status": "PASS"
+        },
+        {
+          "test": "lists candidates and forwards accept/reject decisions with validation",
+          "status": "PASS"
+        }
+      ]
+    }
+  },
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "localElectronSmoke": "BLOCKED_ENV"
+  },
+  "ci": {
+    "status": "PENDING",
+    "note": "CI runs on the PR head; the run link is recorded in the PR and Issue comment."
+  },
+  "notes": [
+    "Results are bound to code SHA 7b83fea; the docs commit follows.",
+    "No historical result or PENDING marker was overwritten."
+  ]
+}

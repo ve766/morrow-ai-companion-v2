@@ -1,4 +1,5 @@
-import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, ProviderGetRequest } from '../shared/contracts'
+import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, PendingDecisionResult, ProviderGetRequest } from '../shared/contracts'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -19,6 +20,7 @@ import type {
   ProviderConnectionResult
 } from '../shared/companion'
 import { ApplicationError } from '../shared/errors'
+import { PendingSchemaUnavailableError } from '../cognition/pending-items'
 import type { MemoryService } from '../memory/memory-service'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -41,6 +43,9 @@ import {
   parseProviderConfigInput,
   parseProviderConnectionRequest,
   parseProviderGetRequest,
+  parseProviderProfileIdRequest,
+  parseProviderProfileSaveInput,
+  parseProviderModelsRequest,
   parseChatRequest,
   parsePersonalityInput,
   parsePersonalityRestoreRequest,
@@ -54,11 +59,11 @@ import {
   parseSelfModelCorrectRequest,
   parseSelfModelIdRequest,
   parseReflectionFindingsRequest,
-  parsePendingItemIdRequest,
   parsePendingItemDecisionRequest,
   parseTurnContextRequest
 } from '../shared/validation'
 import {
+  parseGoalCandidateIdRequest,
   parseGoalCreateRequest,
   parseGoalIdRequest,
   parseGoalPrepareRequest,
@@ -87,6 +92,11 @@ export interface CompanionActions {
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord
   clearProviderCredential(request?: ProviderGetRequest): ProviderConfigRecord | null
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult>
+  listProfiles?(): ProviderConfigRecord[]
+  saveProfile?(request: import('../shared/companion').ProviderProfileSaveInput): ProviderConfigRecord
+  deleteProfile?(request: import('../shared/companion').ProviderProfileIdRequest): void
+  setDefaultProfile?(request: import('../shared/companion').ProviderProfileIdRequest): ProviderConfigRecord
+  discoverModels?(request: import('../shared/companion').ProviderModelsRequest): Promise<import('../shared/companion').ProviderModelsResult>
   createConversation(): ConversationRecord
   listConversations(): ConversationRecord[]
   readConversation(request: { conversationId: string }): ConversationWithMessages
@@ -102,6 +112,7 @@ export interface CompanionActions {
   getFeelingState(): FeelingStateView
   clearCognitiveHistory(): FeelingStateView
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult>
+  getTurnTrace(conversationId: string, limit?: number): import('../cognition/turn-state-machine').TurnTraceRecord[]
   cancelChat(request: { conversationId: string }): boolean
   listMemorySuggestions(request: { conversationId: string }): MemorySuggestion[]
   previewMemorySuggestions(request: MemoryProposalRequest): MemoryProposalPreview
@@ -135,14 +146,20 @@ export interface SelfModelActions {
  */
 export interface ContinuityActions {
   listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
-  completePendingItem(request: { itemId: string }): boolean
-  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): boolean
+  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): PendingDecisionResult
   readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
+}
+
+export interface CompanionGoalActions {
+  list(): CompanionGoal[]
+  listCandidates(): CompanionGoalCandidate[]
+  decideCandidate(candidateId: string, decision: 'accept' | 'reject'): GoalCandidateDecisionResult
 }
 
 export interface ApplicationActions {
   memories: MemoryService
   goals: GoalService
+  companionGoals?: CompanionGoalActions
   reminders: ReminderActions
   companion?: CompanionActions
   backup?: BackupActions
@@ -164,19 +181,21 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     CONFLICT: '记录状态已变化，请刷新后重试。',
     STORAGE_ERROR: '本地数据暂不可用，请重试。',
     BACKUP_INVALID: '所选备份无效、已损坏或与当前版本不兼容；本地数据未做任何更改。',
+    SCHEMA_UPGRADE_REQUIRED: '本地数据需要完成版本升级后才能处理该事项；请重启应用以完成升级。',
     INTERNAL_ERROR: '请求无法完成。',
     PROVIDER_STORAGE_UNAVAILABLE: '系统安全存储不可用，无法确认 API 密钥状态。聊天已暂停；请重试或重启应用后检查。',
     PROVIDER_CREDENTIAL_STORE_ERROR: '本机 API 凭据无法安全读取，可能已损坏或无权访问。聊天和替换密钥已阻止；请重启应用复查，仍无法读取时可在确认后删除本机密钥并重新设置。',
-    PROVIDER_UNCONFIGURED: '请先配置并启用 DeepSeek API 密钥。',
+    PROVIDER_UNCONFIGURED: '请先配置并启用该 Provider 的凭据。',
     PROVIDER_PAYLOAD_TOO_LARGE: '本次对话上下文过长，请缩短消息或精简记忆。',
-    PROVIDER_RESPONSE: 'DeepSeek 返回了无效响应，请稍后重试。',
-    PROVIDER_AUTH: 'DeepSeek 未接受该 API 密钥或请求权限。',
-    PROVIDER_RATE_LIMIT: 'DeepSeek 请求过于频繁，请稍后重试。',
+    PROVIDER_RESPONSE: '模型服务返回了无效响应，请稍后重试。',
+    PROVIDER_AUTH: '模型服务未接受该 API 密钥或请求权限。',
+    PROVIDER_RATE_LIMIT: '模型服务请求过于频繁，请稍后重试。',
     PROVIDER_QUOTA: '该 Provider 账户没有有效订单或额度不足，请先在服务控制台开通或充值。',
     PROVIDER_DEADLINE: '本次请求的总时限已用完，已停止重试；请稍后再试或检查网络。',
-    PROVIDER_MODEL: 'DeepSeek 未找到所选模型。',
-    PROVIDER_TIMEOUT: 'DeepSeek 请求超时，可重试。',
-    PROVIDER_NETWORK: '无法连接 DeepSeek，请检查网络后重试。',
+    PROVIDER_MODEL: '模型服务未找到所选模型。',
+    PROVIDER_TIMEOUT: '模型服务请求超时，可重试。',
+    PROVIDER_NETWORK: '无法连接模型服务，请检查网络后重试。',
+    PROVIDER_ENDPOINT_BLOCKED: '该模型接入地址被安全策略阻止（内网、回环或非 HTTPS）。',
     PROVIDER_CANCELLED: '请求已取消。'
   }
   return { ok: false, error: { code, message: messages[code] } }
@@ -185,6 +204,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
 function toFailure(error: unknown): IpcResult<never> {
   if (error instanceof InputValidationError || error instanceof GoalValidationError || error instanceof ReminderValidationError) return failure('INVALID_INPUT')
 
+  if (error instanceof PendingSchemaUnavailableError) return failure('SCHEMA_UPGRADE_REQUIRED')
   if (error instanceof ApplicationError) return failure(error.code)
   return failure('INTERNAL_ERROR')
 }
@@ -235,6 +255,12 @@ export function createIpcHandlers(
     [IPC_CHANNELS.goalsCancelTask]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTaskIdRequest, ({ taskId }) => actions.goals.cancelTask(taskId)),
     [IPC_CHANNELS.goalsStop]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.stop(goalId)),
     [IPC_CHANNELS.goalsDelete]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalIdRequest, ({ goalId }) => actions.goals.delete(goalId)),
+    ...(actions.companionGoals ? {
+      [IPC_CHANNELS.companionGoalsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.list()),
+      [IPC_CHANNELS.companionGoalCandidatesList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.companionGoals!.listCandidates()),
+      [IPC_CHANNELS.companionGoalCandidateAccept]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'accept')),
+      [IPC_CHANNELS.companionGoalCandidateReject]: (event, payload) => execute(event, trustedRendererUrl, payload, parseGoalCandidateIdRequest, ({ candidateId }) => actions.companionGoals!.decideCandidate(candidateId, 'reject'))
+    } : {}),
     [IPC_CHANNELS.remindersSnapshot]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.reminders.snapshot()),
     [IPC_CHANNELS.remindersSaveSettings]: (event, payload) => execute(event, trustedRendererUrl, payload, parseReminderSettingsRequest, (request) => actions.reminders.saveSettings(request)),
     [IPC_CHANNELS.remindersPause]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.reminders.pause()),
@@ -262,7 +288,6 @@ export function createIpcHandlers(
     } : {}),
     ...(actions.continuity ? {
       [IPC_CHANNELS.pendingItemsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.continuity!.listPendingItems()),
-      [IPC_CHANNELS.pendingItemsComplete]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemIdRequest, (request) => actions.continuity!.completePendingItem(request)),
       [IPC_CHANNELS.pendingItemsDecide]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemDecisionRequest, (request) => actions.continuity!.decidePendingItem(request)),
       [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
     } : {}),
@@ -271,6 +296,13 @@ export function createIpcHandlers(
       [IPC_CHANNELS.providerSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConfigInput, (request) => companion.saveProvider(request)),
       [IPC_CHANNELS.providerClearCredential]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderGetRequest, (request) => companion.clearProviderCredential(request)),
       [IPC_CHANNELS.providerTestConnection]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConnectionRequest, (request) => companion.testProviderConnection(request)),
+      ...(companion.listProfiles ? {
+        [IPC_CHANNELS.providerProfilesList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listProfiles!()),
+        [IPC_CHANNELS.providerProfileSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderProfileSaveInput, (request) => companion.saveProfile!(request)),
+        [IPC_CHANNELS.providerProfileDelete]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderProfileIdRequest, (request) => companion.deleteProfile!(request)),
+        [IPC_CHANNELS.providerProfileSetDefault]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderProfileIdRequest, (request) => companion.setDefaultProfile!(request)),
+        [IPC_CHANNELS.providerProfileDiscoverModels]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderModelsRequest, (request) => companion.discoverModels!(request))
+      } : {}),
       [IPC_CHANNELS.conversationsCreate]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.createConversation()),
       [IPC_CHANNELS.conversationsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listConversations()),
       [IPC_CHANNELS.conversationsRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.readConversation(request)),
@@ -290,6 +322,7 @@ export function createIpcHandlers(
         event.sender.send?.(IPC_CHANNELS.chatDelta, streamEvent)
       })),
       [IPC_CHANNELS.chatCancel]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.cancelChat(request)),
+      [IPC_CHANNELS.chatTurnTrace]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.getTurnTrace(request.conversationId)),
       [IPC_CHANNELS.memorySuggestionsList]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.listMemorySuggestions(request)),
       [IPC_CHANNELS.memorySuggestionsPreview]: (event, payload) => execute(event, trustedRendererUrl, payload, parseMemoryProposalRequest, (request) => companion.previewMemorySuggestions(request)),
       [IPC_CHANNELS.memorySuggestionsPropose]: (event, payload) => execute(event, trustedRendererUrl, payload, parseMemoryProposalRequest, (request) => companion.proposeMemorySuggestions(request)),

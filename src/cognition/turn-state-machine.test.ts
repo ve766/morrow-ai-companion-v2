@@ -31,6 +31,12 @@ describe('turn state machine contract', () => {
     expect(canTransition(null, 'committed')).toBe(false)
   })
 
+  it('allows a retry to receive a terminal failed or cancelled turn again', () => {
+    expect(canTransition('failed', 'received')).toBe(true)
+    expect(canTransition('cancelled', 'received')).toBe(true)
+    expect(canTransition('committed', 'received')).toBe(false)
+  })
+
   it('treats a repeated state as an idempotent replay, not an error', () => {
     for (const state of TURN_STATES) expect(canTransition(state, state)).toBe(true)
   })

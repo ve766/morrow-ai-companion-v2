@@ -1,0 +1,53 @@
+{
+  "runId": "20261104T135210Z-abf69f16",
+  "suite": "provider-multi-source",
+  "startedAt": "2026-11-04T13:52:10.459Z",
+  "finishedAt": "2026-11-04T13:52:12.274Z",
+  "codeCommit": "c1f44507d911a5fa673174d126f4fe6b029a4e8c",
+  "branch": "feat/morrow-v2-final-closure",
+  "branchReason": "ok",
+  "workingTree": "dirty",
+  "endpoint": "https://speed26.toter.me/",
+  "endpointDigest": "752b44cde9279f7b",
+  "model": "gemini-3-flash",
+  "status": "BLOCKED_QUOTA",
+  "checks": [
+    {
+      "name": "profile saved",
+      "ok": true,
+      "detail": "profile 940bd7c6-d476-4dd5-9674-1e35f81b0747 · key isolated"
+    },
+    {
+      "name": "IPC test error",
+      "ok": false,
+      "detail": "PROVIDER_QUOTA: 该 Provider 账户没有有效订单或额度不足，请先在服务控制台开通或充值。"
+    },
+    {
+      "name": "IPC path (trusted sender, schema, service)",
+      "ok": false,
+      "detail": "{\"save\":true,\"list\":true,\"test\":false}"
+    },
+    {
+      "name": "real provider run",
+      "ok": false,
+      "detail": "PROVIDER_QUOTA: provider account quota is below the minimum pre-consume threshold"
+    }
+  ],
+  "local": {
+    "status": "BLOCKED_LOCAL_SERVICE_NOT_RUNNING",
+    "detail": "MORROW_LOCAL_PROVIDER_URL is not set; no local OpenAI-compatible service was started."
+  },
+  "ipc": {
+    "save": true,
+    "list": true,
+    "test": false
+  },
+  "failure": {
+    "httpStatus": 403,
+    "latencyMs": 318,
+    "attempts": 1,
+    "streamDeltaCount": 0
+  },
+  "error": "PROVIDER_QUOTA: provider account quota is below the minimum pre-consume threshold",
+  "exitCode": 0
+}

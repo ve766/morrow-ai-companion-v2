@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { buildStack, head, systemText, type Stack } from '../stage-3/runner/harness'
 import { buildProviderStack, commitOrUnknown, payloadDigest, readKeyOrNull, selectProvider, writeBlockedNoSecret } from '../stage-3/shared/real-provider'
+import { readGitMetadata } from '../../src/evaluation/git-metadata'
 
 interface Scenario {
   id: string
@@ -165,11 +166,14 @@ async function scripted(): Promise<void> {
     }
   }
   const failed = results.filter((item) => item.status === 'FAIL')
+  const git = readGitMetadata()
   const payload = {
     suite: 'stage-5-scripted',
     datasetVersion: fixture.version,
     codeCommit: head(),
-    branch: 'feat/stage-5-relational-presence',
+    branch: git.branch,
+    branchReason: git.branchReason,
+    workingTree: git.workingTree,
     command: 'npm run eval:stage5',
     environment: { platform: process.platform, node: process.version },
     provider: 'scripted-offline (not a model)',
@@ -223,12 +227,15 @@ async function live(): Promise<void> {
       stack.close()
     }
   }
+  const git = readGitMetadata()
   const payload = {
     suite: 'live',
     datasetVersion: fixture.version,
     harnessVersion: 'stage-5-live-v1',
     codeCommit: commitOrUnknown(),
-    branch: 'feat/stage-5-relational-presence',
+    branch: git.branch,
+    branchReason: git.branchReason,
+    workingTree: git.workingTree,
     command: 'npm run eval:stage5:live',
     environment: { platform: process.platform, node: process.version },
     clock: 'real',

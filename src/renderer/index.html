@@ -32,6 +32,18 @@
       </aside>
 
       <main id="top" class="main-panel">
+        <header class="status-bar" aria-label="运行状态">
+          <div class="status-bar-primary">
+            <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+            <span id="status-provider">Provider 未就绪</span>
+            <span class="status-divider" aria-hidden="true">/</span>
+            <span id="status-conversation">本地对话</span>
+          </div>
+          <div class="status-bar-secondary">
+            <span id="status-trace">轨迹 · 尚无记录</span>
+            <button id="inspector-toggle" class="button button-quiet button-small" type="button" aria-controls="runtime-inspector" aria-expanded="true">运行轨迹</button>
+          </div>
+        </header>
         <!-- 对话视图：默认首页。保持最小陪伴界面；Provider/认知等配置在“设置”。 -->
         <section class="view active" data-view="chat" id="chat-view">
           <section id="companion-section" class="panel companion-panel" aria-labelledby="companion-heading">
@@ -49,17 +61,26 @@
               <button id="conversation-delete" class="button button-danger button-small" type="button">删除当前对话</button>
             </div>
             <div id="chat-messages" class="chat-messages" aria-live="polite" aria-busy="false"></div>
-            <p id="chat-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
-            <form id="chat-form" class="chat-form">
-              <label for="chat-content">写给 Morrow</label>
-              <textarea id="chat-content" name="content" maxlength="8000" required rows="4" placeholder="每次发送都会先弹出系统级数据授权确认。"></textarea>
-              <label class="companion-toggle sensitive-toggle"><input id="chat-include-sensitive" name="includeSensitive" type="checkbox" /><span>明确允许本次请求包含敏感记忆（默认不发送）</span></label>
-              <div class="companion-actions">
-                <button id="chat-send" class="button button-primary" type="submit" disabled>发送并逐次确认</button>
-                <button id="chat-cancel" class="button button-secondary" type="button" disabled>取消生成</button>
-                <span id="chat-memory-count" class="meta-item"></span>
+            <div class="composer-dock">
+              <div id="chat-provider-cta" class="provider-cta" hidden>
+                <div>
+                  <strong>尚未配置模型 API</strong>
+                  <p>聊天需要先在设置中保存一个 Provider。密钥只在本机输入并进入系统安全存储。</p>
+                </div>
+                <button id="chat-provider-cta-button" class="button button-primary button-small" type="button">配置模型 API</button>
               </div>
-            </form>
+              <p id="chat-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
+              <form id="chat-form" class="chat-form">
+                <label for="chat-content">写给 Morrow</label>
+                <textarea id="chat-content" name="content" maxlength="8000" required rows="4" placeholder="每次发送都会先弹出系统级数据授权确认。"></textarea>
+                <label class="companion-toggle sensitive-toggle"><input id="chat-include-sensitive" name="includeSensitive" type="checkbox" /><span>明确允许本次请求包含敏感记忆（默认不发送）</span></label>
+                <div class="companion-actions">
+                  <button id="chat-send" class="button button-primary" type="submit" disabled>发送并逐次确认</button>
+                  <button id="chat-cancel" class="button button-secondary" type="button" disabled>取消生成</button>
+                  <span id="chat-memory-count" class="meta-item"></span>
+                </div>
+              </form>
+            </div>
 
             <section class="suggestion-section" aria-labelledby="suggestion-heading">
               <div class="section-heading suggestion-heading">
@@ -69,7 +90,7 @@
               <div id="memory-suggestions" class="suggestion-list" aria-live="polite"></div>
             </section>
 
-            <details class="personality-panel">
+            <details class="personality-panel" open>
               <summary>调整 Morrow 的沟通风格</summary>
               <p>这些是可检查、可撤回的用户偏好，不是模型自行学习的规则。固定安全与隐私原则始终优先。</p>
               <form id="personality-form" class="personality-form">
@@ -156,6 +177,7 @@
               <button id="refresh-pending" class="button button-quiet" type="button">刷新</button>
             </div>
             <p class="feedback">Morrow 的反思产生的待验证假设与未决事项。接受表示你在后续对话中认可它;拒绝会把它永久搁置,不再出现。</p>
+            <p id="pending-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
             <ul id="pending-list" class="pending-list"></ul>
             <p id="pending-empty" class="feedback" hidden>当前没有待确认的事项。</p>
           </section>
@@ -163,6 +185,22 @@
 
         <!-- 目标视图：目标/授权/提醒。 -->
         <section class="view" data-view="goals" id="goals-view">
+          <section class="goal-section panel" aria-labelledby="goal-candidate-heading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">FROM CONVERSATION</p>
+                <h2 id="goal-candidate-heading">长期目标候选</h2>
+              </div>
+              <button id="refresh-goal-candidates" class="button button-quiet button-small" type="button">刷新候选</button>
+            </div>
+            <p class="goal-scope">这些是从对话中识别出的候选，确认后才会成为目标。Morrow 不会替你决定。</p>
+            <p id="goal-candidate-feedback" class="feedback" role="status" aria-live="polite" hidden></p>
+            <div id="goal-candidate-list" class="goal-list" aria-live="polite" aria-busy="false"></div>
+            <p id="goal-candidate-empty" class="feedback" hidden>当前没有待确认的目标候选。</p>
+            <h3 class="goal-candidate-subheading">已确认的长期目标</h3>
+            <div id="companion-goal-list" class="goal-list" aria-live="polite" aria-busy="false"></div>
+            <p id="companion-goal-empty" class="feedback" hidden>还没有确认的长期目标。</p>
+          </section>
           <section class="goal-section panel" aria-labelledby="goal-heading">
             <div class="section-heading">
               <div>
@@ -268,15 +306,63 @@
 
         <!-- 设置视图：Provider/认知/备份。配置与安全集中在这里，不挤占陪伴界面。 -->
         <section class="view" data-view="settings" id="settings-view">
+          <div class="provider-panel panel" id="provider-profiles-card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">MULTI-SOURCE PROVIDERS</p>
+                <h2>模型接入配置</h2>
+              </div>
+              <button id="refresh-provider-profiles" class="button button-quiet button-small" type="button">刷新</button>
+            </div>
+            <p class="companion-disclosure">Provider 是服务来源，协议是通信方式，端点是地址，模型是标识。这里可以添加任意 HTTPS OpenAI-compatible 中转站，或本机回环服务；切换 Provider 不会改变人格、记忆或对话历史。私有网络地址本阶段不开放。</p>
+            <div id="provider-profile-list" class="provider-profile-list" aria-live="polite" aria-busy="false"></div>
+            <p id="provider-profile-empty" class="feedback" hidden>还没有自定义接入配置。</p>
+            <form id="provider-profile-form" class="provider-form">
+              <input id="provider-profile-id" type="hidden" />
+              <label for="provider-profile-name">配置名称</label>
+              <input id="provider-profile-name" type="text" maxlength="80" required placeholder="例如：我的中转站" />
+              <label for="provider-profile-source">来源类型</label>
+              <select id="provider-profile-source">
+                <option value="custom-proxy">自定义 HTTPS 中转站</option>
+                <option value="local">本机回环服务</option>
+                <option value="private-network" disabled>私有网络（本阶段不开放）</option>
+              </select>
+              <label for="provider-profile-protocol">通信协议</label>
+              <select id="provider-profile-protocol">
+                <option value="openai-chat-completions">OpenAI Chat Completions</option>
+                <option value="anthropic-messages" disabled>Anthropic Messages（未实现）</option>
+                <option value="ollama-native" disabled>Ollama native（未实现）</option>
+              </select>
+              <label for="provider-profile-endpoint">Base URL</label>
+              <input id="provider-profile-endpoint" type="text" maxlength="2000" required spellcheck="false" placeholder="https://relay.example.com/v1" />
+              <label for="provider-profile-endpoint-path">Endpoint path（可选）</label>
+              <input id="provider-profile-endpoint-path" type="text" maxlength="300" spellcheck="false" placeholder="留空自动补 /chat/completions" />
+              <p class="companion-muted">Base URL 可填站点根地址、以 <code>/v1</code> 结尾的地址或完整 chat-completions 地址。Base URL 已包含 <code>/v1</code> 时，Endpoint path 填 <code>/v1</code> 不会重复拼接；填 <code>/v1/chat/completions</code> 也只会解析为一个请求地址。</p>
+              <label for="provider-profile-model">模型 ID</label>
+              <input id="provider-profile-model" type="text" maxlength="128" required spellcheck="false" placeholder="例如 gemini-3-flash" />
+              <label for="provider-profile-api-key">API Key（保存后清空输入框）</label>
+              <input id="provider-profile-api-key" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="编辑时留空表示保留现有密钥；接入地址变更时必须重新输入" />
+              <label class="companion-toggle"><input id="provider-profile-enabled" type="checkbox" /><span>启用此配置</span></label>
+              <label class="companion-toggle"><input id="provider-profile-default" type="checkbox" /><span>设为默认对话 Provider</span></label>
+              <div class="companion-actions">
+                <button class="button button-primary button-small" type="submit">保存配置</button>
+                <button id="provider-profile-reset" class="button button-quiet button-small" type="button">新建配置</button>
+                <button id="provider-profile-discover" class="button button-secondary button-small" type="button">发现模型</button>
+                <button id="provider-profile-test" class="button button-secondary button-small" type="button">测试连接</button>
+              </div>
+            </form>
+            <p id="provider-profile-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
+          </div>
+
           <div class="provider-panel panel" id="provider-card">
             <div class="section-heading">
               <div>
                 <p class="eyebrow">PROVIDER</p>
-                <h2>模型连接</h2>
+                <h2>官方 DeepSeek 连接</h2>
               </div>
               <span id="provider-status" class="status-pill">未配置</span>
             </div>
-            <p class="companion-disclosure">当前只接入 DeepSeek-V4.1-Flash-1017（API 模型标识 deepseek-flash）。远程请求会把本条消息、近期对话和本次允许的相关记忆发送至 DeepSeek；默认排除标为“敏感”的记忆。每次请求单独弹出系统确认，可查看实际正文和记忆内容。</p>
+            <p class="companion-disclosure">这里是 DeepSeek 官方连接的兼容入口；自定义中转站与本机服务使用上方配置。远程请求会把本条消息、近期对话和本次允许的相关记忆发送至实际配置的 Provider；默认排除标为“敏感”的记忆。每次请求单独弹出系统确认，可查看实际目标、正文和记忆内容。</p>
             <form id="provider-form" class="provider-form">
               <div class="provider-facts">
                 <span>模型：DeepSeek-V4.1-Flash-1017（deepseek-flash）</span>
@@ -302,7 +388,7 @@
               </div>
               <span id="local-provider-status" class="status-pill">未配置</span>
             </div>
-            <p class="companion-disclosure">连接本机的 OpenAI 兼容服务（如 llama.cpp server、LM Studio、Ollama）。端点必须是本机回环地址（127.0.0.1 或 localhost），请求不会离开本机、不产生 API 费用。启用后，对话会优先使用本地模型；每次发送前仍会显示精确请求并单独确认。</p>
+            <p class="companion-disclosure">连接本机的 OpenAI 兼容服务（如 llama.cpp server、LM Studio、Ollama）。端点必须是本机回环地址（127.0.0.1 或 localhost），请求不会离开本机、不产生 API 费用。没有显式默认 Provider 时，对话会优先使用本地模型；每次发送前仍会显示精确请求并单独确认。</p>
             <form id="local-provider-form" class="provider-form">
               <label for="local-provider-endpoint">服务端点（回环地址）</label>
               <input id="local-provider-endpoint" name="endpoint" type="text" maxlength="2000" spellcheck="false" placeholder="例如 http://127.0.0.1:1234" />
@@ -310,7 +396,7 @@
               <input id="local-provider-model" name="model" type="text" maxlength="64" spellcheck="false" placeholder="例如 qwen2.5-7b-instruct" />
               <label for="local-provider-api-key">访问口令（可选）</label>
               <input id="local-provider-api-key" name="apiKey" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="本地服务未设置口令时留空" />
-              <label class="companion-toggle"><input id="local-provider-enabled" name="enabled" type="checkbox" /><span>启用本地模型（启用时优先于 DeepSeek）</span></label>
+              <label class="companion-toggle"><input id="local-provider-enabled" name="enabled" type="checkbox" /><span>启用本地模型（无显式默认 Provider 时优先于 DeepSeek）</span></label>
               <div class="companion-actions">
                 <button class="button button-primary button-small" type="submit">保存设置</button>
                 <button id="local-provider-test" class="button button-secondary button-small" type="button" disabled>测试连接（发送到本机服务）</button>
@@ -328,7 +414,7 @@
               </div>
             </div>
             <label class="companion-toggle"><input id="cognitive-enabled" name="enabled" type="checkbox" disabled /><span>启用本地认知与感受计算（默认关闭）</span></label>
-            <p id="cognitive-settings-status" class="companion-feedback" role="status" aria-live="polite">本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用前会说明保存在本机的结构化状态、对提示与 token 用量的影响，以及它不代表真实感受或意识。每次 DeepSeek 发送仍需单独确认；本地计算不联网、不增加模型调用。</p>
+            <p id="cognitive-settings-status" class="companion-feedback" role="status" aria-live="polite">本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用前会说明保存在本机的结构化状态、对提示与 token 用量的影响，以及它不代表真实感受或意识。每次模型服务发送仍需单独确认；本地计算不联网、不增加模型调用。</p>
             <div id="cognitive-state-summary" class="cognitive-state" aria-live="polite">状态加载中……</div>
             <div class="companion-actions">
               <button id="cognitive-settings-save" class="button button-secondary button-small" type="submit" disabled>保存认知设置</button>
@@ -365,9 +451,27 @@
 
         <footer class="footer">
           <span>数据只保存在此 Windows 用户的应用数据目录</span>
-          <span>默认本机保存 · DeepSeek 请求逐次授权 · 无遥测 · 所有内部状态都是可检查的计算数据，不代表主观意识</span>
+          <span>默认本机保存 · 模型请求逐次授权 · 无遥测 · 所有内部状态都是可检查的计算数据，不代表主观意识</span>
         </footer>
       </main>
+      <aside class="inspector" id="runtime-inspector" aria-label="本轮运行轨迹">
+        <header class="inspector-head">
+          <div class="inspector-head-row">
+            <div>
+              <p class="eyebrow">RUNTIME TRACE</p>
+              <h2>本轮运行</h2>
+            </div>
+            <button id="inspector-close" class="button button-quiet button-small" type="button" aria-label="收起运行轨迹">收起</button>
+          </div>
+          <span id="runtime-trace-status" class="meta-item">尚无运行记录</span>
+        </header>
+        <div id="runtime-trace-list" class="runtime-trace-list"></div>
+        <section id="runtime-trace-skipped-section" class="runtime-trace-skipped" hidden>
+          <h3>本轮未执行的算法</h3>
+          <ul id="runtime-trace-skipped"></ul>
+        </section>
+        <p class="inspector-note">轨迹来自主进程服务层的真实调用点；不记录 API Key、完整 prompt 或消息原文。</p>
+      </aside>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

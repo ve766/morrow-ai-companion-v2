@@ -34,7 +34,9 @@ export type TurnState = typeof TURN_STATES[number]
 
 /** Allowed predecessors for each state. `null` means "initial state". */
 const PREDECESSORS: Readonly<Record<TurnState, readonly (TurnState | null)[]>> = {
-  received: [null],
+  // A retry reuses the turn id (so the user message is not duplicated), which
+  // means a terminal failed/cancelled turn can be received again.
+  received: [null, 'failed', 'cancelled'],
   analyzed: ['received'],
   context_ready: ['analyzed', 'received'],
   awaiting_consent: ['context_ready'],
@@ -79,9 +81,42 @@ export interface TurnStateRecord {
   reason: string | null
 }
 
+export type TurnTraceStage =
+  | 'turn_received'
+  | 'cognition_analysis'
+  | 'context_built'
+  | 'consent'
+  | 'provider_request'
+  | 'provider_delta'
+  | 'persistence'
+  | 'turn_completed'
+  | 'turn_failed'
+  | 'turn_cancelled'
+  | 'recovery'
+
+export interface TurnTraceRecord {
+  eventId: string
+  turnId: string
+  conversationId: string
+  sequence: number
+  occurredAt: string
+  stage: TurnTraceStage
+  status: 'started' | 'completed' | 'skipped' | 'failed'
+  moduleId: string | null
+  reason: string | null
+  durationMs: number | null
+  summary: string | null
+}
+
 export interface TurnStatePort {
   /** Non-terminal turns; optional so older callers/tests keep working. */
   listUnsettled?(limit?: number): TurnStateRecord[]
+  /** Ordered trace events for one conversation; optional for old stores. */
+  listForConversation?(conversationId: string, limit?: number): TurnTraceRecord[]
+  /** Append one real lifecycle event; optional for old stores. */
+  appendTrace?(record: TurnTraceRecord): void
+  /** Drop trace events when their conversation is deleted. */
+  deleteTraceForConversation?(conversationId: string): void
   enter(record: TurnStateRecord): void
   get(turnId: string): TurnStateRecord | null
 }

@@ -122,7 +122,7 @@ function buildStack(options: { database?: SqliteDatabase; conversations?: Conver
     selfModelLoop: { events, interests, selfModel, reflection },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database, events)),
       finalizations,
       states: new SqliteTurnStateRepository(database)
     }

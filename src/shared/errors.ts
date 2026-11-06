@@ -5,6 +5,7 @@ export type ApplicationErrorCode =
   | 'CONFLICT'
   | 'STORAGE_ERROR'
   | 'BACKUP_INVALID'
+  | 'SCHEMA_UPGRADE_REQUIRED'
   | 'PROVIDER_STORAGE_UNAVAILABLE'
   | 'PROVIDER_CREDENTIAL_STORE_ERROR'
   | 'PROVIDER_UNCONFIGURED'
@@ -17,14 +18,18 @@ export type ApplicationErrorCode =
   | 'PROVIDER_TIMEOUT'
   | 'PROVIDER_DEADLINE'
   | 'PROVIDER_NETWORK'
+  | 'PROVIDER_ENDPOINT_BLOCKED'
   | 'PROVIDER_CANCELLED'
 
 export class ApplicationError extends Error {
   readonly code: ApplicationErrorCode
+  /** HTTP status when the failure came from a provider response; null otherwise. */
+  readonly httpStatus: number | null
 
-  constructor(code: ApplicationErrorCode) {
+  constructor(code: ApplicationErrorCode, httpStatus: number | null = null) {
     super(code)
     this.name = 'ApplicationError'
     this.code = code
+    this.httpStatus = httpStatus
   }
 }

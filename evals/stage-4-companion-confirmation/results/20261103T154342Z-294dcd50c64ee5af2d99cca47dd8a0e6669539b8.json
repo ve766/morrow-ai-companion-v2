@@ -1,0 +1,126 @@
+{
+  "suite": "stage-4-final-audit-closure",
+  "task": "Issue #43",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "feat/stage-4-companion-confirmation-closure",
+  "base": "release/morrow-v2-final-delivery",
+  "baseCommit": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "priorPrHead": "75a3d5517bc77cdfcd5cb0ea96e2439e7d542017",
+  "codeSha": "294dcd50c64ee5af2d99cca47dd8a0e6669539b8",
+  "pr": 40,
+  "generatedAt": "2026-11-03T15:43:42Z",
+  "findings": {
+    "A-required-goal-audit": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "rolls accept back when the audit write throws",
+          "status": "PASS"
+        },
+        {
+          "test": "rolls reject and source-unavailable back when the audit write throws",
+          "status": "PASS"
+        },
+        {
+          "test": "treats a duplicate audit result as written only when the event exists",
+          "status": "PASS"
+        },
+        {
+          "test": "writes exactly one audit event per terminal decision, not one per replay",
+          "status": "PASS"
+        },
+        {
+          "test": "cannot be constructed without the audit sink (compile-time contract)",
+          "status": "PASS"
+        }
+      ]
+    },
+    "B-real-startup-composition": {
+      "status": "FIXED",
+      "tests": [
+        {
+          "test": "runs the production startup reflection and routes its finding to SQLite",
+          "status": "PASS"
+        },
+        {
+          "test": "does not create a pending item when startup produces no finding",
+          "status": "PASS"
+        },
+        {
+          "test": "leaves no route/pending/audit partial state when startup ingestion fails",
+          "status": "PASS"
+        }
+      ]
+    }
+  },
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 111,
+      "tests": 1042,
+      "passed": 1042,
+      "failed": 0
+    },
+    {
+      "command": "targeted 7 files",
+      "exitCode": 0,
+      "tests": 85,
+      "passed": 85,
+      "failed": 0
+    },
+    {
+      "command": "npm run eval:stage5",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "file": "evals/stage-5/results/20261103T152255Z-294dcd5.json"
+    },
+    {
+      "command": "npm run eval:stage5:live",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "provider": "spark",
+      "model": "spark-x2.6",
+      "protocol": "openai-chat-completions",
+      "file": "evals/stage-5/results/20261103T152425Z-294dcd5-stage-5.json"
+    },
+    {
+      "command": "npm run eval:stage3",
+      "exitCode": 0,
+      "PASS": 15,
+      "NOT_RUN": 1,
+      "denominator": 16
+    },
+    {
+      "command": "npm run eval:stage4a",
+      "exitCode": 0,
+      "PASS": 7,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    }
+  ],
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "localElectronSmoke": "BLOCKED_ENV"
+  },
+  "ci": {
+    "status": "PENDING",
+    "note": "CI runs on the updated PR head; the URL is recorded in the PR and Issue #43 comment."
+  },
+  "notes": [
+    "Results bound to code SHA 294dcd5; the docs commit follows.",
+    "Older result files remain untouched.",
+    "AUD-04/AUD-08 out of scope."
+  ]
+}

@@ -5,11 +5,15 @@ import type { MemoryRecord, MemoryRevisionRecord } from '../../memory/memory-dom
 import { initializeBackup } from './backup-ui'
 import { initializePendingPanel } from './pending-ui'
 import { initializeShell } from './shell-ui'
+import { initializePresence } from './presence-ui'
 import { buildMemoryTimeline } from '../../memory/memory-timeline'
 import { createRequestGuard } from '../../security/request-guard'
 import { initializeGoals } from './goals-ui'
+import { initializeGoalCandidates } from './goal-candidates-ui'
 import { initializeReminders } from './reminders-ui'
 import { initializeCompanion } from './companion-ui'
+import { initializeProviderProfiles } from './provider-profiles-ui'
+import { initializeSelfModel } from './self-model-ui'
 
 class UiError extends Error {}
 
@@ -329,11 +333,15 @@ element<HTMLButtonElement>('#refresh-memories').addEventListener('click', async 
   await loadMemories()
 })
 
+initializePresence()
 initializeShell()
 void updateRuntimeStatus()
 void loadMemories()
 initializeGoals()
+initializeGoalCandidates()
 initializeReminders()
 initializeCompanion()
+initializeProviderProfiles()
+initializeSelfModel()
 initializeBackup()
 initializePendingPanel()

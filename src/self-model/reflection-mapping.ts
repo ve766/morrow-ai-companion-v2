@@ -19,6 +19,7 @@
  *   - anything unmapped is rejected with an audit reason rather than ignored.
  */
 import { createHash } from 'node:crypto'
+import { concernKeyOf, isConcernKind } from './reflection-concern'
 import type { ReflectionFinding, ReflectionFindingKind } from './self-model-domain'
 
 export const PERSONALITY_DIMENSIONS = ['exploration', 'depth', 'pace'] as const
@@ -64,11 +65,19 @@ const DESCRIPTIVE_KINDS: ReadonlySet<ReflectionFindingKind> = new Set<Reflection
 ])
 
 /**
- * Identity of a finding: kind + normalised statement + the evidence set.
- * Sorted refs make the key order-insensitive; the statement is normalised so a
- * whitespace change does not create a second finding.
+ * Identity of a finding.
+ *
+ * A concern kind (a question, a correction, a gap) is the same concern when its
+ * statement is the same, regardless of which evidence happened to be in the
+ * batch. Hashing the evidence set into its identity is what made a second
+ * observation look like a different concern and split the pending decision.
+ *
+ * Kinds whose effect consumes one specific evidence record keep the full
+ * identity (kind + normalised statement + sorted refs) so two different memories
+ * never collapse into one finding.
  */
 export function dedupeKeyOf(finding: Pick<ReflectionFinding, 'kind' | 'statement' | 'evidence'>): string {
+  if (isConcernKind(finding.kind)) return concernKeyOf(finding.kind, finding.statement)
   const statement = finding.statement.normalize('NFKC').replaceAll(/\s+/gu, ' ').trim().toLowerCase()
   const refs = finding.evidence.map((ref) => `${ref.kind}:${ref.id}`).sort().join(',')
   return createHash('sha256').update(`${finding.kind}|${statement}|${refs}`).digest('hex')

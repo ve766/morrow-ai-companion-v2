@@ -2559,6 +2559,168 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 48,
+    name: 'pending-decision-terminal-state',
+    up(database) {
+      // BL-02: a pending decision must be durable on both the item and its
+      // reflection route. finding_id links the item to the route; decision
+      // records which terminal choice the user made, so a replay is idempotent
+      // and an opposite decision is a conflict rather than a silent overwrite.
+      database.exec(`
+        ALTER TABLE cognitive_pending_items ADD COLUMN finding_id TEXT CHECK (finding_id IS NULL OR length(finding_id) = 36);
+        ALTER TABLE cognitive_pending_items ADD COLUMN decision TEXT CHECK (decision IS NULL OR decision IN ('accepted', 'rejected', 'dismissed'));
+        CREATE INDEX cognitive_pending_items_finding_idx ON cognitive_pending_items(finding_id);
+      `)
+    }
+  },
+  {
+    version: 49,
+    name: 'provider-multi-source-profiles-final',
+    up(database) {
+      // Provider is a source, protocol is a wire contract, endpoint is an
+      // address and model is a name. The old table conflated the first and the
+      // third: an id implied a provider and the endpoint had to equal that
+      // provider's base URL. This final migration runs after Stage 4 v48 and
+      // accepts both a release/Stage-4 v48 table (old columns) and a Provider
+      // v48 table (already extended by the standalone provider branch).
+      const columns = database.prepare('PRAGMA table_info(provider_profiles)').all() as Array<{ name: string }>
+      const extended = columns.some((column) => column.name === 'display_name')
+      database.exec(`
+        CREATE TABLE provider_profiles_v49 (
+          id TEXT PRIMARY KEY NOT NULL CHECK (
+            length(id) BETWEEN 1 AND 40 AND id NOT GLOB '*[^a-z0-9-]*'
+          ),
+          display_name TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 1 AND 80),
+          source_kind TEXT NOT NULL CHECK (source_kind IN ('official', 'custom-proxy', 'local', 'private-network')),
+          protocol_id TEXT NOT NULL CHECK (protocol_id IN ('openai-chat-completions', 'anthropic-messages', 'ollama-native')),
+          provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+          endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 8 AND 2000),
+          endpoint_path TEXT CHECK (
+            endpoint_path IS NULL OR (length(endpoint_path) BETWEEN 1 AND 300 AND substr(endpoint_path, 1, 1) = '/')
+          ),
+          model TEXT NOT NULL CHECK (length(model) BETWEEN 1 AND 128),
+          enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+          is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+          capabilities_json TEXT NOT NULL,
+          last_test_json TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+      `)
+      if (extended) {
+        database.exec(`
+          INSERT INTO provider_profiles_v49(
+            id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+            model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+          )
+            SELECT id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+                   model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+            FROM provider_profiles;
+        `)
+      } else {
+        database.exec(`
+          INSERT INTO provider_profiles_v49(
+            id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+            model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+          )
+            SELECT id,
+                   CASE id WHEN 'deepseek' THEN 'DeepSeek'
+                           WHEN 'spark' THEN 'iFlytek Spark'
+                           ELSE 'Local OpenAI' END,
+                   CASE id WHEN 'local-openai' THEN 'local' ELSE 'official' END,
+                   'openai-chat-completions',
+                   provider_class,
+                   endpoint,
+                   NULL,
+                   model,
+                   enabled,
+                   0,
+                   '{"streaming":{"declared":true,"probed":false,"verified":false},"vision":{"declared":false,"probed":false,"verified":false},"toolCalling":{"declared":false,"probed":false,"verified":false},"jsonMode":{"declared":false,"probed":false,"verified":false},"systemRole":{"declared":true,"probed":false,"verified":false}}',
+                   NULL,
+                   updated_at,
+                   updated_at
+            FROM provider_profiles;
+        `)
+      }
+      database.exec(`
+        DROP TABLE provider_profiles;
+        ALTER TABLE provider_profiles_v49 RENAME TO provider_profiles;
+        CREATE UNIQUE INDEX provider_profiles_default_uq
+          ON provider_profiles(is_default) WHERE is_default = 1;
+      `)
+    }
+  },
+  {
+    version: 50,
+    name: 'turn-trace-events',
+    up(database) {
+      database.exec(`
+        CREATE TABLE turn_trace_events (
+          event_id TEXT PRIMARY KEY NOT NULL,
+          turn_id TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('started', 'completed', 'skipped', 'failed')),
+          module_id TEXT,
+          reason TEXT,
+          duration_ms INTEGER,
+          summary TEXT
+        );
+        CREATE INDEX turn_trace_events_turn_idx
+          ON turn_trace_events(turn_id, sequence);
+        CREATE INDEX turn_trace_events_conversation_idx
+          ON turn_trace_events(conversation_id, occurred_at);
+      `)
+    }
+  },
+  {
+    version: 51,
+    name: 'turn-trace-started-status',
+    up(database) {
+      database.exec(`
+        ALTER TABLE turn_trace_events RENAME TO turn_trace_events_v50;
+        CREATE TABLE turn_trace_events (
+          event_id TEXT PRIMARY KEY NOT NULL,
+          turn_id TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('started', 'completed', 'skipped', 'failed')),
+          module_id TEXT,
+          reason TEXT,
+          duration_ms INTEGER,
+          summary TEXT
+        );
+        INSERT INTO turn_trace_events(
+          event_id, turn_id, conversation_id, sequence, occurred_at, stage, status, module_id, reason, duration_ms, summary
+        ) SELECT event_id, turn_id, conversation_id, sequence, occurred_at, stage, status, module_id, reason, duration_ms, summary
+          FROM turn_trace_events_v50;
+        DROP TABLE turn_trace_events_v50;
+        CREATE INDEX turn_trace_events_turn_idx
+          ON turn_trace_events(turn_id, sequence);
+        CREATE INDEX turn_trace_events_conversation_idx
+          ON turn_trace_events(conversation_id, occurred_at);
+      `)
+    }
+  },
+  {
+    version: 52,
+    name: 'turn-trace-cascade',
+    up(database) {
+      database.exec(`
+        CREATE TRIGGER turn_trace_events_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM turn_trace_events WHERE conversation_id = OLD.id;
+        END;
+      `)
+    }
+  },
+
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
@@ -2568,6 +2730,14 @@ export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
 // cognitive tables. This is a named anchor, not a relative offset, so adding
 // future migrations can never lock an already-degraded database out.
 export const DEGRADED_OPEN_MINIMUM_VERSION = 9
+
+/** A database carrying another implementation line's version/name identity. */
+export class SchemaIdentityError extends Error {
+  constructor() {
+    super('Unsupported database schema version.')
+    this.name = 'SchemaIdentityError'
+  }
+}
 
 export function applyMigrations(
   database: DatabaseSync,
@@ -2585,7 +2755,57 @@ export function applyMigrations(
   const current = Number(database.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get()?.version ?? 0)
   const newestKnown = migrationSet.at(-1)?.version ?? 0
   if (current > newestKnown || targetVersion > newestKnown || targetVersion < current) {
-    throw new Error('Unsupported database schema version.')
+    throw new SchemaIdentityError()
+  }
+  // A recorded name is a claim about structure. Verify the columns that claim
+  // implies before trusting it: a database that says Stage 4 v48 but lacks the
+  // pending columns, or says Provider v48 but lacks the extended provider
+  // columns, is a different implementation line wearing a known name.
+  const recordedV48 = database.prepare('SELECT name FROM schema_migrations WHERE version = 48').get() as { name: string } | undefined
+  const hasColumn = (table: string, column: string): boolean =>
+    (database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((row) => row.name === column)
+  if (recordedV48) {
+    if (recordedV48.name === 'pending-decision-terminal-state') {
+      if (!hasColumn('cognitive_pending_items', 'finding_id') || !hasColumn('cognitive_pending_items', 'decision')) {
+        throw new SchemaIdentityError()
+      }
+    } else if (recordedV48.name === 'provider-multi-source-profiles') {
+      if (!hasColumn('provider_profiles', 'display_name')) {
+        throw new SchemaIdentityError()
+      }
+    }
+  }
+  // Integration bridge: the standalone Provider branch shipped v48 named
+  // `provider-multi-source-profiles`. The final line keeps Stage 4's v48 name
+  // and moves the provider rebuild to v49. A Provider v48 database therefore
+  // has the provider table but not Stage 4's pending columns; apply the final
+  // v48 migration here and re-label its recorded row before the normal loop.
+  // A previous bridge attempt may have committed the columns but not the label
+  // (or the reverse is impossible inside one transaction), so re-check the
+  // columns and only re-label when they are already present.
+  if (current === 48 && targetVersion >= 48) {
+    const final48 = migrationSet.find((migration) => migration.version === 48)
+    const recorded48 = database.prepare('SELECT name FROM schema_migrations WHERE version = 48').get() as { name: string } | undefined
+    if (final48?.name === 'pending-decision-terminal-state' && recorded48?.name === 'provider-multi-source-profiles') {
+      const pendingExtended = hasColumn('cognitive_pending_items', 'finding_id') && hasColumn('cognitive_pending_items', 'decision')
+      if (pendingExtended) {
+        database.prepare('UPDATE schema_migrations SET name = ? WHERE version = 48').run(final48.name)
+      } else {
+        database.exec('BEGIN IMMEDIATE')
+        try {
+          final48.up(database)
+          database.prepare('UPDATE schema_migrations SET name = ? WHERE version = 48').run(final48.name)
+          database.exec('COMMIT')
+        } catch {
+          try {
+            database.exec('ROLLBACK')
+          } catch {
+            throw new Error('Database migration failed.')
+          }
+          throw new Error('Database migration failed.')
+        }
+      }
+    }
   }
   // Version numbers alone are not an identity: a database produced by a
   // different implementation line can carry the same versions with entirely
@@ -2595,7 +2815,7 @@ export function applyMigrations(
   for (const row of recorded) {
     const expected = migrationSet.find((migration) => migration.version === row.version)
     if (!expected || expected.name !== row.name) {
-      throw new Error('Unsupported database schema version.')
+      throw new SchemaIdentityError()
     }
   }
 

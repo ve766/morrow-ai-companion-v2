@@ -511,7 +511,7 @@ try {
     return result.data
   })()`)
   assert.equal(info.name, 'Morrow')
-  assert.equal(info.dataPolicy, 'local-first-consented-deepseek-egress-memory-goals-reminders')
+  assert.equal(info.dataPolicy, 'local-first-consented-provider-egress-memory-goals-reminders')
   if (!info.version || !info.electronVersion) throw new Error('Runtime metadata IPC is incomplete.')
   if (process.env.MORROW_SMOKE_EXPECT_VERSION && info.version !== process.env.MORROW_SMOKE_EXPECT_VERSION) {
     throw new Error(`Installed app version '${info.version}' did not match the expected test version.`)

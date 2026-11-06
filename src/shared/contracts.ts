@@ -1,5 +1,8 @@
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
+import type { PendingDecisionResult } from '../cognition/pending-items'
+export type { PendingDecisionResult }
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -18,16 +21,25 @@ import type {
   PersonalityRevision,
   ProviderConfigInput,
   ProviderConfigRecord,
-  ProviderId,
   ProviderConnectionRequest,
-  ProviderConnectionResult
+  ProviderConnectionResult,
+  ProviderModelsRequest,
+  ProviderModelsResult,
+  ProviderProfileIdRequest,
+  ProviderProfileSaveInput
 } from './companion'
+export type { ProviderModelsRequest, ProviderModelsResult, ProviderProfileIdRequest, ProviderProfileSaveInput } from './companion'
 
 export const IPC_CHANNELS = {
   appInfo: 'morrow:app:info',
   memoryCreate: 'morrow:memory:create',
   providerGet: 'morrow:provider:get',
   providerSave: 'morrow:provider:save',
+  providerProfilesList: 'morrow:provider:profiles:list',
+  providerProfileSave: 'morrow:provider:profiles:save',
+  providerProfileDelete: 'morrow:provider:profiles:delete',
+  providerProfileSetDefault: 'morrow:provider:profiles:set-default',
+  providerProfileDiscoverModels: 'morrow:provider:profiles:discover-models',
   providerClearCredential: 'morrow:provider:clear-credential',
   providerTestConnection: 'morrow:provider:test-connection',
   conversationsCreate: 'morrow:conversations:create',
@@ -43,6 +55,7 @@ export const IPC_CHANNELS = {
   chatSend: 'morrow:chat:send',
   chatCancel: 'morrow:chat:cancel',
   chatDelta: 'morrow:chat:delta',
+  chatTurnTrace: 'morrow:chat:turn-trace',
   memorySuggestionsList: 'morrow:memory-suggestions:list',
   memorySuggestionsPreview: 'morrow:memory-suggestions:preview',
   memorySuggestionsPropose: 'morrow:memory-suggestions:propose',
@@ -63,6 +76,10 @@ export const IPC_CHANNELS = {
   goalsCancelTask: 'morrow:goals:cancel-task',
   goalsStop: 'morrow:goals:stop',
   goalsDelete: 'morrow:goals:delete',
+  companionGoalsList: 'morrow:companion-goals:list',
+  companionGoalCandidatesList: 'morrow:companion-goals:candidates:list',
+  companionGoalCandidateAccept: 'morrow:companion-goals:candidates:accept',
+  companionGoalCandidateReject: 'morrow:companion-goals:candidates:reject',
   remindersSnapshot: 'morrow:reminders:snapshot',
   remindersSaveSettings: 'morrow:reminders:save-settings',
   remindersPause: 'morrow:reminders:pause',
@@ -90,7 +107,6 @@ export const IPC_CHANNELS = {
   reflectionListRuns: 'morrow:selfmodel:reflection:runs',
   reflectionFindings: 'morrow:selfmodel:reflection:findings',
   pendingItemsList: 'morrow:continuity:pending:list',
-  pendingItemsComplete: 'morrow:continuity:pending:complete',
   pendingItemsDecide: 'morrow:continuity:pending:decide',
   turnContextRead: 'morrow:continuity:turn:read'
 } as const
@@ -102,6 +118,7 @@ export type IpcErrorCode =
   | 'CONFLICT'
   | 'STORAGE_ERROR'
   | 'BACKUP_INVALID'
+  | 'SCHEMA_UPGRADE_REQUIRED'
   | 'INTERNAL_ERROR'
   | 'PROVIDER_STORAGE_UNAVAILABLE'
   | 'PROVIDER_CREDENTIAL_STORE_ERROR'
@@ -115,6 +132,7 @@ export type IpcErrorCode =
   | 'PROVIDER_TIMEOUT'
   | 'PROVIDER_DEADLINE'
   | 'PROVIDER_NETWORK'
+  | 'PROVIDER_ENDPOINT_BLOCKED'
   | 'PROVIDER_CANCELLED'
 
 export type IpcResult<T> =
@@ -126,7 +144,7 @@ export interface AppInfo {
   version: string
   platform: string
   electronVersion: string
-  dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+  dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
 }
 
 export interface MemoryCreateRequest {
@@ -171,8 +189,12 @@ export interface ConversationIdRequest {
   conversationId: string
 }
 
+export interface GoalCandidateIdRequest {
+  candidateId: string
+}
+
 export interface ProviderGetRequest {
-  providerId?: ProviderId
+  providerId?: string
 }
 
 export interface InterestIdRequest {
@@ -201,12 +223,6 @@ export interface ReflectionFindingsRequest {
   runId: string
 }
 
-/** Phase 2.4: a stored internal item, readable and completable from the shell. */
-export interface PendingItemIdRequest {
-  itemId: string
-}
-
-/** D-11: the user decision on one open internal item. */
 export interface PendingItemDecisionRequest {
   itemId: string
   decision: 'accepted' | 'rejected' | 'dismissed'
@@ -271,6 +287,11 @@ export interface MorrowBridge {
     save(request: ProviderConfigInput): Promise<IpcResult<ProviderConfigRecord>>
     clearCredential(request?: ProviderGetRequest): Promise<IpcResult<ProviderConfigRecord | null>>
     testConnection(request: ProviderConnectionRequest): Promise<IpcResult<ProviderConnectionResult>>
+    listProfiles(): Promise<IpcResult<ProviderConfigRecord[]>>
+    saveProfile(request: ProviderProfileSaveInput): Promise<IpcResult<ProviderConfigRecord>>
+    deleteProfile(request: ProviderProfileIdRequest): Promise<IpcResult<void>>
+    setDefaultProfile(request: ProviderProfileIdRequest): Promise<IpcResult<ProviderConfigRecord>>
+    discoverModels(request: ProviderModelsRequest): Promise<IpcResult<ProviderModelsResult>>
   }
   conversations: {
     create(): Promise<IpcResult<ConversationRecord>>
@@ -303,18 +324,18 @@ export interface MorrowBridge {
     clearHistory(): Promise<IpcResult<FeelingStateView>>
   }
   /**
-   * Phase 2.4 continuity. Read-only except `completePendingItem`, which can
-   * only mark an internal item as done: it never sends anything outward.
+   * Phase 2.4 continuity. Read-only except `decidePendingItem`, the single
+   * authoritative decision path (item + reflection route + required audit).
    */
   continuity: {
     listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
-    completePendingItem(request: PendingItemIdRequest): Promise<IpcResult<boolean>>
-    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<boolean>>
+    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<PendingDecisionResult>>
     readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
   chat: {
     send(request: ChatRequest): Promise<IpcResult<ChatResult>>
     cancel(request: ConversationIdRequest): Promise<IpcResult<boolean>>
+    trace(request: ConversationIdRequest): Promise<IpcResult<import('../cognition/turn-state-machine').TurnTraceRecord[]>>
     onDelta(listener: (event: ChatStreamEvent) => void): () => void
   }
   memorySuggestions: {
@@ -343,6 +364,12 @@ export interface MorrowBridge {
     cancelTask(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
     stop(request: GoalIdRequest): Promise<IpcResult<GoalRecord>>
     delete(request: GoalIdRequest): Promise<IpcResult<void>>
+  }
+  companionGoals: {
+    listGoals(): Promise<IpcResult<CompanionGoal[]>>
+    listCandidates(): Promise<IpcResult<CompanionGoalCandidate[]>>
+    acceptCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
+    rejectCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
   }
   reminders: {
     getSnapshot(): Promise<IpcResult<ReminderSnapshot>>

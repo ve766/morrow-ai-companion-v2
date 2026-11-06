@@ -87,7 +87,7 @@ function goalProjector(goals: CompanionGoalService, onAfterWrite?: () => void): 
 describe('P0-3 outbox effect ledger', () => {
   it('does not duplicate a side effect when the process dies after the write and before the mark', () => {
     const database = openMemory()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const outbox = new CognitionOutbox(database, clock)
     const turnId = randomUUID()
     const { conversationId, messageId } = seedTurn(database, turnId)
@@ -164,7 +164,7 @@ describe('P0-3 outbox effect ledger', () => {
     const turnId = randomUUID()
     const { conversationId, messageId } = seedTurn(database, turnId)
 
-    const firstGoals = new CompanionGoalService(database, clock)
+    const firstGoals = new CompanionGoalService(database, new EventLogService(database), clock)
     const firstOutbox = new CognitionOutbox(database, clock)
     firstOutbox.enqueue({ turnId, conversationId, userMessageId: messageId, occurredAt: AT, analysis: null, modules: ['goal'] })
     // Claim the effect and die: the ledger row stays `running`.
@@ -180,7 +180,7 @@ describe('P0-3 outbox effect ledger', () => {
     const ledger = new CognitiveEffectLedger(reopened, () => '2026-10-31T00:05:00.000Z')
     expect(ledger.requeueInterrupted()).toBe(1)
 
-    const goals = new CompanionGoalService(reopened, clock)
+    const goals = new CompanionGoalService(reopened, new EventLogService(reopened), clock)
     const outbox = new CognitionOutbox(reopened, clock)
     const result = outbox.drain([goalProjector(goals)])
     expect(result.done).toBe(1)
@@ -190,7 +190,7 @@ describe('P0-3 outbox effect ledger', () => {
 
   it('creates one goal when the same candidate is accepted twice', () => {
     const database = openMemory()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const turnId = randomUUID()
     const { conversationId, messageId } = seedTurn(database, turnId)
     goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
@@ -205,7 +205,7 @@ describe('P0-3 outbox effect ledger', () => {
 
   it('refuses to accept a candidate whose source message was deleted', () => {
     const database = openMemory()
-    const goals = new CompanionGoalService(database, clock)
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
     const turnId = randomUUID()
     const { conversationId, messageId } = seedTurn(database, turnId)
     goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })

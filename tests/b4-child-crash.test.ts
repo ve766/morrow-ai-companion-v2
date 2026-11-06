@@ -157,7 +157,7 @@ function recover(outcome: CrashOutcome) {
       selfModelLoop: { events, interests, selfModel },
       continuity: {
         contexts: new SqliteTurnContextRepository(database),
-        pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+        pending: new PendingCognitionService(new SqlitePendingItemRepository(database, events)),
         finalizations: new SqliteTurnFinalizationRepository(database),
         states
       }

@@ -123,7 +123,7 @@ async function runArm(arm: string, config: ArmConfig): Promise<ArmResult> {
     },
     continuity: {
       contexts: new SqliteTurnContextRepository(database),
-      pending: new PendingCognitionService(new SqlitePendingItemRepository(database)),
+      pending: new PendingCognitionService(new SqlitePendingItemRepository(database, eventLog)),
       finalizations: new SqliteTurnFinalizationRepository(database),
       states: new SqliteTurnStateRepository(database)
     }
