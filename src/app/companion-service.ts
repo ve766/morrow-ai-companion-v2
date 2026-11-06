@@ -60,7 +60,7 @@ import { adjustPolicyForState, type RetrievalAdjustment } from '../cognition/ret
 import { buildCognitiveTurnContext, snapshotState, type CognitiveTurnContext, type CognitiveTurnStatus } from '../cognition/turn-context'
 import type { PendingCognitionService, PendingItemDraft } from '../cognition/pending-items'
 import { PendingSchemaUnavailableError } from '../cognition/pending-items'
-import type { TurnState, TurnStatePort } from '../cognition/turn-state-machine'
+import type { TurnState, TurnStatePort, TurnTraceRecord, TurnTraceStage } from '../cognition/turn-state-machine'
 import type { TurnContextPort, TurnFinalizationPort, TurnFinalizationRecord } from '../persistence/cognitive-context-repository'
 import { createCognitiveFeelingEvent, feelingPromptGuidance } from '../affective-state/cognitive-feeling-engine'
 import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-service'
@@ -1684,6 +1684,7 @@ export class CompanionService {
   getFeelingState(): ReturnType<CognitiveFeelingService['snapshot']> { return this.feelings.snapshot() }
   clearCognitiveHistory(): ReturnType<CognitiveFeelingService['clearHistory']> { return this.feelings.clearHistory() }
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult> { return this.chat.send(request, onDelta) }
+  getTurnTrace(conversationId: string, limit = 200): ReturnType<ChatService['getTurnTrace']> { return this.chat.getTurnTrace(conversationId, limit) }
   cancelChat(request: { conversationId: string }): boolean { return this.chat.cancel(request.conversationId) }
   listMemorySuggestions(request: { conversationId: string }): MemorySuggestion[] { return this.memorySuggestions.list(request.conversationId) }
   previewMemorySuggestions(request: MemoryProposalRequest): MemoryProposalPreview { return this.memorySuggestions.preview(request) }
@@ -1811,6 +1812,11 @@ export interface PreparedTurn {
 export class ChatService {
   private readonly controllers = new Map<string, AbortController>()
   private readonly locks = new Set<string>()
+  private readonly traceSequence = new Map<string, number>()
+  private readonly traceLastAt = new Map<string, number>()
+  private readonly traceStageStartedAt = new Map<string, number>()
+  private readonly traceTurnConversations = new Map<string, string>()
+  private readonly traceIncompleteTurns = new Set<string>()
   /**
    * Stage 4-A final repair: the verified outcome of this turn's explicit
    * memory operation. prepare() runs twice per turn (consent preview, then the
@@ -1892,10 +1898,130 @@ export class ChatService {
    * here and surfaces in tests through the repository instead.
    */
   private recordTurnState(conversationId: string, turnId: string, state: TurnState, reason: string | null = null): void {
+    const occurredAt = this.now()
     try {
-      this.continuity?.states?.enter({ turnId, conversationId, state, updatedAt: this.now(), reason })
+      this.continuity?.states?.enter({ turnId, conversationId, state, updatedAt: occurredAt, reason })
     } catch {
       // Intentionally silent: the chat path must not depend on the trace.
+    }
+    const stageByState: Record<TurnState, { stage: TurnTraceStage; moduleId: string }> = {
+      received: { stage: 'turn_received', moduleId: 'app/companion-service' },
+      analyzed: { stage: 'cognition_analysis', moduleId: 'cognition/analysis' },
+      context_ready: { stage: 'context_built', moduleId: 'memory/retrieval' },
+      awaiting_consent: { stage: 'consent', moduleId: 'providers/provider-policy' },
+      requesting: { stage: 'provider_request', moduleId: 'providers/openai-compatible' },
+      response_received: { stage: 'provider_delta', moduleId: 'providers/openai-compatible' },
+      committed: { stage: 'turn_completed', moduleId: 'persistence/conversation-repository' },
+      failed: { stage: 'turn_failed', moduleId: 'app/companion-service' },
+      cancelled: { stage: 'turn_cancelled', moduleId: 'app/companion-service' },
+      recovery_required: { stage: 'recovery', moduleId: 'app/companion-service' },
+      recovering: { stage: 'recovery', moduleId: 'app/companion-service' }
+    }
+    const mapped = stageByState[state]
+    const status: TurnTraceRecord['status'] = state === 'requesting'
+      ? 'started'
+      : state === 'response_received' && reason === 'no_stream_delta'
+        ? 'skipped'
+        : state === 'analyzed' && reason === 'analysis_unavailable'
+          ? 'skipped'
+          : state === 'failed' || state === 'cancelled'
+            ? 'failed'
+            : 'completed'
+    this.recordTraceStage(conversationId, turnId, mapped.stage, status, mapped.moduleId, reason, occurredAt)
+  }
+
+  /**
+   * Appends one stage event from the call site that actually performed the
+   * stage. Storage failure is recorded in memory so the UI can say the trace is
+   * incomplete; it never propagates into the chat path.
+   */
+  private recordTraceStage(
+    conversationId: string,
+    turnId: string,
+    stage: TurnTraceStage,
+    status: TurnTraceRecord['status'],
+    moduleId: string,
+    reason: string | null = null,
+    occurredAt = this.now()
+  ): void {
+    try {
+      const sequence = (this.traceSequence.get(turnId) ?? 0) + 1
+      this.traceSequence.set(turnId, sequence)
+      const previous = this.traceLastAt.get(turnId)
+      const nowMs = Date.parse(occurredAt)
+      const stageKey = `${turnId}:${stage}`
+      let durationMs: number | null
+      if (stage === 'turn_received') {
+        durationMs = null
+      } else if (status === 'started') {
+        this.traceStageStartedAt.set(stageKey, nowMs)
+        durationMs = null
+      } else {
+        const startedAt = this.traceStageStartedAt.get(stageKey)
+        durationMs = startedAt === undefined
+          ? previous === undefined || Number.isNaN(nowMs) ? null : Math.max(0, nowMs - previous)
+          : Math.max(0, nowMs - startedAt)
+        this.traceStageStartedAt.delete(stageKey)
+      }
+      this.traceLastAt.set(turnId, nowMs)
+      this.traceTurnConversations.set(turnId, conversationId)
+      // A turn cannot legitimately produce more than 200 lifecycle events; the
+      // cap keeps one corrupted retry loop from growing the trace without bound.
+      if (sequence > 200) return
+      this.continuity?.states?.appendTrace?.({
+        eventId: this.makeId(),
+        turnId,
+        conversationId,
+        sequence,
+        occurredAt,
+        stage,
+        status,
+        moduleId,
+        reason,
+        durationMs,
+        summary: reason
+      })
+      if (stage === 'turn_completed' || stage === 'turn_failed' || stage === 'turn_cancelled') {
+        for (const key of this.traceStageStartedAt.keys()) {
+          if (key.startsWith(`${turnId}:`)) this.traceStageStartedAt.delete(key)
+        }
+      }
+    } catch {
+      // Trace persistence is observability; a failure must never fail the chat.
+      // The in-memory marker lets the UI say the trace is incomplete instead of
+      // pretending the missing events are the whole story.
+      this.traceIncompleteTurns.add(turnId)
+    }
+  }
+
+  getTurnTrace(conversationId: string, limit = 200): TurnTraceRecord[] {
+    try {
+      const normalized = normalizedUuid(conversationId)
+      const stored = this.continuity?.states?.listForConversation?.(normalized, limit) ?? []
+      const synthetic: TurnTraceRecord[] = [...this.traceIncompleteTurns]
+        .filter((turnId) => this.traceTurnConversations.get(turnId) === normalized)
+        .map((turnId) => ({
+          eventId: `trace-incomplete-${turnId}`,
+          turnId,
+          conversationId: normalized,
+          sequence: Number.MAX_SAFE_INTEGER,
+          occurredAt: this.now(),
+          stage: 'recovery' as const,
+          status: 'failed' as const,
+          moduleId: 'persistence/turn-trace',
+          reason: 'TRACE_WRITE_FAILED',
+          durationMs: null,
+          summary: null
+        }))
+      return [...stored, ...synthetic]
+        .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.sequence - right.sequence)
+        .slice(-Math.max(1, Math.min(200, Math.trunc(limit))))
+    } catch (error) {
+      // The trace is read on its own IPC call, so a storage failure here cannot
+      // break a chat. It must surface instead of looking like "no events yet",
+      // because the UI has to say the trace is incomplete.
+      if (error instanceof ApplicationError) throw error
+      throw new ApplicationError('STORAGE_ERROR')
     }
   }
 
@@ -1911,7 +2037,26 @@ export class ChatService {
   createConversation(): ConversationRecord { return this.conversations.create() }
   listConversations(): ConversationRecord[] { return this.conversations.list(maxRecentConversations) }
   readConversation(id: string): ReturnType<ConversationService['read']> { return this.conversations.read(id) }
-  deleteConversation(id: string): void { this.cancel(id); this.conversations.delete(id) }
+  deleteConversation(id: string): void {
+    this.cancel(id)
+    this.conversations.delete(id)
+    const normalized = normalizedUuid(id)
+    try {
+      this.continuity?.states?.deleteTraceForConversation?.(normalized)
+    } catch {
+      // Cleanup is best effort; a stale trace row must not block deletion.
+    }
+    for (const [turnId, conversationId] of this.traceTurnConversations) {
+      if (conversationId !== normalized) continue
+      this.traceTurnConversations.delete(turnId)
+      this.traceSequence.delete(turnId)
+      this.traceLastAt.delete(turnId)
+      this.traceIncompleteTurns.delete(turnId)
+      for (const key of this.traceStageStartedAt.keys()) {
+        if (key.startsWith(`${turnId}:`)) this.traceStageStartedAt.delete(key)
+      }
+    }
+  }
 
   cancel(conversationId: string): boolean {
     const id = normalizedUuid(conversationId)
@@ -1980,6 +2125,7 @@ export class ChatService {
     this.recordTurnState(conversationId, requestId, 'received')
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
+    let terminalRecorded = false
     try {
       const settingSnapshot = this.cognitiveSettingsOrDisabled()
       const evaluationAt = this.now()
@@ -2063,13 +2209,20 @@ export class ChatService {
         }
       }
       let output: Awaited<ReturnType<typeof dispatchToProvider>>
+      let receivedDelta = false
       try {
         this.recordTurnState(conversationId, requestId, 'requesting')
         // The permission is in the payload and the call is about to happen.
         // Recorded before dispatch so a thrown call still counts as attempted.
         this.selfModel?.markExplorationAttempted?.(requestId)
-        output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => onDelta?.(delta))
-        this.recordTurnState(conversationId, requestId, 'response_received')
+        output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => {
+          if (!receivedDelta) {
+            receivedDelta = true
+            this.recordTraceStage(conversationId, requestId, 'provider_delta', 'started', 'providers/openai-compatible')
+          }
+          onDelta?.(delta)
+        })
+        this.recordTurnState(conversationId, requestId, 'response_received', receivedDelta ? null : 'no_stream_delta')
       } catch (error) {
         // A cancelled request is not a failed one: the adapter reports
         // `PROVIDER_CANCELLED` when the caller aborted, and the abort may also
@@ -2079,6 +2232,7 @@ export class ChatService {
         const cancelled = controller.signal.aborted ||
           (error instanceof ApplicationError && error.code === 'PROVIDER_CANCELLED')
         this.recordTurnState(conversationId, requestId, cancelled ? 'cancelled' : 'failed', error instanceof ApplicationError ? error.code : 'UNKNOWN')
+        terminalRecorded = true
         // A failed call is recorded as a failed call, never dropped from the
         // denominator and never counted as a model error.
         this.recordTerminalContext({
@@ -2108,6 +2262,7 @@ export class ChatService {
         })
         this.settleExploration(requestId, 'cancelled', null)
         this.evaluateTurn({ conversationId, requestId, userMessageId: userMessage.id, prepared: verified, preview, config, maximumSensitivity: sensitivityCeiling, outcome: 'cancelled', answer: null })
+        terminalRecorded = true
         throw new ApplicationError('PROVIDER_CANCELLED')
       }
       // Pre-delivery fact guard: a specific personal fact may only be stated
@@ -2224,6 +2379,9 @@ export class ChatService {
         }
       }
       if (!assistantMessage) throw new ApplicationError('STORAGE_ERROR')
+      // The assistant message is durable. Any later optional hook failure must
+      // not rewrite the trace as a failed turn; recovery repairs the finalization.
+      terminalRecorded = true
       // The assistant message is durable: the turn is committed, and only now can
       // the exploration permission be settled against the text that was actually
       // delivered.
@@ -2231,6 +2389,7 @@ export class ChatService {
       // R5: the reflection router grades what its injected hints achieved in
       // this exact reply (deterministic term evidence, never model self-report).
       this.selfModel?.observeConsumption?.({ turnId: requestId, reply: deliveredText })
+      this.recordTraceStage(conversationId, requestId, 'persistence', 'completed', 'persistence/conversation-repository', 'assistant_message_saved')
       this.recordTurnState(conversationId, requestId, 'committed')
       if (this.outbox && this.projectors.length > 0) {
         const drained = this.drainCognition(requestId)
@@ -2295,6 +2454,17 @@ export class ChatService {
         includedMemoryCount: verified.memory.selected.length,
         ...(evaluation ? { evaluation } : {})
       }
+    } catch (error) {
+      // Consent denial, a conflict or a storage failure before the provider
+      // call used to leave the turn in a non-terminal state, which recovery
+      // later misread as a crash. Every started turn now gets a terminal
+      // state and trace event, while the original error still reaches the UI.
+      if (!terminalRecorded) {
+        const code = error instanceof ApplicationError ? error.code : 'UNKNOWN'
+        const cancelled = controller.signal.aborted || code === 'PROVIDER_CANCELLED'
+        this.recordTurnState(conversationId, requestId, cancelled ? 'cancelled' : 'failed', code)
+      }
+      throw error
     } finally {
       this.controllers.delete(conversationId)
       this.locks.delete(conversationId)

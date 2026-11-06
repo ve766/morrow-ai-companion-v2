@@ -3,6 +3,7 @@ out/
 release/
 release-ci*/
 release-local/
+release-product/
 dist/
 *.log
 *.tsbuildinfo

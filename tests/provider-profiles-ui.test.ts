@@ -46,7 +46,7 @@ const ids = [
   'provider-profile-id', 'provider-profile-name', 'provider-profile-source', 'provider-profile-protocol',
   'provider-profile-endpoint', 'provider-profile-endpoint-path', 'provider-profile-model',
   'provider-profile-api-key', 'provider-profile-enabled', 'provider-profile-default',
-  'provider-profile-form', 'provider-profile-reset', 'provider-profile-discover', 'refresh-provider-profiles'
+  'provider-profile-form', 'provider-profile-reset', 'provider-profile-discover', 'provider-profile-test', 'refresh-provider-profiles'
 ]
 
 function installDom(): Record<string, FakeElement> {

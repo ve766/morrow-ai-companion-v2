@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { AppInfo, GoalCreateRequest } from '../shared/contracts'
 import { IPC_CHANNELS } from '../shared/contracts'
 import { GOAL_DEFAULT_CONSTRAINTS, GOAL_SUCCESS_CRITERION, SUPPORTED_GOAL_INTENT } from '../motivation/goals'
@@ -536,6 +536,55 @@ describe('companion goal candidate IPC', () => {
       expect(calls).toEqual([`${candidate.id}:accept`, `${candidate.id}:reject`])
       const invalid = await call(harness.handlers, IPC_CHANNELS.companionGoalCandidateAccept, trustedEvent(), { candidateId: 'not-a-uuid' })
       expect(invalid).toMatchObject({ ok: false })
+    } finally {
+      harness.close()
+    }
+  })
+})
+
+describe('runtime trace IPC boundary', () => {
+  it('routes a trusted trace request to the companion service and rejects a foreign frame', async () => {
+    const conversationId = '55555555-5555-4555-8555-555555555555'
+    const trace = [{
+      eventId: 'event-1',
+      turnId: '66666666-6666-4666-8666-666666666666',
+      conversationId,
+      sequence: 1,
+      occurredAt: '2026-11-06T10:00:00.000Z',
+      stage: 'turn_received' as const,
+      status: 'completed' as const,
+      moduleId: 'app/companion-service',
+      reason: null,
+      durationMs: null,
+      summary: null
+    }]
+    const getTurnTrace = vi.fn(() => trace)
+    const companion = { getTurnTrace } as unknown as CompanionActions
+    const harness = createHarness(undefined, undefined, companion)
+    try {
+      const result = await call(harness.handlers, IPC_CHANNELS.chatTurnTrace, trustedEvent(), { conversationId })
+      expect(result).toEqual({ ok: true, data: trace })
+      expect(getTurnTrace).toHaveBeenCalledWith(conversationId)
+      const foreignFrame = { url: 'https://evil.example/index.html' }
+      const rejected = await call(harness.handlers, IPC_CHANNELS.chatTurnTrace, {
+        sender: { mainFrame: foreignFrame },
+        senderFrame: foreignFrame
+      }, { conversationId })
+      expect(rejected).toMatchObject({ ok: false })
+      expect(getTurnTrace).toHaveBeenCalledTimes(1)
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('rejects a trace request with a malformed conversation id', async () => {
+    const getTurnTrace = vi.fn(() => [])
+    const companion = { getTurnTrace } as unknown as CompanionActions
+    const harness = createHarness(undefined, undefined, companion)
+    try {
+      const result = await call(harness.handlers, IPC_CHANNELS.chatTurnTrace, trustedEvent(), { conversationId: 'not-a-uuid' })
+      expect(result).toMatchObject({ ok: false })
+      expect(getTurnTrace).not.toHaveBeenCalled()
     } finally {
       harness.close()
     }

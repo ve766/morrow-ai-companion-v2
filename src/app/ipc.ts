@@ -112,6 +112,7 @@ export interface CompanionActions {
   getFeelingState(): FeelingStateView
   clearCognitiveHistory(): FeelingStateView
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult>
+  getTurnTrace(conversationId: string, limit?: number): import('../cognition/turn-state-machine').TurnTraceRecord[]
   cancelChat(request: { conversationId: string }): boolean
   listMemorySuggestions(request: { conversationId: string }): MemorySuggestion[]
   previewMemorySuggestions(request: MemoryProposalRequest): MemoryProposalPreview
@@ -321,6 +322,7 @@ export function createIpcHandlers(
         event.sender.send?.(IPC_CHANNELS.chatDelta, streamEvent)
       })),
       [IPC_CHANNELS.chatCancel]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.cancelChat(request)),
+      [IPC_CHANNELS.chatTurnTrace]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.getTurnTrace(request.conversationId)),
       [IPC_CHANNELS.memorySuggestionsList]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConversationIdRequest, (request) => companion.listMemorySuggestions(request)),
       [IPC_CHANNELS.memorySuggestionsPreview]: (event, payload) => execute(event, trustedRendererUrl, payload, parseMemoryProposalRequest, (request) => companion.previewMemorySuggestions(request)),
       [IPC_CHANNELS.memorySuggestionsPropose]: (event, payload) => execute(event, trustedRendererUrl, payload, parseMemoryProposalRequest, (request) => companion.proposeMemorySuggestions(request)),

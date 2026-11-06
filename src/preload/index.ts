@@ -117,6 +117,7 @@ const bridge: MorrowBridge = Object.freeze({
   chat: Object.freeze({
     send: (request: ChatRequest) => invoke<ChatResult>(IPC_CHANNELS.chatSend, request),
     cancel: (request: ConversationIdRequest) => invoke<boolean>(IPC_CHANNELS.chatCancel, request),
+    trace: (request: ConversationIdRequest) => invoke<import('../cognition/turn-state-machine').TurnTraceRecord[]>(IPC_CHANNELS.chatTurnTrace, request),
     onDelta: (listener: (event: ChatStreamEvent) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: ChatStreamEvent): void => listener(payload)
       ipcRenderer.on(IPC_CHANNELS.chatDelta, handler)

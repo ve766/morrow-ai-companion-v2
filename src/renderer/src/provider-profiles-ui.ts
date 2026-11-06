@@ -6,7 +6,7 @@
  * returns only `apiKeyConfigured`) and it never builds a request URL itself.
  */
 import type { IpcResult } from '../../shared/contracts'
-import type { ProviderConfigRecord, ProviderModelsResult, ProviderProfileSaveInput } from '../../shared/companion'
+import type { ProviderConfigRecord, ProviderConnectionResult, ProviderModelsResult, ProviderProfileSaveInput } from '../../shared/companion'
 import { createRequestGuard } from '../../security/request-guard'
 
 class ProfileUiError extends Error {}
@@ -262,6 +262,21 @@ export function initializeProviderProfiles(): void {
         feedback(result.models.length > 0 ? `发现模型：${result.models.slice(0, 10).join(', ')}` : '服务未返回模型列表，请手动填写。')
       } catch (error) {
         feedback(error instanceof ProfileUiError ? error.message : '模型发现失败。', true)
+      }
+    })()
+  })
+  element<HTMLButtonElement>('#provider-profile-test').addEventListener('click', () => {
+    const id = element<HTMLInputElement>('#provider-profile-id').value.trim()
+    if (!id) { feedback('请先保存配置，再测试连接。', true); return }
+    void (async () => {
+      try {
+        const result: ProviderConnectionResult = unwrap(await window.morrow.providers.testConnection({ providerId: id }))
+        feedback(result.connected
+          ? `连接成功：${result.model}${result.latencyMs === undefined ? '' : ` · ${result.latencyMs}ms`}`
+          : '连接已返回，但没有可用回复。', !result.connected)
+        await loadProfiles()
+      } catch (error) {
+        feedback(error instanceof ProfileUiError ? error.message : '连接测试失败。', true)
       }
     })()
   })

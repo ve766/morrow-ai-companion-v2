@@ -106,7 +106,7 @@ describe('multi-source provider profiles', () => {
         .run('2026-10-01T00:00:00.000Z')
       raw.prepare("INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('local-openai', 'local', 'http://127.0.0.1:1234', 'qwen2.5', 0, ?)")
         .run('2026-10-01T00:00:00.000Z')
-      expect(applyMigrations(raw)).toBe(49)
+      expect(applyMigrations(raw)).toBe(52)
     } finally {
       raw.close()
     }

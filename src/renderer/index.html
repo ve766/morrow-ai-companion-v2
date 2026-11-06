@@ -32,6 +32,18 @@
       </aside>
 
       <main id="top" class="main-panel">
+        <header class="status-bar" aria-label="运行状态">
+          <div class="status-bar-primary">
+            <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+            <span id="status-provider">Provider 未就绪</span>
+            <span class="status-divider" aria-hidden="true">/</span>
+            <span id="status-conversation">本地对话</span>
+          </div>
+          <div class="status-bar-secondary">
+            <span id="status-trace">轨迹 · 尚无记录</span>
+            <button id="inspector-toggle" class="button button-quiet button-small" type="button" aria-controls="runtime-inspector" aria-expanded="true">运行轨迹</button>
+          </div>
+        </header>
         <!-- 对话视图：默认首页。保持最小陪伴界面；Provider/认知等配置在“设置”。 -->
         <section class="view active" data-view="chat" id="chat-view">
           <section id="companion-section" class="panel companion-panel" aria-labelledby="companion-heading">
@@ -49,17 +61,26 @@
               <button id="conversation-delete" class="button button-danger button-small" type="button">删除当前对话</button>
             </div>
             <div id="chat-messages" class="chat-messages" aria-live="polite" aria-busy="false"></div>
-            <p id="chat-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
-            <form id="chat-form" class="chat-form">
-              <label for="chat-content">写给 Morrow</label>
-              <textarea id="chat-content" name="content" maxlength="8000" required rows="4" placeholder="每次发送都会先弹出系统级数据授权确认。"></textarea>
-              <label class="companion-toggle sensitive-toggle"><input id="chat-include-sensitive" name="includeSensitive" type="checkbox" /><span>明确允许本次请求包含敏感记忆（默认不发送）</span></label>
-              <div class="companion-actions">
-                <button id="chat-send" class="button button-primary" type="submit" disabled>发送并逐次确认</button>
-                <button id="chat-cancel" class="button button-secondary" type="button" disabled>取消生成</button>
-                <span id="chat-memory-count" class="meta-item"></span>
+            <div class="composer-dock">
+              <div id="chat-provider-cta" class="provider-cta" hidden>
+                <div>
+                  <strong>尚未配置模型 API</strong>
+                  <p>聊天需要先在设置中保存一个 Provider。密钥只在本机输入并进入系统安全存储。</p>
+                </div>
+                <button id="chat-provider-cta-button" class="button button-primary button-small" type="button">配置模型 API</button>
               </div>
-            </form>
+              <p id="chat-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
+              <form id="chat-form" class="chat-form">
+                <label for="chat-content">写给 Morrow</label>
+                <textarea id="chat-content" name="content" maxlength="8000" required rows="4" placeholder="每次发送都会先弹出系统级数据授权确认。"></textarea>
+                <label class="companion-toggle sensitive-toggle"><input id="chat-include-sensitive" name="includeSensitive" type="checkbox" /><span>明确允许本次请求包含敏感记忆（默认不发送）</span></label>
+                <div class="companion-actions">
+                  <button id="chat-send" class="button button-primary" type="submit" disabled>发送并逐次确认</button>
+                  <button id="chat-cancel" class="button button-secondary" type="button" disabled>取消生成</button>
+                  <span id="chat-memory-count" class="meta-item"></span>
+                </div>
+              </form>
+            </div>
 
             <section class="suggestion-section" aria-labelledby="suggestion-heading">
               <div class="section-heading suggestion-heading">
@@ -327,6 +348,7 @@
                 <button class="button button-primary button-small" type="submit">保存配置</button>
                 <button id="provider-profile-reset" class="button button-quiet button-small" type="button">新建配置</button>
                 <button id="provider-profile-discover" class="button button-secondary button-small" type="button">发现模型</button>
+                <button id="provider-profile-test" class="button button-secondary button-small" type="button">测试连接</button>
               </div>
             </form>
             <p id="provider-profile-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
@@ -432,6 +454,24 @@
           <span>默认本机保存 · 模型请求逐次授权 · 无遥测 · 所有内部状态都是可检查的计算数据，不代表主观意识</span>
         </footer>
       </main>
+      <aside class="inspector" id="runtime-inspector" aria-label="本轮运行轨迹">
+        <header class="inspector-head">
+          <div class="inspector-head-row">
+            <div>
+              <p class="eyebrow">RUNTIME TRACE</p>
+              <h2>本轮运行</h2>
+            </div>
+            <button id="inspector-close" class="button button-quiet button-small" type="button" aria-label="收起运行轨迹">收起</button>
+          </div>
+          <span id="runtime-trace-status" class="meta-item">尚无运行记录</span>
+        </header>
+        <div id="runtime-trace-list" class="runtime-trace-list"></div>
+        <section id="runtime-trace-skipped-section" class="runtime-trace-skipped" hidden>
+          <h3>本轮未执行的算法</h3>
+          <ul id="runtime-trace-skipped"></ul>
+        </section>
+        <p class="inspector-note">轨迹来自主进程服务层的真实调用点；不记录 API Key、完整 prompt 或消息原文。</p>
+      </aside>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

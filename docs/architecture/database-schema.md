@@ -1,4 +1,4 @@
-# 数据库 schema 索引（当前 v49）
+# 数据库 schema 索引（当前 v52）
 
 单一索引；逐版本 SQL 与约束以 `src/persistence/migrations.ts` 为准。本文只记录
 版本号、变更面与不变量，避免与迁移代码重复一份“第二实现”。
@@ -14,7 +14,10 @@
 | v46 | relationship-deletion-tombstones | tombstone、历史 backfill |
 | v47 | effect-ledger-lease-generation | `lease_generation` fencing |
 | v48 | pending-decision-terminal-state | pending item 的 `finding_id` + `decision` |
-| **v49** | **provider-multi-source-profiles-final** | **provider profile 分离 source/protocol/endpoint/model；id 上限 40；接受旧表与 Provider v48 表** |
+| v49 | provider-multi-source-profiles-final | provider profile 分离 source/protocol/endpoint/model；id 上限 40；接受旧表与 Provider v48 表 |
+| v50 | turn-trace-events | `turn_trace_events` 表 + turn/conversation 索引 |
+| v51 | turn-trace-started-status | 重建 trace 表，允许 `started` 状态并保留既有行 |
+| **v52** | **turn-trace-cascade** | **会话删除时级联删除 trace 事件** |
 
 - 每个迁移单事务；失败回滚；升级前自动快照（保留 2 份）。
 - 升级测试：`src/persistence/migrations.test.ts`；备份恢复：`backup-service.test.ts`。

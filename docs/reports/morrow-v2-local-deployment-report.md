@@ -1,3 +1,5 @@
+> 历史记录：本文件保留 Issue #60 修订版当时的 BLOCKED 状态与证据，不随后续构建改写。当前对话运行闭环的产品状态、测试与真实 Provider 证据见 `docs/reports/morrow-v2-conversation-runtime-repair-report.md`。
+
 # Morrow V2 本机部署与实机启动报告（Issue #60 修订版）
 
 - Repo: https://github.com/ve766/morrow-ai-companion-v2

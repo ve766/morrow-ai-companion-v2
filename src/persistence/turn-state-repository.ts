@@ -6,7 +6,7 @@
  * state is a no-op so recovery and retries can replay transitions.
  */
 import type { SqliteDatabase } from './database'
-import { canTransition, IllegalTurnTransition, type TurnState, type TurnStatePort, type TurnStateRecord } from '../cognition/turn-state-machine'
+import { canTransition, IllegalTurnTransition, type TurnState, type TurnStatePort, type TurnStateRecord, type TurnTraceRecord } from '../cognition/turn-state-machine'
 
 export class SqliteTurnStateRepository implements TurnStatePort {
   constructor(private readonly database: SqliteDatabase) {}
@@ -38,6 +38,66 @@ export class SqliteTurnStateRepository implements TurnStatePort {
       updatedAt: row.updated_at,
       reason: row.reason
     }))
+  }
+
+  listForConversation(conversationId: string, limit = 200): TurnTraceRecord[] {
+    const capped = Math.max(1, Math.min(200, Math.trunc(limit)))
+    const rows = this.database.connection.prepare(`
+      SELECT event_id, turn_id, conversation_id, sequence, occurred_at, stage, status, module_id, reason, duration_ms, summary
+      FROM turn_trace_events
+      WHERE conversation_id = ?
+      ORDER BY occurred_at DESC, sequence DESC
+      LIMIT ?
+    `).all(conversationId.toLowerCase(), capped) as unknown as Array<{
+      event_id: string
+      turn_id: string
+      conversation_id: string
+      sequence: number
+      occurred_at: string
+      stage: TurnTraceRecord['stage']
+      status: TurnTraceRecord['status']
+      module_id: string | null
+      reason: string | null
+      duration_ms: number | null
+      summary: string | null
+    }>
+    return rows.reverse().map((row) => ({
+      eventId: row.event_id,
+      turnId: row.turn_id,
+      conversationId: row.conversation_id,
+      sequence: row.sequence,
+      occurredAt: row.occurred_at,
+      stage: row.stage,
+      status: row.status,
+      moduleId: row.module_id,
+      reason: row.reason,
+      durationMs: row.duration_ms,
+      summary: row.summary
+    }))
+  }
+
+  appendTrace(record: TurnTraceRecord): void {
+    this.database.connection.prepare(`
+      INSERT OR IGNORE INTO turn_trace_events(
+        event_id, turn_id, conversation_id, sequence, occurred_at, stage, status, module_id, reason, duration_ms, summary
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      record.eventId,
+      record.turnId.toLowerCase(),
+      record.conversationId.toLowerCase(),
+      record.sequence,
+      record.occurredAt,
+      record.stage,
+      record.status,
+      record.moduleId,
+      record.reason,
+      record.durationMs,
+      record.summary
+    )
+  }
+
+  deleteTraceForConversation(conversationId: string): void {
+    this.database.connection.prepare('DELETE FROM turn_trace_events WHERE conversation_id = ?').run(conversationId.toLowerCase())
   }
 
   enter(record: TurnStateRecord): void {

@@ -683,7 +683,7 @@ describe('v49 provider multi-source profiles final', () => {
       connection.exec('PRAGMA foreign_keys = ON')
       expect(applyMigrations(connection, 47)).toBe(47)
       seedReleaseProviders(connection)
-      expect(applyMigrations(connection)).toBe(49)
+      expect(applyMigrations(connection)).toBe(52)
 
       const rows = connection.prepare('SELECT id, display_name, source_kind, protocol_id, endpoint, endpoint_path, model, enabled, is_default FROM provider_profiles ORDER BY id').all() as Array<Record<string, unknown>>
       expect(rows).toEqual([
@@ -712,7 +712,7 @@ describe('v49 provider multi-source profiles final', () => {
       expect(applyMigrations(connection, 48)).toBe(48)
       connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage4:key', 'reflection', 'intent_correction', 'kept', 40, 'open', NULL, '{}', ?, ?, NULL)").run(timestamp, timestamp)
 
-      expect(applyMigrations(connection)).toBe(49)
+      expect(applyMigrations(connection)).toBe(52)
       expect(connection.prepare('SELECT status, summary FROM cognitive_pending_items WHERE id = ?').get('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).toEqual({ status: 'open', summary: 'kept' })
       expect(connection.prepare("SELECT display_name, source_kind FROM provider_profiles WHERE id = 'deepseek'").get()).toEqual({ display_name: 'DeepSeek', source_kind: 'official' })
       expect(connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations WHERE version IN (48, 49)').get()).toEqual({ count: 2 })
@@ -732,7 +732,7 @@ describe('v49 provider multi-source profiles final', () => {
       applyProviderV48(connection)
       expect(connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)).not.toContain('finding_id')
 
-      expect(applyMigrations(connection)).toBe(49)
+      expect(applyMigrations(connection)).toBe(52)
       const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
       expect(columns).toContain('finding_id')
       expect(connection.prepare('SELECT name FROM schema_migrations WHERE version = 48').get()).toEqual({ name: 'pending-decision-terminal-state' })
@@ -751,14 +751,14 @@ describe('v49 provider multi-source profiles final', () => {
       applyMigrations(connection, 47)
       seedReleaseProviders(connection)
       applyProviderV48(connection)
-      expect(applyMigrations(connection)).toBe(49)
-      expect(applyMigrations(connection)).toBe(49)
+      expect(applyMigrations(connection)).toBe(52)
+      expect(applyMigrations(connection)).toBe(52)
       connection.close()
 
       const reopened = SqliteDatabase.open(path)
       try {
-        expect(reopened.schemaVersion).toBe(49)
-        expect(reopened.connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 49 })
+        expect(reopened.schemaVersion).toBe(52)
+        expect(reopened.connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 52 })
         expect(reopened.connection.prepare("SELECT COUNT(*) AS count FROM provider_profiles WHERE id = 'custom-proxy-a'").get()).toEqual({ count: 1 })
       } finally {
         reopened.close()
@@ -787,7 +787,7 @@ describe('v49 provider multi-source profiles final', () => {
       expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 5 })
 
       connection.prepare("UPDATE provider_profiles SET is_default = 0 WHERE id = 'custom-proxy-b'").run()
-      expect(applyMigrations(connection)).toBe(49)
+      expect(applyMigrations(connection)).toBe(52)
       expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles WHERE is_default = 1').get()).toEqual({ count: 1 })
     } finally {
       connection.close()

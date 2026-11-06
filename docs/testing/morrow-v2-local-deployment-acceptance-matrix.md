@@ -1,3 +1,5 @@
+> 历史记录：本文件的 130 files / 1159 tests 与 PENDING_USER_ACTION 是当轮部署记录。后续对话运行闭环的当前矩阵见 `docs/testing/morrow-v2-conversation-runtime-acceptance-matrix.md`。
+
 # Morrow V2 本机部署验收矩阵（Issue #60 修订版）
 
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`

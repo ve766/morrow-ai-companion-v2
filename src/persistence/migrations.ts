@@ -2651,6 +2651,75 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 50,
+    name: 'turn-trace-events',
+    up(database) {
+      database.exec(`
+        CREATE TABLE turn_trace_events (
+          event_id TEXT PRIMARY KEY NOT NULL,
+          turn_id TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('started', 'completed', 'skipped', 'failed')),
+          module_id TEXT,
+          reason TEXT,
+          duration_ms INTEGER,
+          summary TEXT
+        );
+        CREATE INDEX turn_trace_events_turn_idx
+          ON turn_trace_events(turn_id, sequence);
+        CREATE INDEX turn_trace_events_conversation_idx
+          ON turn_trace_events(conversation_id, occurred_at);
+      `)
+    }
+  },
+  {
+    version: 51,
+    name: 'turn-trace-started-status',
+    up(database) {
+      database.exec(`
+        ALTER TABLE turn_trace_events RENAME TO turn_trace_events_v50;
+        CREATE TABLE turn_trace_events (
+          event_id TEXT PRIMARY KEY NOT NULL,
+          turn_id TEXT NOT NULL,
+          conversation_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
+          occurred_at TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('started', 'completed', 'skipped', 'failed')),
+          module_id TEXT,
+          reason TEXT,
+          duration_ms INTEGER,
+          summary TEXT
+        );
+        INSERT INTO turn_trace_events(
+          event_id, turn_id, conversation_id, sequence, occurred_at, stage, status, module_id, reason, duration_ms, summary
+        ) SELECT event_id, turn_id, conversation_id, sequence, occurred_at, stage, status, module_id, reason, duration_ms, summary
+          FROM turn_trace_events_v50;
+        DROP TABLE turn_trace_events_v50;
+        CREATE INDEX turn_trace_events_turn_idx
+          ON turn_trace_events(turn_id, sequence);
+        CREATE INDEX turn_trace_events_conversation_idx
+          ON turn_trace_events(conversation_id, occurred_at);
+      `)
+    }
+  },
+  {
+    version: 52,
+    name: 'turn-trace-cascade',
+    up(database) {
+      database.exec(`
+        CREATE TRIGGER turn_trace_events_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM turn_trace_events WHERE conversation_id = OLD.id;
+        END;
+      `)
+    }
+  },
 
 ]
 

@@ -55,6 +55,7 @@ export const IPC_CHANNELS = {
   chatSend: 'morrow:chat:send',
   chatCancel: 'morrow:chat:cancel',
   chatDelta: 'morrow:chat:delta',
+  chatTurnTrace: 'morrow:chat:turn-trace',
   memorySuggestionsList: 'morrow:memory-suggestions:list',
   memorySuggestionsPreview: 'morrow:memory-suggestions:preview',
   memorySuggestionsPropose: 'morrow:memory-suggestions:propose',
@@ -334,6 +335,7 @@ export interface MorrowBridge {
   chat: {
     send(request: ChatRequest): Promise<IpcResult<ChatResult>>
     cancel(request: ConversationIdRequest): Promise<IpcResult<boolean>>
+    trace(request: ConversationIdRequest): Promise<IpcResult<import('../cognition/turn-state-machine').TurnTraceRecord[]>>
     onDelta(listener: (event: ChatStreamEvent) => void): () => void
   }
   memorySuggestions: {

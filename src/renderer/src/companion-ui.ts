@@ -1,4 +1,5 @@
 import type { IpcResult } from '../../shared/contracts'
+import type { TurnTraceRecord } from '../../cognition/turn-state-machine'
 import type { FeelingEventType } from '../../affective-state/feeling'
 import type {
   ChatStreamEvent,
@@ -101,6 +102,22 @@ export function initializeCompanion(): void {
     state.streaming = undefined
   }
 
+  const setInspectorOpen = (open: boolean): void => {
+    document.body.dataset.inspector = open ? 'open' : 'closed'
+    element<HTMLButtonElement>('#inspector-toggle').setAttribute('aria-expanded', String(open))
+  }
+
+  const wideInspector = window.matchMedia('(min-width: 1201px)')
+  setInspectorOpen(wideInspector.matches)
+  wideInspector.addEventListener('change', (event) => setInspectorOpen(event.matches))
+  element<HTMLButtonElement>('#inspector-toggle').addEventListener('click', () => {
+    setInspectorOpen(document.body.dataset.inspector !== 'open')
+  })
+  element<HTMLButtonElement>('#inspector-close').addEventListener('click', () => setInspectorOpen(false))
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.dataset.inspector === 'open') setInspectorOpen(false)
+  })
+
   const updateProviderStatus = (provider: ProviderConfigRecord | null, officialProvider: ProviderConfigRecord | null = state.officialProvider, localProvider: ProviderConfigRecord | null = state.localProvider): void => {
     state.provider = provider
     state.officialProvider = officialProvider
@@ -120,7 +137,16 @@ export function initializeCompanion(): void {
     const localReady = Boolean(localProvider?.enabled)
     const officialReady = Boolean(officialProvider?.enabled && officialProvider.apiKeyConfigured)
     const ready = Boolean(!state.providerStorageUnverified && chatReady)
+    const dot = element<HTMLSpanElement>('#status-dot')
+    dot.classList.toggle('ready', ready)
+    dot.classList.toggle('unverified', state.providerStorageUnverified)
+    element<HTMLSpanElement>('#status-provider').textContent = state.providerStorageUnverified
+      ? '安全存储未确认'
+      : provider
+        ? `${provider.displayName ?? provider.id} · ${chatReady ? '已就绪' : '未就绪'}`
+        : 'Provider 未就绪'
     element<HTMLButtonElement>('#chat-send').disabled = !ready || state.sending
+    element<HTMLDivElement>('#chat-provider-cta').hidden = ready
     element<HTMLButtonElement>('#provider-test').disabled = !officialReady || state.sending
     if (!state.sending) {
       element<HTMLSpanElement>('#chat-state').textContent = provider ? (chatReady ? `${provider.displayName ?? provider.id} · 已就绪` : 'Provider 尚未就绪') : '尚未配置 Provider'
@@ -249,11 +275,105 @@ export function initializeCompanion(): void {
     list.scrollTop = list.scrollHeight
   }
 
+  const traceStageLabels: Record<TurnTraceRecord['stage'], string> = {
+    turn_received: '接收本轮',
+    cognition_analysis: '认知分析',
+    context_built: '上下文/记忆',
+    consent: '逐次授权',
+    provider_request: 'Provider 请求',
+    provider_delta: '流式回复',
+    persistence: '持久化',
+    turn_completed: '本轮完成',
+    turn_failed: '本轮失败',
+    turn_cancelled: '本轮取消',
+    recovery: '恢复'
+  }
+
+  const traceStages: TurnTraceRecord['stage'][] = [
+    'turn_received',
+    'cognition_analysis',
+    'context_built',
+    'consent',
+    'provider_request',
+    'provider_delta',
+    'persistence',
+    'turn_completed'
+  ]
+
+  const renderRuntimeTrace = (trace: TurnTraceRecord[]): void => {
+    const status = element<HTMLSpanElement>('#runtime-trace-status')
+    const list = element<HTMLDivElement>('#runtime-trace-list')
+    const bar = element<HTMLSpanElement>('#status-trace')
+    const skippedSection = element<HTMLElement>('#runtime-trace-skipped-section')
+    const skippedList = element<HTMLUListElement>('#runtime-trace-skipped')
+    if (trace.length === 0) {
+      status.textContent = '尚无运行记录'
+      bar.textContent = '轨迹 · 尚无记录'
+      bar.classList.remove('incomplete')
+      skippedSection.hidden = true
+      list.replaceChildren(node('p', 'companion-muted', '发送一条消息后，这里会显示主进程实际执行的阶段。'))
+      return
+    }
+    const lastTurnId = trace[trace.length - 1]!.turnId
+    const allEvents = trace.filter((event) => event.turnId === lastTurnId)
+    const events = allEvents.slice(-40)
+    const incomplete = allEvents.some((event) => event.reason === 'TRACE_WRITE_FAILED')
+    status.textContent = `${events.length} 条事件 · turn ${lastTurnId.slice(0, 8)}${incomplete ? ' · 轨迹不完整' : ''}`
+    bar.textContent = `轨迹 · ${events.length} 条${incomplete ? ' · 不完整' : ''}`
+    bar.classList.toggle('incomplete', incomplete)
+    const items = events.map((event) => {
+      const card = node('article', `runtime-trace-item ${event.status === 'failed' ? 'failed' : ''}`.trim())
+      card.append(node('strong', '', traceStageLabels[event.stage] ?? event.stage))
+      const meta = node('div', 'runtime-trace-meta')
+      meta.append(node('span', `trace-status-${event.status}`, event.status))
+      meta.append(node('span', '', event.durationMs === null ? '—' : `${event.durationMs}ms`))
+      meta.append(node('span', '', event.moduleId ?? ''))
+      card.append(meta)
+      if (event.reason) card.append(node('p', '', `原因：${event.reason}`))
+      return card
+    })
+    list.replaceChildren(...items)
+    const executed = new Set(allEvents.map((event) => event.stage))
+    const skippedRows = allEvents
+      .filter((event) => event.status === 'skipped')
+      .map((event) => {
+        const item = node('li', '')
+        item.append(node('strong', '', traceStageLabels[event.stage] ?? event.stage))
+        item.append(document.createTextNode(` · ${event.reason ?? '本轮未执行'}`))
+        return item
+      })
+    const absentRows = traceStages
+      .filter((stage) => !executed.has(stage))
+      .map((stage) => {
+        const item = node('li', '')
+        item.append(node('strong', '', traceStageLabels[stage]))
+        item.append(document.createTextNode(' · 本轮未触发'))
+        return item
+      })
+    skippedSection.hidden = skippedRows.length + absentRows.length === 0
+    skippedList.replaceChildren(...skippedRows, ...absentRows)
+  }
+
+  const loadRuntimeTrace = async (): Promise<void> => {
+    if (!state.conversationId) return
+    try {
+      const trace = unwrap(await window.morrow.chat.trace({ conversationId: state.conversationId }))
+      renderRuntimeTrace(trace)
+    } catch (error) {
+      element<HTMLSpanElement>('#runtime-trace-status').textContent = '运行轨迹不可用 · 轨迹不完整'
+      element<HTMLSpanElement>('#status-trace').textContent = '轨迹 · 不完整'
+      element<HTMLSpanElement>('#status-trace').classList.add('incomplete')
+      element<HTMLElement>('#runtime-trace-skipped-section').hidden = true
+      element<HTMLDivElement>('#runtime-trace-list').replaceChildren(node('p', 'companion-muted', errorText(error)))
+    }
+  }
+
   const loadConversation = async (): Promise<void> => {
     if (!state.conversationId) return
     const conversation = unwrap(await window.morrow.conversations.read({ conversationId: state.conversationId }))
     renderMessages(conversation.messages)
     await loadSuggestions()
+    await loadRuntimeTrace()
   }
 
   const loadConversations = async (): Promise<void> => {
@@ -272,6 +392,7 @@ export function initializeCompanion(): void {
       return option
     }))
     select.value = state.conversationId
+    element<HTMLSpanElement>('#status-conversation').textContent = select.selectedOptions[0]?.textContent ?? '本地对话'
     await loadConversation()
   }
 
@@ -521,6 +642,8 @@ export function initializeCompanion(): void {
     const value = (event.currentTarget as HTMLSelectElement).value
     state.conversationId = value
     state.retry = undefined
+    const select = event.currentTarget as HTMLSelectElement
+    element<HTMLSpanElement>('#status-conversation').textContent = select.selectedOptions[0]?.textContent ?? '本地对话'
     try {
       await loadConversation()
     } catch (error) {
@@ -554,7 +677,16 @@ export function initializeCompanion(): void {
 
   element<HTMLFormElement>('#chat-form').addEventListener('submit', async (event) => {
     event.preventDefault()
-    if (state.providerStorageUnverified || !isProviderUsable(state.provider) || state.sending || !state.conversationId) return
+    if (state.providerStorageUnverified) {
+      setStatus('系统安全存储状态未确认；聊天已暂停。请重启应用后复查。', true)
+      return
+    }
+    if (!isProviderUsable(state.provider) || !state.conversationId) {
+      element<HTMLDivElement>('#chat-provider-cta').hidden = false
+      setStatus('尚未配置可用的模型 API。请先在设置中保存并启用一个 Provider。', true)
+      return
+    }
+    if (state.sending) return
     const content = element<HTMLTextAreaElement>('#chat-content').value.trim()
     if (!content) return
     const includeSensitive = element<HTMLInputElement>('#chat-include-sensitive').checked
@@ -603,6 +735,12 @@ export function initializeCompanion(): void {
     }
   })
 
+  element<HTMLTextAreaElement>('#chat-content').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || (!event.ctrlKey && !event.metaKey)) return
+    event.preventDefault()
+    element<HTMLFormElement>('#chat-form').requestSubmit()
+  })
+
   element<HTMLButtonElement>('#chat-cancel').addEventListener('click', async () => {
     if (!state.conversationId || !state.sending) return
     try {
@@ -630,6 +768,12 @@ export function initializeCompanion(): void {
 
   window.addEventListener('morrow:providers-changed', () => {
     void loadProvider().catch((error) => setStatus(errorText(error), true))
+  })
+
+  element<HTMLButtonElement>('#chat-provider-cta-button').addEventListener('click', () => {
+    const nav = document.querySelector<HTMLButtonElement>('.nav-item[data-view="settings"]')
+    nav?.click()
+    setTimeout(() => element<HTMLInputElement>('#provider-profile-name').focus(), 120)
   })
 
   void Promise.all([loadCurrentProviderSafe(), loadConversations(), loadPersonality(), loadCognitive()]).catch((error) => setStatus(errorText(error), true))
