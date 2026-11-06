@@ -12,29 +12,31 @@ Prior review: `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent
 | --- | --- |
 | Repository | `ve766/morrow-ai-companion-v2` (private) |
 | Branch | `feat/morrow-v2-final-closure` |
-| **Reviewed HEAD / code SHA (exact)** | **`e325b48859bda287f2b2b65cec79c8d2ad52a96b`** |
-| HEAD parent / prior reviewed SHA | `ba8e479ebc12e960e5678fbcc33a34a35449fec9` |
-| Commit subject | `fix(ci): cover hidden evidence and persist process-tree ownership` |
+| **Reviewed code SHA (exact)** | **`e325b48859bda287f2b2b65cec79c8d2ad52a96b`** |
+| Current HEAD (docs-only follow-up) | `b7acd4c832dbff3c99e5e7de48783aa59c5a64dd` (parent `e325b48`; 4 docs files only) |
+| Code-fix parent / prior reviewed SHA | `ba8e479ebc12e960e5678fbcc33a34a35449fec9` |
+| Commit subjects | `e325b48` = `fix(ci): cover hidden evidence and persist process-tree ownership`; `b7acd4c` = `docs(ci): record the final correctness review and accepted residuals` |
 | Base | `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9` |
-| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, head `e325b48...`, base `release/morrow-v2-final-delivery`, not merged |
+| PR | [#54](https://github.com/ve766/morrow-ai-companion-v2/pull/54), `OPEN`, head `b7acd4c...` (current), reviewed code `e325b48...`, base `release/morrow-v2-final-delivery`, not merged |
 | Issue | [#58](https://github.com/ve766/morrow-ai-companion-v2/issues/58), `OPEN`, 0 comments at review time |
-| Diff `ba8e479..HEAD` | 7 files: 4 docs (`3 reports` modified, prior review file added) + 3 `scripts/ci` modified; +333 / -36 |
+| Diff `ba8e479..e325b48` | 7 files: 4 docs (`3 reports` modified, prior review file added) + 3 `scripts/ci` modified; +333 / -36 |
+| Diff `e325b48..b7acd4c` | 4 docs files (this R2 file + 3 reports); +285 / -7; **no code, test, or workflow change** |
 | Product runtime/schema/test changes | none |
-| Worktree | clean before this file; `.tmp/` ignored |
+| Worktree | clean at `b7acd4c`; this R2 file is the only repository write in this review (the `b7acd4c` docs follow-up includes it) |
 | Registered self-hosted runners | `0` (`actions/runners` total_count=0) |
 | Workflow runs on reviewed SHA | `0` (`actions/runs?head_sha=e325b48...` total_count=0) |
 | Artifacts from reviewed SHA | none (35 historical artifacts from other SHAs; newest 2026-11-05T08:58Z) |
 | Real NSIS install/uninstall | **not performed** |
 | Real self-hosted run | **none** |
 
-This file is authoritative for `e325b48859bda287f2b2b65cec79c8d2ad52a96b`. The prior review file is authoritative for `ba8e479...` only.
+This file is authoritative for the reviewed code SHA `e325b48859bda287f2b2b65cec79c8d2ad52a96b`. The prior review file is authoritative for `ba8e479...` only. `b7acd4c832dbff3c99e5e7de48783aa59c5a64dd` is a docs-only follow-up that records this review and closes the F1 header/evidence-index staleness; it does not change the code under review.
 
 ## 1. Verdict
 
 | Scope | Verdict |
 | --- | --- |
 | **Overall** | **PARTIAL / PENDING_USER_ACTION — no BLOCKER or HIGH; real NSIS install/uninstall and real self-hosted run remain absent** |
-| F1 — reviewed SHA / docs identity | **PARTIALLY FIXED (LOW remaining)** — closeout §6 records `ba8e479...` and points to this file as authoritative; this file records `e325b48...`; but closeout/evidence-index headers still defer to a nonexistent Issue #58 comment, and evidence-index line 16 still labels the first review as the final one |
+| F1 — reviewed SHA / docs identity | **FIXED (docs-only follow-up `b7acd4c`)** — at `e325b48` the closeout §6 recorded `ba8e479...` and pointed to this file, but the headers/evidence index were stale; `b7acd4c` updates the headers to `e325b48...`, lists both reviews, and updates acceptance row 24 to PASS. This file states the exact code SHA |
 | F2 — checksum coverage (hidden / `.tmp`) | **FIXED (core)** — `-Force`, no blanket `.tmp` exclusion, policy matches; independent 5-file archive lists `.hidden-evidence` and `leftover.tmp`, all hashes recompute. Two LOW edge residuals: F18 (`run-manifest.json.tmp` listed then consumed) and F19 (leaf-name exclusion hides a nested same-named file) |
 | F3 — process-tree ownership persistence | **FIXED** — `processTree.records = @($owned)`; records contain PID/PPID/Name/ExecutablePath/CreationDate/Reason; `-ExcludePids` checked in the path loop and the descendant walk |
 | F4 — README failure diagnostics | **FIXED** — `archive.readmeWritten=false` and `archive.errors` contain the README failure; manifest remains FAILED/exitCode 1; no PASS manifest |
@@ -49,7 +51,7 @@ This file is authoritative for `e325b48859bda287f2b2b65cec79c8d2ad52a96b`. The p
 | F13 — dirty worktree not recorded | **OPEN / LOW** — HEAD checked, worktree cleanliness not recorded; unchanged |
 | F14 — author-reported typecheck/full tests | **INFO** — not rerun per constraints; 92/92 probe suite was rerun |
 | PS 5.1 compatibility | **PASS** — Parser 3/3; all probes ran on Windows PowerShell `5.1.26100.9711` |
-| Docs honesty | **PARTIAL** — no CI PASS/runner/real-run claim is made; F1 header/evidence-index staleness remains; test numbers are author-asserted |
+| Docs honesty | **PASS (with F14 caveat)** — no CI PASS/runner/real-run claim; headers/evidence index now state `e325b48...` and list both reviews (`b7acd4c`); real NSIS/self-hosted remain PENDING_USER_ACTION; typecheck/full-test numbers are author-asserted |
 | Real NSIS install/uninstall | **ABSENT / PENDING_USER_ACTION** |
 | Real self-hosted run | **ABSENT / PENDING_USER_ACTION** — 0 runners, 0 runs |
 
@@ -59,10 +61,12 @@ No BLOCKER or HIGH finding exists. The three MEDIUM findings from the first revi
 
 | Command | Result |
 | --- | --- |
-| `git rev-parse HEAD` | `e325b48859bda287f2b2b65cec79c8d2ad52a96b` |
-| `git rev-parse HEAD^` | `ba8e479ebc12e960e5678fbcc33a34a35449fec9` |
-| `git status --porcelain` | empty (clean) |
-| `git diff --stat ba8e479..HEAD` | 7 files, 333 insertions(+), 36 deletions(-) |
+| `git rev-parse HEAD` | `b7acd4c832dbff3c99e5e7de48783aa59c5a64dd` (current docs HEAD) |
+| `git rev-parse e325b48` | `e325b48859bda287f2b2b65cec79c8d2ad52a96b` (reviewed code SHA) |
+| `git rev-parse e325b48^` | `ba8e479ebc12e960e5678fbcc33a34a35449fec9` |
+| `git status --porcelain` | empty at `b7acd4c` before this review revision; this R2 file is the only repository write |
+| `git diff --stat ba8e479..e325b48` | 7 files, 333 insertions(+), 36 deletions(-) |
+| `git diff --stat e325b48..b7acd4c` | 4 docs files, 285 insertions(+), 7 deletions(-) |
 | `git diff --check ba8e479..HEAD` | exit **0** |
 | PS 5.1 Parser on the 3 `scripts/ci/*.ps1` | 3/3 `PARSE OK`, exit **0** |
 | PyYAML `safe_load` on `.github/workflows/ci.yml` and `self-hosted-ci.yml` | `True`/`True`, exit **0** |
@@ -77,19 +81,19 @@ No BLOCKER or HIGH finding exists. The three MEDIUM findings from the first revi
 | Name-kill scan | no `taskkill /IM` command and no `Stop-Process -Name`; only PID-based `taskkill.exe /PID ... /T /F`; `/IM` appears only in a comment and a test assertion |
 | `gh api .../actions/runners` | `total_count: 0` |
 | `gh api ".../actions/runs?head_sha=e325b48..."` | `total_count: 0` |
-| `gh pr view 54` | `OPEN`, head `e325b48...`, `mergedAt: null` |
+| `gh api ".../actions/runs?head_sha=b7acd4c..."` | `total_count: 0` |
+| `gh pr view 54` | `OPEN`, head `b7acd4c...`, `mergedAt: null` |
 | `gh issue view 58` | `OPEN`, `commentCount: 0` |
 
 Author-reported but **not independently rerun** (prohibited): `npm run typecheck` exit 0; `npm test` 129 files / 1156 tests passed (182.99s in the updated closeout). These remain author assertions; see F14.
 
 ## 3. Findings
 
-### F1 — PARTIALLY FIXED (LOW remaining) — reviewed SHA / docs identity
+### F1 — FIXED (docs-only follow-up `b7acd4c`) — reviewed SHA / docs identity
 
-- Fixed: `docs/reports/morrow-v2-self-hosted-ci-final-correctness-closeout.md:102-106` now records the first review SHA `ba8e479ebc12e960e5678fbcc33a34a35449fec9`, summarizes the three MEDIUM findings and fixes, and points to this file as authoritative (`以该文件记录的 SHA 为准`). This file states the exact reviewed code SHA `e325b48859bda287f2b2b65cec79c8d2ad52a96b`.
-- Remaining: `closeout.md:8` and `evidence-index.md:4` still say `代码 SHA：本文件所在提交（最终 full SHA 以 Issue #58 comment 为准）`; Issue #58 has **0 comments**, so that authority still does not exist. `evidence-index.md:16` still labels the first review file as `独立复审（最终代码 SHA）` and does not list this R2 file. The acceptance matrix row 24 is still `PENDING` (expected until a follow-up docs commit).
-- Impact: the authoritative review file states the SHA, so the identity requirement is met; the remaining stale headers/reference are a documentation consistency defect, not a code issue.
-- Recommendation: update the two headers and the evidence-index review row in a follow-up; keep this file authoritative for `e325b48...`.
+- At `e325b48`: `docs/reports/morrow-v2-self-hosted-ci-final-correctness-closeout.md:102-106` recorded the first review SHA `ba8e479ebc12e960e5678fbcc33a34a35449fec9`, summarized the three MEDIUM findings and fixes, and pointed to this file; but `closeout.md:8` and `evidence-index.md:4` still deferred to a nonexistent Issue #58 comment (0 comments), `evidence-index.md:16` still labeled the first review as the final one, and acceptance row 24 was still `PENDING`. That was the PARTIAL state recorded at the code review.
+- `b7acd4c` (docs-only, parent `e325b48`): updates both headers to `代码 SHA: e325b48859bda287f2b2b65cec79c8d2ad52a96b` plus a `文档 HEAD` line, lists both review files in the evidence index, updates acceptance matrix row 24 to `PASS（无 BLOCKER/HIGH）`, and adds rows 28-30 for the LOW residuals (manifest-write failure, orphaned outside-path child, nested same-name/pre-existing tmp).
+- This file states the exact reviewed code SHA `e325b48859bda287f2b2b65cec79c8d2ad52a96b`; the reviewed code is unchanged by `b7acd4c`. F1 is fixed.
 
 ### F2 — FIXED (core) — hidden files and leftover `.tmp` are now covered
 
