@@ -2,7 +2,7 @@
 
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
 - 代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（parent `bb6eb8c`）
-- 最终状态：**DEPLOYED_USER_TEST_PENDING**
+- 最终状态：**BLOCKED**（窗口最终被宿主最小化）
 
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
@@ -24,8 +24,9 @@
 | 16 | 用户手动体验（点击/聊天/设置） | **PENDING_USER_ACTION** | 窗口已留给用户 |
 | 17 | 正式 NSIS 安装器执行 | **PENDING_USER_ACTION** | V2 采用 side-by-side；未执行正式安装器 |
 | 18 | 独立审计最终 SHA + 本机证据 | **PENDING** | 审计报告完成后更新 |
-| 19 | 最终状态 | **DEPLOYED_USER_TEST_PENDING** | 部署/启动/UI/持久化通过；用户与 Provider 待完成 |
+| 19 | 最终可见性 | **FAIL** | 独立审计 60/60 样本 IsIconic=True、rect -32000；topmost/occlusion/keeper 均未保持 |
+| 20 | 最终状态 | **BLOCKED** | 历史可见/UI 证据存在，但最终窗口不可见 |
 
 ## 结论
 
-V1 已安全退役并保留可校验备份；V2 在用户当前 Windows 11 Build 26200 电脑上真实打开、5 分钟稳定、设置/无 Provider/记忆重启通过。Provider 与用户手动体验为 **PENDING_USER_ACTION**。整体 **DEPLOYED_USER_TEST_PENDING**，不是 COMPLETE。
+V1 已安全退役并保留可校验备份；V2 已部署，设置/无 Provider/记忆与历史 300 秒可见采样通过，但宿主最终把窗口最小化，独立审计 60/60 样本不可见。整体 **BLOCKED**，不是 COMPLETE。

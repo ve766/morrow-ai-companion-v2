@@ -3,7 +3,7 @@
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
 - 代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（parent `bb6eb8c`）
 - 文档 HEAD：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
-- 最终状态：**DEPLOYED_USER_TEST_PENDING**
+- 最终状态：**BLOCKED**（窗口在最终审计时被宿主最小化；历史可见/UI 证据仅作过程证据）
 - Run ID：`final-1793955356`
 
 ## 1. 部署路径与产物
@@ -77,4 +77,4 @@
 
 ## 7. 结论
 
-V1 已安全退役并保留可校验备份；V2 在用户当前 Windows 11 Build 26200 上真实打开、5 分钟稳定、UI 与记忆重启通过。Provider 与用户手动体验仍为 **PENDING_USER_ACTION**。整体 **DEPLOYED_USER_TEST_PENDING**。
+V1 已安全退役并保留可校验备份；V2 已部署，UIA/记忆/设置/无 Provider 与历史 300 秒可见采样通过。但宿主在数秒至数分钟内将窗口最小化，独立审计 60/60 样本不可见。整体 **BLOCKED**；Provider/用户手动体验仍 **PENDING_USER_ACTION**。

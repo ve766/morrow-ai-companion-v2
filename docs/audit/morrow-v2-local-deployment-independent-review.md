@@ -1,174 +1,167 @@
-# Morrow V2 本机部署独立审计（Issue #60）
+# Morrow V2 本机部署独立复核（最终复核，Issue #60）
 
 - 仓库：`ve766/morrow-ai-companion-v2`
-- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/54（OPEN，未合并）
+- PR：#54（OPEN，未合并）
 - 分支：`feat/morrow-v2-final-closure`
-- 被审 HEAD：`51189361bf1c253fc7fa790e9e9be78af7a8f88e`（`feat(app): add an explicit local-acceptance data root`）
-- Parent：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
+- 被审 docs HEAD：`0bc45e185d23ec45c6a9b76a86c2a1c317580d1a`
+- 被审代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（docs HEAD 的 parent）
+- Parent（docs）：`23faf14cffbd70caec07d87735cc93b2d80a8e42`
 - PR base：`release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
-- 审计方式：只读复核；独立重算哈希、独立复现 Electron 崩溃、独立读取注册表与旧版目录元数据/哈希。
-- 审计边界：未运行 `npm ci`/`npm install`/全量测试/`npm run build`/`npm run package:win`/NSIS/正式安装器；未修改任何产品代码、测试、脚本或既有文档；未 commit/stage/push；唯一新增文件为本审计文件；探针仅位于 `.tmp/` 并在结束后清理。
+- 远端分支/PR head：`0bc45e1…`（与本地一致）
+- 复核边界：只读复核；未停止/重启/恢复 V2 窗口；未修改产品代码、测试、workflow、脚本、既有文档或证据；未 commit/stage/push；未运行 `npm ci`/`npm install`/全量测试/`npm run build`/`npm run package:win`/NSIS。未读取 `.tmp/spark.key`；未读取 V1/V2 数据库内容或真实聊天记录（仅读取 SQLite 16 字节文件头、文件哈希与 UI 合成验收字符串）。**未 invoke/click 任何 UIA 元素**；只读取现有 UIA 树。
+- 取代关系：**本文件取代此前同路径的所有 BLOCKED 复核**。
 
 ## 1. 结论摘要
 
 **Overall status: BLOCKED。**
 
-隔离实现、默认行为、部署证据与旧版保护均通过独立复核；应用窗口在本机 Windows build 26200 上仍无法启动（Electron 运行时级崩溃），窗口不可见，用户交互无法开始。**不能标记为 `DEPLOYED_AND_RUNNING`，也不是本机实机验收完成。** 未在本次 diff 中发现产品代码层面的 BLOCKER/HIGH 缺陷；导致任务目标无法达成的 BLOCKER 是宿主 Electron 运行时崩溃。
+本轮证据文件、代码 gate、V1 备份/退役、单测与 PR 状态均通过；UIA 当前树只读读取也显示 chat/no-provider 视图，未进行任何 UIA 导航。但**当前 PID 20732 主窗口从启动到最终检查都处于最小化**：两次独立的 60 秒轮询（启动后 18:54–18:59，以及最终 19:11–19:12）共 60 个样本全部 `IsIconic=True`、`GetWindowRect=(-32000,-32000,-31840,-31972)`。这与 `stability-steady.json`/`window-state.json`/`ui-uia-final.json`/`ui-chat-final.json` 声称的 `iconic=false/visible=true/rect 410,160,1510,920` **直接矛盾**。
+
+按本轮规则“PID 20732 不可见/离屏或证据矛盾则保持 BLOCKED”，不能授予 `DEPLOYED_USER_TEST_PENDING`。本次没有 invoke/click UIA；最小化不是复核方 UIA 导航造成的，至少在启动轮询时窗口已是最小化。窗口最小化的原因未确定；需要操作者在可见状态下重新启动/恢复并复核。
 
 ## 2. 判定表
 
-| 复核项 | 判定 | 主要证据 |
+| 复核项 | 判定 | 证据 |
 | --- | --- | --- |
-| 隔离代码（绝对路径/空值/相对路径） | **PASS** | `src/app/acceptance-data-path.ts:8-16`；`tests/acceptance-data-path.test.ts` 3/3 通过 |
-| 默认行为（未设置环境变量时不覆盖） | **PASS** | `src/app/index.ts:41-45` 仅在解析结果非空时 `setPath`；`:181` 的 `whenReady` 之前执行；`:186`/`:265` 仍使用 `app.getPath('userData')` |
-| 部署证据（SHA、隔离数据、默认 profile） | **PASS**（带 LOW 级证据瑕疵） | 部署 `Morrow.exe` SHA256 `42749ba5…` 与构建产物一致；隔离目录含 `morrow.sqlite3`；默认 profile 66 文件、最新 mtime 未变 |
-| 旧版保护（`F:\morrow1` + HKCU 卸载键） | **PASS** | 74 文件 / 386,629,322 bytes；逐文件 length/mtime/SHA256 0 差异；canonical `206f9a593ee5032f68145372556cf89ef7b0a15f67b224410479b97c191dac91` 复现；注册表快照 `d0c7c12f…` 复现 |
-| Electron 窗口真实可见 | **BLOCKED** | `electron.exe --version` → `0x80000003`；最小窗口探针带部署参数 → `0xC0000005`（4/4），无窗口；WER `Morrow.exe` `0xc0000005` offset `0x357db3a` |
-| 文档诚实性 | **PASS**（带 LOW 级缺口） | 报告/矩阵/证据索引均为 BLOCKED，明确“不是 DEPLOYED_AND_RUNNING/不是实机验收完成”；窗口标为不可见 |
-| 用户手动交互 | **PENDING_USER_ACTION** | 无窗口，用户无法操作；矩阵 `:19-20` 如实标注 |
-| 独立审计 | **COMPLETE**（本文件） | 针对 `51189361…` 与本机证据的独立复核 |
+| 身份/变更范围 | **PASS** | HEAD `0bc45e1`；parent `23faf14`；docs-only 3 files +23/-19；worktree 除本审计文件外 clean；代码 SHA `07a82d5` |
+| 沙箱 gate | **PASS** | `src/app/index.ts:72-78`：默认 `app.enableSandbox()`；仅 `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 追加 `no-sandbox` |
+| 单测 | **PASS** | `tests/acceptance-data-path.test.ts` 1 file / 3 tests passed / 0 failed，exit 0 |
+| V1 备份 | **PASS** | 74 app / 386,629,322 bytes / canonical `193784f4…`；14 data / 414,954 bytes / canonical `015bf16e…`；88/88 checksums；manifest/checksums 哈希匹配；DB 头可读 |
+| V1 退役 | **PASS** | HKCU `92ffd461…` 不存在；`F:\morrow1` 0 文件；默认 profile 66 文件 / 8,718,995 bytes；V1 DB 未变 |
+| V2 隔离 | **PASS** | V2 DB/WAL 在隔离 user-data；默认 profile 仍 66 个 V1 文件（含 V1 DB），报告 `:75` 说明正确 |
+| V2 进程 | **PASS** | PID 20732 存活；路径 `…\app\final-1793955356\Morrow.exe`；标题/Responding 正确；命令行含 occlusion/backgrounding 关闭参数 |
+| **V2 窗口最终可见性** | **FAIL** | 18:54–18:59 与 19:11–19:12 两次 60s 轮询共 60 样本，全部 `IsIconic=True`、rect `-32000…`；UIA 只读后仍最小化 |
+| 5 分钟证据文件 | **FAIL（与 live 矛盾）** | `stability-steady.json` 声称 PID 20732 300s 全部 iconic=false/visible=true/rect 410,160,1510,920；hash `422bcafe…` 匹配索引，但 live 状态相反 |
+| UI 证据文件 | **PARTIAL/FAIL（最终可见性）** | `ui-uia-final.json` PID 20732、`11:06:11Z`、hash `977c07d4…`；`ui-chat-final.json` PID 20732、`11:06:46Z`、hash `8be9eb51…`；文件字段/哈希一致，但 `finalIconic=false`/`finalVisible=true` 被 live 最小化否定 |
+| UIA 当前树（只读） | **PASS（读取）** | root `IsOffscreen=False`；67 个 descendant；`尚未配置 Provider` 命中；未 invoke/click；读取后窗口仍最小化 |
+| 文档诚实性 | **PARTIAL/FAIL** | 状态 DEPLOYED_USER_TEST_PENDING、非 COMPLETE；代码 SHA 已写；无 PII 路径；Provider/user 待办与 NSIS 未执行正确；但“最终窗口可见”与 live 矛盾，evidence 文件与 live 矛盾 |
+| 安全扫描 | **PASS（带 LOW）** | diff/evidence 无 API key/token/Bearer/私钥；当前 docs 无 PII 路径；diff 仅移除一条历史本机路径；无 9333/CDP 端口 |
+| 仓库/CI | **PASS** | PR #54 OPEN；head `0bc45e1`；0 registered runners；HEAD check-runs/workflow runs 均 0；status pending/0 |
+| 独立审计 | **COMPLETE** | 本文件 |
 
 ## 3. 身份与变更范围
 
-| 项 | 实测值 |
+| 项 | 实测 |
 | --- | --- |
-| `git rev-parse HEAD` | `51189361bf1c253fc7fa790e9e9be78af7a8f88e` |
-| `git rev-parse HEAD^` | `2ffb697cff3491a0f67080a35bb163f87603ca4b` |
-| 工作区（审计文件写入前） | clean（`git status --porcelain` 空） |
-| `git diff --stat 2ffb697..HEAD` | 9 files changed, 272 insertions(+), 2 deletions(-) |
-| 变更文件 | `.gitignore`；`docs/install/windows-installation-guide.md`；`docs/install/windows-troubleshooting.md`；3 个 `docs/reports|testing` 新文档；`src/app/acceptance-data-path.ts`；`src/app/index.ts`；`tests/acceptance-data-path.test.ts` |
-| 未变更 | 无 `package.json`/lockfile、无 schema/migration、无 `.github/workflows`、无构建脚本 |
-| 提交数（2ffb697..HEAD） | 1 |
-| 远端分支 | `feat/morrow-v2-final-closure` @ `51189361…`（与 PR head 一致） |
-| 远端 main / release | `8b207b7d…` / `3812b185…`（release 与 PR base 一致，未被本次改动） |
+| `git rev-parse HEAD` | `0bc45e185d23ec45c6a9b76a86c2a1c317580d1a` |
+| `git rev-parse HEAD^` | `23faf14cffbd70caec07d87735cc93b2d80a8e42` |
+| 代码 SHA | `07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad` |
+| 工作区 | 仅 `docs/audit/morrow-v2-local-deployment-independent-review.md` 修改；其余 clean |
+| `git diff --stat 23faf14..HEAD` | 3 files changed, 23 insertions(+), 19 deletions(-) |
+| 变更文件 | 3 个 `docs/reports|testing` 文档；无 `src/**`、package/lockfile、schema、workflow、测试/脚本 |
+| 远端/PR | 分支 `0bc45e1`；PR #54 OPEN，head `0bc45e1`，base `3812b185` |
 
-## 4. 隔离实现复核
+## 4. HIGH 发现处理
 
-`src/app/acceptance-data-path.ts:8-16` 实现与报告一致：
+### 4.1 窗口可见性：**最终仍未解决**
 
-- `undefined` → `null`；`trim()` 后为空 → `null`；
-- 非绝对路径 → `throw new Error('MORROW_LOCAL_ACCEPTANCE_USER_DATA must be an absolute path.')`；
-- 绝对路径 → `resolve()` 规范化后返回。
+- 启动轮询（18:54–18:59）：PID 20732 存活、标题/Responding 正确，但 30 个样本全部 `IsIconic=True`、`IsWindowVisible=True`、rect `-32000,-32000,-31840,-31972`；`BAD_SAMPLES=30`。
+- 最终轮询（19:11–19:12）：同样 30 个样本全部 `IsIconic=True`、rect `-32000…`；`BAD_SAMPLES=30`。
+- UIA 只读读取（未 invoke/click）：root `IsOffscreen=False`；67 个 descendant；当前 chat 视图 `尚未配置 Provider` 命中；读取后窗口仍 `IsIconic=True`。UIA 的 `IsOffscreen=False` 不能证明 Win32 窗口未最小化；Win32 状态是权威。
+- 因此不是“UIA 导航导致最小化”：本次未导航；窗口在启动后第一次轮询即最小化，并在最终轮询仍最小化。`--disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows` 没有让窗口保持可见。
 
-`src/app/index.ts:41-45` 在模块顶层解析并仅在非空时调用 `app.setPath('userData')` 与 `app.setPath('sessionData')`；该代码位于 `:181` 的 `app.whenReady()` 之前，满足 Electron 对 `setPath` 的时序要求。未设置变量时完全跳过覆盖，`:186` 的数据库路径与 `:265` 的 secret store 仍取 `app.getPath('userData')`；`grep` 未发现其他硬编码的 `morrow-ai-companion` 路径。
+**证据矛盾**：
+- `stability-steady.json`（hash `422bcafe…`，mtime 19:04:17）声称 PID 20732 300s、30 samples 全部 `iconic=false/visible=true/responding=true/rect 410,160,1510,920`。
+- `window-state.json`（hash `1f3159c6…`，mtime 19:07:05）同样声称 PID 20732 `iconic=false/visible=true/rect 410,160,1510,920`。
+- `ui-uia-final.json`（PID 20732，`11:06:11Z`，hash `977c07d4…`）与 `ui-chat-final.json`（PID 20732，`11:06:46Z`，hash `8be9eb51…`）均声称 `finalIconic=false/finalVisible=true`。
+- 但 live 18:54–18:59、19:11–19:12 两次轮询均为最小化；证据文件与当前进程状态直接矛盾。证据文件可能对应 18:59–19:04 的短暂可见区间（文件 mtime 可支持），但最终状态不是可见窗口。
 
-单测独立执行结果：`tests/acceptance-data-path.test.ts` 1 file / 3 tests passed / 0 failed（exit 0），覆盖未设置、空串、纯空白、绝对路径规范化、相对路径抛错。
+按规则，最终窗口最小化且证据与 live 矛盾 → **BLOCKED**。
 
-## 5. 部署证据复核
+### 4.2 UI 证据归属：**文件与 PID 匹配，但最终可见性不成立**
 
-Run ID：`8d94195efd014ae49d0fa224a9022294`，证据目录 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\evidence\<runId>`。
+- `ui-uia-final.json`：PID 20732、capturedAt `2026-11-06T11:06:11.9098340Z`、`settingsClicked=true`、`settingsHasProviderConfig/HasDeepSeek/HasLocalModel/HasBackup=true`、`memoryClicked=true`、`memoryContainsTestPhrase=true`、`chatStateSeen=false`、`finalIconic=false/finalVisible=true`。
+- `ui-chat-final.json`：PID 20732、capturedAt `2026-11-06T11:06:46.3844553Z`、`chatClicked=true`、`chatStateSeen=true`、`chatMessages=true`、`finalIconic=false/finalVisible=true`。
+- 独立 UIA 当前树（只读，未导航）确认 chat/no-provider 视图与 `尚未配置 Provider`；未独立读取设置/记忆视图（按“禁止 UIA 导航”规则）。因此 UI 字段/证据可接受，但 `finalVisible=true` 被 live 最小化否定。
 
-- 部署 `Morrow.exe`：246,819,840 bytes，SHA256 `42749ba5833aa6c8d371135002705931ebaa013a424d8613575a4b1268862b98`；与 `release-local\win-unpacked\Morrow.exe` 独立重算一致。
-- `resources\app.asar`：构建产物与部署副本 SHA256 均为 `bd77ea9200d3bbc4fb9827c1bb18679a0aa0d2d7f2a8addcbafe1dfeb025ad84`；app 目录 72 个文件，与 `release-local\win-unpacked` 的 72 个文件一致。
-- 隔离 user-data 目录：当前 60 个文件；存在 `morrow.sqlite3`（4,096 bytes）、`morrow.sqlite3-wal`（3,073,552 bytes）、`morrow.sqlite3-shm`，以及 `Local State`、`Local Storage`、`Cache`、`GPUCache` 等 Electron 数据，证明 userData/sessionData 确实落在隔离根。
-- 默认 `%APPDATA%\morrow-ai-companion`：66 个文件；最新 mtime `2026-10-29T07:59:02.2867039Z`（本地 15:59:02），与部署前快照一致；审计探针结束后复查仍为 66 文件、同一 mtime。
-- `checksums.sha256`：7 个证据文件的 SHA256 值全部独立重算一致（见 §7 的 CRLF 说明）。
-- `old-install-before.json` 与 `old-install-after.json` 内容完全相同（SHA256 均为 `4c04eb72…`），文件数为 74，总字节数 386,629,322。
-- `deployment.json` 记录 `exitCode=-1073741819`（`0xC0000005`）、`aliveAfter15s=false`、`windowTitle=""`；启动日志 `launch.stdout.log` 2 bytes、`launch.stderr.log` 0 bytes，无业务输出。
+### 4.3 根因文档：**已解决**
 
-## 6. 旧版保护复核
+- 报告 `:15-17` 区分：Electron 44.9.3 原仓库 checkout 路径失败；44.9.3 复制到 `%LOCALAPPDATA%\et44` 成功；35.7.5 复制到 E:/C: 空格/长路径成功；明确“不能用同一版本完整隔离”，不把原因简化为空格/驱动器/长度。
+- 报告 `:24` 把 Issue #59 的 0xC0000005 指向 Windows 26200 强制沙箱启动路径以及原仓库路径不可用；应用级 `app.enableSandbox()` gate 仍为代码层原因。
+- 与独立核验一致（前轮已复现；本轮代码/docs 未变）。
 
-- `F:\morrow1` 独立清点：74 个文件，386,629,322 bytes，与证据 JSON 的 `fileCount`/总长度一致；逐文件比较 `relative`、`length`、`lastWriteTimeUtc`、`sha256`，**0 差异**。
-- 按记录顺序用实际文件值重建 canonical 串并计算 SHA256，得到 `206f9a593ee5032f68145372556cf89ef7b0a15f67b224410479b97c191dac91`，与 `old-install-before/after.json` 和报告一致。
-- HKCU 卸载键 `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\92ffd461-3512-54f9-8cf5-c344989830ea` 仍存在；`DisplayName=Morrow 1.0.0`、`DisplayVersion=1.0.0`、`InstallLocation=""`、`UninstallString="F:\morrow1\Uninstall Morrow.exe" /currentuser`；快照 JSON 的 SHA256 独立重算为 `d0c7c12f2e74903a48e6cfc0c45a80508fd1851471c3ff9ac895cad6144a6bb8`，与记录一致。
-- 仅读取了 `F:\morrow1` 的程序文件元数据与哈希；未打开数据库/聊天/用户数据，未执行安装器或卸载器。
+### 4.4 其他发现
 
-## 7. Electron 运行时与窗口证据
+- F4 logs：`logs\final-1793955356\` 存在，0 文件；路径正确、内容为空（INFO）。
+- F5 code SHA：报告 `:8`、证据索引 `:4`、矩阵 `:4` 均已写 `07a82d5`；文档 HEAD 独立标注。**已解决**。
+- PII：当前 docs 无 `C:\Users`/`E:\Hasee` 路径（diff 仅删除一条历史路径）。**已解决**。
+- F6 验收路径空值回退：`src/app/acceptance-data-path.ts:4-6,10-11` 仍把 `''`/空白回退默认 profile（LOW，未变）。
+- F7 沙箱绕过进入正式产物：`src/app/index.ts:72-78` 默认仍沙箱，env 可跳过（LOW，未变）。
 
-独立探针（均只启动我创建的进程，结束后无残留 electron 进程）：
+## 5. V1 备份与退役复核
 
-| 探针 | 次数 | 结果 |
-| --- | --- | --- |
-| `node_modules\electron\dist\electron.exe --version`（Electron 44.9.3） | 1 | exit `-2147483645` = `0x80000003`，stdout/stderr 为空 |
-| 最小窗口应用（仅 `BrowserWindow` + data URL），无参数 | 7 | 7/7 exit `0x80000003`，无窗口、无 stdout |
-| 最小窗口应用 + `--no-sandbox --disable-gpu` | 2 | 2/2 exit `0xC0000005`，无窗口 |
-| 最小窗口应用 + `--no-sandbox --disable-gpu --in-process-gpu` | 2 | 2/2 exit `0xC0000005`，无窗口 |
+- essential 备份存在：app 74 files / 386,629,322 bytes；data 14 files / 414,954 bytes。
+- `checksums.sha256`：88/88 匹配。
+- canonical 独立重算：app `193784f4b981613c9f79782a9fc9dc3fe1fcc66d1e9b16b9ee18a536144be7d5`；data `015bf16ed872641271544673d24d8e08ab96df095f769816478d9afe8fbebb04`。
+- `backup-manifest.json` SHA256 `4a98a00b…`；`checksums.sha256` SHA256 `0d988915…`。
+- `data\morrow.sqlite3` 16 字节头 `SQLite format 3\0`。
+- HKCU `92ffd461-3512-54f9-8cf5-c344989830ea` 不存在；`F:\morrow1` 目录存在 0 文件；`%APPDATA%\morrow-ai-companion` 66 files / 8,718,995 bytes；V1 DB 311,296 bytes、mtime `2026-10-25 17:51:33`。
+- `v1-retirement-result.json`（hash `9112c353…`）：uninstallerExit=0、registryExistsAfter=false、v1DirFilesAfter=0、profileFilesAfter=66，与独立观测一致；卸载器退出码未重跑（规则禁止）。
 
-WER `Application Error` 独立查询：
+## 6. V2 运行、隔离与 UIA
 
-- 部署版 `Morrow.exe 2.0.0.0`：`0xc0000005`，faulting module `Morrow.exe`，offset `0x357db3a`；同一路径另有 1 条 `0x80000003` offset `0x32f3f4c`（对应 `single-process` 变体）。
-- 本次最小探针 `electron.exe 44.9.3.0`：`0xc0000005`，offset `0x7d7287b`；历史上 44.10.2 / 45.2.3 的 `electron.exe` 也各有 `0xc0000005` 记录。
+- PID 20732，路径 `…\app\final-1793955356\Morrow.exe`；启动 18:54:20；命令行 `--no-sandbox --disable-gpu --force-renderer-accessibility --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --user-data-dir="…\user-data\final-1793955356"`；无 remote-debugging port。
+- 两次 60s 轮询（30×2s）均为 `IsIconic=True`、rect `-32000…`；`Responding=True`、标题正确。
+- UIA 只读：root `IsOffscreen=False`；67 个 descendant；chat 视图 `尚未配置 Provider` 命中；未 invoke/click；读取后仍最小化。
+- 证据文件：`stability-steady.json` PID 20732、300s（30 samples）；`ui-uia-final.json` PID 20732、`11:06:11Z`；`ui-chat-final.json` PID 20732、`11:06:46Z`；`window-state.json` PID 20732；`checksums.sha256` 10/10 匹配。**文件内部一致，但最终可见性与 live 矛盾。**
+- 隔离：V2 DB/WAL 在隔离 user-data；默认 profile 66 个 V1 文件（含 V1 DB），未被 V2 写入；报告 `:75` 已说明。
 
-结论：崩溃发生在 Electron/Chromium 初始化阶段，最小应用与 `--version` 同样失败，与 Morrow 业务代码、数据库、Provider 配置无关。窗口从未创建/显示，`MainWindowTitle` 为空。该结果是宿主 Windows build 26200 的环境级阻塞。
+## 7. 文档诚实性与安全
 
-## 8. 文档诚实性复核
+- 状态：报告 `:10,:122`、索引 `:6,:80`、矩阵 `:5,:27,:31` 均 `DEPLOYED_USER_TEST_PENDING`，明确不是 COMPLETE；Provider/用户手动体验 `PENDING_USER_ACTION`；正式 NSIS 未执行。**PASS**。
+- 代码 SHA：报告 `:8`、索引 `:4`、矩阵 `:4` 均 `07a82d5`；文档 HEAD 单独标注。**PASS**。
+- 根因：报告 `:15-17` 与 44.9.3/35.7.5 证据一致；应用级 gate 正确。**PASS**。
+- 默认 profile V1：报告 `:75` 正确（66 个 V1 文件，含 V1 DB；V2 未写入）。**PASS**。
+- logs：`logs\final-1793955356\` 存在，0 文件；路径正确、内容为空（INFO）。
+- 问题：文档/矩阵称“窗口真实可见/最终 ICONIC=false”，但 live 两次 60s 轮询均为最小化；`stability-steady`/`window-state`/`ui-*-final` 的 `finalVisible=true` 与 live 矛盾。**PARTIAL/FAIL**。
+- 安全：`git diff 07a82d5..HEAD` 与 evidence 无 API key/token/Bearer/私钥；当前 docs 无 PII 路径；无真实聊天；证据只含合成验收字段。当前进程无 9333/CDP 端口；UIA 为 Windows UI Automation。
 
-- `docs/reports/morrow-v2-local-deployment-report.md:9,67,89` 与 `docs/reports/morrow-v2-local-deployment-evidence-index.md:5,69`、`docs/testing/morrow-v2-local-deployment-acceptance-matrix.md:4,17-21,24,28` 全部明确 **BLOCKED**，并写明“不是 DEPLOYED_AND_RUNNING，也不是本机实机验收完成”。
-- 窗口项标为 BLOCKED/不可见；用户交互与 Provider UI 标为 PENDING_USER_ACTION；没有“应用已运行/聊天/记忆功能已验收”的表述。
-- `docs/install/windows-installation-guide.md` 与 `docs/install/windows-troubleshooting.md` 的新增内容与证据一致：说明 side-by-side 方式、绝对路径约束、26200 崩溃、不要运行正式 NSIS。
-- 报告中“主进程已执行到创建数据库”（`:57`）由隔离目录中 `morrow.sqlite3`/`-wal`/`-shm` 实际存在支持；但无进程级日志，属于合理推断而非直接日志证据（LOW）。
-- 报告称全量 130 files / 1159 tests（`:31`）：仓库内 `.tmp/test60b.log` 确实显示 `130 passed / 1159 passed`、182.32s。按本次审计规则未重跑全量套件，故该数字为“已有日志支持、本次未独立复跑”；新增单测已由审计独立复跑 3/3 通过。
-- 未发现省略 BLOCKED、夸大窗口/用户交互或把历史 Provider 结果冒充本次 UI 验收的表述。
-
-## 9. Findings
-
-| ID | 严重度 | 位置 | 发现 | 影响/处置建议 |
-| --- | --- | --- | --- | --- |
-| F1 | LOW | `docs/reports/morrow-v2-local-deployment-report.md:8`；`docs/reports/morrow-v2-local-deployment-evidence-index.md:4` | 只写“代码 SHA：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）”，未写本次实际 full SHA `51189361…`；实测 Issue #60 当前 **0 条 comment**，该引用目前悬空 | Issue #60 要求最终完整 40 位 SHA；建议后续在报告/Issue 中补 `51189361bf1c253fc7fa790e9e9be78af7a8f88e` |
-| F2 | LOW | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\evidence\<runId>\checksums.sha256`；`.tmp/evidence60.ps1:53`（本地脚本，未提交） | 校验文件用 CRLF 写入；Git Bash 下 `sha256sum -c` 对 6/7 个条目报“文件不存在”并 exit 1，仅最后一行（无 CR）通过 | 哈希值本身全部正确；建议改为 LF 写入或用 `--check` 前去除 `\r`。不影响证据完整性判定 |
-| F3 | LOW | `%LOCALAPPDATA%\...\deployment.json`（`dataDirFileCount: 54`）vs `isolation.txt`（`isolatedFileCount=60`）；报告 `:59` 与索引 `:55` 采用 60 | 两个证据快照计数不同：`deployment.json` 在首次 15 秒启动结束后（15:45:45）记录 54，`isolation.txt` 在随后 6 组变体启动后（15:49）记录 60；当前仍为 60 | 非核心矛盾（`morrow.sqlite3` 均已存在，默认 profile 未变）；建议在证据中注明快照时间/口径，避免读者误判 |
-| F4 | LOW | `electron-runtime.txt`、`engine-variants.txt`；`.tmp/evidence60.ps1:19-36` | 两个证据文件由脚本按硬编码字符串写入，属于“结果摘要”而非原始命令捕获；同理 `host.txt`/`isolation.txt` 也是脚本汇总 | 独立探针已复现核心结果（`--version` `0x80000003`；带部署参数 `0xC0000005`；WER offset 一致），结论不受影响；建议后续保留原始 stdout/exit code |
-| F5 | LOW | `docs/install/windows-troubleshooting.md:14`；`electron-runtime.txt` 的 `minimal-electron-window` 行 | 文档称最小窗口应用以 `0xC0000005` 退出，但未说明参数；本次独立复现显示：无参数时 7/7 为 `0x80000003`，加 `--no-sandbox --disable-gpu` 后 4/4 为 `0xC0000005` | 结论“无法创建窗口”成立；建议文档写明复现参数，避免读者按无参数复现时看到不同异常码 |
-| F6 | LOW | `src/app/index.ts:41`；`src/app/acceptance-data-path.ts:12-14` | 相对路径在模块顶层抛错，早于 logger/`reportStartupFailure`/对话框初始化；属于 fail-closed，但用户看不到任何错误提示，表现为静默启动失败 | 行为符合“绝不回退正式 profile”的设计；建议在 release 说明/故障排查中写清该失败模式 |
-| F7 | LOW（隐私） | `%LOCALAPPDATA%\...\deployment.json` 的 `artifact.source` | 本地证据记录了构建仓库绝对路径（含用户名），超出部署根范围 | 该文件未提交到仓库；仓库内文档只用 `%LOCALAPPDATA%`，未泄漏。建议共享证据前脱敏 |
-| F8 | INFO | `docs/testing/morrow-v2-local-deployment-acceptance-matrix.md:23` | 矩阵第 16 项在本次提交仍为 PENDING（独立审计） | 本审计文件已完成对应复核；按本次规则未修改既有矩阵，后续可由交付方更新 |
-| F9 | INFO | 全量测试声明 `docs/reports/...report.md:31` | 全量套件未由审计独立复跑（审计规则禁止），仅核对既有日志 `.tmp/test60b.log` | 建议最终收口时由 CI 或交付方在冻结 SHA 上重跑并保留原始日志 |
-
-未发现 BLOCKER/HIGH 级产品代码、测试或文档问题。任务目标层面的 BLOCKER 是宿主 Electron 运行时崩溃（环境级，非本次 diff 可修复）。
-
-## 10. 命令与真实退出码
+## 8. 命令与真实退出码
 
 | 命令/操作 | 真实结果 | 退出码 |
 | --- | --- | --- |
-| `git rev-parse HEAD` / `HEAD^` | `51189361…` / `2ffb697…` | 0 |
-| `git status --porcelain`（写审计文件前） | 空 | 0 |
-| `git diff --stat 2ffb697..HEAD` | 9 files, +272/-2 | 0 |
-| `git log --oneline 2ffb697..HEAD` | 1 commit | 0 |
-| `git ls-remote origin …` | branch=`51189361…`；main=`8b207b7d…`；release=`3812b185…` | 0 |
+| `git rev-parse HEAD` / `HEAD^` | `0bc45e1…` / `23faf14…` | 0 |
+| `git status --porcelain`（写本文件前） | 仅审计文件修改 | 0 |
+| `git diff --shortstat 23faf14..HEAD` | 3 files, +23/-19 | 0 |
 | `npx vitest run tests/acceptance-data-path.test.ts` | 1 file / 3 tests passed / 0 failed | 0 |
-| `sha256sum release-local/win-unpacked/Morrow.exe` 与部署副本 | 均为 `42749ba5…` | 0 |
-| `sha256sum release-local/win-unpacked/resources/app.asar` 与部署副本 | 均为 `bd77ea92…` | 0 |
-| Python 重算 `checksums.sha256` 的 7 个值 | 7/7 一致 | 0 |
-| `sha256sum -c checksums.sha256`（Git Bash） | 6 个 CRLF 文件名读取失败，1 个 OK | 1（见 F2） |
-| 默认 profile 文件清点 | 66 files；newest `2026-10-29T07:59:02.2867039Z` | 0 |
-| 旧版目录清点 + 逐文件哈希 + canonical | 74 files / 386,629,322 bytes；0 差异；`206f9a…` | 0 |
-| HKCU 卸载键读取与快照哈希 | 值匹配；`d0c7c12f…`；`MATCH=yes` | 0 |
-| `electron.exe --version` | exit `-2147483645`（`0x80000003`），无输出 | 非 0 |
-| 最小窗口探针（无参数，7 次） | 7/7 `0x80000003`，无窗口 | 非 0 |
-| 最小窗口探针（`--no-sandbox --disable-gpu`，2 次） | 2/2 `0xC0000005`，无窗口 | 非 0 |
-| 最小窗口探针（再加 `--in-process-gpu`，2 次） | 2/2 `0xC0000005`，无窗口 | 非 0 |
-| WER 查询 | `Morrow.exe` `0xc0000005` offset `0x357db3a`；另有 `0x80000003` offset `0x32f3f4c` | 0 |
-| `gh pr view 54` | OPEN；head `51189361…`；base `3812b185…`；MERGEABLE/CLEAN | 0 |
-| `gh api …/actions/runners` | `total_count=0` | 0 |
-| `gh api …/commits/5118936…/check-runs` | `total_count=0` | 0 |
-| `gh api …/commits/5118936…/status` | `state=pending`，`total_count=0` | 0 |
-| Actions artifacts（reviewed SHA） | 无匹配 artifact；无该 SHA 的 workflow run | 0 |
+| 启动后 60s 窗口轮询（PID 20732，30×2s） | 全部 ICONIC=True、RECT=-32000…；BAD_SAMPLES=30 | 0 |
+| 最终 60s 窗口轮询（19:11–19:12，30×2s） | 全部 ICONIC=True、RECT=-32000…；BAD_SAMPLES=30 | 0 |
+| UIA 只读当前树（未 invoke/click） | root offscreen=False；67 descendants；`尚未配置 Provider` 命中；读取后仍最小化 | 0 |
+| `stability-steady.json` | PID 20732；30 samples 10–300s；文件称 all iconic=false/visible=true/rect 410…；hash `422bcafe…` | 0 |
+| `ui-uia-final.json` / `ui-chat-final.json` | PID 20732；capturedAt `11:06:11Z` / `11:06:46Z`；hash `977c07d4…` / `8be9eb51…` | 0 |
+| `window-state.json` | PID 20732；文件称 iconic=false/visible=true/rect 410…；hash `1f3159c6…` | 0 |
+| evidence `checksums.sha256` | 10/10 匹配 | 0 |
+| V1 `checksums.sha256` | 88/88 匹配 | 0 |
+| V1 canonical / DB 头 / manifest / checksums | `193784f4…` / `015bf16e…` / `SQLite format 3\0` / `4a98a00b…` / `0d988915…` | 0 |
+| HKCU / `F:\morrow1` / profile | 不存在 / 0 文件 / 66 文件 | 0 |
+| `logs\final-1793955356` | 存在，0 文件 | 0 |
+| PR #54 | OPEN；head `0bc45e1`；base `3812b185`；CLEAN | 0 |
+| Actions runners / HEAD checks / HEAD runs | 0 / 0 / 0 | 0 |
+| secret scan diff/evidence | 0 key/token hits；当前 docs 无 PII 路径 | 0 |
 
-## 11. 安全与隐私复核
+## 9. 残余风险
 
-- `git diff 2ffb697..HEAD` 与三份新文档：未发现 API key/token/`Authorization` 凭据/密码模式；未出现 `C:\Users\...` 完整用户路径（仓库内文档仅用 `%LOCALAPPDATA%`/`%APPDATA%`）。
-- 未读取 `.tmp/spark.key`，未读取任何用户数据库/聊天内容；旧版目录只做了元数据与程序文件哈希；隔离目录只列文件与大小，未打开 `morrow.sqlite3` 内容。
-- 未执行正式 NSIS/安装器；`F:\morrow1` 与 HKCU 键未改动可独立复现。
-- CI 侧：PR #54 OPEN，head 与本地/远端一致；0 个已注册 runner；reviewed SHA 无 check-run、无 status、无 workflow run、无 artifact，未产生 Actions 计费迹象。
+1. **窗口最终最小化**：两次独立 60s 轮询均为 `IsIconic=True`；UIA 当前树只读也未改变。这是当前 BLOCKED 的直接原因。
+2. **证据与 live 矛盾**：`stability-steady.json`/`window-state.json`/`ui-*-final.json` 均声称可见/非最小化，但 live 最小化；证据可能对应某个历史可见区间，不是最终状态。需重新采集最终状态证据。
+3. **UIA 导航未复现**：本轮严格未 invoke/click；窗口在启动轮询即最小化，说明最小化不必然由 UIA 导航引起。
+4. **V1 卸载器 exit 0 仅有证据值**：端状态已独立验证；卸载过程未重跑。
+5. **根因未完全隔离**：44.9.3 原仓库路径失败、et44 44.9.3 成功；35.7.5 路径副本成功；同一 44.9.3 的路径因素仍无完整矩阵。
+6. **空值回退/沙箱绕过**：验收 env 空值时回退默认 profile；env 可让正式构建无沙箱运行（LOW）。
+7. **全量测试/构建/CI 未独立重跑**：仅单测 3/3；CI 0 runner/0 run。
+8. **logs 空文件**：路径正确、无日志内容（INFO）。
 
-## 12. 残余风险
+## 10. 最终结论
 
-1. **宿主 Electron 崩溃不可由仓库修复**：Windows 26200 上最小 Electron 与 `--version` 均失败；在更换到非 26200 的标准 Windows 前，窗口/60 秒稳定性/UI/记忆写入/Provider UI 均无法验收。这是当前 BLOCKED 的唯一根因。
-2. **默认 profile 的“未修改”只有计数 + 最新 mtime 证据**，未做全量 canonical hash（为遵守不读取用户数据的边界）；理论上存在“数量与 mtime 不变但内容被改”的检测盲区，实际证据与隔离机制均指向未触碰。
-3. **隔离依赖 `app.getPath` 的调用链**：当前数据库与 secret store 均通过它取得路径；未来若新增绕过 `app.getPath` 的硬编码路径，可能破坏隔离，需要回归测试守护。
-4. **环境变量误配为相对路径时静默失败**（无对话框），运维/用户需知道该行为。
-5. **证据快照口径漂移**（54→60 文件）与 CRLF 校验文件降低可复现性；核心哈希与隔离结论不受影响。
-6. **全量测试与 tree 构建未由审计独立重跑**（规则限制），仅核对既有日志与产物哈希。
+- 身份/代码/单测：**PASS**
+- V1 备份/退役：**PASS**
+- V2 隔离：**PASS**
+- V2 进程：**PASS**（PID 20732 存活、路径/标题/Responding；但窗口最小化）
+- **V2 窗口最终可见性：FAIL**（两次 60s 轮询全部 `IsIconic=True`、rect `-32000…`；未做 UIA 导航）
+- 5 分钟证据文件：**FAIL（与 live 矛盾）**（`stability-steady` 声称 300s 可见；live 最小化）
+- UI 证据文件：**PARTIAL/FAIL（最终可见性）**（PID/时间/哈希匹配；`finalVisible=true` 被 live 否定）
+- UIA 当前树只读：**PASS（读取）**（chat/no-provider；未导航）
+- 文档诚实性：**PARTIAL/FAIL**（状态/待办/NSIS/代码 SHA/PII 已正确；最终窗口可见性与证据矛盾）
+- 安全：**PASS（无密钥；无 PII 当前路径）**
+- 仓库/CI：**PASS**
 
-## 13. 最终结论
-
-- 隔离代码：**PASS**
-- 默认行为：**PASS**
-- 部署证据：**PASS**（LOW 级证据卫生问题）
-- 旧版保护：**PASS**（目录 74 文件、canonical hash 与注册表快照均独立复现）
-- Electron 窗口：**BLOCKED**（`0xC0000005`/`0x80000003`，无窗口；WER offset `0x357db3a`）
-- 文档诚实性：**PASS**（无过度声明；仅最终 SHA 引用与证据格式需补强）
-- 用户交互：**PENDING_USER_ACTION**
-- 独立审计：**COMPLETE**
-
-**Overall: BLOCKED.** 本机隔离部署与数据保护已验证成立，但应用窗口无法启动，不能称为部署成功或本机实机验收完成。未发现需要在 24h 内修复的仓库可控 BLOCKER/HIGH；阻塞来自宿主 Windows build 26200 的 Electron/Chromium 运行时崩溃，需在受支持的 Windows 版本上重新执行启动与用户交互验收。
+**Overall: BLOCKED。** 本轮没有 invoke/click UIA，窗口在启动轮询和最终轮询都最小化；`stability-steady`/`window-state`/`ui-*-final` 的可见性字段与 live 状态矛盾。按规则不能授予 `DEPLOYED_USER_TEST_PENDING`。若操作者恢复窗口并在可见状态下重新启动/保持 60 秒（不做 UIA 导航），其余通过项支持重新评估；当前未发现新的产品代码/schema/依赖/workflow BLOCKER/HIGH。

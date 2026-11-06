@@ -7,7 +7,7 @@
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
 - 代码 SHA：`07a82d5ff00c1cd0cfce450091fb7e5e1ef573ad`（parent `bb6eb8c`）
 - 文档 HEAD：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
-- 最终状态：**DEPLOYED_USER_TEST_PENDING**（V2 窗口已真实打开并稳定运行；用户手动体验与 Provider 配置待用户完成）
+- 最终状态：**BLOCKED**（V2 已部署并曾显示窗口/完成 UIA 验证，但宿主在数秒至数分钟内将其最小化；最终审计时不可见）
 
 ## 1. 根因（已定位并修复）
 
@@ -71,8 +71,9 @@
 - 启动参数：`--no-sandbox --disable-gpu --force-renderer-accessibility --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --user-data-dir=<隔离目录>`；环境变量：
   - `MORROW_LOCAL_ACCEPTANCE_USER_DATA=<隔离目录>`
   - `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1`
-- 窗口：`Morrow · AI 伴侣`，PID 20732；`window-state.json` / `stability-steady.json` 记录 `iconic=false`、`visible=true`、`responding=true`、rect `410,160,1510,920`（在屏内）。
-- 5 分钟可见稳定性（V1 退役后、最终 PID）：300 秒无交互采样，窗口保持可见/非最小化，Responding=true；证据 `stability-steady.json`。
+- 窗口：`Morrow · AI 伴侣`，PID 20732；历史 `window-state.json` / `stability-steady.json` 记录 `iconic=false`、`visible=true`、`responding=true`、rect `410,160,1510,920`。
+- 5 分钟可见稳定性（历史区间）：300 秒无交互采样，窗口保持可见/非最小化，Responding=true；证据 `stability-steady.json`。
+- **最终可见性失败**：独立审计两次 60 秒轮询（60/60 样本）均为 `IsIconic=True`、rect `-32000,-32000,-31840,-31972`；topmost、`CalculateNativeWinOcclusion`/backgrounding 关闭、窗口 keeper 均未能保持可见。历史采样只证明“曾可见”，不能作为最终可见 PASS。
 - 隔离证明：`morrow.sqlite3` 位于 V2 隔离 user-data；默认 `%APPDATA%\morrow-ai-companion` 未被 V2 写入（仍 66 个 V1 文件，含 V1 的 `morrow.sqlite3`，未删除）。
 
 ## 4. 真实 UI 验证
@@ -91,7 +92,8 @@
 | `npm test` | 0 | 130 files / 1159 tests passed / 0 failed / 0 skipped（176.86s） |
 | `npm run build` | 0 | main/preload/renderer 成功 |
 | `electron-builder --win dir --x64 --publish never -c.electronDist=node_modules/electron/dist` | 0 | unpacked app 生成 |
-| 本机窗口启动 + 5 分钟可见稳定性 | PASS | PID 20732，窗口可见、非最小化、Responding=true |
+| 本机窗口启动 + 5 分钟可见稳定性（历史） | PASS（历史） | PID 20732，曾连续 300 秒可见/非最小化/Responding |
+| 最终窗口可见性 | **FAIL** | 独立审计 60/60 样本 IsIconic=True、rect -32000 |
 | 设置/无 Provider/记忆重启 | PASS | `ui-uia-final.json` |
 
 ## 6. 未完成项
@@ -119,4 +121,4 @@ $env:MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX = '1'
 
 ## 8. 状态
 
-**DEPLOYED_USER_TEST_PENDING**：V1 已安全退役并备份；V2 在用户当前 Windows 11 Build 26200 电脑上真实打开、5 分钟稳定、UI 与记忆重启通过；用户手动体验与 Provider 配置待完成。不是 COMPLETE。
+**BLOCKED**：V1 已安全退役并备份；V2 已部署，窗口曾真实显示，UIA/记忆/设置/无 Provider 验证通过，历史上也有 300 秒可见采样。但宿主会在约 5–90 秒内把窗口最小化；topmost、`CalculateNativeWinOcclusion`/backgrounding 关闭、窗口 keeper 均未能保持可见，独立审计 60/60 样本 `IsIconic=True`、rect `-32000,-32000,-31840,-31972`。因此最终可见窗口验收 **BLOCKED**，不能标记 DEPLOYED_USER_TEST_PENDING 或 COMPLETE。用户可点击任务栏 Morrow 图标临时恢复窗口。
