@@ -20,7 +20,7 @@
 | # | 验收项 | 状态 | 证据 |
 | --- | --- | --- | --- |
 | 8 | 动态 GUID 每次 run 唯一 | PASS | 50 次身份探针；`New-CiInstallerIdentity` |
-| 9 | 动态 GUID 被最终安装器实际采用 | **PENDING_USER_ACTION** | 构建参数注入已验证；CI 变体构建被宿主拦截 |
+| 9 | 动态 GUID 被最终安装器实际采用 | **PENDING_USER_ACTION** | 构建参数注入与无空格 `shortcutName=MorrowCI` 已验证；本机 CI 变体构建仍被宿主拦截（exit code null） |
 | 10 | Run A cleanup failure 后 Run B 不改 A 的安装/归档 | PASS（探针） | 6 文件 SHA256/length/mtime、manifest/checksums 全部不变 |
 | 11 | 正式用户身份与 CI 身份不同 | PASS | appId 分离 + 唯一 GUID；本机旧版 GUID `92ffd461…` |
 | 12 | 全量测试/typecheck/evaluate/build/smoke/persistence/NSIS 退出码 | PASS（smoke 除外） | typecheck 0；1156 tests；evaluate 0；build 0；smoke BLOCKED |

@@ -48,7 +48,7 @@ Exit code: null
 ### 处理
 
 - 正式用户安装器使用默认配置构建：`npm run package:win`。
-- CI 测试安装器使用唯一 GUID，并把快捷方式改名为 `Morrow CI`（不再关闭快捷方式）；仍需在可执行新构建产物的 Runner/桌面上运行。
+- CI 测试安装器使用唯一 GUID，并把快捷方式改名为 `MorrowCI`（不再关闭快捷方式）；仍需在可执行新构建产物的 Runner/桌面上运行。
 - 若在用户 Runner 上仍失败，先在该机器手动运行一次 `release\Morrow-Setup-2.0.0-x64.exe` 并在 SmartScreen/杀软中允许，再重试；不要关闭系统安全策略作为默认方案。
 
 ## 3. 安装器会卸载已有 Morrow 1.x

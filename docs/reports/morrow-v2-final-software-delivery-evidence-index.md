@@ -52,7 +52,7 @@
 - 仅 `-c.nsis.createDesktopShortcut=false`：同样 exit 1。
 - 不同输出目录/产物名：同样 exit 1。
 - 配置文件方式（`--config`）覆盖 appId/GUID/artifactName：同样 exit 1。
-- 结论：宿主执行策略/安全软件拦截新构建中间安装器；不是 Morrow 的 NSIS 脚本语法错误。代码已移除会复现失败的快捷方式禁用选项，改用 `shortcutName=Morrow CI`。
+- 结论：宿主执行策略/安全软件拦截新构建中间安装器；不是 Morrow 的 NSIS 脚本语法错误。代码已移除会复现失败的快捷方式禁用选项，改用无空格的 `shortcutName=MorrowCI`；改为无空格后本机 CI 构建仍 exit 1（中间安装器 exit code null），宿主拦截未消失。
 
 ## 5. Provider 真实请求证据（脱敏）
 

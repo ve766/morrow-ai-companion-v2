@@ -350,7 +350,7 @@ function Get-CiInstallerArguments([object]$Identity) {
     'electron-builder', '--win', 'nsis', '--x64', '--publish', 'never',
     "-c.appId=$($Identity.AppId)",
     "-c.nsis.guid=$($Identity.NsisGuid)",
-    '-c.nsis.shortcutName=Morrow CI',
+    '-c.nsis.shortcutName=MorrowCI',
     '-c.nsis.runAfterFinish=false',
     '-c.win.artifactName=Morrow-CI-Setup-${version}-${arch}.${ext}',
     '-c.directories.output=release-ci'

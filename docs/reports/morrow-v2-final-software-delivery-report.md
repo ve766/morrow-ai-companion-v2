@@ -28,7 +28,8 @@
   - 任意 CLI 覆盖（即使 `-c.nsis.oneClick=false` 与 package.json 相同）、不同输出目录、不同产物名：中间安装器被宿主以 exit code null 终止（`ERR_ELECTRON_BUILDER_CANNOT_EXECUTE`）；
   - 仅 `-c.nsis.createDesktopShortcut=false` 也能复现。
 - 结论：这是宿主执行策略/安全软件对新构建可执行文件的拦截与 electron-builder 中间步骤的组合，不是 Morrow 的 NSIS 脚本语法错误。
-- 代码修复：CI 变体不再关闭快捷方式（该选项可复现构建失败），改用 `-c.nsis.shortcutName=Morrow CI`，保留唯一 GUID/appId，避免覆盖用户 `Morrow` 快捷方式。
+- 代码修复：CI 变体不再关闭快捷方式（该选项可复现构建失败），改用无空格的 `-c.nsis.shortcutName=MorrowCI`，保留唯一 GUID/appId，避免覆盖用户 `Morrow` 快捷方式。首次复审还发现 `Morrow CI` 带空格会被 argv 拆分，已一并改为 `MorrowCI`。
+- 注意：改为 `MorrowCI` 后，本机 CI 变体构建仍在 electron-builder 中间安装器执行阶段失败（exit code null）；宿主拦截问题未因该改动消失。动态 GUID 的**真实 NSIS 采用**仍是 PENDING_USER_ACTION。
 
 ### 1.3 动态 NSIS 身份（每次 run 唯一）
 

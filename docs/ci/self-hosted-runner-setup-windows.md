@@ -84,7 +84,7 @@ guard 通过后，checkout 触发 SHA，执行完整验证并归档到 `%LOCALAP
 
 - 安装目标固定为 `<runDir>\installed-app`；目录已存在、路径越界或父路径含 junction/symlink/reparse point 时直接 fail closed，不清理、不复用。
 - **用户安装器 `release\Morrow-Setup-*.exe` 只构建、归档、计算 SHA256，不执行**。electron-builder NSIS 会在安装前按 appId 派生的 GUID 卸载同 appId 的旧安装，`/D=` 不能阻止。
-- 实际安装的是 CI 专用变体 `release-ci\Morrow-CI-Setup-*.exe`：每次 run 唯一 `nsis.guid`、唯一 appId，快捷方式名 `Morrow CI`（不关闭快捷方式，electron-builder 26.15.3 在关闭时会构建失败）；因此不会匹配、卸载或改写用户现有 Morrow。
+- 实际安装的是 CI 专用变体 `release-ci\Morrow-CI-Setup-*.exe`：每次 run 唯一 `nsis.guid`、唯一 appId，快捷方式名 `MorrowCI`（不关闭快捷方式，electron-builder 26.15.3 在关闭时会构建失败）；因此不会匹配、卸载或改写用户现有 Morrow。
 - 安装前确认 NSIS 的进程检查可用（`Get-CimInstance` 且执行策略非 Restricted）；否则拒绝安装，避免回退到按进程名 `taskkill`。
 - 安装参数为 `/S /D=<runDir>\installed-app`，`/D=` 必须是最后一个参数且路径不加引号（含空格的路径已在 PS 5.1 探针中验证原样传递）。
 - 安装后只检查 `<runDir>\installed-app\Morrow.exe`，版本必须等于 `package.json` 的版本；**不再递归扫描 `%LOCALAPPDATA%` 或磁盘**。
