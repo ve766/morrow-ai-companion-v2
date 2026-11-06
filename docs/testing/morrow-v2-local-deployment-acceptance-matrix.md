@@ -20,7 +20,7 @@
 | 13 | Provider 真实链路（UI 内授权） | **PENDING_USER_ACTION** | 本任务未在 UI 配置；Issue #59 协议级 200/400 仅作历史证据 |
 | 14 | 记忆写入/重启连续性 | **BLOCKED** | DB 已创建，但无窗口无法完成 UI 写入/重启验收 |
 | 15 | 卸载/清理安全 | N/A（side-by-side） | 未安装、未卸载；仅部署唯一 run 目录，可安全删除 |
-| 16 | 独立审计最终 SHA + 本机证据 | **PENDING** | 审计报告完成后更新 |
+| 16 | 独立审计最终 SHA + 本机证据 | PASS（无 BLOCKER/HIGH） | `docs/audit/morrow-v2-local-deployment-independent-review.md`；审计确认旧版保护、隔离、版本/哈希与 BLOCKED 结论 |
 | 17 | 最终状态 | **BLOCKED** | 部署/隔离 PASS；窗口启动被宿主 Electron 阻塞 |
 
 ## 结论

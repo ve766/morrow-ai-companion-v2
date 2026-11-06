@@ -1,7 +1,8 @@
 # Morrow V2 本机部署证据索引（Issue #60）
 
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
-- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
+- 代码 SHA：`51189361bf1c253fc7fa790e9e9be78af7a8f88e`（parent `2ffb697`）
+- 文档/审计 HEAD：见 Issue #60 comment
 - 最终状态：**BLOCKED**（隔离部署/数据隔离 PASS；Electron 窗口无法启动）
 - Run ID：`8d94195efd014ae49d0fa224a9022294`
 
@@ -43,12 +44,22 @@
 | `old-install-before.json` | `4c04eb72c5ff358cb65da1756bfa2e7b83f99a00e453467f6ecc1ce613db8e35` |
 | `old-install-after.json` | `4c04eb72c5ff358cb65da1756bfa2e7b83f99a00e453467f6ecc1ce613db8e35` |
 | `electron-runtime.txt` | `dcaf1924467b3499f5231b8902f8c7b75c1bd34c1dcbd557e28c0684f9183cc0` |
-| `engine-variants.txt` | `121d5d23ed44196d43b91c8fc829579bd51740c0dea6af533326241ff80f34aa` |
+| `engine-variants.txt` | `dd67543dbe95228155a65cbabaf6eb0b5d32c1462eadb932f5857eaf4bfeb544` |
 | `host.txt` | `d37c29ba6de3eae8e4ef56c331f0f40285d510ad3709197a1eeaa3e9cf843672` |
 | `isolation.txt` | `300c7f97001932985f91ed1a0196030b7f8755ecc2fb83386d5a1b6bdd735f46` |
-| `checksums.sha256` | `e7998b98ab273c25d0559cd6e35c2c05acc2b6e35d3fd32f35ef77a66f5c4647` |
+| `checksums.sha256` | `7cd8e361db7e8e0f7c7d81f1d60ebe59881c1d2228b0b50ae3767ed5d14f82fb` |
 
-`checksums.sha256` 覆盖上述除自身外的所有证据文件；两份 old-install JSON 相同即证明旧版 74 个文件清单、长度、mtime、SHA256 未变。
+`checksums.sha256` 覆盖上述除自身外的所有证据文件；文件使用 CRLF 行尾，PowerShell 验证方式：
+
+```powershell
+Get-Content checksums.sha256 | ForEach-Object {
+  $hash, $name = $_ -split ' \*', 2
+  if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw $name }
+}
+'checksums OK'
+```
+
+不要直接用 POSIX `sha256sum -c`（会把 CRLF 当作哈希内容的一部分）。两份 old-install JSON 相同即证明旧版 74 个文件清单、长度、mtime、SHA256 未变。
 
 ## 5. 数据隔离证据
 

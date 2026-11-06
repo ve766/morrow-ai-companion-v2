@@ -5,7 +5,8 @@
 - Branch: `feat/morrow-v2-final-closure`
 - Base: `release/morrow-v2-final-delivery` @ `3812b185398c0442fcc0d0ba5b180713cafee1d9`
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`（parent `463dd99`）
-- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
+- 代码 SHA：`51189361bf1c253fc7fa790e9e9be78af7a8f88e`（parent `2ffb697`）
+- 文档/审计 HEAD：见 Issue #60 comment
 - 最终状态：**BLOCKED**（隔离部署与数据隔离完成；Electron 窗口在本机 Windows 26200 上无法启动）
 
 ## 1. 本机预检
@@ -56,7 +57,7 @@
 
 尽管窗口未启动，主进程已执行到创建数据库：
 
-- 隔离 user-data 目录包含 **60 个文件**，包括 `morrow.sqlite3`、`morrow.sqlite3-shm`、`morrow.sqlite3-wal`、`Local State`、`Local Storage`、`Cache`、`GPUCache` 等。
+- 隔离 user-data 目录：首次启动后 `deployment.json` 记录 **54 个文件**；随后执行 6 组启动参数变体后 `isolation.txt` 记录 **60 个文件**（均为同一隔离目录），包括 `morrow.sqlite3`、`morrow.sqlite3-shm`、`morrow.sqlite3-wal`、`Local State`、`Local Storage`、`Cache`、`GPUCache` 等。
 - 默认 `%APPDATA%\morrow-ai-companion` 仍为 **66 个文件**，最新 mtime 未变（`2026-10-29T07:59:02Z`）。
 - `F:\morrow1` 部署前后均为 **74 个文件**，文件清单 SHA256 canonical hash 均为 `206f9a593ee5032f68145372556cf89ef7b0a15f67b224410479b97c191dac91`。
 - HKCU 卸载键 `92ffd461-...` 部署前后 DisplayName/Version/InstallLocation/UninstallString 完全一致，快照 SHA256 均为 `d0c7c12f2e74903a48e6cfc0c45a80508fd1851471c3ff9ac895cad6144a6bb8`。
