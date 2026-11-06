@@ -56,7 +56,7 @@ function setup(states?: TurnStatePort, generateOverride?: ProviderPort['generate
       states: states ?? new SqliteTurnStateRepository(database)
     }
   })
-  companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'canary-key-not-a-real-secret-7f21' })
+  companion.saveProvider({ providerId: DEEPSEEK_PROVIDER_ID, model: DEEPSEEK_MODEL, enabled: true, apiKey: 'test-canary-key-not-a-real-credential-7f21' })
   const conversation = companion.createConversation()
   return { database, companion, conversation, generate }
 }
@@ -102,7 +102,7 @@ describe('runtime turn trace', () => {
       expect(trace.every((event) => event.conversationId === context.conversation.id)).toBe(true)
       const serialized = JSON.stringify(trace)
       expect(serialized).not.toContain('TRACE-CANARY')
-      expect(serialized).not.toContain('canary-key-not-a-real-secret-7f21')
+      expect(serialized).not.toContain('test-canary-key-not-a-real-credential-7f21')
     } finally {
       context.database.close()
     }
