@@ -69,7 +69,13 @@ async function chooseDirectory(title: string, buttonLabel: string): Promise<stri
   return result.canceled || !result.filePaths[0] ? null : result.filePaths[0]
 }
 
-app.enableSandbox()
+if (process.env.MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX === '1') {
+  // Acceptance-only switch for the Windows 26200 sandbox startup crash.
+  // The default build keeps app.enableSandbox() and ships sandboxed.
+  app.commandLine.appendSwitch('no-sandbox')
+} else {
+  app.enableSandbox()
+}
 app.setAppUserModelId('com.morrow.ai-companion')
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()

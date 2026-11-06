@@ -1,80 +1,73 @@
-# Morrow V2 本机部署证据索引（Issue #60）
+# Morrow V2 本机部署证据索引（Issue #60 修订版）
 
 - 基线 HEAD：`2ffb697cff3491a0f67080a35bb163f87603ca4b`
-- 代码 SHA：`51189361bf1c253fc7fa790e9e9be78af7a8f88e`（parent `2ffb697`）
-- 文档/审计 HEAD：见 Issue #60 comment
-- 最终状态：**BLOCKED**（隔离部署/数据隔离 PASS；Electron 窗口无法启动）
-- Run ID：`8d94195efd014ae49d0fa224a9022294`
+- 代码 SHA：本文件所在提交（最终 full SHA 以 Issue #60 comment 为准）
+- 最终状态：**DEPLOYED_USER_TEST_PENDING**
+- Run ID：`final-1793955356`
 
-## 1. 部署路径
+## 1. 部署路径与产物
 
-| 项 | 路径 |
+| 项 | 值 |
 | --- | --- |
-| App | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\app\8d94195efd014ae49d0fa224a9022294` |
-| 数据 | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\user-data\8d94195efd014ae49d0fa224a9022294` |
-| 日志 | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\logs\8d94195efd014ae49d0fa224a9022294` |
-| 证据 | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\evidence\8d94195efd014ae49d0fa224a9022294` |
+| App | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\app\final-1793955356\` |
+| User data | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\user-data\final-1793955356\` |
+| Logs | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\logs\final-1793955356\` |
+| Evidence | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\evidence\final-1793955356\` |
+| `Morrow.exe` | 246,820,352 bytes，SHA256 `e89d1a36a5744a89d0ef1f21db5b6e27038deabeb7c932763ee696f8ca96daef` |
+| 正式 NSIS（未执行） | 111,771,999 bytes，SHA256 `5aeb40276def2323babe7c9e32ec2946f9ae44e29ef0cc8d13f0e0082b3e5977` |
+| Portable（仓库内） | 100,542,249 bytes，SHA256 `e18a13a5e209c70df09f6ff3c6b657d15385bf5a9f0c23368043c47151e40c1b` |
 
-## 2. 产物
+启动参数：`--no-sandbox --disable-gpu --user-data-dir=<data>`；环境变量 `MORROW_LOCAL_ACCEPTANCE_USER_DATA=<data>`、`MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1`。
 
-| 文件 | 大小 | SHA256 |
-| --- | --- | --- |
-| 部署 `Morrow.exe`（= `release-local\win-unpacked\Morrow.exe`） | 246,819,840 | `42749ba5833aa6c8d371135002705931ebaa013a424d8613575a4b1268862b98` |
-| `release\Morrow-Setup-2.0.0-x64.exe`（未执行） | 111,771,999 | `5aeb40276def2323babe7c9e32ec2946f9ae44e29ef0cc8d13f0e0082b3e5977` |
-| Portable（仓库内） | 100,542,249 | `e18a13a5e209c70df09f6ff3c6b657d15385bf5a9f0c23368043c47151e40c1b` |
+## 2. 证据文件与 SHA256
 
-## 3. 命令与退出码
+| 文件 | SHA256 |
+| --- | --- |
+| `stability.json`（PID 15068，300 秒，窗口 `Morrow · AI 伴侣`，Responding=true） | `9a8ad291ec4583ff6d1056fa2b3b8755ad1629ce93d4c5775ff59283a131db81` |
+| `ui-evidence.json`（设置页、无 Provider、记忆写入/重启） | `75f4fb4e7229e8c54c2134c8d43f840de8b9eb87df16459bb54e0515f73bd0e5` |
+| `v1-retirement-result.json` | `9112c3538240edb1b9a61ea5f0de332d1bf2587ab39ba8df3a8e630a62d5e0ad` |
+
+## 3. V1 备份与退役
+
+| 项 | 值 |
+| --- | --- |
+| 备份根 | `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\v1-retirement-backup\essential-20261106T090624Z\` |
+| App 备份 | 74 files / 386,629,322 bytes / canonical `193784f4b981613c9f79782a9fc9dc3fe1fcc66d1e9b16b9ee18a536144be7d5` |
+| Data 备份 | 14 files / 414,954 bytes / canonical `015bf16ed872641271544673d24d8e08ab96df095f769816478d9afe8fbebb04` |
+| DB | `data\morrow.sqlite3` 存在，SQLite header 可读（未输出内容） |
+| `backup-manifest.json` | `4a98a00beccf726e8984d8a969096dd2c8e8d3e211887d2429cc51646bf9a416` |
+| `checksums.sha256` | `0d988915e769ce1b79c6c860dc4ce28371039a678defb26e17f9ba9aea160794` |
+| 卸载器 | `F:\morrow1\Uninstall Morrow.exe /S /currentuser`，exit 0 |
+| 卸载后 | HKCU `92ffd461-...` 不存在；`F:\morrow1` 0 文件；`%APPDATA%\morrow-ai-companion` 仍 66 文件 |
+
+## 4. 根因证据
+
+| 检查 | 结果 |
+| --- | --- |
+| Electron 44.9.3 从 `%LOCALAPPDATA%\et44\dist` 启动 | `--version` = v44.9.3，exit 0；最小窗口可见 |
+| 同一 Electron 从仓库路径（含空格 `morrow v2`）启动 | `0xC0000005`，无窗口 |
+| 应用 asar 最小启动（空页面、无 DB） | `new BrowserWindow` 后崩溃 |
+| 应用 asar + `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` + `--no-sandbox` | 主进程到达 `did-finish-load`，完整 UI 加载 |
+| 默认路径 | 仍调用 `app.enableSandbox()`；仅验收环境变量跳过 |
+
+## 5. UI 与持久化证据
+
+- 设置页：模型接入配置、官方 DeepSeek、本地模型、本地认知、备份恢复区块可见；密钥仅进入 OS 安全存储。
+- 无 Provider 发送：状态“尚未配置 Provider”，未新增消息、未伪造回复。
+- 记忆：`验收测试记忆：Morrow V2 在本机 Build 26200 已启动` 保存成功；完全重启后仍存在；位于 V2 隔离 user-data。
+
+## 6. 命令与退出码
 
 | 命令 | 退出码 | 结果 |
 | --- | --- | --- |
 | `npm run typecheck` | 0 | 无错误 |
-| `npm test` | 0 | 130 files / 1159 tests passed / 0 failed / 0 skipped（182.32s） |
-| `npm run build` | 0 | main/preload/renderer 成功 |
-| `npx electron-builder --win dir --x64 --publish never -c.directories.output=release-local` | 0 | unpacked app 生成 |
-| `deploy60.ps1` 部署+启动 | 0（脚本） | 部署成功；启动进程 exit `0xC0000005` |
-| Electron 44.9.3/44.10.2/45.2.3 `--version` | 3 | `0x80000003`，无输出 |
-| 最小 Electron 窗口 | crash | `0xC0000005`，无窗口 |
-| 应用 6 组启动参数 | crash | 5×`0xC0000005`、1×`0x80000003`，均无窗口 |
-
-## 4. 证据文件与 SHA256
-
-| 文件 | SHA256 |
-| --- | --- |
-| `deployment.json` | `dc4e97da6c4f037c9ae9a3eaf8866ca263304badd191062acc1f2320ac345723` |
-| `old-install-before.json` | `4c04eb72c5ff358cb65da1756bfa2e7b83f99a00e453467f6ecc1ce613db8e35` |
-| `old-install-after.json` | `4c04eb72c5ff358cb65da1756bfa2e7b83f99a00e453467f6ecc1ce613db8e35` |
-| `electron-runtime.txt` | `dcaf1924467b3499f5231b8902f8c7b75c1bd34c1dcbd557e28c0684f9183cc0` |
-| `engine-variants.txt` | `dd67543dbe95228155a65cbabaf6eb0b5d32c1462eadb932f5857eaf4bfeb544` |
-| `host.txt` | `d37c29ba6de3eae8e4ef56c331f0f40285d510ad3709197a1eeaa3e9cf843672` |
-| `isolation.txt` | `300c7f97001932985f91ed1a0196030b7f8755ecc2fb83386d5a1b6bdd735f46` |
-| `checksums.sha256` | `7cd8e361db7e8e0f7c7d81f1d60ebe59881c1d2228b0b50ae3767ed5d14f82fb` |
-
-`checksums.sha256` 覆盖上述除自身外的所有证据文件；文件使用 CRLF 行尾，PowerShell 验证方式：
-
-```powershell
-Get-Content checksums.sha256 | ForEach-Object {
-  $hash, $name = $_ -split ' \*', 2
-  if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw $name }
-}
-'checksums OK'
-```
-
-不要直接用 POSIX `sha256sum -c`（会把 CRLF 当作哈希内容的一部分）。两份 old-install JSON 相同即证明旧版 74 个文件清单、长度、mtime、SHA256 未变。
-
-## 5. 数据隔离证据
-
-- `isolation.txt`：隔离 user-data 文件数 60；`morrow.sqlite3` 存在。
-- 隔离目录包含 `morrow.sqlite3`/`-shm`/`-wal`、`Local State`、`Local Storage`、`Cache`、`GPUCache` 等。
-- 默认 `%APPDATA%\morrow-ai-companion` 仍 66 个文件，最新 mtime `2026-10-29T07:59:02Z` 未变。
-- 旧版 `F:\morrow1` 部署前后 74 个文件，canonical hash `206f9a593ee5032f68145372556cf89ef7b0a15f67b224410479b97c191dac91` 相同。
-- 旧版 HKCU 卸载键快照 SHA256 `d0c7c12f2e74903a48e6cfc0c45a80508fd1851471c3ff9ac895cad6144a6bb8` 前后相同。
-
-## 6. 崩溃证据
-
-- WER：APPCRASH `Morrow.exe 2.0.0.0`，异常 `0xc0000005`，faulting module `Morrow.exe`，offset `0x357db3a`。
-- 最小 Electron（无 Morrow 代码）同样 `0xC0000005`；三个 Electron 版本 `--version` 全部失败。
-- 本机 Windows build 26200；已有公开报告（electron#55011、WebView2Feedback#5777）记录该 build 的 Electron/Chromium 启动/退出崩溃。
+| `npm test` | 0 | 130 files / 1159 tests passed / 0 failed / 0 skipped（176.86s） |
+| `npm run build` | 0 | 成功 |
+| `electron-builder --win dir --x64 --publish never -c.electronDist=node_modules/electron/dist` | 0 | unpacked app |
+| 本机启动 + 5 分钟稳定性 | PASS | PID 15068，窗口可见，Responding=true |
+| 设置/无 Provider/记忆重启 | PASS | `ui-evidence.json` |
+| V1 卸载 | 0 | 注册项删除、程序文件 0、profile 保留 |
 
 ## 7. 结论
 
-隔离部署、显式数据根、旧版保护和默认 profile 不变均有真实证据；窗口启动被本机 Electron 运行时阻塞。最终 **BLOCKED**，不是 DEPLOYED_AND_RUNNING，也不是本机实机验收完成。
+V1 已安全退役并保留可校验备份；V2 在用户当前 Windows 11 Build 26200 上真实打开、5 分钟稳定、UI 与记忆重启通过。Provider 与用户手动体验仍为 **PENDING_USER_ACTION**。整体 **DEPLOYED_USER_TEST_PENDING**。

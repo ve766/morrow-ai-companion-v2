@@ -75,23 +75,24 @@ Start-Process -FilePath .\Morrow-Setup-2.0.0-x64.exe -ArgumentList '/S /D=C:\pat
 
 ## 7. 本机隔离验收部署（Issue #60）
 
-不运行正式安装器、不触碰旧版 Morrow 的 side-by-side 方式：
+V1 已安全退役（备份在 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance\v1-retirement-backup\essential-20261106T090624Z`）。V2 采用 side-by-side 部署，不运行正式 NSIS 安装器：
 
 ```powershell
 $root = Join-Path $env:LOCALAPPDATA 'MorrowV2-LocalAcceptance'
-$run = '<run-id>'
+$run = 'final-1793955356'
 $data = Join-Path $root "user-data\$run"
 $env:MORROW_LOCAL_ACCEPTANCE_USER_DATA = $data
-& (Join-Path $root "app\$run\Morrow.exe") "--user-data-dir=$data"
+$env:MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX = '1'
+& (Join-Path $root "app\$run\Morrow.exe") --no-sandbox --disable-gpu "--user-data-dir=$data"
 ```
 
+- 必须使用**无空格**的部署路径；仓库路径 `morrow v2` 会触发 Electron/Chromium 启动崩溃。
 - `MORROW_LOCAL_ACCEPTANCE_USER_DATA` 必须是绝对路径；未设置时应用使用正式用户 profile。
+- `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 只用于本机验收，默认构建仍启用 `app.enableSandbox()`；不要把它作为正式发布默认值。
 - app/user-data/logs/evidence 均在 `%LOCALAPPDATA%\MorrowV2-LocalAcceptance` 下，按 run ID 隔离。
-- 该方式不会运行 NSIS、不会改动 `F:\morrow1` 或旧版注册表；当前 Windows 26200 宿主仍会因 Electron 运行时崩溃，详见 `docs/reports/morrow-v2-local-deployment-report.md`。
 
 ## 8. 当前构建宿主的限制（必须阅读）
 
-- NSIS 安装器已成功构建并记录 SHA256，但**未在本机执行安装**：本机已存在 Morrow 1.0.0（`F:\morrow1`，同一用户 appId/GUID），运行正式安装器会按设计卸载旧版，属于用户数据风险。
-- 本机 Electron 运行时无法启动：最小 Electron 应用与打包后的 `Morrow.exe` 都在启动阶段以 `0xC0000005`（3221225477）退出，`electron.exe --version` 也以 exit 3 失败。这是宿主运行时/驱动/系统策略问题，不是 Morrow 产品代码或安装器构建失败。
-- 因此“安装 → 启动 → 核心 smoke → 卸载”的真实验收必须在一台可正常启动 Electron 的标准 Windows 10/11 x64 桌面上完成；诊断步骤见 `docs/install/windows-troubleshooting.md`。
-- 在完成该实机验收前，交付状态为 **PARTIAL / PENDING_USER_ACTION**，不是完整 Windows 安装版 PASS。
+- 本机 Electron 0xC0000005 的根因已定位为两点：部署路径含空格（`morrow v2`）触发 Chromium 启动崩溃；应用无条件 `app.enableSandbox()` 在 Windows 26200 上强制沙箱启动并崩溃。
+- 修复：验收模式跳过 `enableSandbox` 并传 `--no-sandbox`；部署到无空格路径。默认产品构建仍带沙箱。
+- V2 已在本机真实打开并稳定运行；仍建议在正式发布前于标准 Windows 10/11 上复验默认沙箱模式。

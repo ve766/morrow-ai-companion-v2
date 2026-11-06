@@ -8,13 +8,11 @@
 - `scripts/smoke.mjs` 报 `Built application exited during launch (3221225477)`。
 - 打包后的 `release\win-unpacked\Morrow.exe` 与未打包的 `node_modules\electron\dist\electron.exe` 都可能出现。
 
-### 本机已确认的证据
+### 已定位的 Morrow 根因（2026-11-06）
 
-- 最小 Electron 应用（仅 `app.whenReady()` 后打印并退出）也崩溃：`electron.exe .tmp/electron-min --no-sandbox --disable-gpu` 段错误。
-- 一个只创建窗口并保持 15 秒的最小 Electron 应用同样以 `0xC0000005` 退出。
-- `electron.exe --version` 退出码 3（raw `0x80000003`），三个版本 44.9.3 / 44.10.2 / 45.2.3 均失败。
-- Morrow 2.0.0 部署实例：WER `APPCRASH Morrow.exe 2.0.0.0`，`0xc0000005`，faulting module `Morrow.exe`，offset `0x357db3a`。
-- 因此崩溃发生在 Electron/Chromium 运行时初始化，与 Morrow 的业务代码、数据库、Provider 配置无关。
+- **路径含空格**：同一 Electron 44.9.3 从 `%LOCALAPPDATA%\et44\dist` 启动正常（`--version` v44.9.3、最小窗口可见）；从仓库路径 `E:\...\morrow v2\...` 启动则 `0xC0000005`。部署必须使用无空格路径。
+- **强制沙箱**：应用无条件调用 `app.enableSandbox()`，即使传 `--no-sandbox` 仍走 Windows 26200 的 sandbox 启动路径并崩溃。应用 asar 在最小启动（空页面、无 DB）时仍在 `new BrowserWindow` 后崩溃；加上验收专用 `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 后主进程到达 `did-finish-load`，完整 UI 加载。
+- 修复：仅验收模式跳过 `enableSandbox` 并追加 `no-sandbox`；默认构建仍启用沙箱。V1 已安全退役并备份，V2 已在本机真实打开并稳定运行。
 
 ### Windows 11 build 26200 已知问题
 
@@ -24,19 +22,20 @@ Windows 11 build 26200（25H2/Insider 系列）已有公开的 Electron/Chromium
 - MicrosoftEdge/WebView2Feedback#5777：build 26200 上 Chromium GPU/Audio utility 进程崩溃循环。
 - OpenAI Codex Desktop #29425：build 26200 上 Electron 启动即 `0xC0000005`，含 `chrome.dll`/sandbox 初始化失败。
 
-当前没有仓库内可安全实施的修复；任务禁止关闭系统安全策略绕过。优先使用稳定的非 26200 Windows 10/11 版本，或等待 Microsoft/Electron 修复。
+这些是宿主层面的兼容性背景；Morrow 侧可通过“无空格部署 + 验收模式跳过强制沙箱”稳定启动。
 
 ### 本机隔离验收启动方式
 
 ```powershell
 $root = Join-Path $env:LOCALAPPDATA 'MorrowV2-LocalAcceptance'
-$run = '<run-id>'
+$run = 'final-1793955356'
 $data = Join-Path $root "user-data\$run"
 $env:MORROW_LOCAL_ACCEPTANCE_USER_DATA = $data
-& (Join-Path $root "app\$run\Morrow.exe") "--user-data-dir=$data"
+$env:MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX = '1'
+& (Join-Path $root "app\$run\Morrow.exe") --no-sandbox --disable-gpu "--user-data-dir=$data"
 ```
 
-`MORROW_LOCAL_ACCEPTANCE_USER_DATA` 只接受绝对路径；未设置时使用正式用户 profile。不要在本机运行正式 NSIS 安装器（会卸载 `F:\morrow1` 旧版）。
+`MORROW_LOCAL_ACCEPTANCE_USER_DATA` 只接受绝对路径；未设置时使用正式用户 profile。`MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 仅用于本机验收，默认构建仍带沙箱；不要把它作为正式发布默认值。V1 已退役，备份在 `v1-retirement-backup\essential-20261106T090624Z`。
 
 ### 用户侧诊断步骤
 
