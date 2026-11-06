@@ -67,7 +67,7 @@ No BLOCKER or HIGH finding exists. The three MEDIUM findings from the first revi
 | `git status --porcelain` | empty at `b7acd4c` before this review revision; this R2 file is the only repository write |
 | `git diff --stat ba8e479..e325b48` | 7 files, 333 insertions(+), 36 deletions(-) |
 | `git diff --stat e325b48..b7acd4c` | 4 docs files, 285 insertions(+), 7 deletions(-) |
-| `git diff --check ba8e479..HEAD` | exit **0** |
+| `git diff --check ba8e479..b7acd4c` | exit **0** |
 | PS 5.1 Parser on the 3 `scripts/ci/*.ps1` | 3/3 `PARSE OK`, exit **0** |
 | PyYAML `safe_load` on `.github/workflows/ci.yml` and `self-hosted-ci.yml` | `True`/`True`, exit **0** |
 | Added-line secret scan (`scripts/ci`, `docs/reports`; precise token patterns) | no real matches, grep exit 1; the only `ghp_` strings are documentation text in the prior review file |
@@ -187,7 +187,7 @@ Author-reported but **not independently rerun** (prohibited): `npm run typecheck
 
 ### 4.1 Identity and diff
 
-`git rev-parse HEAD` = `e325b48859bda287f2b2b65cec79c8d2ad52a96b`; parent = `ba8e479ebc12e960e5678fbcc33a34a35449fec9`. The diff touches only `scripts/ci` and `docs` (three report updates plus the committed first review file); no product runtime, schema, test, or workflow changes. Worktree was clean before this file.
+Current HEAD is `b7acd4c832dbff3c99e5e7de48783aa59c5a64dd` (docs-only follow-up); the reviewed code SHA is `e325b48859bda287f2b2b65cec79c8d2ad52a96b`, whose parent is `ba8e479ebc12e960e5678fbcc33a34a35449fec9`. `ba8e479..e325b48` touches only `scripts/ci` and `docs` (three report updates plus the committed first review file); `e325b48..b7acd4c` touches only docs (this R2 file plus three reports). No product runtime, schema, test, or workflow changes. Worktree was clean at `b7acd4c` before this review revision.
 
 ### 4.2 runDir (unchanged, re-probed)
 
@@ -224,20 +224,21 @@ Honest:
 - 92/92 probe count and 56+36 split match my rerun.
 - The missing-Node manifest fields in the evidence index (`processTree.records: []`, `readmeWritten`, `errors`, policy text, fileCount 2) match my independent reproduction.
 - The closeout now records the first review SHA `ba8e479...` and the orphaned outside-path residual (F6).
+- `b7acd4c` updates the closeout/evidence-index headers to `e325b48859bda287f2b2b65cec79c8d2ad52a96b`, lists both review files, and marks acceptance row 24 `PASS（无 BLOCKER/HIGH）`; the docs no longer defer to the nonexistent Issue #58 comment.
 - PR #54 OPEN, base, and the baseline `60a445e` parent `4428477` match.
 
 Not fully honest / incomplete:
 
-- F1: closeout/evidence-index headers still defer to a nonexistent Issue #58 comment (0 comments), and the evidence index still labels the first review file as the final review. The R2 file is authoritative and states `e325b48...`.
 - F14: typecheck/full-test numbers are author-asserted, not independently rerun.
-- Acceptance matrix row 24 is still `PENDING`; expected until a follow-up docs commit, but it is not updated in `e325b48`.
+- `b7acd4c` is a docs-only commit; it does not add code evidence for the real NSIS/self-hosted path, which remains PENDING_USER_ACTION.
 
 ## 6. Remote state
 
 - `actions/runners`: `total_count=0`.
-- `actions/runs?head_sha=e325b48...`: `total_count=0`; no run on the reviewed SHA.
-- Artifacts: 35 historical, newest 2026-11-05T08:58Z, all from other SHAs; none from `e325b48`.
-- PR #54: `OPEN`, head `e325b48859bda287f2b2b65cec79c8d2ad52a96b`, base `release/morrow-v2-final-delivery`, `mergedAt: null`.
+- `actions/runs?head_sha=e325b48...`: `total_count=0`; no run on the reviewed code SHA.
+- `actions/runs?head_sha=b7acd4c...`: `total_count=0`; no run on the docs-only follow-up.
+- Artifacts: 35 historical, newest 2026-11-05T08:58Z, all from other SHAs; none from `e325b48` or `b7acd4c`.
+- PR #54: `OPEN`, head `b7acd4c832dbff3c99e5e7de48783aa59c5a64dd` (current), reviewed code `e325b48859bda287f2b2b65cec79c8d2ad52a96b`, base `release/morrow-v2-final-delivery`, `mergedAt: null`.
 - Issue #58: `OPEN`, 0 comments.
 - No tag points at HEAD; nothing was dispatched, created, or published by this review.
 
@@ -262,8 +263,8 @@ The three MEDIUM findings from the first review are resolved at the core level:
 
 - **F2 fixed**: hidden files and leftover `.tmp` files are enumerated with `-Force` and listed; the policy text matches; all listed hashes recompute; a complete-coverage probe confirms the listed set equals all archive files minus the manifest and checksum file. Two LOW edge residuals remain (F18/F19).
 - **F3 fixed**: the manifest now persists `processTree.records` with PID/PPID/Name/ExecutablePath/CreationDate/Reason for every owned process, and `-ExcludePids` is honored in both the path loop and the descendant walk.
-- **F1 partially fixed**: the closeout records the first review SHA and points to this R2 file; this file states the exact reviewed code SHA `e325b48859bda287f2b2b65cec79c8d2ad52a96b`. The closeout/evidence-index headers still defer to a nonexistent Issue #58 comment and the evidence index still labels the first review as final; these are LOW docs-consistency residuals.
+- **F1 fixed in `b7acd4c`**: the docs-only follow-up updates the closeout/evidence-index headers to `e325b48...`, lists both review files, and marks acceptance row 24 `PASS`; this file states the exact reviewed code SHA `e325b48859bda287f2b2b65cec79c8d2ad52a96b`. The reviewed code is unchanged by `b7acd4c`.
 
 F4 is fixed (README failure persisted as `archive.readmeWritten=false` + `archive.errors`), F7 is fixed, and F10 is fixed. F5, F6, F8, F9, F11, F12, F13 remain open at LOW or PENDING real-run level. No BLOCKER or HIGH finding exists.
 
-**The overall status is PARTIAL / PENDING_USER_ACTION.** There is no real NSIS install/uninstall and no real self-hosted run: 0 registered runners, 0 workflow runs on `e325b48859bda287f2b2b65cec79c8d2ad52a96b`, and no artifacts from this commit. This is not COMPLETE and not CI PASS.
+**The overall status is PARTIAL / PENDING_USER_ACTION.** There is no real NSIS install/uninstall and no real self-hosted run: 0 registered runners, 0 workflow runs on `e325b48859bda287f2b2b65cec79c8d2ad52a96b` or `b7acd4c832dbff3c99e5e7de48783aa59c5a64dd`, and no artifacts from either commit. This is not COMPLETE and not CI PASS.
