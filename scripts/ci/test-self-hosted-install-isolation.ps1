@@ -276,6 +276,10 @@ try {
   $archiveNormal = Join-Path $root 'archive-normal'
   New-Item -ItemType Directory -Force -Path $archiveNormal | Out-Null
   Set-Content -LiteralPath (Join-Path $archiveNormal 'result.json') -Value '{"ok":true}'
+  $hiddenEvidence = Join-Path $archiveNormal '.hidden-evidence'
+  Set-Content -LiteralPath $hiddenEvidence -Value 'hidden'
+  (Get-Item -LiteralPath $hiddenEvidence).Attributes = (Get-Item -LiteralPath $hiddenEvidence).Attributes -bor [System.IO.FileAttributes]::Hidden
+  Set-Content -LiteralPath (Join-Path $archiveNormal 'leftover.tmp') -Value 'tmp'
   $normalManifest = [pscustomobject]@{ status = 'PASS'; failedStage = $null; exitCode = 0; runId = 'r1'; sha = 's1' }
   $normalResult = Complete-RunArchive -RunDir $archiveNormal -Manifest $normalManifest -ReadmeText 'normal run'
   $normalParsed = Get-Content -LiteralPath (Join-Path $archiveNormal 'run-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -284,6 +288,9 @@ try {
   Assert-True 'manifest-normal-checksum-hash' ($normalParsed.archive.checksumsFileSha256 -eq (Get-Hash $normalChecksumPath)) $normalParsed.archive.checksumsFileSha256
   $normalChecksumText = Get-Content -LiteralPath $normalChecksumPath -Raw
   Assert-True 'manifest-normal-no-cycle' (-not $normalChecksumText.Contains('run-manifest.json') -and -not $normalChecksumText.Contains('checksums.sha256')) 'manifest and checksum file excluded'
+  Assert-True 'manifest-normal-hidden-listed' ($normalChecksumText.Contains('.hidden-evidence')) 'hidden file included'
+  Assert-True 'manifest-normal-tmp-listed' ($normalChecksumText.Contains('leftover.tmp')) 'leftover .tmp included'
+  Assert-True 'manifest-normal-readme-flag' ($normalParsed.archive.readmeWritten -eq $true -and @($normalParsed.archive.errors).Count -eq 0) 'README written, no archive errors'
 
   $archiveReadmeFault = Join-Path $root 'archive-readme-fault'
   New-Item -ItemType Directory -Force -Path $archiveReadmeFault | Out-Null

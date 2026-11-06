@@ -58,7 +58,7 @@ manifest 记录：`runId`、`runDir`、`archiveRoot`、`sha`/`expectedSha`/`actu
 - `Get-OwnedProcesses -InstallDir <runDir>\installed-app -Since <smokeStart>`：
   - 任何 `ExecutablePath` 位于本次隔离安装目录下、且创建时间不早于 smoke 开始时间的进程都是本次所有；
   - 再按 `ParentProcessId` 递归纳入这些进程的后代（覆盖 renderer/GPU/utility/crashpad）；
-  - 记录 PID、PPID、Name、ExecutablePath、CreationDate、Reason。
+  - 记录 PID、PPID、Name、ExecutablePath、CreationDate、Reason；完整 `records` 数组写入 manifest 的 `processTree.records`。
 - `Test-ProcessRecordOwned`：PID 存在、创建时间与记录相差 ≤2 秒、路径在安装目录内或记录为后代，才视为本次进程；PID 被复用时不会误杀。
 - `Stop-OwnedProcessTree`：先对确认属于本次的进程 `CloseMainWindow()`，等待 5 秒；再对仍存活的进程 `Stop-Process -Force`；最多等待 10 秒并复查；任何仍存活或停止异常都返回 `Remaining`/`Errors`。
 - 只有 `processTree.status != CLEANUP_FAILED` 才执行卸载；否则跳过卸载、保留 `installed-app`、`cleanup.status=CLEANUP_FAILED`、整体失败、非零退出。
@@ -76,12 +76,12 @@ npm test
 
 实测：
 
-- 探针：**passed=89 failed=0 total=89**，exit 0。包含原有 56 项与新增 33 项：
+- 探针：**passed=92 failed=0 total=92**，exit 0。包含原有 56 项与新增 36 项：
   - runDir：GUID 创建、子目录、复用拒绝且旧字节/时间戳不变、预置目录拒绝且字节不变、SHA 路径穿越拒绝、junction 拒绝且外部内容不变。
   - manifest：正常 PASS + checksum 哈希；README 故障、checksum 故障、manifest 故障分别 FAILED 且无 PASS manifest；archive 失败状态保留；checksum 无循环。
   - 进程树：单进程、父子多级、父进程快速退出后子进程残留、外部用户进程不归本次、PID/路径不匹配不误杀、权限拒绝、终止超时。
   - 静态：runner 使用唯一目录/终态器/进程树 helper，无 `-Force` 复用 runDir，无按名字 taskkill，manifest 记录 exitCode。
-- `npm run typecheck` exit 0；`npm test` **129 files / 1156 tests passed / 0 failed / 0 skipped**（197.31s）。
+- `npm run typecheck` exit 0；`npm test` **129 files / 1156 tests passed / 0 failed / 0 skipped**（182.99s）。
 - 三个 PowerShell 脚本 PS 5.1 Parser 通过；两个 workflow YAML 可解析；错误 SHA guard exit 1；`git diff --check` 干净。
 - 缺失 Node 故障探针：exit 1；manifest `FAILED`/`execution`/`exitCode=1`；`cleanup=NOT_REQUIRED`；`processTree=NOT_REQUIRED`；archive `integrity=verified`；`run-identity.json`/`README.txt`/`checksums.sha256` 均存在；无 BOM。独立复算 checksums 全部匹配，checksums 文件哈希与 manifest 一致，manifest 不在 checksums 列表中。
 
@@ -95,5 +95,12 @@ npm test
 
 - workflow 级 180 分钟强杀仍可能跳过 finally；此时 `<runDir>` 会留下，但目录名含 GUID，不会被下一次复用。
 - 进程树清理依赖 WMI/CIM 可读；不可读时按 CLEANUP_FAILED 失败并保留安装目录，不猜测。
+- 父进程已退出且子进程可执行文件又不在本次安装目录内的孤儿后代，无法凭路径归属；Electron 的 renderer/GPU/utility/crashpad 均在安装目录内，因此本轮不纳入该孤儿场景。
 - CI 变体仍写入唯一 GUID 的 HKCU 键；卸载器删除；清理失败可能残留 CI-only 键，不影响用户原安装。
 - 回滚：删除 `ci-self-hosted-*` tag；停止/卸载 Runner；删除 `%LOCALAPPDATA%\Morrow\CI` 下本任务归档；不修改 main/release，不合并 PR #54，不发布 Release。
+
+## 6. 独立复审
+
+- 首轮复审（代码 SHA `ba8e479ebc12e960e5678fbcc33a34a35449fec9`）：**PARTIAL / PENDING_USER_ACTION，无 BLOCKER/HIGH**；3 个 MEDIUM：docs 未写 reviewed SHA、checksums 未覆盖 hidden/`.tmp` 文件、`processTree` 未持久化完整归属记录。报告：`docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review.md`。
+- 修复：checksums 改用 `-Force` 并移除 `.tmp` 排除；manifest 增加 `archive.readmeWritten`/`archive.errors`；`processTree.records` 写入完整 PID/PPID/路径/创建时间/原因；移除死代码 `Stop-ProcessesUnderPath`；`-ExcludePids` 同时作用于后代遍历。
+- 修复后探针 92/92；最终复审见 `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review-r2.md`（以该文件记录的 SHA 为准）。

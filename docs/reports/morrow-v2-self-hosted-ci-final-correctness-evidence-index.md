@@ -10,7 +10,7 @@
 | --- | --- |
 | `scripts/ci/self-hosted-ci-helpers.ps1` | `New-UniqueRunDirectory`、`Complete-RunArchive`、`Get-OwnedProcesses`、`Test-ProcessRecordOwned`、`Stop-OwnedProcessTree` |
 | `scripts/ci/run-self-hosted-ci.ps1` | GUID runId、终态状态机、进程树门控卸载/删除 |
-| `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 探针，89 项 |
+| `scripts/ci/test-self-hosted-install-isolation.ps1` | PS 5.1 探针，92 项 |
 | `docs/reports/morrow-v2-self-hosted-ci-final-correctness-closeout.md` | 根因/实现/状态机/进程归属/测试 |
 | `docs/reports/morrow-v2-self-hosted-ci-final-correctness-acceptance-matrix.md` | 逐项验收 |
 | `docs/audit/morrow-v2-self-hosted-ci-final-correctness-independent-review.md` | 独立复审（最终代码 SHA） |
@@ -19,14 +19,14 @@
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/test-self-hosted-install-isolation.ps1
-# 实测：passed=89 failed=0 total=89；exit 0
+# 实测：passed=92 failed=0 total=92；exit 0
 ```
 
 ```powershell
 npm run typecheck
 # 实测：exit 0
 npm test
-# 实测：129 files / 1156 tests passed / 0 failed / 0 skipped（197.31s）；exit 0
+# 实测：129 files / 1156 tests passed / 0 failed / 0 skipped（182.99s）；exit 0
 ```
 
 ```powershell
@@ -45,9 +45,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/run-self-hosted-c
 # run-identity.json / README.txt / checksums.sha256 均存在；manifest 无 BOM
 ```
 
-## 3. 探针覆盖（89 项）
+## 3. 探针覆盖（92 项）
 
-原有 56 项（安装隔离、旧安装保护、清理、脱敏、证据边界、安装器选择）全部保留；新增 33 项：
+原有 56 项（安装隔离、旧安装保护、清理、脱敏、证据边界、安装器选择）全部保留；新增 36 项：
 
 - runDir：GUID 目录创建、5 个子目录、同 stamp/runId 复用拒绝且旧字节/时间戳不变、预置目录拒绝且字节不变、SHA 路径穿越拒绝、junction 拒绝且外部内容不变。
 - manifest：正常 PASS + checksums 哈希 + 无循环；README 故障、checksum 故障、manifest 故障分别 FAILED 且无 PASS manifest；archive 失败状态保留。
@@ -67,13 +67,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/run-self-hosted-c
   "status": "FAILED",
   "failedStage": "execution",
   "exitCode": 1,
-  "processTree": { "status": "NOT_REQUIRED", "ownedCount": 0, "stopped": [], "remaining": [], "errors": [] },
+  "processTree": { "status": "NOT_REQUIRED", "ownedCount": 0, "records": [], "stopped": [], "remaining": [], "errors": [] },
   "cleanup": { "status": "NOT_REQUIRED", "uninstaller": null, "uninstallerExitCode": null, "removedPaths": [], "errors": [] },
   "archive": {
     "integrity": "verified",
-    "checksumPolicy": "run-manifest.json and checksums.sha256 are excluded from the checksum list; checksums.sha256 is hashed into the manifest.",
+    "checksumPolicy": "run-manifest.json and checksums.sha256 are excluded; every other file, including hidden files, is listed; checksums.sha256 is hashed into the manifest.",
     "checksumsFileSha256": "<sha256>",
-    "fileCount": 2
+    "fileCount": 2,
+    "readmeWritten": true,
+    "errors": []
   }
 }
 ```

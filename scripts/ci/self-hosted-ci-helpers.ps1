@@ -220,26 +220,6 @@ function Invoke-IsolatedUninstall([string]$InstallDir, [string]$UninstallerPath,
   }
 }
 
-function Stop-ProcessesUnderPath([string]$ExecutablePath) {
-  $target = Get-NormalizedPath $ExecutablePath
-  $leaf = [System.IO.Path]::GetFileName($target)
-  $stopped = @()
-  $processes = @(Get-CimInstance Win32_Process -Filter "Name = '$leaf'" -ErrorAction SilentlyContinue)
-  foreach ($process in $processes) {
-    $processPath = $null
-    try { $processPath = $process.ExecutablePath } catch { $processPath = $null }
-    if ([string]::IsNullOrWhiteSpace($processPath)) { continue }
-    if (-not (Get-NormalizedPath $processPath).Equals($target, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
-    try {
-      Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
-      $stopped += $process.ProcessId
-    } catch {
-      # A process that already exited is fine; anything else is reported by the caller.
-    }
-  }
-  return $stopped
-}
-
 function Remove-IsolatedPaths([string]$RunDir, [string[]]$RelativePaths) {
   $runFull = Get-NormalizedPath $RunDir
   $removed = @()
@@ -392,17 +372,19 @@ function Complete-RunArchive([string]$RunDir, [object]$Manifest, [string]$Readme
     ChecksumsFileSha256 = $null
     FileCount = 0
   }
-  $checksumPolicy = 'run-manifest.json and checksums.sha256 are excluded from the checksum list; checksums.sha256 is hashed into the manifest.'
+  $checksumPolicy = 'run-manifest.json and checksums.sha256 are excluded; every other file, including hidden files, is listed; checksums.sha256 is hashed into the manifest.'
+  $readmeWritten = $true
   try {
     Write-Utf8NoBom (Join-Path $runFull 'README.txt') $ReadmeText
   } catch {
+    $readmeWritten = $false
     $result.Status = 'FAILED'
     if (-not $result.FailedStage) { $result.FailedStage = 'readme' }
     $result.Errors += "README write failed: $($_.Exception.Message)"
   }
   try {
-    $files = @(Get-ChildItem -LiteralPath $runFull -Recurse -File |
-      Where-Object { $_.Name -ne 'checksums.sha256' -and $_.Name -ne 'run-manifest.json' -and $_.Extension -ne '.tmp' })
+    $files = @(Get-ChildItem -LiteralPath $runFull -Recurse -File -Force |
+      Where-Object { $_.Name -ne 'checksums.sha256' -and $_.Name -ne 'run-manifest.json' })
     $lines = @()
     $expected = @{}
     foreach ($file in $files) {
@@ -424,6 +406,8 @@ function Complete-RunArchive([string]$RunDir, [object]$Manifest, [string]$Readme
       checksumPolicy = $checksumPolicy
       checksumsFileSha256 = $result.ChecksumsFileSha256
       fileCount = $result.FileCount
+      readmeWritten = $readmeWritten
+      errors = @($result.Errors)
     })
   } catch {
     $result.Status = 'FAILED'
@@ -434,7 +418,9 @@ function Complete-RunArchive([string]$RunDir, [object]$Manifest, [string]$Readme
       checksumPolicy = $checksumPolicy
       checksumsFileSha256 = $result.ChecksumsFileSha256
       fileCount = $result.FileCount
+      readmeWritten = $readmeWritten
       error = $_.Exception.Message
+      errors = @($result.Errors)
     })
   }
   $manifestPath = Join-Path $runFull 'run-manifest.json'
@@ -492,6 +478,7 @@ function Get-OwnedProcesses([string]$InstallDir, [datetime]$Since, [int[]]$Exclu
     foreach ($process in $all) {
       $processId = [int]$process.ProcessId
       if ($owned.ContainsKey($processId)) { continue }
+      if ($ExcludePids -contains $processId) { continue }
       $parentId = [int]$process.ParentProcessId
       if (-not $owned.ContainsKey($parentId)) { continue }
       $created = $null

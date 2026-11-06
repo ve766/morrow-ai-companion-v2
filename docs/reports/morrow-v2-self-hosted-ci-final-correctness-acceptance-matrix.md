@@ -25,7 +25,7 @@
 | 18 | PID/路径不匹配不误杀 | PASS | `process-tree-pid-path-mismatch`、`process-tree-no-mismatch-kill` |
 | 19 | 权限拒绝/超时 → CLEANUP_FAILED 并保留证据 | PASS | `process-tree-access-denied`、`process-tree-timeout-remaining` |
 | 20 | 仅进程树确认退出后才卸载/删除 | PASS（代码审查） | runner `treeOk` 门控；`uninstall skipped` 分支 |
-| 21 | 原有 56 项探针继续通过 | PASS | 89 项总探针，0 FAIL |
+| 21 | 原有 56 项探针继续通过 | PASS | 92 项总探针，0 FAIL |
 | 22 | PS 5.1 parser、typecheck、全量测试、YAML、diff check | PASS | Parser 3/3；typecheck 0；129 files / 1156 tests；YAML OK；`git diff --check` 0 |
 | 23 | 不修改产品运行时/schema/测试语义 | PASS | diff 仅 scripts/ci + docs |
 | 24 | 独立复审最终代码 SHA | **PENDING** | 复审完成后更新；不得复用 R3 旧结论 |
@@ -35,4 +35,4 @@
 
 ## 结论
 
-三个正确性缺口均已修复并通过 89 项 PS 5.1 探针、typecheck 与全量测试；真实 NSIS/self-hosted 运行与最终独立复审仍待完成。整体 **PARTIAL / PENDING_USER_ACTION**，不是 COMPLETE，不是 CI PASS。
+三个正确性缺口均已修复并通过 92 项 PS 5.1 探针、typecheck 与全量测试；真实 NSIS/self-hosted 运行与最终独立复审仍待完成。整体 **PARTIAL / PENDING_USER_ACTION**，不是 COMPLETE，不是 CI PASS。

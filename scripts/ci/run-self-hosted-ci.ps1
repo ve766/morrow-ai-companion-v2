@@ -52,6 +52,7 @@ $smokeStartedAt = $null
 $processTree = [pscustomobject]@{
   status = 'NOT_REQUIRED'
   ownedCount = 0
+  records = @()
   stopped = @()
   remaining = @()
   errors = @()
@@ -183,6 +184,7 @@ try {
       try {
         $owned = @(Get-OwnedProcesses -InstallDir $installDir -Since $smokeStartedAt)
         $processTree.ownedCount = $owned.Count
+        $processTree.records = @($owned)
         if ($owned.Count -gt 0) {
           $stop = Stop-OwnedProcessTree -Owned $owned -InstallDir $installDir -GraceSeconds 5
           $processTree.stopped = @($stop.Stopped)
