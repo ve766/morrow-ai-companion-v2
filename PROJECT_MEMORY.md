@@ -8,7 +8,7 @@
 - 远端：`https://github.com/ve766/morrow-ai-companion-v2`
 - 当前分支：`feat/morrow-v2-product-closure-20261107`（从 `feat/morrow-v2-product-complete-20261106` @ `68468cfca95b90b33707fe2dd50c6ee1bcc6fb44` 建立）
 - 当前任务：GitHub Issue #61「Morrow V2 当前产品交付修复 + UI 改造总任务」
-- 工作树：**未提交的进行中改动**（CI Guard、窗口生命周期、UI 重构、验收清单、文档）
+- 工作树：已提交（代码/文档 commit `3a491b75b03ce104f7510e8d5574a6f6bac1ffc8`；后续可能追加结果元数据 commit）
 - 目标 PR base：`feat/morrow-v2-product-complete-20261106`（Issue #61 要求）
 - 禁止：修改 `main`/`release/*`、合并既有 PR、发 Release、force-push、删除证据、把未执行项写成 PASS。
 
@@ -72,18 +72,16 @@
 | `npx vitest run`（full 层内） | PASS | 全量测试通过（数量以运行日志为准） |
 | `npm run build` | PASS | electron-vite |
 | `verify:fast` | PASS | 2/2 |
-| `verify:full` | **FAIL** | `evaluate`、`evaluate:cognition`、`smoke` 失败 |
-| `verify:product` | 未运行 | 需先修复/确认 product-path smoke |
-| `verify:stages` | 未运行 | live 项应 SKIPPED |
-| Windows 真机可见性 | BLOCKED_HUMAN_DESKTOP | 宿主自动最小化；不能以 CDP 代替 |
-| self-hosted CI 真实 run | BLOCKED | Runner 未注册 |
+| `verify:full` | **PASS 6/6** | typecheck/test/evaluate/evaluate:cognition/build/smoke；smoke 使用已安装 acceptance exe + 验收沙箱开关 |
+| `verify:product` | **FAIL** | product-path smoke 重启阶段无 DevTools page |
+| `verify:stages` | **PASS 7 / SKIPPED 2** | stage2/3/restart/4a/5/provider/final-closure；live 无凭据跳过 |
+| Windows 真机可见性 | **PASS_AUTOMATED / PENDING_HUMAN** | 10 分钟 120/120 可见；5 轮真实对话；3 次最小化/恢复；二次启动；重启保留会话；人工签字未获得 |
+| self-hosted CI 真实 run | BLOCKED | workflow 不在默认分支（dispatch 404）+ Runner 未注册 |
 
 `verify:full` 失败详情：
 
-- `evaluate`：退出 1，stdout 无成功报告（`M3 offline runner could not complete`）。
-- `evaluate:cognition`：退出 1，`Offline cognitive evaluation failed`。
-- `smoke`：esbuild 写入 `%TEMP%\morrow-alpha-smoke-*\morrow-alpha-smoke-seeder-*.mjs` 报 `Access is denied`；与本机 `%TEMP%` 权限/杀软环境有关。完整测试已用 `TMP/TEMP=<repo>/.tmp/esbuild-tmp` 规避，但 smoke 脚本自身仍使用 `%TEMP%`，需修复或显式传递 TMP。
-- `verify:full` 的失败未经任何跳过/降级；不得把 full 层写成 PASS。
+- full 层已真实 PASS；test 137 files / 1190 tests；评估通过；smoke 使用已安装 exe。
+- product 层仍 FAIL：隔离 profile 重启阶段 `Renderer did not expose a DevTools page`；保留为 FAIL。
 
 ## 4. 关键代码路径
 
