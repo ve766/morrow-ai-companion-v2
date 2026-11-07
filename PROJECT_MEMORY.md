@@ -1,6 +1,22 @@
 # Morrow V2 项目记忆
 
-## 0. 当前任务（Issue #65，2026-11-07）
+## 0. 最新任务（Issue #69，2026-11-08）
+
+- Issue：https://github.com/ve766/morrow-ai-companion-v2/issues/69
+- 分支：`fix/chat-consent-latency-20261108`（从 PR #68 HEAD `efdbf52` 建立）
+- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/70（OPEN，base `fix/morrow-core-cognitive-closure-20261108`）
+- 代码 commit：`b18ea8a95423cdadd3f6cc23290df89736b94892`；最终 docs commit 见 PR head
+- 状态：**PARTIAL**；UI 未修改，未合并，未发 Release，未改 main。
+- 已完成：内部认知 prediction-error/纠错触发、query 相关性过滤、反证 weaken、独立会话证据合并；normal/personal 30 天 consent grant，sensitive 永不长期复用；撤销/过期单测；批准后复用 prepared snapshot，消除第二次 prepare，CONFLICT 安全；`ChatResult.timings`。
+- 真实验证：thought `8ec2fea2…` → state `293a5774…` rev1 superseded → `b07b848d…` rev2 active（2 独立会话，score 91，v1 公式）；下一轮真实 payload 含 Morrow-owned unresolved thoughts；首聊弹窗一次、次聊同 scope 无弹窗；grant 2026-11-07T16:17:38Z → 2026-12-07T16:17:38Z。
+- 验证：typecheck PASS；tests 141 files / 1207 tests PASS（两次）；build PASS；CI BLOCKED（继承 #65）。
+- 包：`release/Morrow-2.0.0-x64-portable.zip` 154,630,579 bytes，SHA256 `33ceb60f…`；asar `2fb59d5a…` 与实机验收一致；NSIS 安装器 BLOCKED（BUILD_UNINSTALLER exec 返回 null），未运行安装器。
+- 未完成：UI 授权选项/撤销控件、TTFT/renderer/1000 记忆 benchmark、九项盲测、统一 Experience 协议、reflection 自动写回、反证 live、Morrow-owned personality、自主表达、语义检索/timestamp-trust。
+- 报告：`docs/reports/morrow-subject-cognition-2026-11-08/`（00–10 + results）、`docs/reports/chat-consent-latency-2026-11-08/`（00–08 + results，含 windows-package.json）。
+
+> 以下为 Issue #61/#65 的历史记录，保留原文，不代表当前 head。
+
+## 历史 0. Issue #65（2026-11-07）
 
 - 分支：`feat/whole-project-return-to-core-20261107`（从权威基线 `e1d8513` 建立）
 - PR：https://github.com/ve766/morrow-ai-companion-v2/pull/66
@@ -12,7 +28,7 @@
 - 测试 138 files / 1192 tests PASS；typecheck/build PASS；asar `df113e01...`。
 - 未完成：全仓人工逐行、reflection→self-model、语义检索/消融、统一探索、多 Provider 身份矩阵、sensitive consent 修复。
 
-> 本文件是工作区级项目记忆，供后续会话快速恢复上下文。它不是验收报告；事实以代码、测试输出和 `docs/reports/product-closure-2026-11-07/` 为准。最后更新：2026-11-07。
+> 本文件是工作区级项目记忆，供后续会话快速恢复上下文。它不是验收报告；事实以代码、测试输出和 `docs/reports/product-closure-2026-11-07/` 为准。最后更新：2026-11-08。
 
 ## 1. 当前工作
 

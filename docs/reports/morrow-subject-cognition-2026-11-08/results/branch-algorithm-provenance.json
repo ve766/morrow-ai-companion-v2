@@ -1,0 +1,11 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "branches": [
+    { "branch": "origin/feature/algorithm-v2-phase-a", "head": "a6f9e0be683b9a40af028952d625a5643cbf3553", "decision": "NOT_MERGED", "reason": "optional ONNX runtime + 113MB model absent; semantic ablation BLOCKED" },
+    { "branch": "origin/fix/memory-reliability-v0.1", "head": "dca6486af4d14edd2002b78e263f957d8b791352", "decision": "NOT_RESTORED", "reason": "timestamp-trust not in current branch; schema integration not proven" },
+    { "branch": "origin/fix/phase-2.2.10-memory-trust-hardening", "head": "60a88b854646223238f45d8d2b28161c19f84f48", "decision": "NOT_RESTORED", "reason": "same gap" },
+    { "branch": "origin/feat/stage-6-appraisal-engine", "head": "b4d3bd408de9693de6e5fa43ddb05878870e3824", "decision": "REUSE_CURRENT", "reason": "current affective-state services retained; no new appraisal formula" },
+    { "branch": "PR #68", "head": "efdbf52a25e896ee159d296944f019f9b94ab687", "decision": "BASE", "reason": "stacked base" }
+  ]
+}

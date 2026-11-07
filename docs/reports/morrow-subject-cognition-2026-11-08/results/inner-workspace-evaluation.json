@@ -1,0 +1,13 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "schemaVersion": 54,
+  "realEvidence": {
+    "thoughts": ["8ec2fea2-4884-4e2e-8c39-597fab09ba24", "d6bdf0d1-38ab-4d19-ae7e-df56607ab8b1", "eaf9c23e-62af-49b1-b061-adc64cd0ef67"],
+    "states": ["293a5774-70ed-4333-982a-377dddf22a97", "b07b848d-4438-4b09-a132-abc563014322"],
+    "nextTurnConsumption": "real consent payload contained Morrow-owned unresolved thoughts",
+    "restartPersistence": true
+  },
+  "newCode": ["prediction_error trigger", "query relevance filter", "counter-evidence weaken path", "uncertainty removed from belief score"],
+  "limitations": ["scheduler still reviews existing thoughts; no new hypothesis generation from historical experiences", "no live counter-evidence", "no autonomous expression test"]
+}

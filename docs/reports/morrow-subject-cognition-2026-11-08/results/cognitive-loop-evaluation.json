@@ -1,0 +1,14 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "stages": [
+    { "stage": "experience_input", "status": "PARTIAL", "evidence": "real conversation + inner thought; no unified experience protocol" },
+    { "stage": "attention_appraisal", "status": "PARTIAL", "evidence": "uncertainty/prediction error affect thought priority only" },
+    { "stage": "morrow_owned_question", "status": "PASS", "evidence": "morrow_thoughts created from assistant uncertainty/prediction error" },
+    { "stage": "evidence_counterevidence", "status": "PARTIAL", "evidence": "positive evidence live; counter evidence unit-only" },
+    { "stage": "evidence_gate", "status": "PASS", "evidence": "candidate single conversation; active only 2 independent conversations" },
+    { "stage": "persisted_revision", "status": "PASS", "evidence": "morrow_self_states revision 2 supersedes prior" },
+    { "stage": "next_turn_retrieval", "status": "PASS", "evidence": "real payload contains Morrow-owned unresolved thoughts; query filter added" },
+    { "stage": "autonomous_expression", "status": "NOT_RUN", "evidence": "not implemented/tested" }
+  ]
+}
