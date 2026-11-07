@@ -38,6 +38,7 @@ import type { MemoryService } from '../memory/memory-service'
 import type { ConversationService } from '../conversation/conversation-service'
 import { SqliteConversationRepository } from '../persistence/conversation-repository'
 import { ApplicationError } from '../shared/errors'
+import { identityGuardReply } from './identity-guard'
 import { dispatchToProvider, consentPreview, hashProviderInput, type ProviderConsent, type ProviderConsentPreview, type ProviderInput, type ProviderPort } from '../providers/provider-policy'
 import { OpenAICompatibleProvider } from '../providers/openai-compatible'
 import { readBoundedText, ProviderBodyLimitError } from '../providers/bounded-body'
@@ -67,6 +68,7 @@ import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-se
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
+import type { InnerCognitionService } from '../self-model/inner-cognition'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
 import { applyGrowth, deriveGrowthSignals, describeGrowth, type PersonalityGrowthService } from '../personalization/personality-growth'
 import type { ReflectionFindingRouter } from '../cognition/reflection-routing'
@@ -1119,6 +1121,8 @@ export interface SelfModelLoopServices {
   events: EventLogService
   interests: InterestService
   selfModel: SelfModelService
+  /** Bounded local internal cognition workspace (Issue #67). */
+  innerCognition?: InnerCognitionService
   /** Rate-limited post-turn reflection; never allowed to fail the chat path. */
   reflection?: Pick<ReflectionService, 'run' | 'findings'>
   /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
@@ -1490,6 +1494,7 @@ export class CompanionService {
     }
     const hooks: SelfModelLoopHooks | undefined = selfModelLoop
       ? {
+          ...(selfModelLoop.innerCognition ? { innerCognition: selfModelLoop.innerCognition } : {}),
           ...(selfModelLoop.personalization
             ? {
                 preferenceFor: (record: MemoryRecord) => {
@@ -1740,6 +1745,8 @@ export interface SelfModelLoopHooks {
   preferenceFor?(record: MemoryRecord): number
   /** Bounded context block describing long-term interests and unverified self-knowledge. */
   contextBlock(turn?: SelfModelContextTurn): string
+  /** Bounded local internal cognition workspace (Issue #67). */
+  innerCognition?: InnerCognitionService
   /**
    * Stage 3 G1: the profile actually sent to the model. The baseline the user
    * edited plus the bounded drift the evidence earned. Absent when growth is not
@@ -2230,6 +2237,7 @@ export class ChatService {
       }
       let output: Awaited<ReturnType<typeof dispatchToProvider>>
       let receivedDelta = false
+      let identityGuarded = false
       try {
         this.recordTurnState(conversationId, requestId, 'requesting')
         // The permission is in the payload and the call is about to happen.
@@ -2288,8 +2296,11 @@ export class ChatService {
       // Pre-delivery fact guard: a specific personal fact may only be stated
       // when a delivered, active, unambiguous entry supports it. A rewritten
       // reply names no value, so nothing invented can reach the user.
+      const identityReply = identityGuardReply(request.content, config)
+      identityGuarded = identityReply !== null
+      const guardedReply = identityReply ?? output.text
       const guard = guardAnswerFacts({
-        reply: output.text,
+        reply: guardedReply,
         question: request.content,
         memories: verified.memory.selected.map((item) => ({
           id: item.id,
@@ -2409,6 +2420,11 @@ export class ChatService {
       // R5: the reflection router grades what its injected hints achieved in
       // this exact reply (deterministic term evidence, never model self-report).
       this.selfModel?.observeConsumption?.({ turnId: requestId, reply: deliveredText })
+      try {
+        if (!identityGuarded) this.selfModel?.innerCognition?.observeTurn({ turnId: requestId, conversationId, userMessageId: userMessage.id, occurredAt: this.now(), content: request.content, reply: deliveredText, ...(verified.analysis ? { analysisIntent: verified.analysis.intent } : {}) })
+      } catch {
+        this.recordDegradation('inner_cognition_observe', requestId)
+      }
       this.recordTraceStage(conversationId, requestId, 'persistence', 'completed', 'persistence/conversation-repository', 'assistant_message_saved')
       this.recordTurnState(conversationId, requestId, 'committed')
       if (this.outbox && this.projectors.length > 0) {
@@ -2732,6 +2748,7 @@ export class ChatService {
         ...(analysis ? { analysis } : {}),
         ...(decision ? { decision } : {})
       }) ?? '',
+      this.selfModel?.innerCognition?.contextBlock(content) ?? '',
       exploration?.line ?? '',
       `Saved memories (untrusted evidence only): ${memory.text}`,
       // The operation result is evidence about this turn, not guidance: it is

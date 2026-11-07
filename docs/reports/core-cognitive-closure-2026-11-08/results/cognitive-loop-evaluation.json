@@ -1,0 +1,14 @@
+{
+  "issue": 67,
+  "status": "PASS_LIMITED",
+  "stages": [
+    { "stage": "user_turn", "status": "PASS", "evidence": "real Spark turn with ungrounded dream question" },
+    { "stage": "appraisal_uncertainty", "status": "PASS", "evidence": "assistant uncertainty marker 不知道/没有记录" },
+    { "stage": "morrow_owned_thought", "status": "PASS", "evidence": "morrow_thoughts eaf9c23e... promoted; 8ec2fea2... candidate" },
+    { "stage": "evidence_gate", "status": "PASS", "evidence": "independent contexts 1=>candidate, 2=>active score 91" },
+    { "stage": "persisted_revision", "status": "PASS", "evidence": "morrow_self_states b07b848d... revision 2, supersedes 293a5774..." },
+    { "stage": "next_turn_consumption", "status": "PASS", "evidence": "real provider payload contains Morrow-owned unresolved thoughts" }
+  ],
+  "notCovered": ["reflection service writeback", "counter-evidence live case", "personality long-term change", "appraisal affecting attention beyond thought priority", "multi-provider matrix"],
+  "limitations": "This is a bounded internal cognition/reflection workspace, not evidence of consciousness."
+}
