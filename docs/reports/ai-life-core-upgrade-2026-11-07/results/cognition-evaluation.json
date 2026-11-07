@@ -1,0 +1,21 @@
+{
+  "issue": 63,
+  "evaluatedAt": "2026-11-07T13:55:00Z",
+  "codeCommit": "working tree at time of run; final code SHA in PR",
+  "status": "PARTIAL",
+  "note": "Focused deterministic tests passed. The full 12-metric cognition matrix, source-attribution accuracy on labelled real samples, confidence intervals and blind review were not run; do not interpret this file as an overall cognition PASS.",
+  "metrics": {
+    "selfModelSourceAttribution": { "status": "PASS", "evidence": "self-model-state.test.ts: user_explicit classification; unknown-origin remains candidate" },
+    "selfModelAppendOnlyRevision": { "status": "PASS", "evidence": "revision 1→2; old row superseded; same source message idempotent" },
+    "stanceConflictHandling": { "status": "PASS", "evidence": "conflict_pending; strong evidence revise; weak evidence rejected/candidate" },
+    "selfModelContextInjection": { "status": "PASS", "evidence": "buildSelfModelContextBlock contains origin/revision/evidence" },
+    "consentScopeReuse": { "status": "PASS", "evidence": "same provider/endpoint/model/personal scope: second message saved without dialog; scope change/revoke/expiry unit tests" },
+    "crossRestartContinuity": { "status": "PASS", "evidence": "state active revision 1 and grant remained after app restart; turn 162781e3 committed" },
+    "sourceAttributionAccuracyOnLabelledSamples": { "status": "NOT_RUN", "reason": "no labelled real-user sample set" },
+    "nonSycophancyJudge": { "status": "NOT_RUN", "reason": "requires controlled adversarial model evaluation" },
+    "memoryRecallAtKAndAblation": { "status": "NOT_IMPLEMENTED", "reason": "no neural semantic channel / lexical-semantic-hybrid ablation harness" },
+    "explorationCandidateQuality": { "status": "PARTIAL", "reason": "existing interest-based exploration retained; unified Priority formula not implemented" },
+    "longConversationDegradation": { "status": "NOT_RUN" },
+    "hallucinatedSelfClaimRate": { "status": "NOT_RUN" }
+  }
+}

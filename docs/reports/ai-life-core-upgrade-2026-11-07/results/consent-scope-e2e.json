@@ -1,0 +1,17 @@
+{
+  "issue": 63,
+  "status": "PASS",
+  "scopeFingerprint": "d78e07e41a0d79429c5de180e48d2f2f1cf6aff49c48af2e2935977e88eb3225",
+  "scope": { "action": "chat", "providerId": "c2e672dd-4bd5-4efc-875c-67cb5444264f", "model": "spark-x2.6", "maximumSensitivity": "personal" },
+  "firstRequest": { "dialogShown": true, "approved": true, "turnId": "9285cf8c-ad74-4324-aa6b-b61484725986" },
+  "secondRequestSameScope": { "dialogShown": false, "grantHit": true, "turnId": "3efd063c-ea8c-43d9-ab10-50b6bd18e425", "log": "provider consent scope action=chat sensitivity=personal grant=true" },
+  "afterRestart": { "dialogShown": false, "grantHit": true, "turnId": "162781e3-9c2a-4628-a4f2-0497a9f94208" },
+  "grantExpiresAt": "2026-11-08T13:33:55.281Z",
+  "scopeChange": { "status": "PASS", "evidence": "consent-grants.test.ts: endpoint/model/sensitivity/action change => find null" },
+  "revocation": { "status": "PASS", "evidence": "consent-grants.test.ts: revoke => null; 25h => null; profile delete/credential clear revokes provider grants in CompanionService" },
+  "keyExclusion": { "status": "PASS", "evidence": "fingerprint is sha256 of action/providerId/endpoint/model/sensitivity only; no API key or message payload" },
+  "limitations": [
+    "No UI control for per-grant revocation in this round (UI frozen); revocation is backend/service + provider delete/credential clear.",
+    "A sensitivity change (e.g. first normal, later personal/sensitive) intentionally requires a new dialog."
+  ]
+}
