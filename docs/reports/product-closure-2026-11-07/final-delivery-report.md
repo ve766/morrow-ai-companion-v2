@@ -23,7 +23,7 @@
 | 真实对话 | 新 UI turn `02918746...` committed | 9 条 trace、user/assistant 各 1 |
 | 验收入口 | fast/full/stages 可执行并输出 JSON | `scripts/verify/manifest.json`、`results/*.json` |
 | README / Known Limitations | 已按代码更新 | README、known-limitations 顶部增量 |
-| product-path smoke | FAIL | `results/product.json` |
+| product-path smoke | PASS | `results/product.json` |
 
 ## 2. 根因与修复路径
 
@@ -58,8 +58,7 @@ node scripts/verify/run-tier.mjs fast      PASS 2/2
 node scripts/verify/run-tier.mjs full      PASS 6/6
   typecheck PASS / test PASS / evaluate PASS / evaluate:cognition PASS / build PASS / smoke PASS
 node scripts/verify/run-tier.mjs stages    PASS 7 / SKIPPED 2 / FAIL 0
-node scripts/verify/run-tier.mjs product   FAIL 1/1
-  smoke:product-path → Renderer did not expose a DevTools page
+node scripts/verify/run-tier.mjs product   PASS 1/1
 ```
 
 环境说明：
@@ -79,7 +78,7 @@ node scripts/verify/run-tier.mjs product   FAIL 1/1
 
 1. **CI**：workflow 只在特性分支（dispatch 404），Runner 未注册；无法产生真实 run。需要管理员先合入 workflow/默认分支并注册 Runner。
 2. **Windows**：自动化 10 分钟 120/120 可见、5 轮真实对话、3 次最小化/恢复、二次启动/重启均通过；人工目视签字仍未获得（PENDING_HUMAN_CONFIRMATION），不写成人工 PASS。
-3. **product-path**：隔离 profile 重启阶段无 DevTools page；已保留 FAIL。可能与本机窗口/单实例/宿主有关，需在真实桌面环境复现。
+3. **product-path**：已修复并通过（seed goal task 缺 action → 重启 CONFLICT）。
 4. **Theme effects**：纯视觉，不影响功能；未做跨 DPI/其他浏览器验证。
 5. **数据/安全**：未清空 V2 userData、未读取/导入 V1；API Key 未进入代码/日志/截图/报告；未合并 PR、未发布 Release、未修改 main/release。
 
@@ -99,4 +98,4 @@ node scripts/verify/run-tier.mjs product   FAIL 1/1
 
 ## 7. 结论
 
-`PARTIAL`。不是所有 P1/P2 都满足 Definition of Done：CI 真实 run 与 Windows 人工可见硬门被环境阻塞，product-path 重启真实失败。UI 重构、控件接线、真实对话、deterministic 验收入口与文档已完成；未将 BLOCKED/SKIPPED/FAIL 计为 PASS。
+`PARTIAL`。P1/P2 代码与 deterministic 验证已通过，UI 重构、控件接线、真实对话、product-path 均完成；但 self-hosted CI 真实 run 被环境阻塞，Windows 人工目视签字未获得。未将 BLOCKED/SKIPPED 计为 PASS。

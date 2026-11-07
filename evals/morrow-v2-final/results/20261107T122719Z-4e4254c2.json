@@ -1,0 +1,803 @@
+{
+  "runId": "20261107T122719Z-4e4254c2",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-07T12:27:19.692Z",
+  "finishedAt": "2026-11-07T12:27:45.574Z",
+  "status": "PASS",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": true,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory a5c3af31-0817-4e6d-956d-d24bc0247824, goal 00a5cf13-f43b-43c7-b6a1-e6c327f9de6e, conversation 8c0ad7dc-ea64-45f3-b08d-7d629e775526"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "UI evidence screenshots captured",
+      "ok": true,
+      "detail": "9 screenshots at 1440×900 / 1280×800 / 390×844"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    },
+    {
+      "name": "profiles and OS secrets survive restart",
+      "ok": true,
+      "detail": "both profiles read back configured after restart"
+    },
+    {
+      "name": "continuity unchanged across restart",
+      "ok": true,
+      "detail": "baseline={\"interests\":2,\"memories\":1,\"goals\":1} after={\"interests\":2,\"memories\":1,\"goals\":1}"
+    },
+    {
+      "name": "endpoint change clears the old secret and disables the remote profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。"
+    },
+    {
+      "name": "only the changed profile secret was removed",
+      "ok": true,
+      "detail": "B ciphertext unchanged"
+    },
+    {
+      "name": "SQLite continuity rows preserved across restart",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across restart",
+      "ok": true,
+      "detail": "removed=[] changed=[] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"goal_tasks\",\"key\":\"8c3474e2-0211-45bc-90b3-48fd9a3755bd\",\"field\":\"status\",\"reason\":\"startup_goal_recovery\"},{\"table\":\"goal_tasks\",\"key\":\"8c3474e2-0211-45bc-90b3-48fd9a3755bd\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":[{\"key\":\"550efe8e-e0ea-4bdf-92bc-5e80f20c9aff\",\"reason\":\"startup_interest_reconciliation\"}],\"interest_evidence\":[{\"key\":\"2\",\"reason\":\"startup_interest_evidence\"}],\"goal_audit\":[{\"key\":\"2\",\"reason\":\"goal_audit_append\"}],\"reflection_findings\":[{\"key\":\"3f462543-3834-4a42-936d-99e022619bd1\",\"reason\":\"startup_reflection_finding\"}],\"reflection_finding_routes\":[{\"key\":\"1\",\"reason\":\"startup_reflection_route\"}],\"reflection_runs\":[{\"key\":\"68087a1d-139c-4dc0-b145-2373f25de776\",\"reason\":\"startup_reflection_run\"},{\"key\":\"5d2df086-6ece-45e8-b75e-3e18db45603a\",\"reason\":\"startup_reflection_run\"}],\"event_journal\":[{\"key\":\"5a6d080c-6f6f-4d51-9ba8-9f5a61a0a14f\",\"reason\":\"append_only_journal\"},{\"key\":\"c143f9c0-c278-56e1-af96-082de424062f\",\"reason\":\"append_only_journal\"},{\"key\":\"2273f2f5-54bb-4b31-a506-b9b31323fc9e\",\"reason\":\"append_only_journal\"},{\"key\":\"97541eda-eedb-4410-affe-b97c0c881bb1\",\"reason\":\"append_only_journal\"},{\"key\":\"85dfaeb3-6f89-5ca4-81e3-eb25342a1eec\",\"reason\":\"append_only_journal\"},{\"key\":\"91c0aeb2-c102-595d-9781-46fca37b0b2c\",\"reason\":\"append_only_journal\"},{\"key\":\"581424ec-fe2b-5d0e-bc98-b99c5f6bd8d1\",\"reason\":\"append_only_journal\"},{\"key\":\"c09ff1dc-a7c7-41cf-9212-c216d283add3\",\"reason\":\"append_only_journal\"},{\"key\":\"ed9688a5-f7c7-4b59-8cda-a68be1601cde\",\"reason\":\"append_only_journal\"},{\"key\":\"bc5f245f-452a-5358-8a82-18ab7d54e700\",\"reason\":\"append_only_journal\"},{\"key\":\"442ab967-ab52-5504-87ff-6d059b16be65\",\"reason\":\"append_only_journal\"},{\"key\":\"cc3b5aa3-d64c-5f63-b3a9-a1dc88f8624b\",\"reason\":\"append_only_journal\"},{\"key\":\"9e7e0423-27b9-46b4-b5bf-ca0d6571d1fa\",\"reason\":\"append_only_journal\"}]}"
+    },
+    {
+      "name": "re-entering a key re-enables the profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "rekey writes a new OS secret without touching the other profile",
+      "ok": true,
+      "detail": "A ciphertext rotated, B unchanged"
+    },
+    {
+      "name": "switch A → B → A through the product bridge",
+      "ok": true,
+      "detail": "A is default again"
+    },
+    {
+      "name": "continuity unchanged across provider switch",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "delete profile B through the renderer",
+      "ok": true,
+      "detail": "B removed from the list"
+    },
+    {
+      "name": "deleting B removes only B’s OS secret",
+      "ok": true,
+      "detail": "A secret retained"
+    },
+    {
+      "name": "SQLite continuity rows preserved across provider switch",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across provider switch",
+      "ok": true,
+      "detail": "removed=[] changed=[] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"goal_tasks\",\"key\":\"8c3474e2-0211-45bc-90b3-48fd9a3755bd\",\"field\":\"status\",\"reason\":\"startup_goal_recovery\"},{\"table\":\"goal_tasks\",\"key\":\"8c3474e2-0211-45bc-90b3-48fd9a3755bd\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":[{\"key\":\"550efe8e-e0ea-4bdf-92bc-5e80f20c9aff\",\"reason\":\"startup_interest_reconciliation\"}],\"interest_evidence\":[{\"key\":\"2\",\"reason\":\"startup_interest_evidence\"}],\"goal_audit\":[{\"key\":\"2\",\"reason\":\"goal_audit_append\"}],\"reflection_findings\":[{\"key\":\"3f462543-3834-4a42-936d-99e022619bd1\",\"reason\":\"startup_reflection_finding\"}],\"reflection_finding_routes\":[{\"key\":\"1\",\"reason\":\"startup_reflection_route\"}],\"reflection_runs\":[{\"key\":\"68087a1d-139c-4dc0-b145-2373f25de776\",\"reason\":\"startup_reflection_run\"},{\"key\":\"5d2df086-6ece-45e8-b75e-3e18db45603a\",\"reason\":\"startup_reflection_run\"},{\"key\":\"1e9cdc40-aaa6-45f5-92c9-790562287ec6\",\"reason\":\"startup_reflection_run\"},{\"key\":\"b49b5a52-97ce-4f02-a9cb-c20ee64dd7d2\",\"reason\":\"startup_reflection_run\"}],\"event_journal\":[{\"key\":\"5a6d080c-6f6f-4d51-9ba8-9f5a61a0a14f\",\"reason\":\"append_only_journal\"},{\"key\":\"c143f9c0-c278-56e1-af96-082de424062f\",\"reason\":\"append_only_journal\"},{\"key\":\"2273f2f5-54bb-4b31-a506-b9b31323fc9e\",\"reason\":\"append_only_journal\"},{\"key\":\"97541eda-eedb-4410-affe-b97c0c881bb1\",\"reason\":\"append_only_journal\"},{\"key\":\"85dfaeb3-6f89-5ca4-81e3-eb25342a1eec\",\"reason\":\"append_only_journal\"},{\"key\":\"91c0aeb2-c102-595d-9781-46fca37b0b2c\",\"reason\":\"append_only_journal\"},{\"key\":\"581424ec-fe2b-5d0e-bc98-b99c5f6bd8d1\",\"reason\":\"append_only_journal\"},{\"key\":\"c09ff1dc-a7c7-41cf-9212-c216d283add3\",\"reason\":\"append_only_journal\"},{\"key\":\"ed9688a5-f7c7-4b59-8cda-a68be1601cde\",\"reason\":\"append_only_journal\"},{\"key\":\"bc5f245f-452a-5358-8a82-18ab7d54e700\",\"reason\":\"append_only_journal\"},{\"key\":\"442ab967-ab52-5504-87ff-6d059b16be65\",\"reason\":\"append_only_journal\"},{\"key\":\"cc3b5aa3-d64c-5f63-b3a9-a1dc88f8624b\",\"reason\":\"append_only_journal\"},{\"key\":\"9e7e0423-27b9-46b4-b5bf-ca0d6571d1fa\",\"reason\":\"append_only_journal\"},{\"key\":\"7c2dc6c7-ea3c-45ac-8cde-1c6256a1f18c\",\"reason\":\"append_only_journal\"},{\"key\":\"fd560ad4-7c32-5304-b1f1-8b26a003134a\",\"reason\":\"append_only_journal\"},{\"key\":\"6e50e281-6667-537d-be1f-9917c6e315e8\",\"reason\":\"append_only_journal\"},{\"key\":\"f0f3a5a0-fc92-5a94-b8b1-2c220c9fa5ee\",\"reason\":\"append_only_journal\"},{\"key\":\"ed25aaa0-31bf-4b3a-b633-56590dbab50f\",\"reason\":\"append_only_journal\"},{\"key\":\"a74f226f-b657-4c1c-920c-f37465b7d401\",\"reason\":\"append_only_journal\"},{\"key\":\"af5f8b8a-4b1e-5a82-b70a-9fe1a3d7e413\",\"reason\":\"append_only_journal\"},{\"key\":\"f18e6a4b-0ff2-54ae-8050-1155f27218c8\",\"reason\":\"append_only_journal\"},{\"key\":\"dd00be8b-5475-5261-b06c-488935372579\",\"reason\":\"append_only_journal\"},{\"key\":\"298bf43c-32ce-4feb-8a41-08fe7f999806\",\"reason\":\"append_only_journal\"}]}"
+    },
+    {
+      "name": "final restart keeps only A configured",
+      "ok": true,
+      "detail": "one configured profile remains"
+    },
+    {
+      "name": "final continuity unchanged",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "full-field continuity final A",
+      "ok": true,
+      "detail": "removed=[] changed=[] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"8c0d8337-bd0f-4b9e-93ac-744fe6d27722\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"goal_tasks\",\"key\":\"8c3474e2-0211-45bc-90b3-48fd9a3755bd\",\"field\":\"status\",\"reason\":\"startup_goal_recovery\"},{\"table\":\"goal_tasks\",\"key\":\"8c3474e2-0211-45bc-90b3-48fd9a3755bd\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"ec60c7fc-592e-4b95-97cb-77c4f99e256e\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":[{\"key\":\"550efe8e-e0ea-4bdf-92bc-5e80f20c9aff\",\"reason\":\"startup_interest_reconciliation\"}],\"interest_evidence\":[{\"key\":\"2\",\"reason\":\"startup_interest_evidence\"}],\"goal_audit\":[{\"key\":\"2\",\"reason\":\"goal_audit_append\"}],\"reflection_findings\":[{\"key\":\"3f462543-3834-4a42-936d-99e022619bd1\",\"reason\":\"startup_reflection_finding\"}],\"reflection_finding_routes\":[{\"key\":\"1\",\"reason\":\"startup_reflection_route\"}],\"reflection_runs\":[{\"key\":\"68087a1d-139c-4dc0-b145-2373f25de776\",\"reason\":\"startup_reflection_run\"},{\"key\":\"5d2df086-6ece-45e8-b75e-3e18db45603a\",\"reason\":\"startup_reflection_run\"},{\"key\":\"1e9cdc40-aaa6-45f5-92c9-790562287ec6\",\"reason\":\"startup_reflection_run\"},{\"key\":\"b49b5a52-97ce-4f02-a9cb-c20ee64dd7d2\",\"reason\":\"startup_reflection_run\"},{\"key\":\"36fe5602-95fd-46e8-9d40-15efd7789d61\",\"reason\":\"startup_reflection_run\"}],\"event_journal\":[{\"key\":\"5a6d080c-6f6f-4d51-9ba8-9f5a61a0a14f\",\"reason\":\"append_only_journal\"},{\"key\":\"c143f9c0-c278-56e1-af96-082de424062f\",\"reason\":\"append_only_journal\"},{\"key\":\"2273f2f5-54bb-4b31-a506-b9b31323fc9e\",\"reason\":\"append_only_journal\"},{\"key\":\"97541eda-eedb-4410-affe-b97c0c881bb1\",\"reason\":\"append_only_journal\"},{\"key\":\"85dfaeb3-6f89-5ca4-81e3-eb25342a1eec\",\"reason\":\"append_only_journal\"},{\"key\":\"91c0aeb2-c102-595d-9781-46fca37b0b2c\",\"reason\":\"append_only_journal\"},{\"key\":\"581424ec-fe2b-5d0e-bc98-b99c5f6bd8d1\",\"reason\":\"append_only_journal\"},{\"key\":\"c09ff1dc-a7c7-41cf-9212-c216d283add3\",\"reason\":\"append_only_journal\"},{\"key\":\"ed9688a5-f7c7-4b59-8cda-a68be1601cde\",\"reason\":\"append_only_journal\"},{\"key\":\"bc5f245f-452a-5358-8a82-18ab7d54e700\",\"reason\":\"append_only_journal\"},{\"key\":\"442ab967-ab52-5504-87ff-6d059b16be65\",\"reason\":\"append_only_journal\"},{\"key\":\"cc3b5aa3-d64c-5f63-b3a9-a1dc88f8624b\",\"reason\":\"append_only_journal\"},{\"key\":\"9e7e0423-27b9-46b4-b5bf-ca0d6571d1fa\",\"reason\":\"append_only_journal\"},{\"key\":\"7c2dc6c7-ea3c-45ac-8cde-1c6256a1f18c\",\"reason\":\"append_only_journal\"},{\"key\":\"fd560ad4-7c32-5304-b1f1-8b26a003134a\",\"reason\":\"append_only_journal\"},{\"key\":\"6e50e281-6667-537d-be1f-9917c6e315e8\",\"reason\":\"append_only_journal\"},{\"key\":\"f0f3a5a0-fc92-5a94-b8b1-2c220c9fa5ee\",\"reason\":\"append_only_journal\"},{\"key\":\"ed25aaa0-31bf-4b3a-b633-56590dbab50f\",\"reason\":\"append_only_journal\"},{\"key\":\"a74f226f-b657-4c1c-920c-f37465b7d401\",\"reason\":\"append_only_journal\"},{\"key\":\"af5f8b8a-4b1e-5a82-b70a-9fe1a3d7e413\",\"reason\":\"append_only_journal\"},{\"key\":\"f18e6a4b-0ff2-54ae-8050-1155f27218c8\",\"reason\":\"append_only_journal\"},{\"key\":\"dd00be8b-5475-5261-b06c-488935372579\",\"reason\":\"append_only_journal\"},{\"key\":\"298bf43c-32ce-4feb-8a41-08fe7f999806\",\"reason\":\"append_only_journal\"},{\"key\":\"dcb767f8-a1f5-4eee-bf84-3311541aef73\",\"reason\":\"append_only_journal\"},{\"key\":\"d71c1c12-eee4-545e-a01e-2fd235909c34\",\"reason\":\"append_only_journal\"},{\"key\":\"e79ea206-4a8d-50a3-a071-4ab62111bac6\",\"reason\":\"append_only_journal\"},{\"key\":\"9aeb9629-62a0-54dd-af10-c4d1b661bcb1\",\"reason\":\"append_only_journal\"},{\"key\":\"8f2ddbb2-b133-4d07-86ed-ad326b2a2184\",\"reason\":\"append_only_journal\"}]}"
+    }
+  ],
+  "continuity": {
+    "bridge": {
+      "baselineSha256": "f9189f1a1e9525f628c0a2eb4296064df2e9f6f34320860888b1ece6dfa85ce8",
+      "afterRestartSha256": "f9189f1a1e9525f628c0a2eb4296064df2e9f6f34320860888b1ece6dfa85ce8",
+      "afterSwitchSha256": "f9189f1a1e9525f628c0a2eb4296064df2e9f6f34320860888b1ece6dfa85ce8",
+      "finalSha256": "f9189f1a1e9525f628c0a2eb4296064df2e9f6f34320860888b1ece6dfa85ce8"
+    },
+    "databaseCounts": {
+      "baselineSha256": "7173a5653dcc87a2a05be645dde695e267ffa28da5223a4150a45ca073910705",
+      "afterRestartSha256": "cc1f585f0c6a293f3dfea40a012dbadd3952d5dbe6a62177a5aefa08977c20f7",
+      "afterSwitchSha256": "cc1f585f0c6a293f3dfea40a012dbadd3952d5dbe6a62177a5aefa08977c20f7",
+      "tables": [
+        "personality_profiles",
+        "self_model_entries",
+        "interests",
+        "memories",
+        "goals",
+        "relationship_threads",
+        "conversations",
+        "messages",
+        "cognitive_pending_items",
+        "reflection_findings",
+        "reflection_finding_routes"
+      ]
+    },
+    "fullField": {
+      "restart": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "status",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "strength",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "confidence",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "profile_json",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "goal_tasks",
+            "key": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+            "field": "status",
+            "reason": "startup_goal_recovery"
+          },
+          {
+            "table": "goal_tasks",
+            "key": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "strength",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "confidence",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          }
+        ],
+        "allowedAdditions": {
+          "interests": [
+            {
+              "key": "550efe8e-e0ea-4bdf-92bc-5e80f20c9aff",
+              "reason": "startup_interest_reconciliation"
+            }
+          ],
+          "interest_evidence": [
+            {
+              "key": "2",
+              "reason": "startup_interest_evidence"
+            }
+          ],
+          "goal_audit": [
+            {
+              "key": "2",
+              "reason": "goal_audit_append"
+            }
+          ],
+          "reflection_findings": [
+            {
+              "key": "3f462543-3834-4a42-936d-99e022619bd1",
+              "reason": "startup_reflection_finding"
+            }
+          ],
+          "reflection_finding_routes": [
+            {
+              "key": "1",
+              "reason": "startup_reflection_route"
+            }
+          ],
+          "reflection_runs": [
+            {
+              "key": "68087a1d-139c-4dc0-b145-2373f25de776",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "5d2df086-6ece-45e8-b75e-3e18db45603a",
+              "reason": "startup_reflection_run"
+            }
+          ],
+          "event_journal": [
+            {
+              "key": "5a6d080c-6f6f-4d51-9ba8-9f5a61a0a14f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "c143f9c0-c278-56e1-af96-082de424062f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "2273f2f5-54bb-4b31-a506-b9b31323fc9e",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "97541eda-eedb-4410-affe-b97c0c881bb1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "85dfaeb3-6f89-5ca4-81e3-eb25342a1eec",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "91c0aeb2-c102-595d-9781-46fca37b0b2c",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "581424ec-fe2b-5d0e-bc98-b99c5f6bd8d1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "c09ff1dc-a7c7-41cf-9212-c216d283add3",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "ed9688a5-f7c7-4b59-8cda-a68be1601cde",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "bc5f245f-452a-5358-8a82-18ab7d54e700",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "442ab967-ab52-5504-87ff-6d059b16be65",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "cc3b5aa3-d64c-5f63-b3a9-a1dc88f8624b",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "9e7e0423-27b9-46b4-b5bf-ca0d6571d1fa",
+              "reason": "append_only_journal"
+            }
+          ]
+        }
+      },
+      "switch": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "status",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "strength",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "confidence",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "profile_json",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "goal_tasks",
+            "key": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+            "field": "status",
+            "reason": "startup_goal_recovery"
+          },
+          {
+            "table": "goal_tasks",
+            "key": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "strength",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "confidence",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          }
+        ],
+        "allowedAdditions": {
+          "interests": [
+            {
+              "key": "550efe8e-e0ea-4bdf-92bc-5e80f20c9aff",
+              "reason": "startup_interest_reconciliation"
+            }
+          ],
+          "interest_evidence": [
+            {
+              "key": "2",
+              "reason": "startup_interest_evidence"
+            }
+          ],
+          "goal_audit": [
+            {
+              "key": "2",
+              "reason": "goal_audit_append"
+            }
+          ],
+          "reflection_findings": [
+            {
+              "key": "3f462543-3834-4a42-936d-99e022619bd1",
+              "reason": "startup_reflection_finding"
+            }
+          ],
+          "reflection_finding_routes": [
+            {
+              "key": "1",
+              "reason": "startup_reflection_route"
+            }
+          ],
+          "reflection_runs": [
+            {
+              "key": "68087a1d-139c-4dc0-b145-2373f25de776",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "5d2df086-6ece-45e8-b75e-3e18db45603a",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "1e9cdc40-aaa6-45f5-92c9-790562287ec6",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "b49b5a52-97ce-4f02-a9cb-c20ee64dd7d2",
+              "reason": "startup_reflection_run"
+            }
+          ],
+          "event_journal": [
+            {
+              "key": "5a6d080c-6f6f-4d51-9ba8-9f5a61a0a14f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "c143f9c0-c278-56e1-af96-082de424062f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "2273f2f5-54bb-4b31-a506-b9b31323fc9e",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "97541eda-eedb-4410-affe-b97c0c881bb1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "85dfaeb3-6f89-5ca4-81e3-eb25342a1eec",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "91c0aeb2-c102-595d-9781-46fca37b0b2c",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "581424ec-fe2b-5d0e-bc98-b99c5f6bd8d1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "c09ff1dc-a7c7-41cf-9212-c216d283add3",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "ed9688a5-f7c7-4b59-8cda-a68be1601cde",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "bc5f245f-452a-5358-8a82-18ab7d54e700",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "442ab967-ab52-5504-87ff-6d059b16be65",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "cc3b5aa3-d64c-5f63-b3a9-a1dc88f8624b",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "9e7e0423-27b9-46b4-b5bf-ca0d6571d1fa",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "7c2dc6c7-ea3c-45ac-8cde-1c6256a1f18c",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "fd560ad4-7c32-5304-b1f1-8b26a003134a",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "6e50e281-6667-537d-be1f-9917c6e315e8",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "f0f3a5a0-fc92-5a94-b8b1-2c220c9fa5ee",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "ed25aaa0-31bf-4b3a-b633-56590dbab50f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "a74f226f-b657-4c1c-920c-f37465b7d401",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "af5f8b8a-4b1e-5a82-b70a-9fe1a3d7e413",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "f18e6a4b-0ff2-54ae-8050-1155f27218c8",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "dd00be8b-5475-5261-b06c-488935372579",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "298bf43c-32ce-4feb-8a41-08fe7f999806",
+              "reason": "append_only_journal"
+            }
+          ]
+        }
+      },
+      "final": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "status",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "strength",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "confidence",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "interests",
+            "key": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+            "field": "profile_json",
+            "reason": "deterministic_interest_reconciliation"
+          },
+          {
+            "table": "goal_tasks",
+            "key": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+            "field": "status",
+            "reason": "startup_goal_recovery"
+          },
+          {
+            "table": "goal_tasks",
+            "key": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "strength",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "confidence",
+            "reason": "deterministic_evidence_recompute"
+          },
+          {
+            "table": "relationship_threads",
+            "key": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+            "field": "updated_at",
+            "reason": "normal_maintenance_timestamp"
+          }
+        ],
+        "allowedAdditions": {
+          "interests": [
+            {
+              "key": "550efe8e-e0ea-4bdf-92bc-5e80f20c9aff",
+              "reason": "startup_interest_reconciliation"
+            }
+          ],
+          "interest_evidence": [
+            {
+              "key": "2",
+              "reason": "startup_interest_evidence"
+            }
+          ],
+          "goal_audit": [
+            {
+              "key": "2",
+              "reason": "goal_audit_append"
+            }
+          ],
+          "reflection_findings": [
+            {
+              "key": "3f462543-3834-4a42-936d-99e022619bd1",
+              "reason": "startup_reflection_finding"
+            }
+          ],
+          "reflection_finding_routes": [
+            {
+              "key": "1",
+              "reason": "startup_reflection_route"
+            }
+          ],
+          "reflection_runs": [
+            {
+              "key": "68087a1d-139c-4dc0-b145-2373f25de776",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "5d2df086-6ece-45e8-b75e-3e18db45603a",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "1e9cdc40-aaa6-45f5-92c9-790562287ec6",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "b49b5a52-97ce-4f02-a9cb-c20ee64dd7d2",
+              "reason": "startup_reflection_run"
+            },
+            {
+              "key": "36fe5602-95fd-46e8-9d40-15efd7789d61",
+              "reason": "startup_reflection_run"
+            }
+          ],
+          "event_journal": [
+            {
+              "key": "5a6d080c-6f6f-4d51-9ba8-9f5a61a0a14f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "c143f9c0-c278-56e1-af96-082de424062f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "2273f2f5-54bb-4b31-a506-b9b31323fc9e",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "97541eda-eedb-4410-affe-b97c0c881bb1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "85dfaeb3-6f89-5ca4-81e3-eb25342a1eec",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "91c0aeb2-c102-595d-9781-46fca37b0b2c",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "581424ec-fe2b-5d0e-bc98-b99c5f6bd8d1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "c09ff1dc-a7c7-41cf-9212-c216d283add3",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "ed9688a5-f7c7-4b59-8cda-a68be1601cde",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "bc5f245f-452a-5358-8a82-18ab7d54e700",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "442ab967-ab52-5504-87ff-6d059b16be65",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "cc3b5aa3-d64c-5f63-b3a9-a1dc88f8624b",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "9e7e0423-27b9-46b4-b5bf-ca0d6571d1fa",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "7c2dc6c7-ea3c-45ac-8cde-1c6256a1f18c",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "fd560ad4-7c32-5304-b1f1-8b26a003134a",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "6e50e281-6667-537d-be1f-9917c6e315e8",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "f0f3a5a0-fc92-5a94-b8b1-2c220c9fa5ee",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "ed25aaa0-31bf-4b3a-b633-56590dbab50f",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "a74f226f-b657-4c1c-920c-f37465b7d401",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "af5f8b8a-4b1e-5a82-b70a-9fe1a3d7e413",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "f18e6a4b-0ff2-54ae-8050-1155f27218c8",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "dd00be8b-5475-5261-b06c-488935372579",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "298bf43c-32ce-4feb-8a41-08fe7f999806",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "dcb767f8-a1f5-4eee-bf84-3311541aef73",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "d71c1c12-eee4-545e-a01e-2fd235909c34",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "e79ea206-4a8d-50a3-a071-4ab62111bac6",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "9aeb9629-62a0-54dd-af10-c4d1b661bcb1",
+              "reason": "append_only_journal"
+            },
+            {
+              "key": "8f2ddbb2-b133-4d07-86ed-ad326b2a2184",
+              "reason": "append_only_journal"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "secrets": {
+    "a": {
+      "before": "c37efb6095327ecceb1d0d980fbdcf81f3eb48a550c5c2521d87c84705fbe275",
+      "afterChange": null,
+      "afterRekey": "a023247b3699e481b7582df97606aac796bcf965d6cd283cdf683dc3b76e2038"
+    },
+    "b": {
+      "before": "6d21dbebbfe581412f47bc99ffb8d634b8bad871d092b2b761dffc38145ea009",
+      "afterChange": "6d21dbebbfe581412f47bc99ffb8d634b8bad871d092b2b761dffc38145ea009",
+      "afterDelete": null
+    }
+  },
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.",
+  "controlledRequest": {
+    "mode": "service-level",
+    "status": "COVERED_BY_INTEGRATION_TEST",
+    "detail": "Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated."
+  },
+  "uiEvidence": [
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\chat-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\chat-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\chat-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\memory-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\memory-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\memory-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\settings-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\settings-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122719Z-4e4254c2\\settings-390x844.png"
+  ],
+  "continuityFixture": {
+    "firstMessage": "90e88cb7-382b-4ab0-9162-a5481a94935c",
+    "secondMessage": "18607162-4d51-4138-83a5-44dd2125340b",
+    "selfModel": "24a91db4-bafa-4a68-b830-ddb83afbc8bb",
+    "interest": "8c0d8337-bd0f-4b9e-93ac-744fe6d27722",
+    "thread": "ec60c7fc-592e-4b95-97cb-77c4f99e256e",
+    "goalTask": "8c3474e2-0211-45bc-90b3-48fd9a3755bd",
+    "companionGoal": "c9418b58-3733-4b1c-8b0b-79a842435685",
+    "progress": "7743ba9a-4a5d-4544-b38a-7b439d81dfda"
+  },
+  "profiles": {
+    "a": "b3159766-f53c-4735-84ef-d3645d8edfff",
+    "b": "4967b92d-30ab-40c1-abc4-24f6464bc8f3"
+  }
+}

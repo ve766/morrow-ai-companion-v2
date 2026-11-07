@@ -2,29 +2,29 @@
   "version": 1,
   "tier": "product",
   "description": "Real packaged-product path smoke (renderer loads, IPC answers, DB migrates).",
-  "commit": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
-  "startedAt": "2026-11-07T10:27:45.582Z",
-  "endedAt": "2026-11-07T10:33:13.965Z",
+  "commit": "812099e3ac4116a6c8147cf7de0647abfbb8403d",
+  "startedAt": "2026-11-07T12:27:18.835Z",
+  "endedAt": "2026-11-07T12:27:52.949Z",
   "node": "v22.23.2",
   "platform": "win32 x64",
   "counts": {
     "total": 1,
-    "pass": 0,
-    "fail": 1,
+    "pass": 1,
+    "fail": 0,
     "skipped": 0
   },
-  "overall": "FAIL",
+  "overall": "PASS",
   "results": [
     {
       "id": "smoke:product-path",
       "command": "npm run smoke:product-path",
-      "status": "FAIL",
-      "exitCode": 1,
-      "startedAt": "2026-11-07T10:27:45.583Z",
-      "endedAt": "2026-11-07T10:33:13.964Z",
-      "durationMs": 328381,
-      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 smoke:product-path\n> node scripts/product-path-smoke.mjs\n\n{\"runId\":\"20261107T102746Z-4964ec22\",\"status\":\"FAILED\",\"file\":\"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\morrow-v2-final\\\\results\\\\20261107T102746Z-4964ec22.json\"}\n",
-      "stderrTail": "(node:22424) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nRenderer did not expose a DevTools page.\n"
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T12:27:18.836Z",
+      "endedAt": "2026-11-07T12:27:52.948Z",
+      "durationMs": 34112,
+      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 smoke:product-path\n> node scripts/product-path-smoke.mjs\n\n{\"runId\":\"20261107T122719Z-4e4254c2\",\"status\":\"PASS\",\"file\":\"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\morrow-v2-final\\\\results\\\\20261107T122719Z-4e4254c2.json\"}\n",
+      "stderrTail": "(node:15508) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
     }
   ]
 }

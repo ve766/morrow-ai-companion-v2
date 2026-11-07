@@ -73,7 +73,7 @@
 | `npm run build` | PASS | electron-vite |
 | `verify:fast` | PASS | 2/2 |
 | `verify:full` | **PASS 6/6** | typecheck/test/evaluate/evaluate:cognition/build/smoke；smoke 使用已安装 acceptance exe + 验收沙箱开关 |
-| `verify:product` | **FAIL** | product-path smoke 重启阶段无 DevTools page |
+| `verify:product` | **PASS 1/1** | seed goal task 缺 action 修复后跑通 |
 | `verify:stages` | **PASS 7 / SKIPPED 2** | stage2/3/restart/4a/5/provider/final-closure；live 无凭据跳过 |
 | Windows 真机可见性 | **PASS_AUTOMATED / PENDING_HUMAN** | 10 分钟 120/120 可见；5 轮真实对话；3 次最小化/恢复；二次启动；重启保留会话；人工签字未获得 |
 | self-hosted CI 真实 run | BLOCKED | workflow 不在默认分支（dispatch 404）+ Runner 未注册 |
@@ -82,7 +82,7 @@
 
 - full 层真实 PASS；test 137 files / 1190 tests；评估通过；smoke 使用已安装 exe。
 - stages PASS 7 / SKIPPED 2。
-- product 层仍 FAIL：隔离 profile 重启阶段 `Renderer did not expose a DevTools page`；保留为 FAIL。
+- product 层已 PASS（修复 seed goal task 缺配对 action 导致的 restart CONFLICT）。
 
 ## 4. 关键代码路径
 
@@ -104,6 +104,6 @@
 
 1. 已推送并开 PR #62、已向 Issue #61 评论；等待 review。
 2. CI：需管理员把 workflow 合入默认分支并注册 Runner；在此之前不得标记 CI PASS。
-3. product-path smoke：需复现并修复隔离 profile 重启阶段 `Renderer did not expose a DevTools page`；当前保留 FAIL。
+3. product-path：已修复并通过（seed goal task 缺 action → 重启 CONFLICT）。
 4. Windows：自动化 10 分钟可见/5 轮对话/3 次最小化恢复/二次启动/重启已通过；人工目视签字仍为 `PENDING_HUMAN_CONFIRMATION`。
 5. 不改写失败/阻塞历史；不合并 PR、不发 Release、不改 main/release。

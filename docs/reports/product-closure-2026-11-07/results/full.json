@@ -2,9 +2,9 @@
   "version": 1,
   "tier": "full",
   "description": "Full deterministic test suite, evaluations, build and base smoke.",
-  "commit": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
-  "startedAt": "2026-11-07T11:07:38.257Z",
-  "endedAt": "2026-11-07T11:12:06.269Z",
+  "commit": "812099e3ac4116a6c8147cf7de0647abfbb8403d",
+  "startedAt": "2026-11-07T12:29:29.378Z",
+  "endedAt": "2026-11-07T12:34:06.647Z",
   "node": "v22.23.2",
   "platform": "win32 x64",
   "counts": {
@@ -20,9 +20,9 @@
       "command": "npm run typecheck",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-07T11:07:38.259Z",
-      "endedAt": "2026-11-07T11:07:48.650Z",
-      "durationMs": 10391,
+      "startedAt": "2026-11-07T12:29:29.379Z",
+      "endedAt": "2026-11-07T12:29:36.508Z",
+      "durationMs": 7129,
       "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 typecheck\n> tsc --noEmit\n\n",
       "stderrTail": ""
     },
@@ -31,32 +31,32 @@
       "command": "npm test",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-07T11:07:48.650Z",
-      "endedAt": "2026-11-07T11:11:21.774Z",
-      "durationMs": 213124,
-      "stdoutTail": " \u001b[32m✓\u001b[39m tests/design-tokens.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 8\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m tests/acceptance-data-path.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 10\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m src/cognition/retrieval-attention.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 10\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m tests/verify-manifest.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 9\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m src/app/retrieval-query.test.ts \u001b[2m(\u001b[22m\u001b[2m5 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 8\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m137 passed\u001b[39m\u001b[22m\u001b[90m (137)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m1190 passed\u001b[39m\u001b[22m\u001b[90m (1190)\u001b[39m\n\u001b[2m   Start at \u001b[22m 19:07:49\n\u001b[2m   Duration \u001b[22m 211.92s\u001b[2m (tests 99%, import 1%)\u001b[22m\n\n",
-      "stderrTail": "(Use `node --trace-warnings ...` to show where the warning was created)\n(node:14168) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:5376) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:13580) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:21716) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:17964) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+      "startedAt": "2026-11-07T12:29:36.509Z",
+      "endedAt": "2026-11-07T12:33:12.496Z",
+      "durationMs": 215987,
+      "stdoutTail": " \u001b[32m✓\u001b[39m src/cognition/retrieval-attention.test.ts \u001b[2m(\u001b[22m\u001b[2m6 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 19\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m src/security/secrets.test.ts \u001b[2m(\u001b[22m\u001b[2m3 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 7\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m tests/verify-manifest.test.ts \u001b[2m(\u001b[22m\u001b[2m4 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 8\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m tests/design-tokens.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 6\u001b[2mms\u001b[22m\u001b[39m\n \u001b[32m✓\u001b[39m src/app/retrieval-query.test.ts \u001b[2m(\u001b[22m\u001b[2m5 tests\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 6\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m137 passed\u001b[39m\u001b[22m\u001b[90m (137)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m1190 passed\u001b[39m\u001b[22m\u001b[90m (1190)\u001b[39m\n\u001b[2m   Start at \u001b[22m 20:29:37\n\u001b[2m   Duration \u001b[22m 214.81s\u001b[2m (tests 98%, transform 1%, import 1%)\u001b[22m\n\n",
+      "stderrTail": "(Use `node --trace-warnings ...` to show where the warning was created)\n(node:16708) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:3336) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:10432) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:22088) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n(node:18308) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
     },
     {
       "id": "evaluate",
       "command": "npm run evaluate",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-07T11:11:21.774Z",
-      "endedAt": "2026-11-07T11:11:23.144Z",
-      "durationMs": 1370,
-      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 evaluate\n> node scripts/run-evaluation.mjs\n\n{\"passed\":true,\"dataset\":\"morrow-synthetic-memory-retrieval\",\"cases\":11,\"baseline\":\"m1-substring\",\"baselinePrecision\":0.4,\"baselineRecall\":1,\"candidate\":\"scope-aware-token\",\"candidatePrecision\":1,\"candidateRecall\":1,\"candidateSourceLeaks\":0,\"candidateScopeLeaks\":0,\"candidateRestrictedLeaks\":0,\"candidateUnknownLeaks\":0,\"m2Safety\":true,\"deterministicHash\":\"209d8d3745b3d85193cf4deda77a06e7a35eb0837e7ac92bccd5478e33a22ea7\",\"reportSha256\":\"8bc2367c1616c7518bc09439020fcd1c44ab3bfbe9676b13a19468ff8f6d78c8\",\"report\":\"evaluation/reports/m3-synthetic-retrieval-report.json\",\"m4Reminders\":{\"passed\":true,\"cases\":19,\"precision\":1,\"recall\":1,\"falsePositives\":0,\"safetyLeaks\":0,\"deterministicHash\":\"b61fcb94565235fe500aa6f313ead175b19a5fe60013171e498e6edf6927ca01\",\"reportSha256\":\"ccea2ce1b15e8a63f76f314453a749bec651200c8bb9f04c45e4ea7c393d4ede\",\"report\":\"evaluation/reports/m4-synthetic-reminder-report.json\"}}\n",
-      "stderrTail": "(node:20760) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+      "startedAt": "2026-11-07T12:33:12.496Z",
+      "endedAt": "2026-11-07T12:33:14.200Z",
+      "durationMs": 1704,
+      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 evaluate\n> node scripts/run-evaluation.mjs\n\n{\"passed\":true,\"dataset\":\"morrow-synthetic-memory-retrieval\",\"cases\":11,\"baseline\":\"m1-substring\",\"baselinePrecision\":0.4,\"baselineRecall\":1,\"candidate\":\"scope-aware-token\",\"candidatePrecision\":1,\"candidateRecall\":1,\"candidateSourceLeaks\":0,\"candidateScopeLeaks\":0,\"candidateRestrictedLeaks\":0,\"candidateUnknownLeaks\":0,\"m2Safety\":true,\"deterministicHash\":\"209d8d3745b3d85193cf4deda77a06e7a35eb0837e7ac92bccd5478e33a22ea7\",\"reportSha256\":\"974b458a27aa1da4d05082bb9ce18753b3509428c91f4311c6e15f470c129610\",\"report\":\"evaluation/reports/m3-synthetic-retrieval-report.json\",\"m4Reminders\":{\"passed\":true,\"cases\":19,\"precision\":1,\"recall\":1,\"falsePositives\":0,\"safetyLeaks\":0,\"deterministicHash\":\"b61fcb94565235fe500aa6f313ead175b19a5fe60013171e498e6edf6927ca01\",\"reportSha256\":\"ccea2ce1b15e8a63f76f314453a749bec651200c8bb9f04c45e4ea7c393d4ede\",\"report\":\"evaluation/reports/m4-synthetic-reminder-report.json\"}}\n",
+      "stderrTail": "(node:17440) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
     },
     {
       "id": "evaluate:cognition",
       "command": "npm run evaluate:cognition",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-07T11:11:23.145Z",
-      "endedAt": "2026-11-07T11:11:24.574Z",
-      "durationMs": 1429,
-      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 evaluate:cognition\n> node scripts/run-cognitive-core-evaluation.mjs\n\n{\"passed\":true,\"durationMs\":328.29,\"cognitive\":{\"dataset\":\"cognitive-turn-synthetic-v1\",\"cases\":26,\"intentAccuracy\":1,\"strategyAccuracy\":1,\"correctionPrecision\":1,\"correctionRecall\":1,\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/cognitive-turn-synthetic-example.json\"},\"feeling\":{\"dataset\":\"morrow-feeling-synthetic\",\"cases\":34,\"intentAccuracy\":1,\"eventClassificationAccuracy\":1,\"eventDetectionPrecision\":1,\"eventDetectionRecall\":1,\"stateDirectionAccuracy\":1,\"attentionDirectionAccuracy\":1,\"userAffectTransferCount\":0,\"attentionBoundViolations\":0,\"evidenceTraceabilityFailures\":0,\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/feeling-synthetic-example.json\"},\"cognitiveAlpha\":{\"dataset\":\"morrow-cognitive-alpha-adversarial\",\"cases\":28,\"safetyCriticalCases\":19,\"intentAllowlistAccuracy\":1,\"strategyAllowlistAccuracy\":1,\"topicReferenceAccuracy\":1,\"uncertaintyBucketAgreement\":1,\"eventTypeAccuracy\":1,\"eventDetectionPrecision\":1,\"eventDetectionRecall\":1,\"stateChangeAccuracy\":1,\"safetyCriticalPassRate\":1,\"userAffectTransferViolations\":0,\"rawEventTextLeaks\":0,\"calibration\":{\"measured\":false,\"limitation\":\"Rule strength scores and uncertainty buckets are not calibrated probabilities. This deterministic synthetic fixture cannot establish confidence calibration or real-user accuracy; no ECE, Brier score, or reliability curve is claimed.\"},\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/cognitive-alpha-adversarial-report.json\"},\"intentDecision\":{\"dataset\":\"intent-decision-synthetic-v1\",\"cases\":25,\"intentAccuracy\":1,\"routingAccuracy\":1,\"perClass\":{\"information_query\":{\"correct\":4,\"total\":4},\"continuation\":{\"correct\":2,\"total\":2},\"correction\":{\"correct\":2,\"total\":2},\"preference_expression\":{\"correct\":2,\"total\":2},\"emotion_expression\":{\"correct\":2,\"total\":2},\"goal_or_plan\":{\"correct\":2,\"total\":2},\"new_topic\":{\"correct\":2,\"total\":2},\"ambiguous\":{\"correct\":3,\"total\":3},\"self_fact\":{\"correct\":2,\"total\":2},\"feedback\":{\"correct\":1,\"total\":1},\"explanation\":{\"correct\":2,\"total\":2},\"exploration\":{\"correct\":1,\"total\":1}},\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/intent-decision-synthetic-example.json\"},\"offlineExecution\":{\"providerCalls\":0,\"networkCalls\":0,\"networkGuarded\":true,\"toolCalls\":0}}\n",
+      "startedAt": "2026-11-07T12:33:14.200Z",
+      "endedAt": "2026-11-07T12:33:15.203Z",
+      "durationMs": 1003,
+      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 evaluate:cognition\n> node scripts/run-cognitive-core-evaluation.mjs\n\n{\"passed\":true,\"durationMs\":263.18,\"cognitive\":{\"dataset\":\"cognitive-turn-synthetic-v1\",\"cases\":26,\"intentAccuracy\":1,\"strategyAccuracy\":1,\"correctionPrecision\":1,\"correctionRecall\":1,\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/cognitive-turn-synthetic-example.json\"},\"feeling\":{\"dataset\":\"morrow-feeling-synthetic\",\"cases\":34,\"intentAccuracy\":1,\"eventClassificationAccuracy\":1,\"eventDetectionPrecision\":1,\"eventDetectionRecall\":1,\"stateDirectionAccuracy\":1,\"attentionDirectionAccuracy\":1,\"userAffectTransferCount\":0,\"attentionBoundViolations\":0,\"evidenceTraceabilityFailures\":0,\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/feeling-synthetic-example.json\"},\"cognitiveAlpha\":{\"dataset\":\"morrow-cognitive-alpha-adversarial\",\"cases\":28,\"safetyCriticalCases\":19,\"intentAllowlistAccuracy\":1,\"strategyAllowlistAccuracy\":1,\"topicReferenceAccuracy\":1,\"uncertaintyBucketAgreement\":1,\"eventTypeAccuracy\":1,\"eventDetectionPrecision\":1,\"eventDetectionRecall\":1,\"stateChangeAccuracy\":1,\"safetyCriticalPassRate\":1,\"userAffectTransferViolations\":0,\"rawEventTextLeaks\":0,\"calibration\":{\"measured\":false,\"limitation\":\"Rule strength scores and uncertainty buckets are not calibrated probabilities. This deterministic synthetic fixture cannot establish confidence calibration or real-user accuracy; no ECE, Brier score, or reliability curve is claimed.\"},\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/cognitive-alpha-adversarial-report.json\"},\"intentDecision\":{\"dataset\":\"intent-decision-synthetic-v1\",\"cases\":25,\"intentAccuracy\":1,\"routingAccuracy\":1,\"perClass\":{\"information_query\":{\"correct\":4,\"total\":4},\"continuation\":{\"correct\":2,\"total\":2},\"correction\":{\"correct\":2,\"total\":2},\"preference_expression\":{\"correct\":2,\"total\":2},\"emotion_expression\":{\"correct\":2,\"total\":2},\"goal_or_plan\":{\"correct\":2,\"total\":2},\"new_topic\":{\"correct\":2,\"total\":2},\"ambiguous\":{\"correct\":3,\"total\":3},\"self_fact\":{\"correct\":2,\"total\":2},\"feedback\":{\"correct\":1,\"total\":1},\"explanation\":{\"correct\":2,\"total\":2},\"exploration\":{\"correct\":1,\"total\":1}},\"deterministicReplay\":true,\"gate\":{\"passed\":true,\"failedChecks\":[]},\"report\":\"evaluation/reports/intent-decision-synthetic-example.json\"},\"offlineExecution\":{\"providerCalls\":0,\"networkCalls\":0,\"networkGuarded\":true,\"toolCalls\":0}}\n",
       "stderrTail": ""
     },
     {
@@ -64,10 +64,10 @@
       "command": "npm run build",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-07T11:11:24.574Z",
-      "endedAt": "2026-11-07T11:11:28.809Z",
-      "durationMs": 4235,
-      "stdoutTail": "rendering chunks...\n\u001b[2mout/preload/\u001b[22m\u001b[36mindex.js  \u001b[39m\u001b[1m\u001b[2m10.72 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[32m✓ built in 35ms\u001b[39m\n\u001b[36mvite v6.4.5 \u001b[32mbuilding for production...\u001b[36m\u001b[39m\ntransforming...\n\u001b[32m✓\u001b[39m 20 modules transformed.\nrendering chunks...\n\u001b[2m../../out/renderer/\u001b[22m\u001b[32mindex.html                 \u001b[39m\u001b[1m\u001b[2m 38.97 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2m../../out/renderer/\u001b[22m\u001b[35massets/index-BUphc0ih.css  \u001b[39m\u001b[1m\u001b[2m 60.34 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2m../../out/renderer/\u001b[22m\u001b[36massets/index-D5U0nL0Z.js   \u001b[39m\u001b[1m\u001b[2m131.97 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[32m✓ built in 406ms\u001b[39m\n",
+      "startedAt": "2026-11-07T12:33:15.204Z",
+      "endedAt": "2026-11-07T12:33:17.916Z",
+      "durationMs": 2712,
+      "stdoutTail": "rendering chunks...\n\u001b[2mout/preload/\u001b[22m\u001b[36mindex.js  \u001b[39m\u001b[1m\u001b[2m10.72 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[32m✓ built in 27ms\u001b[39m\n\u001b[36mvite v6.4.5 \u001b[32mbuilding for production...\u001b[36m\u001b[39m\ntransforming...\n\u001b[32m✓\u001b[39m 20 modules transformed.\nrendering chunks...\n\u001b[2m../../out/renderer/\u001b[22m\u001b[32mindex.html                 \u001b[39m\u001b[1m\u001b[2m 38.97 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2m../../out/renderer/\u001b[22m\u001b[35massets/index-BUphc0ih.css  \u001b[39m\u001b[1m\u001b[2m 60.34 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[2m../../out/renderer/\u001b[22m\u001b[36massets/index-D5U0nL0Z.js   \u001b[39m\u001b[1m\u001b[2m131.97 kB\u001b[22m\u001b[1m\u001b[22m\n\u001b[32m✓ built in 333ms\u001b[39m\n",
       "stderrTail": ""
     },
     {
@@ -75,11 +75,11 @@
       "command": "npm run smoke",
       "status": "PASS",
       "exitCode": 0,
-      "startedAt": "2026-11-07T11:11:28.809Z",
-      "endedAt": "2026-11-07T11:12:06.268Z",
-      "durationMs": 37459,
+      "startedAt": "2026-11-07T12:33:17.916Z",
+      "endedAt": "2026-11-07T12:34:06.647Z",
+      "durationMs": 48731,
       "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 smoke\n> node scripts/smoke.mjs\n\nMorrow smoke passed: installed Windows app [sandbox disabled for this host], default-off DeepSeek configuration, secure credential save/restart/delete (encrypted-restart-corruption-protected-then-explicit-delete-verified, no Provider requests), cognitive default-off/explicit opt-in and restart persistence, no fabricated reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls, local persistence, deletion, and restart verification.\n",
-      "stderrTail": "(node:23508) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nMorrow smoke notice: Chromium sandbox is disabled for this run (MORROW_SMOKE_DISABLE_SANDBOX=1). The product still ships with sandboxed renderers; this run only proves application behaviour on a host where the renderer sandbox cannot start.\n"
+      "stderrTail": "(node:9916) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nMorrow smoke notice: Chromium sandbox is disabled for this run (MORROW_SMOKE_DISABLE_SANDBOX=1). The product still ships with sandboxed renderers; this run only proves application behaviour on a host where the renderer sandbox cannot start.\n"
     }
   ]
 }

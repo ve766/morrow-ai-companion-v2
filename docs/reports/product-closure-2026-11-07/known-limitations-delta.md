@@ -17,6 +17,6 @@
 
 ## 新增限制（本轮）
 
-- 产品路径 smoke 在隔离 profile 重启阶段失败 `Renderer did not expose a DevTools page`；已保留为 FAIL，不标记 PASS。
+- 产品路径 smoke 的 seed goal task 缺少配对 action，重启恢复曾触发 `CONFLICT`；已补齐 seed action，product 层 PASS。
 - `npm test`/evaluate 在本机默认 `%TEMP%` 会因 esbuild 写入 `Access is denied` 失败；manifest 已把 `TMP/TEMP` 指向仓库 `.tmp/esbuild-tmp`，这是环境规避，不是测试跳过。
 - 默认构建仍启用 `app.enableSandbox()`；验收主机的 `MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX=1` 只用于本机验收，不是产品默认。

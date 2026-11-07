@@ -567,7 +567,7 @@ if (hasSingleInstanceLock) {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow(trustedRendererUrl)
     })
   }).catch((error: unknown) => {
-    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown' })
+    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown', ...(error instanceof ApplicationError ? { code: error.code } : {}), ...(process.env.MORROW_STARTUP_DIAGNOSTIC === '1' && error instanceof Error ? { stack: (error.stack ?? '').slice(0, 3000) } : {}) })
     reportStartupFailure('application', {
       report: (code) => logger.error('app', 'startup failure reported', { code }),
       showError: (title, message) => {

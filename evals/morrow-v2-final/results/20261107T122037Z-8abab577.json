@@ -1,0 +1,68 @@
+{
+  "runId": "20261107T122037Z-8abab577",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-07T12:20:37.479Z",
+  "finishedAt": "2026-11-07T12:21:42.560Z",
+  "status": "FAILED",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": true,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory dc319775-57de-49aa-b252-c4c1f37825a7, goal 3476c9ef-6377-4828-9956-3debe1f01bed, conversation 700299a1-aa68-45c2-b6f9-885242d3e0c2"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "UI evidence screenshots captured",
+      "ok": true,
+      "detail": "9 screenshots at 1440×900 / 1280×800 / 390×844"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    }
+  ],
+  "continuity": {},
+  "secrets": {},
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.",
+  "controlledRequest": {
+    "mode": "service-level",
+    "status": "COVERED_BY_INTEGRATION_TEST",
+    "detail": "Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated."
+  },
+  "uiEvidence": [
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\chat-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\chat-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\chat-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\memory-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\memory-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\memory-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\settings-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\settings-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122037Z-8abab577\\settings-390x844.png"
+  ],
+  "continuityFixture": {
+    "firstMessage": "3a2c45ad-0c96-4a7d-a0b1-d128f5f767b9",
+    "secondMessage": "d0046b4c-1f5f-44ff-a4c4-c310bda6de70",
+    "selfModel": "b739c764-c95d-4bf4-b023-a8e449f19a02",
+    "interest": "859418b6-89b7-4193-847b-719c7f660f20",
+    "thread": "0b7203a4-c4fd-4e6d-afbd-145033db5287",
+    "goalTask": "5f123693-e8d9-4a6b-bed4-7900ce5c42e9",
+    "companionGoal": "1847e254-d43e-4673-94b8-541319ae46e2",
+    "progress": "10c8d453-8bf9-45cb-9dd8-6f92352eb29d"
+  },
+  "error": "Renderer did not expose a DevTools page. childExit=0 stderr=DevTools listening on ws://127.0.0.1:50809/devtools/browser/2ecc4867-4535-4c25-8fd4-3d8874055cbc\r\n{\"ts\":\"2026-11-07T12:20:46.616Z\",\"level\":\"error\",\"source\":\"app\",\"msg\":\"startup failed\",\"fields\":{\"error\":\"ApplicationError\",\"code\":\"CONFLICT\"}}\n{\"ts\":\"2026-11-07T12:20:46.617Z\",\"level\":\"error\",\"source\":\"app\",\"msg\":\"startup failure reported\",\"fields\":{\"code\":\"application-startup-failed\"}}\n[2028:1107/202142.355:ERROR:content\\browser\\network_service_instance_impl.cc:650] Network service crashed or was terminated, restarting service."
+}

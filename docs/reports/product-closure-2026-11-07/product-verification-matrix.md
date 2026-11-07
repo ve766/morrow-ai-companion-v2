@@ -3,7 +3,7 @@
 - 日期：2026-11-07
 - 分支：`feat/morrow-v2-product-closure-20261107`
 - 基线：`68468cfca95b90b33707fe2dd50c6ee1bcc6fb44`
-- 最终 asar（本机 acceptance）：`624eaf1defaf61d49aa1f77f64657d1391aa54e98ce182fa5198a2fd0829aab1`
+- 最终 asar（本机 acceptance）：`1dd5cfa76815902696a849f8bc3d32e7da6afa94a1abed2dedb61dae589fdffb`
 - 状态标记：PASS / FAIL / SKIPPED / BLOCKED / NOT_RUN；失败不折算为 PASS。
 
 ## 1. 分层验收
@@ -13,14 +13,14 @@
 | fast | `node scripts/verify/run-tier.mjs fast` | **PASS 2/2** | `.tmp/verify-fast.json` |
 | full | `node scripts/verify/run-tier.mjs full`（`MORROW_SMOKE_EXECUTABLE=<installed>`） | **PASS 6/6** | `.tmp/verify-full2.json` |
 | stages | `node scripts/verify/run-tier.mjs stages` | **PASS 7 / SKIPPED 2 / FAIL 0** | `.tmp/verify-stages.json` |
-| product | `node scripts/verify/run-tier.mjs product`（installed exe） | **FAIL** | `.tmp/verify-product2.json` |
+| product | `node scripts/verify/run-tier.mjs product`（installed exe） | **PASS 1/1** | `results/product.json` |
 | release | `verify:release` | 未执行 | 需 product PASS；不伪造 |
 
 full 层逐项：typecheck PASS、test PASS、evaluate PASS、evaluate:cognition PASS、build PASS、smoke PASS。
 
 stages 逐项：stage2 / stage3 / stage3:restart / stage4a / stage5 / provider-multi-source / final-closure PASS；stage3:live 与 final-closure:live 因无 `MORROW_TEST_API_KEY` **SKIPPED**（不计 PASS）。
 
-product 层失败：`smoke:product-path` 在隔离 profile 完成 seed、Provider A/B 表单保存、9 张 UI 截图、secret 文件区分后，重启阶段报 `Renderer did not expose a DevTools page`。这是真实 FAIL，不是用户数据损坏；详见结果 JSON。
+product 层已 PASS：修复了 seed goal task 缺少配对 action 导致的重启 `CONFLICT`，并允许启动恢复合法改变 goal task/action 状态；隔离 profile 完整跑通 restart/provider switch/continuity。
 
 ## 2. P1 CI
 
@@ -61,4 +61,4 @@ product 层失败：`smoke:product-path` 在隔离 profile 完成 seed、Provide
 
 ## 6. 总体结论
 
-**PARTIAL**：代码与 deterministic 验证大部分通过（full/stages），UI 重构与真实对话在运行实例上通过；但 self-hosted CI 真实 run 与 Windows 人工可见硬门被环境阻塞，product-path smoke 重启阶段真实失败。未将任何 BLOCKED/SKIPPED/FAIL 计为 PASS。
+**PARTIAL**：deterministic full/stages/product、UI 重构与真实对话均通过；self-hosted CI 真实 run 被环境阻塞，Windows 人工目视签字仍为 PENDING_HUMAN_CONFIRMATION。未将 BLOCKED/SKIPPED 计为 PASS。
