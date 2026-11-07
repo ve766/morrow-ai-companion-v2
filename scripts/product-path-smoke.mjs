@@ -22,6 +22,8 @@ const electronBinary = process.platform === 'win32'
     ? join(root, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron')
     : join(root, 'node_modules', 'electron', 'dist', 'electron')
 const appEntry = join(root, 'out', 'main', 'index.js')
+const productExecutable = process.env.MORROW_PRODUCT_EXECUTABLE ? resolve(process.env.MORROW_PRODUCT_EXECUTABLE) : undefined
+const executable = productExecutable ?? electronBinary
 const profile = resolve(process.env.MORROW_PRODUCT_PROFILE || join(root, '.tmp', 'product-path-profile'))
 const resultsDir = join(root, 'evals', 'morrow-v2-final', 'results')
 const transcriptsDir = join(root, 'evals', 'morrow-v2-final', 'transcripts')
@@ -33,7 +35,8 @@ const FAKE_KEY_B = `FAKE_PRODUCT_PATH_KEY_B_${randomUUID()}`
 const FAKE_KEY_A2 = `FAKE_PRODUCT_PATH_KEY_A2_${randomUUID()}`
 
 if (!existsSync(appEntry)) throw new Error('Built application not found. Run npm run build first.')
-if (!existsSync(electronBinary)) throw new Error('Electron is not installed. Run npm ci first.')
+if (!productExecutable && !existsSync(electronBinary)) throw new Error('Electron is not installed. Run npm ci first.')
+if (productExecutable && !existsSync(productExecutable)) throw new Error(`Configured product executable not found: ${productExecutable}`)
 rmSync(profile, { recursive: true, force: true })
 mkdirSync(profile, { recursive: true })
 
@@ -99,8 +102,8 @@ function launch(port) {
     `--user-data-dir=${profile}`
   ]
   if (sandboxDisabled) args.push('--no-sandbox')
-  args.push(root)
-  const child = spawn(electronBinary, args, { cwd: root, env: environment, stdio: ['ignore', 'ignore', 'pipe'] })
+  if (!productExecutable) args.push(root)
+  const child = spawn(executable, args, { cwd: root, env: environment, stdio: ['ignore', 'ignore', 'pipe'] })
   let stderr = ''
   child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-8192) })
   const exited = new Promise((resolveExit) => child.once('exit', (code, signal) => resolveExit({ code, signal })))

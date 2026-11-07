@@ -9,7 +9,7 @@
   </head>
   <body>
     <div id="app" class="app-shell">
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
           <span class="brand-mark" aria-hidden="true">M</span>
           <div><strong>MORROW</strong><small>本机 · 持续 · 可追溯</small></div>
@@ -19,10 +19,10 @@
           <div><strong>我的 Morrow</strong><small>只保存在这台电脑上</small></div>
         </div>
         <nav class="nav-list" aria-label="主导航">
-          <button class="nav-item active" data-view="chat" aria-current="page"><span class="nav-glyph" aria-hidden="true">◌</span><span>对话</span></button>
-          <button class="nav-item" data-view="memory"><span class="nav-glyph" aria-hidden="true">▤</span><span>记忆与来源</span></button>
-          <button class="nav-item" data-view="goals"><span class="nav-glyph" aria-hidden="true">◷</span><span>目标与提醒</span></button>
-          <button class="nav-item" data-view="settings"><span class="nav-glyph" aria-hidden="true">⚙</span><span>设置与备份</span></button>
+          <button class="nav-item active" data-view="chat" data-testid="nav-chat" aria-current="page"><span class="nav-glyph" aria-hidden="true">◌</span><span>对话</span></button>
+          <button class="nav-item" data-view="memory" data-testid="nav-memory"><span class="nav-glyph" aria-hidden="true">▤</span><span>记忆与来源</span></button>
+          <button class="nav-item" data-view="goals" data-testid="nav-goals"><span class="nav-glyph" aria-hidden="true">◷</span><span>目标与提醒</span></button>
+          <button class="nav-item" data-view="settings" data-testid="nav-settings"><span class="nav-glyph" aria-hidden="true">⚙</span><span>设置与备份</span></button>
         </nav>
         <div class="sidebar-foot">
           <span id="runtime-status">正在检查本地存储…</span>
@@ -34,14 +34,26 @@
       <main id="top" class="main-panel">
         <header class="status-bar" aria-label="运行状态">
           <div class="status-bar-primary">
+            <span class="titlebar-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="titlebar-name">Morrow Desktop</span>
             <span id="status-dot" class="status-dot" aria-hidden="true"></span>
             <span id="status-provider">Provider 未就绪</span>
             <span class="status-divider" aria-hidden="true">/</span>
             <span id="status-conversation">本地对话</span>
           </div>
           <div class="status-bar-secondary">
+            <button id="sidebar-toggle" class="button button-quiet button-small" type="button" aria-controls="sidebar" aria-expanded="false">会话</button>
             <span id="status-trace">轨迹 · 尚无记录</span>
-            <button id="inspector-toggle" class="button button-quiet button-small" type="button" aria-controls="runtime-inspector" aria-expanded="true">运行轨迹</button>
+            <span id="stream-follow" class="follow-chip" hidden>跟随中</span>
+            <div class="effect-switcher" id="effect-switcher" role="group" aria-label="界面主题特效">
+              <button class="effect-chip active" type="button" data-effect="none" aria-pressed="true" data-testid="effect-none">原生</button>
+              <button class="effect-chip" type="button" data-effect="perspective" aria-pressed="false" data-testid="effect-perspective">3D 透视</button>
+              <button class="effect-chip" type="button" data-effect="holo" aria-pressed="false" data-testid="effect-holo">全息</button>
+              <button class="effect-chip" type="button" data-effect="brutal" aria-pressed="false" data-testid="effect-brutal">粗野</button>
+              <button class="effect-chip" type="button" data-effect="collage" aria-pressed="false" data-testid="effect-collage">拼贴</button>
+              <button class="effect-chip" type="button" data-effect="plasma" aria-pressed="false" data-testid="effect-plasma">等离子</button>
+            </div>
+            <button id="inspector-toggle" data-testid="inspector-toggle" class="button button-quiet button-small" type="button" aria-controls="runtime-inspector" aria-expanded="true">运行轨迹</button>
           </div>
         </header>
         <!-- 对话视图：默认首页。保持最小陪伴界面；Provider/认知等配置在“设置”。 -->
@@ -56,9 +68,9 @@
             </div>
             <div class="conversation-toolbar">
               <label for="conversation-select">本地对话</label>
-              <select id="conversation-select" aria-label="选择本地对话"></select>
-              <button id="conversation-new" class="button button-secondary button-small" type="button">新建</button>
-              <button id="conversation-delete" class="button button-danger button-small" type="button">删除当前对话</button>
+              <select id="conversation-select" data-testid="conversation-select" aria-label="选择本地对话"></select>
+              <button id="conversation-new" data-testid="conversation-new" class="button button-secondary button-small" type="button">新建</button>
+              <button id="conversation-delete" data-testid="conversation-delete" class="button button-danger button-small" type="button">删除当前对话</button>
             </div>
             <div id="chat-messages" class="chat-messages" aria-live="polite" aria-busy="false"></div>
             <div class="composer-dock">
@@ -67,16 +79,16 @@
                   <strong>尚未配置模型 API</strong>
                   <p>聊天需要先在设置中保存一个 Provider。密钥只在本机输入并进入系统安全存储。</p>
                 </div>
-                <button id="chat-provider-cta-button" class="button button-primary button-small" type="button">配置模型 API</button>
+                <button id="chat-provider-cta-button" data-testid="chat-provider-cta-button" class="button button-primary button-small" type="button">配置模型 API</button>
               </div>
               <p id="chat-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
               <form id="chat-form" class="chat-form">
                 <label for="chat-content">写给 Morrow</label>
-                <textarea id="chat-content" name="content" maxlength="8000" required rows="4" placeholder="每次发送都会先弹出系统级数据授权确认。"></textarea>
+                <textarea id="chat-content" data-testid="chat-content" name="content" maxlength="8000" required rows="1" placeholder="每次发送都会先弹出系统级数据授权确认。"></textarea>
                 <label class="companion-toggle sensitive-toggle"><input id="chat-include-sensitive" name="includeSensitive" type="checkbox" /><span>明确允许本次请求包含敏感记忆（默认不发送）</span></label>
                 <div class="companion-actions">
-                  <button id="chat-send" class="button button-primary" type="submit" disabled>发送并逐次确认</button>
-                  <button id="chat-cancel" class="button button-secondary" type="button" disabled>取消生成</button>
+                  <button id="chat-send" data-testid="chat-send" class="button button-primary" type="submit" disabled>发送并逐次确认</button>
+                  <button id="chat-cancel" data-testid="chat-cancel" class="button button-secondary" type="button" disabled>取消生成</button>
                   <span id="chat-memory-count" class="meta-item"></span>
                 </div>
               </form>
@@ -114,7 +126,7 @@
                   <textarea id="personality-rules" name="systemRules" maxlength="1500" rows="3" placeholder="例如：优先简洁回答；有不确定性时直说。"></textarea>
                 </label>
                 <div class="companion-actions">
-                  <button class="button button-primary button-small" type="submit">保存新版本</button>
+                  <button id="personality-save" class="button button-primary button-small" type="submit" data-testid="personality-save">保存新版本</button>
                   <span id="personality-version" class="meta-item"></span>
                 </div>
               </form>
@@ -145,7 +157,7 @@
               </label>
               <div class="form-foot">
                 <p>对话不会自动写入记忆；模型生成的候选必须经你编辑确认后才保存。</p>
-                <button class="button button-primary" type="submit">保存到本机 <span aria-hidden="true">↗</span></button>
+                <button id="memory-create-submit" class="button button-primary" type="submit" data-testid="memory-create-submit">保存到本机 <span aria-hidden="true">↗</span></button>
               </div>
             </form>
           </section>
@@ -156,12 +168,12 @@
                 <p class="eyebrow">REVIEW &amp; CONTROL</p>
                 <h2 id="memory-heading">你的记忆</h2>
               </div>
-              <button id="refresh-memories" class="button button-quiet" type="button">刷新列表</button>
+              <button id="refresh-memories" data-testid="refresh-memories" class="button button-quiet" type="button">刷新列表</button>
             </div>
             <form id="search-form" class="search-form">
               <label class="visually-hidden" for="search-query">搜索当前有效记忆</label>
               <input id="search-query" name="query" type="search" maxlength="256" placeholder="搜索当前有效记忆…" />
-              <button class="button button-secondary" type="submit">搜索</button>
+              <button class="button button-secondary" type="submit" data-testid="memory-search-submit">搜索</button>
               <button id="clear-search" class="button button-quiet" type="button">显示全部</button>
             </form>
             <p id="feedback" class="feedback" role="status" aria-live="polite" hidden></p>
@@ -342,13 +354,13 @@
               <input id="provider-profile-model" type="text" maxlength="128" required spellcheck="false" placeholder="例如 gemini-3-flash" />
               <label for="provider-profile-api-key">API Key（保存后清空输入框）</label>
               <input id="provider-profile-api-key" type="password" maxlength="10000" autocomplete="new-password" spellcheck="false" placeholder="编辑时留空表示保留现有密钥；接入地址变更时必须重新输入" />
-              <label class="companion-toggle"><input id="provider-profile-enabled" type="checkbox" /><span>启用此配置</span></label>
-              <label class="companion-toggle"><input id="provider-profile-default" type="checkbox" /><span>设为默认对话 Provider</span></label>
+              <label class="companion-toggle"><input id="provider-profile-enabled" data-testid="provider-profile-enabled" type="checkbox" /><span>启用此配置</span></label>
+              <label class="companion-toggle"><input id="provider-profile-default" data-testid="provider-profile-default" type="checkbox" /><span>设为默认对话 Provider</span></label>
               <div class="companion-actions">
-                <button class="button button-primary button-small" type="submit">保存配置</button>
+                <button id="provider-profile-save" class="button button-primary button-small" type="submit" data-testid="provider-profile-save">保存配置</button>
                 <button id="provider-profile-reset" class="button button-quiet button-small" type="button">新建配置</button>
-                <button id="provider-profile-discover" class="button button-secondary button-small" type="button">发现模型</button>
-                <button id="provider-profile-test" class="button button-secondary button-small" type="button">测试连接</button>
+                <button id="provider-profile-discover" data-testid="provider-profile-discover" class="button button-secondary button-small" type="button">发现模型</button>
+                <button id="provider-profile-test" data-testid="provider-profile-test" class="button button-secondary button-small" type="button">测试连接</button>
               </div>
             </form>
             <p id="provider-profile-feedback" class="companion-feedback" role="status" aria-live="polite" hidden></p>
@@ -422,6 +434,24 @@
             </div>
           </form>
 
+          <section class="panel visual-lab" id="visual-lab" aria-labelledby="visual-lab-heading">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">INTERFACE MUSEUM</p>
+                <h2 id="visual-lab-heading">界面博物馆 · 主题特效</h2>
+              </div>
+              <span id="effect-status" class="status-pill">原生深色</span>
+            </div>
+            <p class="companion-muted">从界面博物馆取用的五种视觉语言，只改变外观，不改变对话、记忆、人格、Provider 或权限。选择会保存在本机浏览器存储中。</p>
+            <div class="effect-gallery">
+              <button class="effect-card" type="button" data-effect="perspective" aria-pressed="false" data-testid="effect-card-perspective"><span class="effect-preview preview-perspective" aria-hidden="true"></span><strong>3D 透视</strong><small>鼠标跟随的轻微空间倾斜，面板像在工作台上被拿起。</small></button>
+              <button class="effect-card" type="button" data-effect="holo" aria-pressed="false" data-testid="effect-card-holo"><span class="effect-preview preview-holo" aria-hidden="true"></span><strong>全息边框</strong><small>低饱和虹彩描边沿卡片边缘缓慢流动。</small></button>
+              <button class="effect-card" type="button" data-effect="brutal" aria-pressed="false" data-testid="effect-card-brutal"><span class="effect-preview preview-brutal" aria-hidden="true"></span><strong>粗野主义</strong><small>硬边、粗线、偏移阴影；信息优先于装饰。</small></button>
+              <button class="effect-card" type="button" data-effect="collage" aria-pressed="false" data-testid="effect-card-collage"><span class="effect-preview preview-collage" aria-hidden="true"></span><strong>纸片拼贴</strong><small>层叠纸片、撕边和轻微错位，保留手作温度。</small></button>
+              <button class="effect-card" type="button" data-effect="plasma" aria-pressed="false" data-testid="effect-card-plasma"><span class="effect-preview preview-plasma" aria-hidden="true"></span><strong>等离子</strong><small>缓慢呼吸的等离子光场，作为低对比度背景氛围。</small></button>
+            </div>
+          </section>
+
           <section id="backup-section" class="panel" aria-labelledby="backup-heading">
             <div class="section-heading">
               <div>
@@ -431,8 +461,8 @@
               </div>
             </div>
             <div class="reminder-actions" aria-label="备份操作">
-              <button id="backup-export" class="button button-primary button-small" type="button">导出备份到本地文件夹</button>
-              <button id="backup-preview" class="button button-secondary button-small" type="button">选择备份并预览</button>
+              <button id="backup-export" data-testid="backup-export" class="button button-primary button-small" type="button">导出备份到本地文件夹</button>
+              <button id="backup-preview" data-testid="backup-preview" class="button button-secondary button-small" type="button">选择备份并预览</button>
             </div>
             <div id="backup-preview-card" class="backup-preview-card" hidden>
               <div class="cognitive-state" id="backup-preview-summary" aria-live="polite"></div>
@@ -461,7 +491,7 @@
               <p class="eyebrow">RUNTIME TRACE</p>
               <h2>本轮运行</h2>
             </div>
-            <button id="inspector-close" class="button button-quiet button-small" type="button" aria-label="收起运行轨迹">收起</button>
+            <button id="inspector-close" data-testid="inspector-close" class="button button-quiet button-small" type="button" aria-label="收起运行轨迹">收起</button>
           </div>
           <span id="runtime-trace-status" class="meta-item">尚无运行记录</span>
         </header>

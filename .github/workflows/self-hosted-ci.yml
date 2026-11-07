@@ -25,11 +25,16 @@ jobs:
     # actor is not trusted, this job is skipped and the verify job never runs.
     if: >-
       github.repository == 've766/morrow-ai-companion-v2' &&
-      (github.ref == 'refs/heads/feat/morrow-v2-final-closure' ||
-       startsWith(github.ref, 'refs/tags/ci-self-hosted-')) &&
       github.actor == 've766' &&
-      github.triggering_actor == 've766'
+      github.triggering_actor == 've766' &&
+      ((github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/feat/morrow-v2-final-closure' ||
+         github.ref == 'refs/heads/feat/morrow-v2-product-complete-20261106' ||
+         github.ref == 'refs/heads/feat/morrow-v2-product-closure-20261107')) ||
+       (github.event_name == 'push' &&
+        startsWith(github.ref, 'refs/tags/ci-self-hosted-')))
     runs-on: [self-hosted, Windows, X64, morrow-ci]
+    continue-on-error: false
     timeout-minutes: 10
     steps:
       - name: Record trigger identity (no repository checkout)
@@ -51,6 +56,7 @@ jobs:
     needs: guard
     if: needs.guard.result == 'success'
     runs-on: [self-hosted, Windows, X64, morrow-ci]
+    continue-on-error: false
     timeout-minutes: 180
     steps:
       - name: Checkout exact triggered SHA
@@ -88,4 +94,22 @@ jobs:
           if (Test-Path $root) {
             Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 |
               ForEach-Object { Write-Host "archive=$($_.FullName)" }
+          }
+
+  guard-outcome:
+    name: Fail closed when guard or verify did not succeed
+    needs: [guard, verify]
+    if: always()
+    runs-on: [self-hosted, Windows, X64, morrow-ci]
+    continue-on-error: false
+    timeout-minutes: 5
+    steps:
+      - name: Reject skipped or failed verification
+        shell: powershell
+        run: |
+          $guard = '${{ needs.guard.result }}'
+          $verify = '${{ needs.verify.result }}'
+          Write-Host "guard=$guard verify=$verify"
+          if ($guard -ne 'success' -or $verify -ne 'success') {
+            throw "Self-hosted verification is not successful (guard=$guard verify=$verify); a skipped guard must never look green."
           }

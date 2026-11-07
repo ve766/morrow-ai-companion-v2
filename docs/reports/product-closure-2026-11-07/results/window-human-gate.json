@@ -1,0 +1,71 @@
+{
+  "capturedAt": "2026-11-07T10:54:01.187493+00:00",
+  "os": "Windows 11 Build 26200",
+  "durationMinutes": 10,
+  "visibility": {
+    "samples": 120,
+    "visibleAndRestored": 120,
+    "hiddenOrMinimized": 0,
+    "result": "PASS_VISIBLE_WINDOW",
+    "evidence": "window-visibility.json"
+  },
+  "realChats": [
+    {
+      "turnId": "02918746-4cfc-4140-aaad-5425dd4d6423",
+      "state": "committed"
+    },
+    {
+      "turnId": "89c64196-4f77-45c4-8f74-f0c2441f2776",
+      "state": "committed"
+    },
+    {
+      "turnId": "f6184a76-3660-4a34-aef8-91653e53a225",
+      "state": "committed"
+    },
+    {
+      "turnId": "e4e82456-1d10-4b12-94a9-ec298367b79a",
+      "state": "committed"
+    },
+    {
+      "turnId": "f3686174-bb85-4a8c-b405-cf166125b1a9",
+      "state": "committed"
+    }
+  ],
+  "minimizeRestore": [
+    {
+      "round": 1,
+      "minimized": true,
+      "restored": true
+    },
+    {
+      "round": 2,
+      "minimized": true,
+      "restored": true
+    },
+    {
+      "round": 3,
+      "minimized": true,
+      "restored": true
+    }
+  ],
+  "secondInstance": {
+    "secondPid": 20044,
+    "secondExited": true,
+    "firstPid": 13924,
+    "samePid": true,
+    "visible": true,
+    "iconic": false
+  },
+  "restart": {
+    "closedProcesses": 0,
+    "relaunchedVisible": true,
+    "conversationPreserved": true,
+    "provider": "Spark 验收 Provider · 已就绪",
+    "trace": "9 条事件 · turn f3686174"
+  },
+  "humanConfirmation": {
+    "status": "PENDING_HUMAN_CONFIRMATION",
+    "note": "自动化窗口可见/最小化恢复/二次启动/重启均已通过，但任务要求的人工桌面目视签字未获得。"
+  },
+  "overall": "PARTIAL"
+}

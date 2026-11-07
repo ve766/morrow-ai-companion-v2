@@ -1,0 +1,853 @@
+﻿{
+    "capturedAt":  "2026-11-07T10:48:50.8326651Z",
+    "durationMinutes":  10,
+    "os":  "Microsoft Windows NT 10.0.26200.0",
+    "samples":  120,
+    "visibleAndRestored":  120,
+    "hiddenOrMinimized":  0,
+    "first":  "2026-11-07T10:38:49.1865895Z",
+    "last":  "2026-11-07T10:48:45.8291863Z",
+    "result":  "PASS_VISIBLE_WINDOW",
+    "samplesDetail":  [
+                          {
+                              "at":  "2026-11-07T10:38:49.1865895Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:38:54.2015346Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:38:59.2121718Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:04.2328673Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:09.2397164Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:14.2473609Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:19.2548282Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:24.2761302Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:29.3242332Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:34.3331942Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:39.3377949Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:44.3461062Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:49.3494854Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:54.3694782Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:39:59.3724781Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:04.3864127Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:09.3989806Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:14.4046855Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:19.4085652Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:24.4239944Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:29.4339691Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:34.4392736Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:39.4524448Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:44.4546406Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:49.4760116Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:54.5033156Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:40:59.5107080Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:04.5147552Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:09.5304989Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:14.5376633Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:19.5490120Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:24.5565908Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:29.5678806Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:34.5854375Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:39.5990189Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:44.6295614Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:49.6312004Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:54.6509448Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:41:59.6660446Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:04.7047253Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:09.7141757Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:14.7278358Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:19.7351877Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:24.7442065Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:29.7598496Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:34.7699284Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:39.7878896Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:44.8011254Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:49.8144492Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:54.8355822Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:42:59.8399381Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:04.8533233Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:09.8590229Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:14.8723698Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:19.8813105Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:24.8924347Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:29.9065337Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:34.9172709Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:39.9300201Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:44.9467859Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:49.9561640Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:54.9765297Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:43:59.9949220Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:05.0187737Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:10.0285490Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:15.0420756Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:20.0533392Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:25.0615494Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:30.0785177Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:35.1000526Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:40.1132899Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:45.1251453Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:50.1522962Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:44:55.1759091Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:00.1975845Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:05.2115352Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:10.2250816Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:15.2396136Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:20.2590854Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:25.2664865Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:30.2794208Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:35.2801447Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:40.2958158Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:45.3013468Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:50.3143569Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:45:55.3301050Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:00.3500962Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:05.3614824Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:10.3684395Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:15.3737355Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:20.3818605Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:25.4065036Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:30.4245254Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:35.4374547Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:40.4474034Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:45.4670643Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:50.4804912Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:46:55.4922192Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:00.5120478Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:05.5215646Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:10.5350326Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:15.5433254Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:20.5619701Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:25.5776126Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:30.5902558Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:35.6018961Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:40.6235468Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:45.6343612Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:50.6480558Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:47:55.6750373Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:00.6901538Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:05.7014366Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:10.7235270Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:15.7609411Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:20.7780121Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:25.7892094Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:30.7990947Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:35.8039140Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:40.8185149Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          },
+                          {
+                              "at":  "2026-11-07T10:48:45.8291863Z",
+                              "alive":  true,
+                              "pid":  13924,
+                              "visible":  true,
+                              "iconic":  false
+                          }
+                      ]
+}

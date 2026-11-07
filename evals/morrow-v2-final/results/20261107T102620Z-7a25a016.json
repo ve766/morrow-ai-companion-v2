@@ -1,0 +1,68 @@
+{
+  "runId": "20261107T102620Z-7a25a016",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-07T10:26:20.760Z",
+  "finishedAt": "2026-11-07T10:27:13.870Z",
+  "status": "FAILED",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": true,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory f2ac7841-01f6-4a15-99c3-9ba1202081f7, goal 727e80b4-32a9-44cf-898f-93ac46bb49e9, conversation 31e23d42-b886-4f48-a73d-9d580d2137f0"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "UI evidence screenshots captured",
+      "ok": true,
+      "detail": "9 screenshots at 1440×900 / 1280×800 / 390×844"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    }
+  ],
+  "continuity": {},
+  "secrets": {},
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.",
+  "controlledRequest": {
+    "mode": "service-level",
+    "status": "COVERED_BY_INTEGRATION_TEST",
+    "detail": "Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated."
+  },
+  "uiEvidence": [
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\chat-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\chat-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\chat-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\memory-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\memory-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\memory-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\settings-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\settings-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T102620Z-7a25a016\\settings-390x844.png"
+  ],
+  "continuityFixture": {
+    "firstMessage": "e9c9988f-3a8a-4e45-a34e-f8dcb815e5fa",
+    "secondMessage": "80927b10-a91c-4ddc-80d3-9965b5a9549b",
+    "selfModel": "b09f5fba-e3ac-4af2-a505-e5f4af249aa2",
+    "interest": "d80d1e7c-fd2b-4cdf-9f6b-f5c5ab06e752",
+    "thread": "ec182b75-6527-47ba-aa8e-a5ee3f5d149a",
+    "goalTask": "d6c35690-1e5d-4be2-911f-6b6deb1f8547",
+    "companionGoal": "c7e3f6d8-d5b9-455a-9f36-43c348b79c9a",
+    "progress": "b131887f-1fde-4431-97fb-e9ffc73302fd"
+  },
+  "error": "Renderer did not expose a DevTools page."
+}

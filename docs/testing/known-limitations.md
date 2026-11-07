@@ -21,6 +21,21 @@
 | 归档记忆重述 | P2 | 重述不会恢复召回；产品语义待定 |
 | 语义嵌入检索 | P3 | 四通道 RRF（词法/槽位/值/事实），无语义 embedding |
 
+## 产品收口更新（2026-11-07，feat/morrow-v2-product-closure-20261107）
+
+以下条目在产品收口轮（Issue #61）复核后更新；带 SHA 的为当时状态，未列出的历史条目继续有效。
+
+| 项 | 更新后状态 | 证据 / 边界 |
+|---|---|---|
+| 兴趣/自我模型专属面板 | **已实现**（原条目 4 superseded） | `src/renderer/src/self-model-ui.ts` 渲染自我模型条目与兴趣列表（纠正/撤销/状态控制），挂载于记忆视图 `#self-model-list` / `#interest-list`；IPC 列表面真实存在（`tests/ui-control-contract.test.ts` 覆盖） |
+| 运行轨迹可观测 | **已实现** | `turn_trace_events`（schema v50–v52）；右侧 inspector 显示 started/completed/skipped/failed、原因码与耗时；写失败不阻断聊天，读失败显示“轨迹不完整”（`src/app/turn-trace.integration.test.ts`） |
+| 多源 Provider UI/真实连接 | **已实现 + 真实验证（spark-x2.6，本机）** | 设置页多源配置（保存/默认/启用/发现模型/测试连接）；2026-11-06 真实连接 10,612ms 与多轮真实对话证据见 `docs/reports/morrow-v2-runtime-trace-evidence-index.md` |
+| 反思产物呈现 | **部分完成** | 自我模型面板可查看条目与纠正；反思 findings 的逐条“接受/拒绝”操作仍未做专属控件（runtime path 经 `listPendingItems` 存在） |
+| Windows 真机窗口可见性 | **BLOCKED_HUMAN_DESKTOP**（继承 Issue #60） | 宿主自动最小化窗口；CDP/DOM/UIA 证据不等于人工可见验收。已交付窗口生命周期状态机、越界恢复与二次启动聚焦（`src/app/window-lifecycle.ts`、`window-bounds.ts`、`src/app/index.ts` second-instance），需人工桌面 10 分钟验收 |
+| Electron 本机 smoke | **BLOCKED**（宿主 0xC0000005 已规避路径：`%LOCALAPPDATA%` + 验收沙箱开关） | 仍非默认产品路径；默认构建保持 `app.enableSandbox()` |
+| 语义嵌入检索 | P3（不变） | 四通道 RRF（词法/槽位/值/事实），无 embedding |
+| 第二真实 Provider 切换 | **NOT_VERIFIED** | 代码路径完整（multi-source profile/默认切换），本机仅验证了一个自定义 Provider；第二端点切换未实机执行 |
+
 ## 阻塞类（环境原因）
 
 1. **DeepSeek 真实 Key 端到端未验证**：执行环境没有 DeepSeek API Key，且任务禁止伪造凭据或擅自产生付费调用。云端协议实现（SSE 流式、Bearer、错误码映射、重定向拒绝）由注入 fetch 的测试覆盖；真实调用需持 Key 用户按 README 执行一次。影响：不阻塞运行（本地 Provider 通道完整可用）；属验收门槛中明确允许标记"受环境阻塞"的项。

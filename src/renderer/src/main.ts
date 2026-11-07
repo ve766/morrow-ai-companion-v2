@@ -14,6 +14,7 @@ import { initializeReminders } from './reminders-ui'
 import { initializeCompanion } from './companion-ui'
 import { initializeProviderProfiles } from './provider-profiles-ui'
 import { initializeSelfModel } from './self-model-ui'
+import { initializeVisualEffects } from './visual-effects'
 
 class UiError extends Error {}
 
@@ -333,7 +334,19 @@ element<HTMLButtonElement>('#refresh-memories').addEventListener('click', async 
   await loadMemories()
 })
 
+// Layout parity with the Claude reference: keep the central chat single-column.
+// Secondary chat panels remain fully functional, but live in Settings so they do
+// not crowd the conversation.
+const settingsView = document.querySelector<HTMLElement>('#settings-view')
+const backupAnchor = document.querySelector<HTMLElement>('#backup-section')
+const personalityPanel = document.querySelector<HTMLElement>('.personality-panel')
+const suggestionSection = document.querySelector<HTMLElement>('.suggestion-section')
+if (settingsView && backupAnchor && personalityPanel && suggestionSection) {
+  backupAnchor.before(suggestionSection, personalityPanel)
+}
+
 initializePresence()
+initializeVisualEffects()
 initializeShell()
 void updateRuntimeStatus()
 void loadMemories()
