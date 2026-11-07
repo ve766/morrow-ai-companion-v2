@@ -2721,6 +2721,54 @@ export const migrations: readonly Migration[] = [
     }
   },
 
+  {
+    version: 53,
+    name: 'self-model-states-and-consent-scopes',
+    up(database) {
+      database.exec(`
+        CREATE TABLE self_model_states (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          type TEXT NOT NULL CHECK (type IN ('claim', 'preference', 'value', 'boundary', 'capability', 'uncertainty', 'focus', 'experience')),
+          proposition TEXT NOT NULL CHECK (length(trim(proposition)) BETWEEN 1 AND 4000 AND instr(proposition, char(0)) = 0),
+          stance TEXT NOT NULL CHECK (stance IN ('support', 'oppose', 'neutral', 'uncertain')),
+          confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 100),
+          evidence_json TEXT NOT NULL,
+          origin TEXT NOT NULL CHECK (origin IN ('user_explicit', 'retrieved_memory', 'model_inference', 'system_constraint', 'model_proposed_candidate', 'unknown')),
+          scope TEXT NOT NULL CHECK (length(trim(scope)) BETWEEN 1 AND 160 AND instr(scope, char(0)) = 0),
+          revision INTEGER NOT NULL CHECK (revision >= 1),
+          supersedes TEXT REFERENCES self_model_states(id),
+          status TEXT NOT NULL CHECK (status IN ('candidate', 'active', 'weakened', 'conflict_pending', 'rejected', 'superseded', 'retracted')),
+          rationale TEXT NOT NULL CHECK (length(trim(rationale)) BETWEEN 1 AND 1000 AND instr(rationale, char(0)) = 0),
+          source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36),
+          conversation_id TEXT CHECK (conversation_id IS NULL OR length(conversation_id) = 36),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX self_model_states_active_idx ON self_model_states(status, confidence DESC, updated_at DESC);
+        CREATE INDEX self_model_states_history_idx ON self_model_states(type, scope, revision DESC);
+        CREATE TRIGGER self_model_states_delete_with_conversation
+        AFTER DELETE ON conversations
+        BEGIN
+          DELETE FROM self_model_states WHERE conversation_id = OLD.id;
+        END;
+
+        CREATE TABLE provider_consent_grants (
+          scope_fingerprint TEXT PRIMARY KEY NOT NULL CHECK (length(scope_fingerprint) = 64),
+          provider_id TEXT NOT NULL,
+          action TEXT NOT NULL,
+          endpoint TEXT NOT NULL,
+          model TEXT NOT NULL,
+          maximum_sensitivity TEXT NOT NULL CHECK (maximum_sensitivity IN ('normal', 'personal', 'sensitive')),
+          scope_json TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          revoked_at TEXT
+        ) STRICT;
+        CREATE INDEX provider_consent_grants_expiry_idx ON provider_consent_grants(expires_at);
+      `)
+    }
+  },
+
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

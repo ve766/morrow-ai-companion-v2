@@ -6,6 +6,7 @@ import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPrevie
 import type { ApprovalChallenge } from '../motivation/goals'
 import type { ProviderConsent, ProviderConsentPreview } from '../providers/provider-policy'
 import { presentProviderConsent } from '../providers/consent-presentation'
+import { ConsentGrantService, SqliteConsentGrantRepository, consentScopeForPreview, consentScopeFingerprint } from '../providers/consent-grants'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { ARCHIVE_THRESHOLD } from '../memory/memory-importance'
@@ -49,6 +50,7 @@ if (acceptanceUserData) {
 
 const logger = createLogger({ minimumLevel: 'info' })
 
+let consentGrants: ConsentGrantService | undefined
 let mainWindow: BrowserWindow | undefined
 let windowLifecycle = new WindowLifecycle()
 let unregisterIpc: (() => void) | undefined
@@ -106,6 +108,24 @@ function getAppInfo(): AppInfo {
 async function requestProviderConsent(preview: ProviderConsentPreview): Promise<ProviderConsent | undefined> {
   const window = mainWindow
   if (!window || window.isDestroyed()) return undefined
+  const scope = consentScopeForPreview(preview)
+  // A normal chat grant is reused only for the exact provider/endpoint/model/
+  // sensitivity scope. The payload hash is still generated and verified by the
+  // service for this request; content and the API key are never part of the key.
+  if (preview.action === 'chat' && consentGrants) {
+    const grant = consentGrants.find(scope)
+    logger.info('app', 'provider consent scope', { action: preview.action, sensitivity: preview.maximumSensitivity, scope: consentScopeFingerprint(scope).slice(0, 12), grant: Boolean(grant) })
+    if (grant) {
+      const approvedAt = new Date().toISOString()
+      return {
+        providerId: preview.providerId,
+        payloadSha256: preview.payloadSha256,
+        approvedAt,
+        expiresAt: new Date(Math.min(Date.parse(grant.expiresAt), Date.now() + 120_000)).toISOString(),
+        includeSensitive: preview.maximumSensitivity === 'sensitive'
+      }
+    }
+  }
   const presentation = presentProviderConsent(preview)
   const sensitivityLabel = preview.maximumSensitivity === 'sensitive'
     ? '敏感（仅在本次明确确认后发送）'
@@ -142,6 +162,7 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   })
   if (result.response !== 1) return undefined
   const approvedAt = new Date().toISOString()
+  if (preview.action === 'chat') consentGrants?.grant(scope)
   return {
     providerId: preview.providerId,
     payloadSha256: preview.payloadSha256,
@@ -275,13 +296,14 @@ if (hasSingleInstanceLock) {
     )
     const databasePath = join(app.getPath('userData'), 'morrow.sqlite3')
     database = SqliteDatabase.open(databasePath)
+    consentGrants = new ConsentGrantService(new SqliteConsentGrantRepository(database))
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
     // Issue #43: the reflection dependency graph is composed by the same
     // production function the startup integration test calls. This is the real
     // bootstrap boundary, not a test-only copy.
     const startup = composeStartupReflectionServices(database, eventLog)
-    const { memoryImportance, factMemory, memories, interests, selfModel, reflection, pendingItems, findingRouter } = startup
+    const { memoryImportance, factMemory, memories, interests, selfModel, selfModelStates, reflection, pendingItems, findingRouter } = startup
     // P0-A: the addressable fact layer, rebuilt from the memories at start
     // (idempotent) and kept current by the MemoryService lifecycle hooks.
     try {
@@ -354,7 +376,8 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
+      ...(consentGrants ? { consentGrants } : {}),
+      selfModelLoop: { events: eventLog, interests, selfModel, selfModelStates, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,

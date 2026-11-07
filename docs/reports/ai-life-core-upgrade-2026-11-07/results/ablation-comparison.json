@@ -1,0 +1,10 @@
+{
+  "issue": 63,
+  "status": "NOT_IMPLEMENTED",
+  "reason": "No neural embedding model is installed, and the task forbids pretending a lexical heuristic is a semantic ablation. Existing four-channel RRF remains the production retrieval path; this file records the gap instead of fabricating recall/precision numbers.",
+  "existingChannels": ["fact-index", "lexical", "fact-slot", "value"],
+  "existingFusion": "RRF with k=60, then context utility/importance rerank",
+  "missingArms": ["lexical-only", "semantic-only (embedding)", "hybrid lexical+semantic"],
+  "requiredMetrics": ["recall@k", "precision@k", "critical-memory miss rate", "conflict false-merge rate"],
+  "next": "Add a deterministic local embedding provider or a labelled paraphrase fixture; freeze thresholds before running all three arms and publish per-arm confusion matrices."
+}

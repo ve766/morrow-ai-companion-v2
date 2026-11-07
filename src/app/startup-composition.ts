@@ -20,6 +20,7 @@ import { MemoryService } from '../memory/memory-service'
 import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { InterestService, SqliteInterestRepository } from '../self-model/interest-service'
 import { SelfModelService, SqliteSelfModelRepository } from '../self-model/self-model-service'
+import { SelfModelStateService, SqliteSelfModelStateRepository } from '../self-model/self-model-state'
 import { ReflectionService, SqliteReflectionRepository } from '../self-model/reflection-service'
 import { PendingCognitionService, PendingSchemaUnavailableError } from '../cognition/pending-items'
 import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
@@ -36,6 +37,7 @@ export interface StartupReflectionServices {
   memories: MemoryService
   interests: InterestService
   selfModel: SelfModelService
+  selfModelStates: SelfModelStateService
   reflection: ReflectionService
   pendingItems: PendingCognitionService
   findingRouter: ReflectionFindingRouter
@@ -65,6 +67,7 @@ export function composeStartupReflectionServices(
   })
   const interests = new InterestService(new SqliteInterestRepository(database), events)
   const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), events)
+  const selfModelStates = new SelfModelStateService(new SqliteSelfModelStateRepository(database), events, clock)
   const reflection = new ReflectionService(
     new SqliteReflectionRepository(database),
     { memories, interests, selfModel, events },
@@ -72,7 +75,7 @@ export function composeStartupReflectionServices(
   )
   const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database, events), undefined, clock)
   const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events, ...(clock ? { clock } : {}) })
-  return { memoryImportance, factMemory, memories, interests, selfModel, reflection, pendingItems, findingRouter }
+  return { memoryImportance, factMemory, memories, interests, selfModel, selfModelStates, reflection, pendingItems, findingRouter }
 }
 
 /**

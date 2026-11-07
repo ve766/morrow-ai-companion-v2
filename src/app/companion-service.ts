@@ -67,6 +67,7 @@ import { CognitiveFeelingService } from '../affective-state/cognitive-feeling-se
 import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/feeling'
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
+import { deriveSelfModelCandidates, type SelfModelStateService } from '../self-model/self-model-state'
 import { personalizationFit, type PersonalizationService, type PersonalizationSignal } from '../personalization/personalization-service'
 import { applyGrowth, deriveGrowthSignals, describeGrowth, type PersonalityGrowthService } from '../personalization/personality-growth'
 import type { ReflectionFindingRouter } from '../cognition/reflection-routing'
@@ -1099,6 +1100,8 @@ export interface SelfModelLoopServices {
   events: EventLogService
   interests: InterestService
   selfModel: SelfModelService
+  /** Append-only structured self-model states (Issue #63). */
+  selfModelStates?: SelfModelStateService
   /** Rate-limited post-turn reflection; never allowed to fail the chat path. */
   reflection?: Pick<ReflectionService, 'run' | 'findings'>
   /** Stage 2 B2: bounded interaction preferences, written per completed turn. */
@@ -1161,6 +1164,11 @@ export function buildSelfModelContextBlock(services: SelfModelLoopServices, turn
   if (facts.length > 0) {
     const described = facts.map((fact) => `「${fact.statement.slice(0, 120)}」（置信度 ${fact.confidence}/100，未经确认的推断）`)
     lines.push(`Unverified self-knowledge awaiting user confirmation — ${described.join('; ')}. Do not present these as facts about the user.`)
+  }
+  const selfStates = services.selfModelStates?.listActive(4) ?? []
+  if (selfStates.length > 0) {
+    const described = selfStates.map((state) => `[${state.type}/${state.stance}] 「${state.proposition.slice(0, 120)}」（来源 ${state.origin}，置信度 ${state.confidence}/100，revision ${state.revision}，证据 ${state.evidenceRefs.length} 条）`)
+    lines.push(`Structured self-model state (append-only, evidence-scoped; user_explicit means the user stated it, not that Morrow owns it): ${described.join('; ')}. Use it only as bounded context; do not invent memories, feelings or experiences.`)
   }
   // Stage 2 B2: bounded interaction preferences. Only dimensions that actually
   // collected evidence are described; a default 0.5 with zero evidence is not a
@@ -1276,6 +1284,19 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       module: 'self_fact',
       version: COGNITIVE_HANDLER_VERSION,
       project: (input) => {
+        // Issue #63: every completed turn can contribute an explicit
+        // self-model state, not only turns with the legacy self-fact signal.
+        if (services.selfModelStates) {
+          const refs = [{ kind: 'message' as const, id: input.userMessageId }]
+          for (const candidate of deriveSelfModelCandidates(input.readUserMessage(), refs)) {
+            services.selfModelStates.propose({
+              ...candidate,
+              sourceMessageId: input.userMessageId,
+              conversationId: input.conversationId,
+              rationale: 'post_turn_explicit_statement'
+            })
+          }
+        }
         if (!input.analysis?.signals.explicitSelfFact) return
         const statement = deriveSelfFactStatement(input.readUserMessage())
         if (!statement) return
@@ -1409,6 +1430,7 @@ export class CompanionService {
   readonly memorySuggestions: MemorySuggestionService
   /** D-1: the authoritative G1 ledger, exposed for diagnostics and rollback. */
   private readonly growth: PersonalityGrowthService | null
+  private readonly consentGrants: ConsentGrantService | undefined
   private readonly guidanceVariant: EvidenceGuidanceVariant
   private readonly evidencePresentation: EvidencePresentation
   /** Phase 2.4 stores, exposed so the shell can read pending items. */
@@ -1436,12 +1458,15 @@ export class CompanionService {
     evidencePresentation?: EvidencePresentation
     /** Turn context + pending-item stores; omitted by offline callers. */
     continuity?: ContinuityPorts
+    /** Persistent provider consent grants; optional for offline callers. */
+    consentGrants?: ConsentGrantService
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
     this.guidanceVariant = options.guidanceVariant ?? 'v2'
     this.evidencePresentation = options.evidencePresentation ?? 'json'
     this.providers = new ProviderConfigService(options.database, options.secrets, options.authorize, clock, options.providerFactory)
+    this.consentGrants = options.consentGrants
     this.personality = new PersonalityService(options.database, clock)
     this.cognition = new CognitiveSettingsService(options.database, clock)
     this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
@@ -1651,11 +1676,18 @@ export class CompanionService {
     return this.providers.get(DEEPSEEK_PROVIDER_ID) ?? local
   }
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord { return this.providers.save(request) }
-  clearProviderCredential(request?: { providerId?: ProviderProfileId }): ProviderConfigRecord | null { return this.providers.clearCredential(request?.providerId ?? DEEPSEEK_PROVIDER_ID) }
+  clearProviderCredential(request?: { providerId?: ProviderProfileId }): ProviderConfigRecord | null {
+    const providerId = request?.providerId ?? DEEPSEEK_PROVIDER_ID
+    this.consentGrants?.revokeProvider(providerId)
+    return this.providers.clearCredential(providerId)
+  }
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult> { return this.providers.testConnection(request) }
   listProfiles(): ProviderConfigRecord[] { return this.providers.listProfiles() }
   saveProfile(request: ProviderProfileSaveInput): ProviderConfigRecord { return this.providers.saveProfile(request) }
-  deleteProfile(request: { profileId: ProviderProfileId }): void { this.providers.deleteProfile(request.profileId) }
+  deleteProfile(request: { profileId: ProviderProfileId }): void {
+    this.consentGrants?.revokeProvider(request.profileId)
+    this.providers.deleteProfile(request.profileId)
+  }
   setDefaultProfile(request: { profileId: ProviderProfileId }): ProviderConfigRecord { return this.providers.setDefaultProfile(request.profileId) }
   discoverModels(request: ProviderModelsRequest): Promise<ProviderModelsResult> { return this.providers.discoverModels(request) }
   createConversation(): ConversationRecord { return this.chat.createConversation() }
@@ -3225,3 +3257,4 @@ export class MemorySuggestionService {
 
   private now(): string { return safeTimestamp(this.clock()) }
 }
+import type { ConsentGrantService } from '../providers/consent-grants'
