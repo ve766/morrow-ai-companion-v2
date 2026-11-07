@@ -1,0 +1,17 @@
+{
+  "issue": 69,
+  "status": "PASS_LIMITED",
+  "testedAt": "2026-11-08T00:17:00+08:00",
+  "scope": { "action": "chat", "providerId": "c2e672dd-4bd5-4efc-875c-67cb5444264f", "model": "spark-x2.6", "maximumSensitivity": "personal" },
+  "grantTtlDays": 30,
+  "steps": [
+    { "step": "revoke existing grant", "result": "revoked_at set" },
+    { "step": "first normal chat", "dialogShown": true, "approved": true },
+    { "step": "second same-scope chat", "dialogShown": false, "completed": true },
+    { "step": "grant row", "maximumSensitivity": "personal", "createdAt": "2026-11-07T16:17:38.411Z", "expiresAt": "2026-12-07T16:17:38.411Z", "revokedAt": null }
+  ],
+  "sensitive": { "status": "PASS_UNIT", "evidence": "consent-grants.test.ts: sensitive grant returns null / never reused" },
+  "revocationExpiry": { "status": "PASS_UNIT", "evidence": "revoke => null; 31 days => null" },
+  "fingerprint": { "status": "PASS", "evidence": "sha256 only; no key/message/payload" },
+  "limitations": ["No UI for explicit remember/only-once choice; backend defaults to 30-day normal/personal grant", "No UI list/revoke control", "Sensitive live flow not exercised"]
+}

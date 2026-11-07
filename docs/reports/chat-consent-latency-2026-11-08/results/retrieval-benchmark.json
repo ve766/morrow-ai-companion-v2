@@ -1,0 +1,7 @@
+{
+  "issue": 69,
+  "status": "NOT_RUN",
+  "reason": "No 100/500/1000/5000 synthetic memory benchmark harness was added in this 24h slice; no speedup claim.",
+  "current": "src/memory/memory-context-assembler.ts four-channel RRF; conflict detection remains",
+  "required": ["Top-K equivalence", "conflict recall", "false merge", "p50/p95", "5x speedup at 1000"]
+}

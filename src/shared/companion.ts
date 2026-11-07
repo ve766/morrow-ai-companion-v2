@@ -252,6 +252,13 @@ export interface MemoryProposalPreview {
   payloadCharacters: number
 }
 
+export interface ChatTiming {
+  prepareMs: number
+  consentMs: number
+  providerMs: number
+  persistMs: number
+}
+
 export interface ChatResult {
   conversation: ConversationRecord
   userMessage: ConversationMessage
@@ -259,6 +266,8 @@ export interface ChatResult {
   includedMemoryCount: number
   /** Phase 2 ledger record: intent, evidence, payload, provider and answer outcome. */
   evaluation?: TurnEvaluation
+  /** Non-sensitive monotonic phase timings; used by benchmarks and diagnostics. */
+  timings?: ChatTiming
 }
 
 export interface ChatStreamEvent {

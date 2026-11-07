@@ -2153,12 +2153,15 @@ export class ChatService {
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
     let terminalRecorded = false
+    const timings = { prepareMs: 0, consentMs: 0, providerMs: 0, persistMs: 0 }
+    let phaseStart = performance.now()
     try {
       const settingSnapshot = this.cognitiveSettingsOrDisabled()
       const evaluationAt = this.now()
       const candidateMessageId = existingUser?.id ?? this.makeId()
       const initialHistory = existing.messages.filter((message) => message.turnId !== requestId)
       const prepared = this.prepare(request, config, initialHistory, candidateMessageId, requestId, settingSnapshot, evaluationAt)
+      timings.prepareMs = Math.max(0, performance.now() - phaseStart)
       // The request payload exists at this point, so the turn has been analysed
       // and its context assembled. Recording both here is what makes the trace
       // show *when* consent was requested relative to the analysis, instead of
@@ -2167,7 +2170,9 @@ export class ChatService {
       this.recordTurnState(conversationId, requestId, 'context_ready')
       const preview = consentPreview('chat', config, prepared.input)
       this.recordTurnState(conversationId, requestId, 'awaiting_consent')
+      phaseStart = performance.now()
       const consent = await this.authorize(preview)
+      timings.consentMs = Math.max(0, performance.now() - phaseStart)
       if (!consent) throw new ApplicationError('FORBIDDEN')
       const latest = this.conversations.read(conversationId)
       const latestUser = latest.messages.find((message) => message.turnId === requestId && message.role === 'user')
@@ -2175,8 +2180,15 @@ export class ChatService {
       if (latestSettings.enabled !== settingSnapshot.enabled || latestSettings.available !== settingSnapshot.available || latestSettings.updatedAt !== settingSnapshot.updatedAt) {
         throw new ApplicationError('CONFLICT')
       }
+      const afterConfig = this.providers.requireConfigured()
+      const configUnchanged = afterConfig.id === config.id && afterConfig.endpoint === config.endpoint && afterConfig.endpointPath === config.endpointPath && afterConfig.model === config.model && afterConfig.updatedAt === config.updatedAt
+      // Reuse the immutable prepared snapshot: re-running prepare after consent
+      // re-reads memories and rebuilds the prompt for identical state. Any state
+      // change is rejected rather than silently re-prepared.
+      const conversationUnchanged = latest.messages.length === existing.messages.length && latest.conversation.updatedAt === existing.conversation.updatedAt
+      if (!configUnchanged || !conversationUnchanged) throw new ApplicationError('CONFLICT')
       const messageId = latestUser?.id ?? candidateMessageId
-      const verified = this.prepare(request, this.providers.requireConfigured(), latest.messages.filter((message) => message.turnId !== requestId), messageId, requestId, latestSettings, evaluationAt)
+      const verified = prepared
       if (hashProviderInput(verified.input) !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
       let userMessage = latestUser
       let cognitiveObservationPersisted = Boolean(userMessage?.cognitiveObservations?.length)
@@ -2243,6 +2255,7 @@ export class ChatService {
         // The permission is in the payload and the call is about to happen.
         // Recorded before dispatch so a thrown call still counts as attempted.
         this.selfModel?.markExplorationAttempted?.(requestId)
+        phaseStart = performance.now()
         output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => {
           if (!receivedDelta) {
             receivedDelta = true
@@ -2250,6 +2263,7 @@ export class ChatService {
           }
           onDelta?.(delta)
         })
+        timings.providerMs = Math.max(0, performance.now() - phaseStart)
         this.recordTurnState(conversationId, requestId, 'response_received', receivedDelta ? null : 'no_stream_delta')
       } catch (error) {
         // A cancelled request is not a failed one: the adapter reports
@@ -2400,7 +2414,9 @@ export class ChatService {
           }
         }
         try {
+          const persistStart = performance.now()
           const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, { messageId: assistantMessageId, afterPersist })
+          timings.persistMs = Math.max(0, performance.now() - persistStart)
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
         } catch (error) {
           // The transaction rolled back, so nothing of this turn is stored and
@@ -2488,6 +2504,7 @@ export class ChatService {
         userMessage,
         assistantMessage,
         includedMemoryCount: verified.memory.selected.length,
+        timings,
         ...(evaluation ? { evaluation } : {})
       }
     } catch (error) {

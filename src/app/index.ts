@@ -6,6 +6,7 @@ import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPrevie
 import type { ApprovalChallenge } from '../motivation/goals'
 import type { ProviderConsent, ProviderConsentPreview } from '../providers/provider-policy'
 import { presentProviderConsent } from '../providers/consent-presentation'
+import { ConsentGrantService, SqliteConsentGrantRepository, consentScopeForPreview, consentScopeFingerprint } from '../providers/consent-grants'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { ARCHIVE_THRESHOLD } from '../memory/memory-importance'
@@ -49,6 +50,7 @@ if (acceptanceUserData) {
 
 const logger = createLogger({ minimumLevel: 'info' })
 
+let consentGrants: ConsentGrantService | undefined
 let mainWindow: BrowserWindow | undefined
 let windowLifecycle = new WindowLifecycle()
 let unregisterIpc: (() => void) | undefined
@@ -107,6 +109,15 @@ function getAppInfo(): AppInfo {
 async function requestProviderConsent(preview: ProviderConsentPreview): Promise<ProviderConsent | undefined> {
   const window = mainWindow
   if (!window || window.isDestroyed()) return undefined
+  const scope = consentScopeForPreview(preview)
+  if (preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive' && consentGrants) {
+    const grant = consentGrants.find(scope)
+    logger.info('app', 'provider consent scope', { action: preview.action, sensitivity: preview.maximumSensitivity, scope: consentScopeFingerprint(scope).slice(0, 12), grant: Boolean(grant) })
+    if (grant) {
+      const approvedAt = new Date().toISOString()
+      return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Math.min(Date.parse(grant.expiresAt), Date.now() + 120_000)).toISOString(), includeSensitive: false }
+    }
+  }
   const presentation = presentProviderConsent(preview)
   const sensitivityLabel = preview.maximumSensitivity === 'sensitive'
     ? '敏感（仅在本次明确确认后发送）'
@@ -143,6 +154,7 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   })
   if (result.response !== 1) return undefined
   const approvedAt = new Date().toISOString()
+  if (preview.action === 'chat') consentGrants?.grant(scope)
   return {
     providerId: preview.providerId,
     payloadSha256: preview.payloadSha256,
@@ -276,6 +288,7 @@ if (hasSingleInstanceLock) {
     )
     const databasePath = join(app.getPath('userData'), 'morrow.sqlite3')
     database = SqliteDatabase.open(databasePath)
+    consentGrants = new ConsentGrantService(new SqliteConsentGrantRepository(database))
     eventLog = new EventLogService(database)
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
     // Issue #43: the reflection dependency graph is composed by the same
