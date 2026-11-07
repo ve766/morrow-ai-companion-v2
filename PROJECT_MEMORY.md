@@ -1,5 +1,17 @@
 # Morrow V2 项目记忆
 
+## 0. 当前任务（Issue #65，2026-11-07）
+
+- 分支：`feat/whole-project-return-to-core-20261107`（从权威基线 `e1d8513` 建立）
+- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/66
+- 代码 commit：`8bdc48adf1420c48b92e1c192b5ba07e79a293c5`
+- 状态：**PARTIAL**；UI 未修改。
+- P0 身份：`identityContract(provider)` 置顶 system；真实 Spark 干净会话已验证 Morrow/Provider 分离、无 Provider 冒充、无命名来源编造；原始回复 `docs/reports/whole-project-return-to-core-2026-11-07/results/identity-behavior-evaluation.json`。
+- v53 schema 只做兼容移植；PR #64 未合并。
+- 全仓 1215 tracked files 100% 记录；人工逐行审阅 18 个 P0/关键文件；其余自动扫描/二进制排除；人工覆盖率 1.48%，不冒充 100%。
+- 测试 138 files / 1192 tests PASS；typecheck/build PASS；asar `df113e01...`。
+- 未完成：全仓人工逐行、reflection→self-model、语义检索/消融、统一探索、多 Provider 身份矩阵、sensitive consent 修复。
+
 > 本文件是工作区级项目记忆，供后续会话快速恢复上下文。它不是验收报告；事实以代码、测试输出和 `docs/reports/product-closure-2026-11-07/` 为准。最后更新：2026-11-07。
 
 ## 1. 当前工作

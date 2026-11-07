@@ -1,0 +1,11 @@
+{
+  "total": 1215,
+  "manualReviewed": 18,
+  "automatedReviewed": 1071,
+  "excludedBinary": 126,
+  "notReviewed": 0,
+  "recordCoveragePercent": 100.0,
+  "manualLineReviewCoveragePercent": 1.48,
+  "generatedAt": "2026-11-07T14:45:00Z",
+  "note": "100% records; automated scan is not a substitute for line-by-line review. P0 files are MANUAL_REVIEWED."
+}

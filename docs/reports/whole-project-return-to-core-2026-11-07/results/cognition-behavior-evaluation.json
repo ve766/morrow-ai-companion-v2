@@ -1,0 +1,19 @@
+{
+  "issue": 65,
+  "status": "PARTIAL",
+  "evaluatedAt": "2026-11-07T14:40:00Z",
+  "identity": {
+    "status": "PASS",
+    "evidence": "results/identity-behavior-evaluation.json",
+    "cases": ["name", "identity", "provider-model honesty", "provider relationship", "provider switch", "unknown experience"],
+    "provider": "Spark 验收 Provider / spark-x2.6 (real, local credential)"
+  },
+  "personalityContinuity": { "status": "PARTIAL", "note": "existing personality baseline/growth code retained; no new live matrix" },
+  "selfModel": { "status": "PARTIAL", "note": "PR #64 self-model state not merged into this baseline; v53 schema only for DB compatibility" },
+  "memoryExperience": { "status": "PARTIAL", "note": "existing four-channel RRF; no new ablation" },
+  "independentJudgment": { "status": "NOT_RUN", "note": "no adversarial real-Provider pressure matrix" },
+  "reflectionLoop": { "status": "NOT_IMPLEMENTED", "note": "findings -> evidence gate -> self-model revision not present in this baseline" },
+  "exploration": { "status": "PARTIAL", "note": "existing interest-based exploration retained" },
+  "providerSwitchContinuity": { "status": "NOT_RUN", "note": "identity question answered, but no second live provider profile switch" },
+  "dataLifecycle": { "status": "PARTIAL", "note": "v53 applied; no destructive data test" }
+}
