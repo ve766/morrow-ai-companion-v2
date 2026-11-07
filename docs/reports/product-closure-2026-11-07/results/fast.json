@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "tier": "fast",
+  "description": "Typecheck plus the suites most likely to break on renderer/service changes.",
+  "commit": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
+  "startedAt": "2026-11-07T03:23:00.324Z",
+  "endedAt": "2026-11-07T03:24:00.585Z",
+  "node": "v22.23.2",
+  "platform": "win32 x64",
+  "counts": {
+    "total": 2,
+    "pass": 2,
+    "fail": 0,
+    "skipped": 0
+  },
+  "overall": "PASS",
+  "results": [
+    {
+      "id": "typecheck",
+      "command": "npm run typecheck",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T03:23:00.325Z",
+      "endedAt": "2026-11-07T03:23:12.414Z",
+      "durationMs": 12089,
+      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 typecheck\n> tsc --noEmit\n\n",
+      "stderrTail": ""
+    },
+    {
+      "id": "unit-core",
+      "command": "npx vitest run src/app/turn-trace.integration.test.ts tests/ui-control-contract.test.ts tests/ci-guard-policy.test.ts src/app/window-lifecycle.test.ts src/app/window-bounds.test.ts",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T03:23:12.415Z",
+      "endedAt": "2026-11-07T03:24:00.585Z",
+      "durationMs": 48170,
+      "stdoutTail": "     \u001b[33m\u001b[2m✓\u001b[22m\u001b[39m settles a denied consent as failed instead of leaving a crash-shaped turn\u001b[33m 1759\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m✓\u001b[22m\u001b[39m retries a cancelled turn without duplicating the user message and settles it\u001b[33m 1696\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m✓\u001b[22m\u001b[39m deletes trace events with their conversation\u001b[33m 1914\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m✓\u001b[22m\u001b[39m cascades trace deletion when the conversations table row is removed\u001b[33m 753\u001b[2mms\u001b[22m\u001b[39m\n     \u001b[33m\u001b[2m✓\u001b[22m\u001b[39m caps one turn at 200 persisted events even if a caller loops\u001b[33m 17424\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m5 passed\u001b[39m\u001b[22m\u001b[90m (5)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m22 passed\u001b[39m\u001b[22m\u001b[90m (22)\u001b[39m\n\u001b[2m   Start at \u001b[22m 11:23:15\n\u001b[2m   Duration \u001b[22m 44.86s\u001b[2m (tests 98%, import 1%, transform 1%)\u001b[22m\n\n",
+      "stderrTail": "(node:2592) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    }
+  ]
+}

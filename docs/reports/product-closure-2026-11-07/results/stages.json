@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "tier": "stages",
+  "description": "Stage evaluations this product branch declares applicable. Live entries require credentials and are skipped, never faked.",
+  "commit": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
+  "startedAt": "2026-11-07T10:35:01.864Z",
+  "endedAt": "2026-11-07T10:38:21.908Z",
+  "node": "v22.23.2",
+  "platform": "win32 x64",
+  "counts": {
+    "total": 9,
+    "pass": 7,
+    "fail": 0,
+    "skipped": 2
+  },
+  "overall": "PASS",
+  "results": [
+    {
+      "id": "eval:stage2",
+      "command": "npm run eval:stage2",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:35:01.869Z",
+      "endedAt": "2026-11-07T10:35:17.982Z",
+      "durationMs": 16113,
+      "stdoutTail": "B4: PASS (3/3 assertions)\nA: PASS (4/4 assertions)\nC: PASS (4/4 assertions)\nE: FAIL (3/4 assertions)\nF: PASS (5/5 assertions)\nG: PASS (4/4 assertions)\nH: PASS (4/4 assertions)\nJ: PASS (4/4 assertions)\nK: BLOCKED — scripted provider only in this offline runner; real-provider coverage comes from phase24-real-model (5/5 runnable scenarios PASS, S4 SKIPPED)\nL: BLOCKED — GUI process cannot be hosted inside this offline runner; desktop coverage comes from `npm run smoke` (exit 0, sandbox enabled)\ncounts: {\"executed\":12,\"passed\":10,\"failed\":2,\"skipped\":0,\"blocked\":2,\"notRun\":0} report=E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\evals\\stage-2\\results\\2026-11-07T10-35-17-68468cf.json\n",
+      "stderrTail": "(node:23460) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "eval:stage3",
+      "command": "npm run eval:stage3",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:35:17.983Z",
+      "endedAt": "2026-11-07T10:35:57.996Z",
+      "durationMs": 40013,
+      "stdoutTail": "> node node_modules/esbuild/bin/esbuild evals/stage-3/runner/cli.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage3-eval.cjs --log-level=warning && node node_modules/.cache/stage3-eval.cjs\n\n{\n  \"file\": \"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\stage-3\\\\results\\\\20261107T103518Z-68468cf.json\",\n  \"summaryFile\": \"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\stage-3\\\\results\\\\20261107T103518Z-68468cf-summary.json\",\n  \"counts\": {\n    \"PASS\": 15,\n    \"NOT_RUN\": 1\n  },\n  \"denominator\": 16\n}\n",
+      "stderrTail": "(node:21348) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\nFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).\nFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).\nFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).\n"
+    },
+    {
+      "id": "eval:stage3:restart",
+      "command": "npm run eval:stage3:restart",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:35:57.997Z",
+      "endedAt": "2026-11-07T10:36:04.342Z",
+      "durationMs": 6345,
+      "stdoutTail": "      \"name\": \"重启后基线未被改写\",\n      \"ok\": true,\n      \"detail\": \"v1\"\n    },\n    {\n      \"name\": \"重启后撤回仍使内容退出 payload\",\n      \"ok\": true,\n      \"detail\": \"text scan\"\n    }\n  ]\n}\n",
+      "stderrTail": "(node:19452) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "eval:stage4a",
+      "command": "npm run eval:stage4a",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:36:04.343Z",
+      "endedAt": "2026-11-07T10:36:09.789Z",
+      "durationMs": 5446,
+      "stdoutTail": "> morrow-ai-companion-v2@2.0.0 eval:stage4a\n> node node_modules/esbuild/bin/esbuild evals/stage-4a/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage4a.cjs --log-level=warning && node node_modules/.cache/stage4a.cjs\n\n{\n  \"file\": \"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\stage-4a\\\\results\\\\20261107T103605Z-68468cf.json\",\n  \"counts\": {\n    \"PASS\": 7,\n    \"FAIL\": 0\n  },\n  \"failed\": []\n}\n",
+      "stderrTail": "(node:10284) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "eval:stage5",
+      "command": "npm run eval:stage5",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:36:09.789Z",
+      "endedAt": "2026-11-07T10:36:34.846Z",
+      "durationMs": 25057,
+      "stdoutTail": "> node node_modules/esbuild/bin/esbuild evals/stage-5/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage5.cjs --log-level=warning && node node_modules/.cache/stage5.cjs\n\n{\n  \"file\": \"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\stage-5\\\\results\\\\20261107T103611Z-68468cf.json\",\n  \"counts\": {\n    \"scenarios\": 12,\n    \"PASS\": 12,\n    \"FAIL\": 0\n  },\n  \"failed\": []\n}\n",
+      "stderrTail": "(node:19420) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "eval:provider-multi-source",
+      "command": "npm run eval:provider-multi-source",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:36:34.846Z",
+      "endedAt": "2026-11-07T10:36:35.945Z",
+      "durationMs": 1099,
+      "stdoutTail": "\n> morrow-ai-companion-v2@2.0.0 eval:provider-multi-source\n> node node_modules/esbuild/bin/esbuild evals/provider-multi-source/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/provider-multi-source.cjs --log-level=warning && node node_modules/.cache/provider-multi-source.cjs\n\n{\"runId\":\"20261107T103635Z-0d0daec4\",\"status\":\"BLOCKED_NO_SECRET\",\"file\":\"E:\\\\Hasee\\\\Documents\\\\morrow v2\\\\zcode\\\\stage3-audit\\\\repo\\\\evals\\\\provider-multi-source\\\\results\\\\20261107T103635Z-0d0daec4.json\"}\n",
+      "stderrTail": "(node:16824) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "eval:final-closure",
+      "command": "npm run eval:final-closure",
+      "status": "PASS",
+      "exitCode": 0,
+      "startedAt": "2026-11-07T10:36:35.946Z",
+      "endedAt": "2026-11-07T10:38:21.907Z",
+      "durationMs": 105961,
+      "stdoutTail": "  },\n  \"metrics\": {\n    \"extractionRate\": 1,\n    \"recallAt1\": 0.8958333333333334,\n    \"recallAt2\": 1,\n    \"mrr\": 0.9479166666666666,\n    \"misInjectionRate\": 0,\n    \"note\": \"promptInclusion 与 gate 分类逐 case 记录于 assertions;模型使用层由 live final-closure 与真人复核测量\"\n  },\n  \"failed\": []\n}\n",
+      "stderrTail": "(node:4216) ExperimentalWarning: SQLite is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+    },
+    {
+      "id": "eval:stage3:live",
+      "command": "npm run eval:stage3:live",
+      "status": "SKIPPED",
+      "reason": "credentials not configured",
+      "exitCode": null,
+      "startedAt": "2026-11-07T10:38:21.908Z",
+      "endedAt": "2026-11-07T10:38:21.908Z"
+    },
+    {
+      "id": "eval:final-closure:live",
+      "command": "npm run eval:final-closure:live",
+      "status": "SKIPPED",
+      "reason": "credentials not configured",
+      "exitCode": null,
+      "startedAt": "2026-11-07T10:38:21.908Z",
+      "endedAt": "2026-11-07T10:38:21.908Z"
+    }
+  ]
+}

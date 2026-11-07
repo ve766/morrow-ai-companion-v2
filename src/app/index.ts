@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, screen } from 'electron'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPreviewOutcome, type BackupRestoreOutcome } from '../shared/contracts'
@@ -37,6 +38,8 @@ import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
 import { createSecureWindowOptions, isTrustedRendererUrl, resolveTrustedRendererUrl } from '../security/security'
 import { resolveAcceptanceUserData } from './acceptance-data-path'
+import { WindowLifecycle, type WindowLifecycleEvent } from './window-lifecycle'
+import { normalizeWindowBounds } from './window-bounds'
 
 const acceptanceUserData = resolveAcceptanceUserData(process.env.MORROW_LOCAL_ACCEPTANCE_USER_DATA)
 if (acceptanceUserData) {
@@ -47,6 +50,7 @@ if (acceptanceUserData) {
 const logger = createLogger({ minimumLevel: 'info' })
 
 let mainWindow: BrowserWindow | undefined
+let windowLifecycle = new WindowLifecycle()
 let unregisterIpc: (() => void) | undefined
 let database: SqliteDatabase | undefined
 let memoryMaintenance: MemoryMaintenanceScheduler | undefined
@@ -80,6 +84,14 @@ app.setAppUserModelId('com.morrow.ai-companion')
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) app.quit()
+
+app.on('second-instance', () => {
+  const trusted = resolveTrustedRendererUrl(
+    process.env.ELECTRON_RENDERER_URL,
+    pathToFileURL(join(__dirname, '../renderer/index.html')).href
+  )
+  focusMainWindow(trusted)
+})
 
 function getAppInfo(): AppInfo {
   return {
@@ -139,16 +151,87 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   }
 }
 
+function transitionWindow(event: WindowLifecycleEvent): void {
+  try {
+    const state = windowLifecycle.apply(event)
+    logger.info('app', 'window state', { event, state })
+  } catch (error) {
+    logger.warn('app', 'window transition rejected', { event, error: error instanceof Error ? error.name : 'unknown' })
+  }
+}
+
+function windowStatePath(): string {
+  return join(app.getPath('userData'), 'window-state.json')
+}
+
+function readSavedWindowBounds(): unknown {
+  try {
+    return existsSync(windowStatePath()) ? JSON.parse(readFileSync(windowStatePath(), 'utf8')) : null
+  } catch {
+    return null
+  }
+}
+
+function saveWindowBounds(window: BrowserWindow): void {
+  if (window.isDestroyed()) return
+  try {
+    const bounds = window.getNormalBounds()
+    writeFileSync(windowStatePath(), JSON.stringify(bounds), 'utf8')
+  } catch {
+    // Bounds persistence is best effort; a read-only profile must still run.
+  }
+}
+
 function createMainWindow(trustedRendererUrl: string): void {
-  const window = new BrowserWindow(
-    createSecureWindowOptions(join(__dirname, '../preload/index.js'))
+  const primaryWorkArea = screen.getPrimaryDisplay().workArea
+  const bounds = normalizeWindowBounds(
+    readSavedWindowBounds(),
+    screen.getAllDisplays().map((display) => display.workArea),
+    primaryWorkArea
   )
+  const window = new BrowserWindow({
+    ...createSecureWindowOptions(join(__dirname, '../preload/index.js')),
+    ...bounds
+  })
 
   mainWindow = window
-  window.once('ready-to-show', () => window.show())
+  windowLifecycle = new WindowLifecycle()
+  let rendererRecoveryAttempts = 0
+  let boundsTimer: ReturnType<typeof setTimeout> | undefined
+  const scheduleBoundsSave = (): void => {
+    if (boundsTimer) clearTimeout(boundsTimer)
+    boundsTimer = setTimeout(() => saveWindowBounds(window), 300)
+  }
+  window.once('ready-to-show', () => {
+    transitionWindow('ready')
+    window.show()
+    transitionWindow('show')
+  })
+  window.on('minimize', () => transitionWindow('minimize'))
+  window.on('restore', () => transitionWindow('restore'))
+  window.on('hide', () => transitionWindow('hide'))
+  window.on('moved', scheduleBoundsSave)
+  window.on('resized', scheduleBoundsSave)
+  window.on('close', () => {
+    saveWindowBounds(window)
+    transitionWindow('close')
+  })
   window.on('closed', () => {
+    if (boundsTimer) clearTimeout(boundsTimer)
+    transitionWindow('closed')
     if (mainWindow === window) mainWindow = undefined
   })
+  window.webContents.on('render-process-gone', (_event, details) => {
+    logger.error('app', 'renderer process gone', { reason: details.reason, exitCode: details.exitCode })
+    if (details.reason !== 'clean-exit' && rendererRecoveryAttempts < 1) {
+      rendererRecoveryAttempts += 1
+      setTimeout(() => {
+        if (!window.isDestroyed()) window.reload()
+      }, 250)
+    }
+  })
+  window.on('unresponsive', () => logger.warn('app', 'window unresponsive'))
+  window.on('responsive', () => logger.info('app', 'window responsive again'))
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
@@ -179,7 +262,8 @@ function focusMainWindow(trustedRendererUrl: string): void {
     return
   }
   if (window.isMinimized()) window.restore()
-  window.show()
+  if (!window.isVisible()) window.show()
+  if (windowLifecycle.can('show')) transitionWindow('show')
   window.focus()
 }
 
@@ -483,7 +567,7 @@ if (hasSingleInstanceLock) {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow(trustedRendererUrl)
     })
   }).catch((error: unknown) => {
-    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown' })
+    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown', ...(error instanceof ApplicationError ? { code: error.code } : {}), ...(process.env.MORROW_STARTUP_DIAGNOSTIC === '1' && error instanceof Error ? { stack: (error.stack ?? '').slice(0, 3000) } : {}) })
     reportStartupFailure('application', {
       report: (code) => logger.error('app', 'startup failure reported', { code }),
       showError: (title, message) => {

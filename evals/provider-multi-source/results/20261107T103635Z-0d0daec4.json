@@ -1,0 +1,25 @@
+{
+  "runId": "20261107T103635Z-0d0daec4",
+  "suite": "provider-multi-source",
+  "startedAt": "2026-11-07T10:36:35.903Z",
+  "finishedAt": "2026-11-07T10:36:35.906Z",
+  "codeCommit": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
+  "branch": "feat/morrow-v2-product-closure-20261107",
+  "branchReason": "ok",
+  "workingTree": "dirty",
+  "endpoint": "https://api.supxh.xin/",
+  "endpointDigest": "7bb0f588165882e0",
+  "model": "gemini-3-flash",
+  "status": "BLOCKED_NO_SECRET",
+  "checks": [
+    {
+      "name": "secret",
+      "ok": false,
+      "detail": "MORROW_TEST_API_KEY is not set; BLOCKED_NO_SECRET."
+    }
+  ],
+  "local": {
+    "status": "BLOCKED_LOCAL_SERVICE_NOT_RUNNING",
+    "detail": "MORROW_LOCAL_PROVIDER_URL is not set; no local OpenAI-compatible service was started."
+  }
+}

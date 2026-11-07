@@ -22,6 +22,8 @@ const electronBinary = process.platform === 'win32'
     ? join(root, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron')
     : join(root, 'node_modules', 'electron', 'dist', 'electron')
 const appEntry = join(root, 'out', 'main', 'index.js')
+const productExecutable = process.env.MORROW_PRODUCT_EXECUTABLE ? resolve(process.env.MORROW_PRODUCT_EXECUTABLE) : undefined
+const executable = productExecutable ?? electronBinary
 const profile = resolve(process.env.MORROW_PRODUCT_PROFILE || join(root, '.tmp', 'product-path-profile'))
 const resultsDir = join(root, 'evals', 'morrow-v2-final', 'results')
 const transcriptsDir = join(root, 'evals', 'morrow-v2-final', 'transcripts')
@@ -33,7 +35,8 @@ const FAKE_KEY_B = `FAKE_PRODUCT_PATH_KEY_B_${randomUUID()}`
 const FAKE_KEY_A2 = `FAKE_PRODUCT_PATH_KEY_A2_${randomUUID()}`
 
 if (!existsSync(appEntry)) throw new Error('Built application not found. Run npm run build first.')
-if (!existsSync(electronBinary)) throw new Error('Electron is not installed. Run npm ci first.')
+if (!productExecutable && !existsSync(electronBinary)) throw new Error('Electron is not installed. Run npm ci first.')
+if (productExecutable && !existsSync(productExecutable)) throw new Error(`Configured product executable not found: ${productExecutable}`)
 rmSync(profile, { recursive: true, force: true })
 mkdirSync(profile, { recursive: true })
 
@@ -99,8 +102,8 @@ function launch(port) {
     `--user-data-dir=${profile}`
   ]
   if (sandboxDisabled) args.push('--no-sandbox')
-  args.push(root)
-  const child = spawn(electronBinary, args, { cwd: root, env: environment, stdio: ['ignore', 'ignore', 'pipe'] })
+  if (!productExecutable) args.push(root)
+  const child = spawn(executable, args, { cwd: root, env: environment, stdio: ['ignore', 'ignore', 'pipe'] })
   let stderr = ''
   child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-8192) })
   const exited = new Promise((resolveExit) => child.once('exit', (code, signal) => resolveExit({ code, signal })))
@@ -123,7 +126,7 @@ async function findPage(run) {
     } catch {}
     await delay(200)
   }
-  throw new Error('Renderer did not expose a DevTools page.')
+  throw new Error(`Renderer did not expose a DevTools page. childExit=${run.child.exitCode} stderr=${run.stderr.trim().slice(-1600) || '<empty>'}`)
 }
 
 async function connect(url) {
@@ -360,14 +363,17 @@ function diffFullSnapshots(baseline, final) {
         const change = { table, key, field }
         const timestamp = field !== 'created_at' && field.endsWith('_at')
         const interestDerived = table === 'interests' && ['status', 'strength', 'confidence', 'profile_json', 'evidence_count', 'conversation_count', 'terms_json'].includes(field)
-        if (timestamp || interestDerived || (table === 'cognitive_feeling_state' && ['revision', 'state_json', 'dirty'].includes(field)) || (table === 'relationship_threads' && ['strength', 'confidence'].includes(field))) {
+        const goalRecovery = (table === 'goal_tasks' || table === 'goal_actions') && field === 'status'
+        if (timestamp || interestDerived || goalRecovery || (table === 'cognitive_feeling_state' && ['revision', 'state_json', 'dirty'].includes(field)) || (table === 'relationship_threads' && ['strength', 'confidence'].includes(field))) {
           const reason = timestamp
             ? 'normal_maintenance_timestamp'
-            : table === 'interests'
-              ? 'deterministic_interest_reconciliation'
-              : table === 'relationship_threads'
-                ? 'deterministic_evidence_recompute'
-              : 'derived_startup_state'
+            : goalRecovery
+              ? 'startup_goal_recovery'
+              : table === 'interests'
+                ? 'deterministic_interest_reconciliation'
+                : table === 'relationship_threads'
+                  ? 'deterministic_evidence_recompute'
+                  : 'derived_startup_state'
           result.allowedChanges.push({ ...change, reason })
         } else {
           result.changed.push(change)
@@ -426,6 +432,10 @@ function seedContinuityRows(seed) {
       .run(thread, firstMessage, seed.conversationId, 'support', 0.6, now)
     database.prepare('INSERT INTO goal_tasks(id, goal_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
       .run(goalTask, seed.goalId, 'queued', now, now)
+    // A task without its action violates the goal invariant and makes startup
+    // recovery fail with CONFLICT. The seed must create the paired action.
+    database.prepare('INSERT INTO goal_actions(id, task_id, tool_id, tool_version, parameters_json, parameters_hash, resource_scope, risk, status, planned_at, approval_expires_at, started_at, completed_at, idempotency_key, result_count, verified_count, verification_status, verification_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NULL, NULL, ?, NULL)')
+      .run(randomUUID(), goalTask, 'memory.count_active', '1', '{}', '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a', 'memory.active_count', 'read-only', 'queued', now, randomUUID(), 'not_run')
     database.prepare('INSERT INTO companion_goals(id, title, detail, owner, status, priority, due_at, source_message_id, created_at, updated_at, revision, candidate_id) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)')
       .run(companionGoal, 'CONTINUITY_MARKER_COMPANION_GOAL', 'kept across provider switches', 'user', 'active', 3, firstMessage, now, now, 1)
     database.prepare('INSERT INTO companion_goal_progress(id, goal_id, kind, note, created_at) VALUES (?, ?, ?, ?, ?)')
@@ -587,7 +597,7 @@ try {
   record('UI evidence screenshots captured', uiEvidence.length === 9, `${uiEvidence.length} screenshots at 1440×900 / 1280×800 / 390×844`)
 
   await stop(activeRun, activeClient)
-  await delay(750)
+  await delay(2500)
   activeRun = undefined
   activeClient = undefined
   const continuityFixture = seedContinuityRows(seed)
@@ -602,7 +612,7 @@ try {
   activeClient = started.client
   const continuityBefore = await activeClient.evaluate(continuityScript)
   await stop(activeRun, activeClient)
-  await delay(750)
+  await delay(2500)
   activeRun = undefined
   activeClient = undefined
 
@@ -643,7 +653,7 @@ try {
     changed.saved?.apiKeyConfigured === false && changed.saved.enabled === false && changed.feedback.includes('旧密钥已清除'),
     `feedback: ${changed.feedback}`)
   await stop(activeRun, activeClient)
-  await delay(750)
+  await delay(2500)
   activeRun = undefined
   activeClient = undefined
   const secretsAfterChange = snapshotSecrets([idA, idB])
@@ -671,7 +681,7 @@ try {
   })
   record('re-entering a key re-enables the profile', rekeyed.saved?.apiKeyConfigured === true && rekeyed.saved.enabled === true, `feedback: ${rekeyed.feedback}`)
   await stop(activeRun, activeClient)
-  await delay(750)
+  await delay(2500)
   activeRun = undefined
   activeClient = undefined
   const secretsAfterRekey = snapshotSecrets([idA, idB])
@@ -717,7 +727,7 @@ try {
   })()`)
   record('delete profile B through the renderer', deleted.deleted === true, 'B removed from the list')
   await stop(activeRun, activeClient)
-  await delay(750)
+  await delay(2500)
   activeRun = undefined
   activeClient = undefined
   const secretsAfterDelete = snapshotSecrets([idA, idB])
@@ -748,7 +758,7 @@ try {
   record('final restart keeps only A configured', finalState.profiles.length === 1 && finalState.profiles[0].id === idA && finalState.profiles[0].apiKeyConfigured === true, 'one configured profile remains')
   record('final continuity unchanged', continuityPreserved(continuityBefore, finalState.continuity), 'baseline identities and content preserved')
   await stop(activeRun, activeClient)
-  await delay(750)
+  await delay(2500)
   activeRun = undefined
   activeClient = undefined
   const fullFinal = snapshotFullDatabase()

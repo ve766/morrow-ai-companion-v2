@@ -77,10 +77,11 @@ export function initializeCompanion(): void {
     localProvider: ProviderConfigRecord | null
     providerStorageUnverified: boolean
     sending: boolean
+    follow: boolean
     requestId: string
     retry: { conversationId: string; requestId: string; content: string; includeSensitive: boolean } | undefined
     streaming: HTMLElement | undefined
-  } = { conversationId: '', provider: null, officialProvider: null, localProvider: null, providerStorageUnverified: false, sending: false, requestId: '', retry: undefined, streaming: undefined }
+  } = { conversationId: '', provider: null, officialProvider: null, localProvider: null, providerStorageUnverified: false, sending: false, follow: true, requestId: '', retry: undefined, streaming: undefined }
 
   const setStatus = (message: string, isError = false): void => {
     const status = element<HTMLParagraphElement>('#chat-feedback')
@@ -102,14 +103,26 @@ export function initializeCompanion(): void {
     state.streaming = undefined
   }
 
+  const setFollow = (follow: boolean): void => {
+    state.follow = follow
+    const chip = element<HTMLSpanElement>('#stream-follow')
+    chip.hidden = !state.sending
+    chip.textContent = follow ? '跟随中' : '已松手'
+  }
+
+  element<HTMLDivElement>('#chat-messages').addEventListener('scroll', () => {
+    if (!state.sending) return
+    const list = element<HTMLDivElement>('#chat-messages')
+    const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 24
+    if (atBottom !== state.follow) setFollow(atBottom)
+  })
+
   const setInspectorOpen = (open: boolean): void => {
     document.body.dataset.inspector = open ? 'open' : 'closed'
     element<HTMLButtonElement>('#inspector-toggle').setAttribute('aria-expanded', String(open))
   }
 
-  const wideInspector = window.matchMedia('(min-width: 1201px)')
-  setInspectorOpen(wideInspector.matches)
-  wideInspector.addEventListener('change', (event) => setInspectorOpen(event.matches))
+  setInspectorOpen(false)
   element<HTMLButtonElement>('#inspector-toggle').addEventListener('click', () => {
     setInspectorOpen(document.body.dataset.inspector !== 'open')
   })
@@ -696,6 +709,7 @@ export function initializeCompanion(): void {
       : crypto.randomUUID()
     state.requestId = requestId
     state.sending = true
+    setFollow(true)
     element<HTMLInputElement>('#cognitive-enabled').disabled = true
     element<HTMLButtonElement>('#cognitive-settings-save').disabled = true
     element<HTMLButtonElement>('#cognitive-clear').disabled = true
@@ -712,6 +726,7 @@ export function initializeCompanion(): void {
       state.retry = undefined
       state.streaming = undefined
       element<HTMLTextAreaElement>('#chat-content').value = ''
+      element<HTMLTextAreaElement>('#chat-content').style.height = 'auto'
       element<HTMLInputElement>('#chat-include-sensitive').checked = false
       element<HTMLSpanElement>('#chat-memory-count').textContent = `本次带入 ${result.includedMemoryCount} 条相关记忆`
       setStatus('回复已完整保存到本机对话。')
@@ -725,6 +740,7 @@ export function initializeCompanion(): void {
       await loadConversation()
     } finally {
       state.sending = false
+      element<HTMLSpanElement>('#stream-follow').hidden = true
       element<HTMLButtonElement>('#chat-cancel').disabled = true
       element<HTMLButtonElement>('#conversation-new').disabled = false
       element<HTMLButtonElement>('#conversation-delete').disabled = false
@@ -734,6 +750,13 @@ export function initializeCompanion(): void {
       await loadCognitive().catch((error) => setStatus(errorText(error), true))
     }
   })
+
+  const chatInput = element<HTMLTextAreaElement>('#chat-content')
+  const resizeChatInput = (): void => {
+    chatInput.style.height = 'auto'
+    chatInput.style.height = `${Math.min(chatInput.scrollHeight, 140)}px`
+  }
+  chatInput.addEventListener('input', resizeChatInput)
 
   element<HTMLTextAreaElement>('#chat-content').addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' || event.shiftKey || (!event.ctrlKey && !event.metaKey)) return
@@ -763,7 +786,7 @@ export function initializeCompanion(): void {
       const body = state.streaming.querySelector<HTMLElement>('.chat-message-body')
       if (body) body.textContent += event.delta
     }
-    list.scrollTop = list.scrollHeight
+    if (state.follow) list.scrollTop = list.scrollHeight
   })
 
   window.addEventListener('morrow:providers-changed', () => {
