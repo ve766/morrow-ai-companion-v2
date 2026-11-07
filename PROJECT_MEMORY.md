@@ -1,5 +1,18 @@
 # Morrow V2 项目记忆
 
+## 0. 当前任务（Issue #63，2026-11-07）
+
+- 分支：`feat/ai-life-core-upgrade-20261107`（基于 PR #62 head `e1d8513`）
+- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/64
+- 代码 commit：`8667e16a87a418eb49ee0cb98dc7702aaef47c1f`
+- 状态：**PARTIAL**；UI 本轮暂停。
+- 已交付：
+  - 结构化自我模型 `self_model_states`（schema v53，append-only revision，origin/evidence/scope/rationale），真实状态 `f2b72392...`；进入 system context。
+  - 持久 consent scope `provider_consent_grants`：同 provider/endpoint/model/sensitivity/action 复用；首条弹窗→第二条无弹窗→重启后无弹窗；scope 变化/撤销/过期重新确认。
+  - 测试：139 files / 1200 tests PASS；typecheck/build PASS。
+- 未完成：神经语义检索与三臂消融（NOT_IMPLEMENTED）、反思→self-model 写回（NOT_IMPLEMENTED）、统一探索 Priority（PARTIAL）、完整 12 指标评测（PARTIAL/NOT_RUN）。
+- 交付目录：`docs/reports/ai-life-core-upgrade-2026-11-07/`。
+
 > 本文件是工作区级项目记忆，供后续会话快速恢复上下文。它不是验收报告；事实以代码、测试输出和 `docs/reports/product-closure-2026-11-07/` 为准。最后更新：2026-11-07。
 
 ## 1. 当前工作
