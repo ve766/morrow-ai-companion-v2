@@ -1,0 +1,10 @@
+branch,head_or_ref,algorithm_or_file,current_equivalent,production_wired,equivalence,decision,evidence
+origin/feature/algorithm-v2-phase-a,a6f9e0be683b9a40af028952d625a5643cbf3553,ONNX semantic encoder + retrieval-v2,src/memory/memory-context-assembler.ts four-channel RRF,current RRF only,NOT_EQUIVALENT,NOT_MERGED; semantic blocked by optional runtime/model,results/retrieval-ablation.json
+origin/fix/memory-reliability-v0.1,dca6486af4d14edd2002b78e263f957d8b791352,timestamp trust + memory reliability,no src/persistence/timestamp-trust.ts in current branch,no,NOT_EQUIVALENT,NOT_RESTORED; schema integration not proven in 24h,07 findings
+origin/fix/phase-2.2.9-memory-reliability-hardening,remote ref,memory reliability hardening,current MemoryService + tests,partial,EQUIVALENT_OR_SUPERSEDED,REUSE existing; no merge,07 findings
+origin/fix/phase-2.2.10-memory-trust-hardening,60a88b854646223238f45d8d2b28161c19f84f48,timestamp trust + correction binding,no timestamp-trust.ts; current fact/temporal tests,partial,NOT_EQUIVALENT,NOT_RESTORED; risk documented,07 findings
+origin/feat/cognitive-loop-v1-phase2-3-reliability,remote ref,outbox/recovery,current outbox + recovery tests,yes,EQUIVALENT_OR_SUPERSEDED,REUSE existing,src/app/cognitive-outbox.ts
+origin/feat/cognitive-loop-v1-phase2-4-continuity,remote ref,turn context/finalization,current continuity repositories,yes,EQUIVALENT_OR_SUPERSEDED,REUSE existing,src/persistence/cognitive-context-repository.ts
+origin/feat/stage-3-long-term-companion,remote ref,interest/reflection/exploration,current self-model services,yes,EQUIVALENT_OR_SUPERSEDED,REUSE existing,src/self-model/*
+origin/feat/stage-6-appraisal-engine,b4d3bd408de9693de6e5fa43ddb05878870e3824,appraisal/feeling/expression,current affective-state services,yes,EQUIVALENT_OR_SUPERSEDED,REUSE existing; no reimplementation,src/affective-state/*
+fix/ai-life-core-upgrade-20261107 (PR #64),b63c99836100eb5a4cede50d8e55007c89c793a1,self-model-state + consent grants,new inner-cognition + morrow_self_states,new code only,NOT_MERGED,SELECTIVE_REIMPLEMENTATION; no whole merge,docs/reports/ai-life-core-upgrade-2026-11-07/

@@ -1,0 +1,15 @@
+{
+  "issue": 67,
+  "branch": "fix/morrow-core-cognitive-closure-20261108",
+  "baseCommit": "02b6938a3947bf77b0174747077e7a308584d12c",
+  "testedAt": "2026-11-07T23:43:42+08:00",
+  "environment": { "os": "Windows 11 Build 26200", "node": "22.23.2", "electron": "44.9.3" },
+  "commands": [
+    { "command": "npm run typecheck", "exitCode": 0, "status": "PASS" },
+    { "command": "TMP=<repo>/.tmp/esbuild-tmp TEMP=<repo>/.tmp/esbuild-tmp npm test", "exitCode": 0, "files": 140, "tests": 1200, "passed": 1200, "failed": 0, "skipped": 0, "status": "PASS" },
+    { "command": "npm run build", "exitCode": 0, "status": "PASS" },
+    { "command": "npx vitest run src/app/identity-guard.test.ts src/self-model/inner-cognition.test.ts", "exitCode": 0, "tests": 8, "passed": 8, "status": "PASS" }
+  ],
+  "installedAsarSha256": "e0db51cbbe8465eff68f1f602e0be57a9895572805c57fd1094401eab9f644c6",
+  "note": "Behavior evidence: docs/reports/whole-project-return-to-core-2026-11-07/results/identity-behavior-evaluation.json and docs/reports/core-cognitive-closure-2026-11-08/results/inner-workspace-evaluation.json."
+}

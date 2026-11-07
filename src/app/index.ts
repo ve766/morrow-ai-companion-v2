@@ -52,6 +52,7 @@ const logger = createLogger({ minimumLevel: 'info' })
 let mainWindow: BrowserWindow | undefined
 let windowLifecycle = new WindowLifecycle()
 let unregisterIpc: (() => void) | undefined
+let innerCognitionTimer: ReturnType<typeof setInterval> | undefined
 let database: SqliteDatabase | undefined
 let memoryMaintenance: MemoryMaintenanceScheduler | undefined
 let reminderService: ReminderService | undefined
@@ -281,7 +282,7 @@ if (hasSingleInstanceLock) {
     // production function the startup integration test calls. This is the real
     // bootstrap boundary, not a test-only copy.
     const startup = composeStartupReflectionServices(database, eventLog)
-    const { memoryImportance, factMemory, memories, interests, selfModel, reflection, pendingItems, findingRouter } = startup
+    const { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter } = startup
     // P0-A: the addressable fact layer, rebuilt from the memories at start
     // (idempotent) and kept current by the MemoryService lifecycle hooks.
     try {
@@ -354,7 +355,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
+      selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,
@@ -402,6 +403,9 @@ if (hasSingleInstanceLock) {
       console.warn('Queued post-turn cognition could not be replayed; it stays queued for the next start.')
     }
     companionService = companion
+    innerCognitionTimer = setInterval(() => {
+      try { innerCognition.reviewDue(new Date().toISOString(), 3) } catch { logger.warn('cognition', 'inner cognition review failed; normal chat is unaffected') }
+    }, 5 * 60 * 1000)
     const goalRepository = new SqliteGoalRepository(database)
     const reminders = new ReminderService(
       new SqliteReminderRepository(database),
@@ -581,6 +585,7 @@ if (hasSingleInstanceLock) {
 }
 
 app.on('before-quit', () => {
+  if (innerCognitionTimer) { clearInterval(innerCognitionTimer); innerCognitionTimer = undefined }
   eventLog?.tryRecord({ sourceModule: 'app', eventType: 'app.closing', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: {} })
   memoryMaintenance?.stop()
   memoryMaintenance = undefined

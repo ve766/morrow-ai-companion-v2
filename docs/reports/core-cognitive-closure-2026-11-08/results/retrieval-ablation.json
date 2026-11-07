@@ -1,0 +1,10 @@
+{
+  "issue": 67,
+  "status": "BLOCKED",
+  "reason": "Historical ONNX semantic encoder depends on optional @huggingface/transformers and a ~113MB local model; neither is installed in the current product/runtime. Lexical-only vs semantic-only vs hybrid ablation cannot be executed honestly.",
+  "historicalBranch": "origin/feature/algorithm-v2-phase-a @ a6f9e0be683b9a40af028952d625a5643cbf3553",
+  "historicalFiles": ["src/memory/retrieval/onnx-semantic-encoder.ts", "src/memory/retrieval/retrieval-v2.ts", "src/memory/retrieval/retrieval-semantic.ts"],
+  "current": "src/memory/memory-context-assembler.ts four-channel RRF (fact-index/lexical/fact-slot/value)",
+  "decision": "KEEP current RRF; no semantic claim",
+  "next": "Install optional encoder + local model, freeze thresholds, run three arms; otherwise remain DEGRADED lexical hybrid."
+}

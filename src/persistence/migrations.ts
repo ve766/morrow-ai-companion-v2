@@ -2769,6 +2769,51 @@ export const migrations: readonly Migration[] = [
     }
   },
 
+  {
+    version: 54,
+    name: 'inner-cognition-workspace',
+    up(database) {
+      database.exec(`
+        CREATE TABLE morrow_thoughts (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          actor TEXT NOT NULL CHECK (actor = 'morrow'),
+          trigger TEXT NOT NULL,
+          question TEXT NOT NULL CHECK (length(trim(question)) BETWEEN 1 AND 1000 AND instr(question, char(0)) = 0),
+          hypothesis TEXT NOT NULL CHECK (length(trim(hypothesis)) BETWEEN 1 AND 1000 AND instr(hypothesis, char(0)) = 0),
+          evidence_json TEXT NOT NULL,
+          counter_evidence_json TEXT NOT NULL,
+          uncertainty INTEGER NOT NULL CHECK (uncertainty BETWEEN 0 AND 100),
+          priority REAL NOT NULL CHECK (priority >= 0 AND priority <= 1),
+          status TEXT NOT NULL CHECK (status IN ('open', 'reviewed', 'candidate', 'promoted', 'dormant', 'closed')),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          next_review_at TEXT,
+          algorithm_version TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX morrow_thoughts_due_idx ON morrow_thoughts(status, next_review_at, priority DESC);
+        CREATE TABLE morrow_self_states (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          actor TEXT NOT NULL CHECK (actor IN ('morrow', 'user', 'shared', 'system')),
+          domain TEXT NOT NULL CHECK (domain IN ('interest', 'stance', 'value', 'preference', 'question', 'pattern')),
+          proposition TEXT NOT NULL CHECK (length(trim(proposition)) BETWEEN 1 AND 1000 AND instr(proposition, char(0)) = 0),
+          stance TEXT NOT NULL CHECK (stance IN ('support', 'oppose', 'uncertain')),
+          evidence_json TEXT NOT NULL,
+          counter_evidence_json TEXT NOT NULL,
+          independent_contexts INTEGER NOT NULL CHECK (independent_contexts >= 0),
+          score INTEGER NOT NULL CHECK (score BETWEEN 0 AND 100),
+          status TEXT NOT NULL CHECK (status IN ('candidate', 'active', 'weakened', 'conflict_pending', 'rejected', 'superseded', 'retracted')),
+          revision INTEGER NOT NULL CHECK (revision >= 1),
+          supersedes TEXT REFERENCES morrow_self_states(id),
+          rationale TEXT NOT NULL CHECK (length(trim(rationale)) BETWEEN 1 AND 1000 AND instr(rationale, char(0)) = 0),
+          algorithm_version TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX morrow_self_states_active_idx ON morrow_self_states(actor, status, score DESC, updated_at DESC);
+      `)
+    }
+  },
+
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0
