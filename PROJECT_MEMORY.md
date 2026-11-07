@@ -8,7 +8,7 @@
 - 远端：`https://github.com/ve766/morrow-ai-companion-v2`
 - 当前分支：`feat/morrow-v2-product-closure-20261107`（从 `feat/morrow-v2-product-complete-20261106` @ `68468cfca95b90b33707fe2dd50c6ee1bcc6fb44` 建立）
 - 当前任务：GitHub Issue #61「Morrow V2 当前产品交付修复 + UI 改造总任务」
-- 工作树：已提交（代码/文档 commit `3a491b75b03ce104f7510e8d5574a6f6bac1ffc8`；后续可能追加结果元数据 commit）
+- 工作树：已提交并推送（代码 commit `3a491b7`；文档/元数据 head `3db8f7e`；PR https://github.com/ve766/morrow-ai-companion-v2/pull/62）
 - 目标 PR base：`feat/morrow-v2-product-complete-20261106`（Issue #61 要求）
 - 禁止：修改 `main`/`release/*`、合并既有 PR、发 Release、force-push、删除证据、把未执行项写成 PASS。
 
@@ -102,7 +102,7 @@
 
 ## 6. 下一步（按优先级）
 
-1. 推送分支并向 `feat/morrow-v2-product-complete-20261106` 开 PR；在 Issue #61 按 10 项顺序评论最终状态。
+1. 已推送并开 PR #62、已向 Issue #61 评论；等待 review。
 2. CI：需管理员把 workflow 合入默认分支并注册 Runner；在此之前不得标记 CI PASS。
 3. product-path smoke：需复现并修复隔离 profile 重启阶段 `Renderer did not expose a DevTools page`；当前保留 FAIL。
 4. Windows：自动化 10 分钟可见/5 轮对话/3 次最小化恢复/二次启动/重启已通过；人工目视签字仍为 `PENDING_HUMAN_CONFIRMATION`。
