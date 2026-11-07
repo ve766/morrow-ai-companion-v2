@@ -78,9 +78,10 @@
 | Windows 真机可见性 | **PASS_AUTOMATED / PENDING_HUMAN** | 10 分钟 120/120 可见；5 轮真实对话；3 次最小化/恢复；二次启动；重启保留会话；人工签字未获得 |
 | self-hosted CI 真实 run | BLOCKED | workflow 不在默认分支（dispatch 404）+ Runner 未注册 |
 
-`verify:full` 失败详情：
+验证详情：
 
-- full 层已真实 PASS；test 137 files / 1190 tests；评估通过；smoke 使用已安装 exe。
+- full 层真实 PASS；test 137 files / 1190 tests；评估通过；smoke 使用已安装 exe。
+- stages PASS 7 / SKIPPED 2。
 - product 层仍 FAIL：隔离 profile 重启阶段 `Renderer did not expose a DevTools page`；保留为 FAIL。
 
 ## 4. 关键代码路径
@@ -101,11 +102,8 @@
 
 ## 6. 下一步（按优先级）
 
-1. 修复 `verify:full` 的 `evaluate/evaluate:cognition/smoke` 环境失败（至少让 smoke 使用仓库内临时目录；评估脚本同样检查 esbuild TMP）。
-2. 构建并增量部署到既有 acceptance app（备份旧 asar，不动 userData），CDP 验证：
-   - 默认深色工作台、五种主题切换、四档响应式；
-   - 发送/取消/重试、Provider 保存/测试、记忆/人格/轨迹控件真实后端变化；
-   - 截图与 JSON 证据写入 `docs/reports/product-closure-2026-11-07/results/` 与既有 evidence 目录。
-3. 运行 `verify:product`、`verify:stages`（记录 FAIL/SKIPPED/BLOCKED 真实状态），生成 `results/verification-summary.json`。
-4. 真实桌面可见性：执行最小验收脚本；若宿主仍最小化，标记 `BLOCKED_HUMAN_DESKTOP`，不做 PASS。
-5. 写齐 Issue #61 固定路径 7 份报告；提交/推送分支；向目标分支开 PR；在 Issue #61 按 10 项顺序评论最终状态。
+1. 推送分支并向 `feat/morrow-v2-product-complete-20261106` 开 PR；在 Issue #61 按 10 项顺序评论最终状态。
+2. CI：需管理员把 workflow 合入默认分支并注册 Runner；在此之前不得标记 CI PASS。
+3. product-path smoke：需复现并修复隔离 profile 重启阶段 `Renderer did not expose a DevTools page`；当前保留 FAIL。
+4. Windows：自动化 10 分钟可见/5 轮对话/3 次最小化恢复/二次启动/重启已通过；人工目视签字仍为 `PENDING_HUMAN_CONFIRMATION`。
+5. 不改写失败/阻塞历史；不合并 PR、不发 Release、不改 main/release。
