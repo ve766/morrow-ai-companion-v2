@@ -25,6 +25,7 @@ import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
 import { PersonalizationService } from '../personalization/personalization-service'
 import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { AffectLoopService } from '../affective-state/affect-loop'
 import { composeStartupReflectionServices, runStartupReflection } from './startup-composition'
 import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
@@ -290,6 +291,13 @@ if (hasSingleInstanceLock) {
     database = SqliteDatabase.open(databasePath)
     consentGrants = new ConsentGrantService(new SqliteConsentGrantRepository(database))
     eventLog = new EventLogService(database)
+    // Issue #72: one affect authority owns emotion events, Morrow traits and
+    // verified intrinsic reward signals. It is created before the chat service
+    // so the same instance is used by the turn path and the review scheduler.
+    const affect = new AffectLoopService(database, () => new Date().toISOString(), () => globalThis.crypto.randomUUID(), eventLog)
+    // Trait revisions are a cache over observations. Rebuild them at startup so
+    // a message deletion that cascaded observations cannot leave a stale trait.
+    try { affect.traits.recomputeAll() } catch { logger.warn('cognition', 'trait projection rebuild failed; chat is unaffected') }
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
     // Issue #43: the reflection dependency graph is composed by the same
     // production function the startup integration test calls. This is the real
@@ -368,7 +376,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
+      selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships, affect },
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,
@@ -417,7 +425,14 @@ if (hasSingleInstanceLock) {
     }
     companionService = companion
     innerCognitionTimer = setInterval(() => {
-      try { innerCognition.reviewDue(new Date().toISOString(), 3) } catch { logger.warn('cognition', 'inner cognition review failed; normal chat is unaffected') }
+      try {
+        const reviewed = innerCognition.reviewDue(new Date().toISOString(), 3)
+        // A promoted thought is verified Morrow-owned progress. The reward
+        // ledger records it; user praise never reaches this path.
+        affect.observeThoughtReviews(reviewed)
+      } catch {
+        logger.warn('cognition', 'inner cognition review failed; normal chat is unaffected')
+      }
     }, 5 * 60 * 1000)
     const goalRepository = new SqliteGoalRepository(database)
     const reminders = new ReminderService(

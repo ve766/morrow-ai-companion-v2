@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { applyMigrations } from '../persistence/migrations'
+import { applyMigrations, CURRENT_SCHEMA_VERSION } from '../persistence/migrations'
 import { SqliteDatabase } from '../persistence/database'
 import { MemorySecretStore, type SecretStore } from '../security/secrets'
 import { SecretStoreError } from '../security/secret-store-error'
@@ -106,7 +106,7 @@ describe('multi-source provider profiles', () => {
         .run('2026-10-01T00:00:00.000Z')
       raw.prepare("INSERT INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('local-openai', 'local', 'http://127.0.0.1:1234', 'qwen2.5', 0, ?)")
         .run('2026-10-01T00:00:00.000Z')
-      expect(applyMigrations(raw)).toBe(54)
+      expect(applyMigrations(raw)).toBe(CURRENT_SCHEMA_VERSION)
     } finally {
       raw.close()
     }

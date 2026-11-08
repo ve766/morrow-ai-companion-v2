@@ -18,6 +18,7 @@ import type { CognitiveTurnAnalysis } from '../cognition/cognition'
 
 export type AdviceMode = 'none' | 'acknowledge_first' | 'answer_directly'
 export type ClarifyMode = 'as_needed' | 'prefer'
+export type AffectStrategy = 'repair' | 'clarify' | 'explore' | 'steady' | null
 
 export interface ExpressionPolicy {
   /** Bounded strategy fields; every field has a closed set of values. */
@@ -27,6 +28,8 @@ export interface ExpressionPolicy {
   questionBudget: 0 | 1 | 2
   /** Prefer a shorter answer. */
   brevity: 'normal' | 'brief'
+  /** Bounded multi-dimensional affect strategy, when one is relevant. */
+  affectStrategy?: AffectStrategy
   /** Human-readable reason for the trace; never shown to the user. */
   rationale: string
 }
@@ -191,12 +194,24 @@ export function deriveExpressionPolicy(input: {
   wantsDirectAnswer: boolean
   /** The user's own words, for explicit distress evidence only. */
   text?: string | undefined
+  /** Query-relevant emotion families from the affect projection. */
+  affectFamilies?: readonly string[] | undefined
 }): ExpressionPolicy {
   const state = input.state
   const analysis = input.analysis
   const tension = state?.values.tension ?? 0
   const uncertainty = analysis?.uncertainty === 'high' ? 0.8 : analysis?.uncertainty === 'medium' ? 0.55 : 0.25
   const evidence = assessDistressEvidence({ text: input.text ?? '', tension })
+  const families = new Set(input.affectFamilies ?? [])
+  const affectStrategy: AffectStrategy = families.has('frustration') || families.has('regret') || families.has('disappointment')
+    ? 'repair'
+    : families.has('concern') || families.has('fear')
+      ? 'clarify'
+      : families.has('curiosity') || families.has('anticipation') || families.has('excitement')
+        ? 'explore'
+        : families.has('sadness') || families.has('loneliness')
+          ? 'steady'
+          : null
 
   // A direct request wins over warmth: the user asked for the answer, not for
   // company. This ordering is the point of the policy.
@@ -206,6 +221,7 @@ export function deriveExpressionPolicy(input: {
       clarifyMode: 'as_needed',
       questionBudget: 1,
       brevity: 'brief',
+      affectStrategy: null,
       rationale: 'explicit_direct_request'
     }
   }
@@ -215,6 +231,7 @@ export function deriveExpressionPolicy(input: {
       clarifyMode: 'prefer',
       questionBudget: 2,
       brevity: 'normal',
+      affectStrategy,
       // Kept from the v1 trace vocabulary; the calibrated reason is on the
       // evidence object, not in the user-visible prompt.
       rationale: evidence.distress ? 'uncertain_and_user_tension' : 'uncertain_reading'
@@ -226,6 +243,7 @@ export function deriveExpressionPolicy(input: {
       clarifyMode: 'as_needed',
       questionBudget: 1,
       brevity: 'normal',
+      affectStrategy,
       rationale: 'user_tension_unresolved'
     }
   }
@@ -234,6 +252,7 @@ export function deriveExpressionPolicy(input: {
     clarifyMode: 'as_needed',
     questionBudget: 2,
     brevity: 'normal',
+    affectStrategy,
     rationale: evidence.rationale === 'unresolved_tension_only' ? 'unresolved_tension_only' : 'no_special_condition'
   }
 }
@@ -247,6 +266,10 @@ export function describeExpressionPolicy(policy: ExpressionPolicy): string {
   if (policy.adviceMode === 'answer_directly') parts.push('- The user asked for the answer: answer it directly and briefly; do not open with empathy or extra questions.')
   if (policy.adviceMode === 'acknowledge_first') parts.push('- Acknowledge what the user just said in one sentence before any advice; do not lead with a list.')
   if (policy.clarifyMode === 'prefer') parts.push('- Your reading of this turn is uncertain: prefer one clarifying question over a confident claim.')
+  if (policy.affectStrategy === 'repair') parts.push('- A relevant Morrow frustration/regret is active: if a concrete error exists, name that point and repair it; do not generalize or blame the user.')
+  if (policy.affectStrategy === 'clarify') parts.push('- A relevant concern is active: prefer one clarifying check before asserting; do not present the concern as a fact.')
+  if (policy.affectStrategy === 'explore') parts.push('- Relevant curiosity is active: you may offer one closely related angle; stop if the user declines.')
+  if (policy.affectStrategy === 'steady') parts.push('- A relevant heavier affect is active: keep the tone steady and do not ask the user to manage it.')
   parts.push(`- Optional follow-up questions allowed: ${policy.questionBudget}. Do not expose internal state, confidence numbers, revision ids or memory ids to the user.`)
   return parts.join('\n')
 }
