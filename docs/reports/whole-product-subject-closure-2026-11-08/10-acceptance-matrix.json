@@ -2,8 +2,8 @@
   "issue": 74,
   "branch": "fix/whole-product-subject-closure-20261108",
   "base": { "branch": "fix/morrow-core-cognitive-closure-20261108", "sha": "efdbf52a25e896ee159d296944f019f9b94ab687" },
-  "sourceCommit": "SOURCE_COMMIT_PLACEHOLDER",
-  "finalHead": "FINAL_HEAD_PLACEHOLDER",
+  "sourceCommit": "22820625db1037485fa4f862bb3b8b2fc2e4bc26",
+  "finalHead": "22820625db1037485fa4f862bb3b8b2fc2e4bc26",
   "overall": "PARTIAL",
   "categories": {
     "productUsability": [

@@ -2,11 +2,11 @@
 
 - Issue：https://github.com/ve766/morrow-ai-companion-v2/issues/74
 - 实现分支：`fix/whole-product-subject-closure-20261108`
-- PR：PR_PLACEHOLDER（Draft，base `fix/morrow-core-cognitive-closure-20261108`）
+- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/75（Draft，base `fix/morrow-core-cognitive-closure-20261108`）
 - 源分支起点：`83dab6ad8b2af3b0a2d98ceb9eb342ee5f081691`（PR #73）
 - base：`efdbf52a25e896ee159d296944f019f9b94ab687`（PR #68）
-- 源代码 commit：SOURCE_COMMIT_PLACEHOLDER
-- 最终 HEAD：FINAL_HEAD_PLACEHOLDER
+- 源代码 commit：22820625db1037485fa4f862bb3b8b2fc2e4bc26
+- 最终 HEAD：22820625db1037485fa4f862bb3b8b2fc2e4bc26
 - 总体状态：**PARTIAL**
 
 ## 本轮真实修复
