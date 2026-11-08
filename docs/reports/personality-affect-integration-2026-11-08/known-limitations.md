@@ -9,6 +9,7 @@
 - **trait 长期真实数据**：PARTIAL。用测试时钟模拟 24h+/3 会话/2 情境；没有真实 7 天用户数据。
 - **trait 自动重建**：startup 重算 + 会话删除重算；单条消息删除后的即时 trait 重算未做（FK 会删 observation，但 revision 可能直到下一次 observe/startup 才更新）。
 - **appraisal 权重在线配置**：NOT_IMPLEMENTED。权重是版本化常量，报告不称“可配置 UI”。
+- **全新 emotion family / trait dimension 的运行时注册**：PARTIAL。`registerEmotionProfile` 只能覆盖既有 18 族的 profile；新增族名或新 trait 维仍需要代码/schema 版本变更。`trait_key` 列本身是自由字符串，但服务层的类型/定义表当前是编译期常量。
 - **校准概率**：NO。所有 confidence/score/intensity 都是规则强度或 bounded score，不是统计概率。
 - **语义检索/ONNX**：未在本任务接入；不合并历史 algorithm 分支。
 - **UI 重设计/语音/训练/Agent 工具**：未做，也不在本任务范围。
