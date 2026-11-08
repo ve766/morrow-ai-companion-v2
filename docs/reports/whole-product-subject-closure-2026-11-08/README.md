@@ -6,7 +6,7 @@
 - 源分支起点：`83dab6ad8b2af3b0a2d98ceb9eb342ee5f081691`（PR #73）
 - base：`efdbf52a25e896ee159d296944f019f9b94ab687`（PR #68）
 - 源代码 commit：22820625db1037485fa4f862bb3b8b2fc2e4bc26
-- 最终 HEAD：22820625db1037485fa4f862bb3b8b2fc2e4bc26
+- 最终交付 HEAD：见 Issue #74 最终评论（代码结果对应 commit 22820625）
 - 总体状态：**PARTIAL**
 
 ## 本轮真实修复
