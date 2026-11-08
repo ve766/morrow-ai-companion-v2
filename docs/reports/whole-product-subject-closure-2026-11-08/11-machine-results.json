@@ -1,0 +1,105 @@
+{
+  "issue": 74,
+  "branch": "fix/whole-product-subject-closure-20261108",
+  "base": {
+    "branch": "fix/morrow-core-cognitive-closure-20261108",
+    "sha": "efdbf52a25e896ee159d296944f019f9b94ab687"
+  },
+  "sourceCommit": "SOURCE_COMMIT_PLACEHOLDER",
+  "finalHead": "FINAL_HEAD_PLACEHOLDER",
+  "environment": {
+    "os": "win32 10.0.26200 x64",
+    "node": "v22.23.2",
+    "electron": "44.9.3",
+    "electronBuilder": "26.15.3"
+  },
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "log": "results/typecheck.log"
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "files": 147,
+      "tests": 1246,
+      "log": "results/full-tests.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "results/build.log"
+    },
+    {
+      "command": "npm run smoke:chat-ui",
+      "exitCode": 0,
+      "log": "results/chat-ui-smoke.log"
+    },
+    {
+      "command": "npm run smoke:product-path",
+      "exitCode": 0,
+      "log": "results/product-path-smoke.json.log"
+    },
+    {
+      "command": "npm run smoke:product-path (portable exe)",
+      "exitCode": 0,
+      "log": "results/portable-smoke.log"
+    },
+    {
+      "command": "npx electron-builder --win nsis --x64",
+      "exitCode": 1,
+      "status": "BLOCKED",
+      "log": "results/nsis-package-attempt1.log"
+    }
+  ],
+  "smoke": {
+    "chatUi": {
+      "status": "PASS",
+      "runId": "20261108T101020Z-64686c86",
+      "requests": 1,
+      "messages": [
+        "user",
+        "assistant"
+      ]
+    },
+    "productPath": {
+      "status": "PASS",
+      "runId": "20261108T094904Z-a38f8648"
+    },
+    "portable": {
+      "status": "PASS",
+      "runId": "20261108T100203Z-da85345c"
+    }
+  },
+  "package": {
+    "portableZip": { "path": "release/Morrow-2.0.0-x64-portable.zip", "sha256": "e1eaaa5fb2653fac78acd208941a63cb445e17435e6abf8bf131ee2b6cfdad99", "bytes": 154656028 },
+    "portableAsar": {
+      "path": "release/win-unpacked/resources/app.asar",
+      "sha256": "ba2e88764b1f9a12cddda76c819ce8b46681afbc7939bf55da94001ede93b895",
+      "bytes": 1369540
+    },
+    "nsis": {
+      "status": "BLOCKED",
+      "reason": "electron-builder 504 while downloading winCodeSign/electron assets; old 189KB stub is not a valid installer"
+    }
+  },
+  "tests": {
+    "fullSuite": "147 files / 1246 tests PASS",
+    "newRegression": [
+      "user exploration ownership",
+      "production counter-evidence",
+      "trait freshness",
+      "reward-affect atomicity",
+      "UI contract affect/consent"
+    ]
+  },
+  "knownGaps": [
+    "NSIS installer BLOCKED",
+    "real cloud Provider A-K NOT_RUN",
+    "memory benchmark NOT_RUN",
+    "reflection finding->self-state PARTIAL",
+    "mood/pause NOT_IMPLEMENTED",
+    "native consent click PENDING_HUMAN"
+  ]
+}

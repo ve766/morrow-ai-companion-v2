@@ -128,6 +128,23 @@ describe('Morrow trait evidence gate', () => {
     }
   })
 
+  it('recomputes immediately when its observation evidence disappears', () => {
+    const context = setup()
+    try {
+      const conversations = [randomUUID(), randomUUID(), randomUUID()]
+      for (const [index, at] of [0, 1, 2, 3, 25, 26, 27].entries()) {
+        context.traits.observe(observation({ at: context.at(at), turnId: randomUUID(), conversationId: conversations[index % conversations.length]!, contextTag: index % 2 === 1 ? '分布式系统' : '数据库' }))
+      }
+      expect(context.traits.current('curiosity')?.status).toBe('active')
+      context.database.connection.prepare("DELETE FROM morrow_trait_observations WHERE trait_key = 'curiosity'").run()
+      const after = context.traits.current('curiosity')!
+      expect(after.evidenceCount).toBe(0)
+      expect(after.status).toBe('weakened')
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('weakens an active trait when counter-evidence arrives', () => {
     const context = setup()
     try {

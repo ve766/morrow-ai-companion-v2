@@ -15,6 +15,7 @@ import { initializeCompanion } from './companion-ui'
 import { initializeProviderProfiles } from './provider-profiles-ui'
 import { initializeSelfModel } from './self-model-ui'
 import { initializeVisualEffects } from './visual-effects'
+import { initializeAffect } from './affect-ui'
 
 class UiError extends Error {}
 
@@ -358,3 +359,4 @@ initializeProviderProfiles()
 initializeSelfModel()
 initializeBackup()
 initializePendingPanel()
+initializeAffect()

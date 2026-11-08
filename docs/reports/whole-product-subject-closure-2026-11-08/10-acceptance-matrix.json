@@ -1,0 +1,81 @@
+{
+  "issue": 74,
+  "branch": "fix/whole-product-subject-closure-20261108",
+  "base": { "branch": "fix/morrow-core-cognitive-closure-20261108", "sha": "efdbf52a25e896ee159d296944f019f9b94ab687" },
+  "sourceCommit": "SOURCE_COMMIT_PLACEHOLDER",
+  "finalHead": "FINAL_HEAD_PLACEHOLDER",
+  "overall": "PARTIAL",
+  "categories": {
+    "productUsability": [
+      { "id": "windows-start-workspace", "status": "PASS", "evidence": "chat-ui-smoke built Electron; screenshot/product-path; input visible", "command": "npm run smoke:chat-ui", "exitCode": 0 },
+      { "id": "send-and-stream-render", "status": "PASS", "evidence": "loopback SSE: user message + streamed assistant reply rendered", "command": "npm run smoke:chat-ui", "exitCode": 0 },
+      { "id": "cancel-and-retry", "status": "PARTIAL", "evidence": "chat.cancel service integration + renderer handler; no Electron click-cancel E2E", "command": "npx vitest run src/app/turn-trace.integration.test.ts", "exitCode": 0 },
+      { "id": "conversation-new-switch-delete-restart", "status": "PASS", "evidence": "product-path PASS; conversation rows preserved; chat-ui persisted messages", "command": "npm run smoke:product-path", "exitCode": 0 },
+      { "id": "provider-config-ui", "status": "PASS", "evidence": "product-path provider profile form/save/test/discover/delete; secrets isolated", "command": "npm run smoke:product-path", "exitCode": 0 },
+      { "id": "consent-choice-ui", "status": "PARTIAL", "evidence": "native dialog now offers cancel/once/30d; sensitive defaults cancel; OS dialog click not automatable", "command": "manual/PENDING_HUMAN", "exitCode": null },
+      { "id": "consent-revoke-ui", "status": "PASS", "evidence": "affect-ui consent list + revoke; IPC + service tests", "command": "npm run typecheck", "exitCode": 0 },
+      { "id": "all-visible-buttons-handler", "status": "PASS", "evidence": "docs/ui/control-contract.json + tests/ui-control-contract.test.ts; new controls added", "command": "npx vitest run tests/ui-control-contract.test.ts", "exitCode": 0 }
+    ],
+    "subjectCognition": [
+      { "id": "experience-to-thought", "status": "PARTIAL", "evidence": "thought from uncertainty/correction/predictionError; no full history/interest question generator", "command": "npx vitest run src/self-model/inner-cognition.test.ts", "exitCode": 0 },
+      { "id": "user-exploration-not-morrow-interest", "status": "PASS", "evidence": "sourceKind/shared_interaction + traitEligible false + regression", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+      { "id": "counter-evidence-production", "status": "PASS", "evidence": "counterObservationFromEmotion; active trait -> weakened; integration", "command": "npx vitest run src/app/personality-affect.integration.test.ts", "exitCode": 0 },
+      { "id": "reflection-finding-self-state", "status": "PARTIAL", "evidence": "finding routed to hints/pending; no direct self-state revision", "command": "npx vitest run src/cognition/reflection-routing.test.ts", "exitCode": 0 },
+      { "id": "query-conditioned-context", "status": "PASS", "evidence": "affect/trait/inner state query filters; integration unrelated topic omitted", "command": "npx vitest run src/app/personality-affect.integration.test.ts", "exitCode": 0 },
+      { "id": "uncertainty-not-belief", "status": "PASS", "evidence": "inner cognition priority only; score formula excludes uncertainty", "command": "npx vitest run src/self-model/inner-cognition.test.ts", "exitCode": 0 },
+      { "id": "independent-evidence", "status": "PARTIAL", "evidence": "conversation/turn/message dedupe; no ancestor-chain Jaccard", "command": "npx vitest run src/self-model/morrow-trait-service.test.ts", "exitCode": 0 }
+    ],
+    "affectPersonality": [
+      { "id": "event-mood-trait-separation", "status": "PARTIAL", "evidence": "emotion event + trait separate; mood still 3D feeling projection", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+      { "id": "six-emotion-families-production", "status": "PARTIAL", "evidence": "joy/frustration/concern/curiosity/relief + sadness API; anger/fear unit-only", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+      { "id": "user-vs-morrow-emotion", "status": "PASS", "evidence": "user emotion sourceKind user_context; no Morrow sadness", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+      { "id": "user-style-not-trait", "status": "PASS", "evidence": "growth signal only, zero trait observations", "command": "npx vitest run src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+      { "id": "reward-atomic-idempotent", "status": "PASS", "evidence": "single transaction reward+affect; real message FK test", "command": "npx vitest run src/self-model/intrinsic-reward.test.ts", "exitCode": 0 },
+      { "id": "delete-restart-rebuild", "status": "PARTIAL", "evidence": "conversation delete/clear/restart; single-message emotion UI path not exercised", "command": "npx vitest run src/affective-state/emotion-service.test.ts src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+      { "id": "three-production-decisions", "status": "PARTIAL", "evidence": "expression/exploration/inner-cognition wired; only object-level + prompt evidence", "command": "npx vitest run src/self-model/affect-attention.test.ts", "exitCode": 0 },
+      { "id": "affect-ui-view-regulate-clear", "status": "PASS", "evidence": "affect-ui panel + IPC + contract; pause missing", "command": "npx vitest run tests/ui-control-contract.test.ts", "exitCode": 0 },
+      { "id": "affect-pause", "status": "NOT_IMPLEMENTED", "evidence": "no persisted pause flag/UI", "command": null, "exitCode": null }
+    ],
+    "algorithms": [
+      { "id": "A1-dense-cross-encoder", "status": "NOT_RUN", "evidence": "no model/benchmark; RRF not called semantic", "command": null, "exitCode": null },
+      { "id": "A2-hipporag-ppr", "status": "NOT_IMPLEMENTED", "evidence": "no entity normalization/graph confidence", "command": null, "exitCode": null },
+      { "id": "B1-OCC-PAD-OU", "status": "PARTIAL", "evidence": "multi-family decay; not full stochastic OU", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+      { "id": "C1-fractional-beta", "status": "PARTIAL", "evidence": "bounded evidence score, not Beta posterior", "command": "npx vitest run src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+      { "id": "D1-surprise-IAC", "status": "PARTIAL", "evidence": "Morrow-owned appraisal/reward; no IAC", "command": "npx vitest run src/self-model/intrinsic-reward.test.ts", "exitCode": 0 },
+      { "id": "E1-VoI-VoC", "status": "PARTIAL", "evidence": "bounded review queue, no VoI budget", "command": "npx vitest run src/self-model/inner-cognition.test.ts", "exitCode": 0 },
+      { "id": "F1-CLS-bitemporal", "status": "NOT_IMPLEMENTED", "evidence": "not in production", "command": null, "exitCode": null },
+      { "id": "G1-ToM-subjective-logic", "status": "NOT_IMPLEMENTED", "evidence": "not in production", "command": null, "exitCode": null },
+      { "id": "H1-calibration", "status": "PARTIAL", "evidence": "source independence basic; no ECE/Brier/NLL", "command": null, "exitCode": null },
+      { "id": "I1-unified-architecture", "status": "CONCEPTUAL", "evidence": "module contracts/outbox, not GWT/LIDA", "command": null, "exitCode": null }
+    ],
+    "dataSecurity": [
+      { "id": "v54-v55-migration", "status": "PASS", "evidence": "migration suite; schema v55; no v56", "command": "npx vitest run src/persistence/migrations.test.ts", "exitCode": 0 },
+      { "id": "delete-clear-propagation", "status": "PARTIAL", "evidence": "conversation delete/clear; single-message UI delete not exercised", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+      { "id": "no-secrets-in-artifacts", "status": "PASS", "evidence": "scans + product-path noCredentialInIpc; reports contain no keys", "command": "manual scan", "exitCode": 0 },
+      { "id": "scheduler-bounded", "status": "PARTIAL", "evidence": "5-minute timer, 3 thoughts; no crash cancellation UI", "command": "npx vitest run src/self-model/inner-cognition.test.ts", "exitCode": 0 }
+    ],
+    "release": [
+      { "id": "portable-package", "status": "PASS", "evidence": "release/win-unpacked app.asar 0af1d333...; product-path PASS", "command": "npm run smoke:product-path", "exitCode": 0 },
+      { "id": "nsis-installer", "status": "BLOCKED", "evidence": "electron-builder 504 downloads; old stub not valid", "command": "npx electron-builder --win nsis --x64", "exitCode": 1 },
+      { "id": "user-desktop-install-upgrade", "status": "PENDING_USER_ACTION", "evidence": "not run on production data", "command": null, "exitCode": null }
+    ],
+    "testing": [
+      { "id": "typecheck", "status": "PASS", "command": "npm run typecheck", "exitCode": 0 },
+      { "id": "full-tests", "status": "PASS", "command": "npm test", "exitCode": 0, "files": 147, "tests": 1246 },
+      { "id": "build", "status": "PASS", "command": "npm run build", "exitCode": 0 },
+      { "id": "chat-ui-smoke", "status": "PASS", "command": "npm run smoke:chat-ui", "exitCode": 0 },
+      { "id": "product-path-smoke", "status": "PASS", "command": "npm run smoke:product-path", "exitCode": 0 },
+      { "id": "real-cloud-provider", "status": "NOT_RUN", "command": null, "exitCode": null },
+      { "id": "memory-benchmark", "status": "NOT_RUN", "command": null, "exitCode": null }
+    ]
+  },
+  "knownGaps": [
+    "NSIS installer BLOCKED by 504/winCodeSign download; no valid installer produced",
+    "real cloud Provider A-K NOT_RUN",
+    "memory 100/500/1000/5000 benchmark NOT_RUN",
+    "reflection finding -> self-state write-back PARTIAL",
+    "mood independent layer and affect pause NOT_IMPLEMENTED",
+    "native consent dialog click PENDING_HUMAN",
+    "single-message delete UI path not exercised"
+  ]
+}

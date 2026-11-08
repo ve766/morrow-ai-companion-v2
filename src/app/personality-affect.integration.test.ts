@@ -132,7 +132,7 @@ describe('affect and trait production path', () => {
         'That answer was not helpful. Please recheck the database conclusion.',
         'Your answer is wrong about the deployment plan. Please recheck it.'
       ]
-      for (let index = 0; index < 7; index += 1) {
+      for (let index = 0; index < 6; index += 1) {
         await stack.companion.sendChat({ conversationId: conversations[index % 3]!.id, requestId: randomUUID(), content: corrections[index % corrections.length]!, includeSensitive: false }, () => {})
         now = new Date(Date.parse(now) + 25 * 3_600_000).toISOString()
       }
@@ -140,11 +140,25 @@ describe('affect and trait production path', () => {
       expect(trait).not.toBeNull()
       expect(trait!.status).toBe('active')
       expect(trait!.independentContexts).toBeGreaterThanOrEqual(3)
+      const activeConversation = conversations[0]!
+      await stack.companion.sendChat({ conversationId: activeConversation.id, requestId: randomUUID(), content: 'Please continue the database discussion.', includeSensitive: false }, () => {})
+      const activeSystem = server.requests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
+      expect(activeSystem).toContain("Morrow's evidence-gated traits")
+      expect(activeSystem).toContain('responsibility')
+      // A further Morrow-owned failure is a traceable counter-observation; it
+      // must not be silently discarded just because a positive observation is
+      // written for the same turn.
+      await stack.companion.sendChat({ conversationId: conversations[1]!.id, requestId: randomUUID(), content: corrections[0]!, includeSensitive: false }, () => {})
+      const afterCounter = stack.affect.traits.current('responsibility')!
+      expect(afterCounter.counterEvidenceRefs.length).toBeGreaterThan(0)
+      expect(['weakened', 'candidate']).toContain(afterCounter.status)
+      now = new Date(Date.parse(now) + 25 * 3_600_000).toISOString()
+      // After the counter-evidence the trait is weakened, so it must not be
+      // injected as an active trait on the next turn.
       const conversation = conversations[0]!
       await stack.companion.sendChat({ conversationId: conversation.id, requestId: randomUUID(), content: 'Please recheck the database conclusion again.', includeSensitive: false }, () => {})
       const lastSystem = server.requests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
-      expect(lastSystem).toContain("Morrow's evidence-gated traits")
-      expect(lastSystem).toContain('responsibility')
+      expect(lastSystem).not.toContain("Morrow's evidence-gated traits")
     } finally {
       await new Promise<void>((resolve) => server.raw.close(() => resolve()))
     }

@@ -44,7 +44,8 @@
     "verify:product": "node scripts/verify/run-tier.mjs product",
     "verify:stages": "node scripts/verify/run-tier.mjs stages",
     "verify:release": "node scripts/verify/run-tier.mjs release",
-    "eval:affect": "node node_modules/esbuild/bin/esbuild evals/affect-integration/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/affect-eval.cjs --log-level=warning && node node_modules/.cache/affect-eval.cjs"
+    "eval:affect": "node node_modules/esbuild/bin/esbuild evals/affect-integration/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/affect-eval.cjs --log-level=warning && node node_modules/.cache/affect-eval.cjs",
+    "smoke:chat-ui": "node scripts/chat-ui-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "22.15.30",

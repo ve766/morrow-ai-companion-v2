@@ -110,6 +110,13 @@ function getAppInfo(): AppInfo {
 async function requestProviderConsent(preview: ProviderConsentPreview): Promise<ProviderConsent | undefined> {
   const window = mainWindow
   if (!window || window.isDestroyed()) return undefined
+  logger.info('app', 'provider consent requested', { action: preview.action, sensitivity: preview.maximumSensitivity, auto: process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' })
+  // Acceptance-only bypass for the automated UI smoke. It is never enabled by
+  // the product; sensitive payloads still use the real dialog.
+  if (process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' && preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive') {
+    const approvedAt = new Date().toISOString()
+    return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Date.now() + 120_000).toISOString(), includeSensitive: false }
+  }
   const scope = consentScopeForPreview(preview)
   if (preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive' && consentGrants) {
     const grant = consentGrants.find(scope)
@@ -143,19 +150,26 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
     `已选记忆：\n${memories}`,
     `精确请求正文：\n${preview.exactPayload}`
   ].join('\n\n')
+  const canRemember = preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive'
+  const buttons = canRemember ? ['取消', '仅本次', '记住 30 天'] : ['取消', '允许本次发送']
   const result = await dialog.showMessageBox(window, {
     type: preview.maximumSensitivity === 'sensitive' || presentation.warning ? 'warning' : 'question',
     title: presentation.title,
     message: presentation.message,
-    detail,
-    buttons: ['取消', '允许并发送'],
-    defaultId: 0,
+    detail: canRemember
+      ? `${detail}
+
+“仅本次”只批准当前请求；“记住 30 天”只记住当前 Provider/端点/模型/敏感级别范围，不保存正文或密钥。`
+      : detail,
+    buttons,
+    defaultId: canRemember ? 1 : 0,
     cancelId: 0,
     noLink: true
   })
-  if (result.response !== 1) return undefined
+  if (result.response <= 0) return undefined
   const approvedAt = new Date().toISOString()
-  if (preview.action === 'chat') consentGrants?.grant(scope)
+  if (canRemember && result.response === 2) consentGrants?.grant(scope)
+  logger.info('app', 'provider consent decision', { action: preview.action, sensitivity: preview.maximumSensitivity, remember: canRemember && result.response === 2 })
   return {
     providerId: preview.providerId,
     payloadSha256: preview.payloadSha256,
@@ -376,6 +390,7 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
+      consentGrants,
       selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships, affect },
       continuity: {
         contexts: turnContexts,

@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
+import type { AffectRegulateRequest, AffectStateView, ConsentGrantRevokeRequest, ConsentGrantView } from '../shared/contracts'
+import type { ConsentGrantService } from '../providers/consent-grants'
 import type {
   AssembledMemoryContext,
   ChatPreview,
@@ -1440,6 +1442,7 @@ export class CompanionService {
   /** D-1: the authoritative G1 ledger, exposed for diagnostics and rollback. */
   private readonly growth: PersonalityGrowthService | null
   private readonly affect: AffectLoopService | null
+  private readonly consentGrants: ConsentGrantService | null
   private readonly guidanceVariant: EvidenceGuidanceVariant
   private readonly evidencePresentation: EvidencePresentation
   /** Phase 2.4 stores, exposed so the shell can read pending items. */
@@ -1467,6 +1470,8 @@ export class CompanionService {
     evidencePresentation?: EvidencePresentation
     /** Turn context + pending-item stores; omitted by offline callers. */
     continuity?: ContinuityPorts
+    /** Provider consent grants; omitted by offline callers. */
+    consentGrants?: ConsentGrantService
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
@@ -1479,6 +1484,7 @@ export class CompanionService {
     // Diagnostic/rollback access to the authoritative growth ledger (D-1).
     this.growth = options.selfModelLoop?.growth ?? null
     this.affect = options.selfModelLoop?.affect ?? null
+    this.consentGrants = options.consentGrants ?? null
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
     const selfModelLoop = options.selfModelLoop
     // The gap ledger is written in the same transaction as the assistant
@@ -1746,6 +1752,60 @@ export class CompanionService {
     // so a failure here is surfaced rather than swallowed.
     this.affect?.clearAll()
     return cleared
+  }
+  getAffectState(): AffectStateView {
+    if (!this.affect?.available) return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [] }
+    const state = this.affect.emotions.snapshot()
+    return {
+      available: true,
+      revision: state.revision,
+      evaluatedAt: state.evaluatedAt,
+      emotions: state.emotions
+        .filter((emotion) => emotion.regulationState !== 'retracted')
+        .map((emotion) => ({
+          emotionId: emotion.emotionId,
+          family: emotion.family,
+          intensity: emotion.intensity,
+          regulationState: emotion.regulationState,
+          sourceKind: emotion.sourceKind,
+          onsetAt: emotion.onsetAt,
+          lastUpdatedAt: emotion.lastUpdatedAt,
+          topicTags: [...emotion.topicTags]
+        })),
+      traits: this.affect.traits.active().map((trait) => ({
+        traitKey: trait.traitKey,
+        status: trait.status,
+        strength: trait.strength,
+        evidenceCount: trait.evidenceCount,
+        independentContexts: trait.independentContexts,
+        updatedAt: trait.updatedAt
+      }))
+    }
+  }
+  regulateAffect(request: AffectRegulateRequest): AffectStateView {
+    if (!this.affect?.available) throw new ApplicationError('STORAGE_ERROR')
+    this.affect.regulate(request.emotionId, request.kind, request.rationale)
+    return this.getAffectState()
+  }
+  clearAffect(): AffectStateView {
+    if (this.affect?.available) this.affect.clearAll()
+    return this.getAffectState()
+  }
+  listConsentGrants(): ConsentGrantView[] {
+    return this.consentGrants?.list().map((grant) => ({
+      scopeFingerprint: grant.scopeFingerprint,
+      providerId: grant.providerId,
+      action: grant.action,
+      endpoint: grant.endpoint,
+      model: grant.model,
+      maximumSensitivity: grant.maximumSensitivity,
+      createdAt: grant.createdAt,
+      expiresAt: grant.expiresAt,
+      revokedAt: grant.revokedAt
+    })) ?? []
+  }
+  revokeConsentGrant(request: ConsentGrantRevokeRequest): boolean {
+    return this.consentGrants?.revoke(request.scopeFingerprint) ?? false
   }
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult> { return this.chat.send(request, onDelta) }
   getTurnTrace(conversationId: string, limit = 200): ReturnType<ChatService['getTurnTrace']> { return this.chat.getTurnTrace(conversationId, limit) }

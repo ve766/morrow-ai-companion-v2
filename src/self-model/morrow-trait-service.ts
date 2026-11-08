@@ -278,6 +278,40 @@ export function traitObservationFromEmotion(
   }
 }
 
+/** Negative, traceable counter-evidence from a Morrow-owned failure appraisal. */
+export function counterObservationFromEmotion(
+  candidate: EmotionCandidate,
+  input: { turnId: string; conversationId: string; sourceMessageId: string; sourceEventId: string; at: string }
+): Omit<TraitObservationInput, 'makeId'> | null {
+  if (!candidate.traitEligible) return null
+  if (candidate.sourceKind !== 'morrow_self_appraisal' && candidate.sourceKind !== 'system_evidence') return null
+  const mapping: Partial<Record<EmotionCandidate['family'], MorrowTraitKey>> = {
+    frustration: 'responsibility',
+    regret: 'responsibility',
+    disappointment: 'openness',
+    concern: 'carefulness'
+  }
+  const traitKey = mapping[candidate.family]
+  if (!traitKey) return null
+  const base = [...candidate.topicTags].filter((tag) => tag.trim().length >= 2).sort((left, right) => right.length - left.length)[0]?.slice(0, 56) ?? 'general'
+  return {
+    traitKey,
+    turnId: input.turnId,
+    conversationId: input.conversationId,
+    sourceMessageId: input.sourceMessageId,
+    sourceEventId: input.sourceEventId,
+    sourceKind: candidate.sourceKind,
+    // Counter-evidence is deliberately stronger per event than the positive
+    // observation it opposes; a single failure can weaken but not erase a
+    // trait because the fold also needs repeated failures (K is bounded).
+    signal: -round4(clamp01(candidate.intensity * 1.5) * candidate.confidence),
+    weight: round4(candidate.confidence),
+    quality: round4(clamp01(candidate.confidence * (candidate.sourceKind === 'morrow_self_appraisal' ? 1 : 0.85))),
+    contextTag: `${base}:counter`.slice(0, 64),
+    at: input.at
+  }
+}
+
 export class MorrowTraitService {
   constructor(
     private readonly database: SqliteDatabase,
@@ -365,23 +399,31 @@ export class MorrowTraitService {
 
   current(traitKey: MorrowTraitKey): MorrowTraitRevision | null {
     if (!this.available || !MORROW_TRAIT_KEYS.includes(traitKey)) return null
-    const row = this.database.connection.prepare(`
-      SELECT * FROM morrow_trait_revisions WHERE trait_key = ? AND status != 'superseded' ORDER BY revision DESC LIMIT 1
-    `).get(traitKey) as unknown as RevisionRow | undefined
-    return row ? mapRevision(row) : null
+    const raw = this.currentRaw(traitKey)
+    if (!raw) return null
+    const count = Number(this.database.connection.prepare(
+      'SELECT COUNT(*) AS count FROM morrow_trait_observations WHERE trait_key = ?'
+    ).get(traitKey)?.count ?? 0)
+    // Single-message deletion cascades observations through the message FK. A
+    // revision that still carries the old evidence count is stale; re-derive it
+    // on read rather than waiting for the next startup.
+    if (count !== raw.evidenceCount) return this.recompute(traitKey, this.clock(), raw)
+    return raw
   }
 
   active(): MorrowTraitRevision[] {
     if (!this.available) return []
-    const rows = this.database.connection.prepare(
-      "SELECT * FROM morrow_trait_revisions WHERE actor = 'morrow' AND status IN ('active', 'weakened') AND status != 'superseded' ORDER BY score DESC, updated_at DESC"
-    ).all() as unknown as RevisionRow[]
-    const seen = new Set<string>()
-    return rows.map(mapRevision).filter((revision) => {
-      if (seen.has(revision.traitKey)) return false
-      seen.add(revision.traitKey)
-      return true
-    })
+    const revisions = MORROW_TRAIT_KEYS.map((key) => this.current(key)).filter((revision): revision is MorrowTraitRevision => revision !== null)
+    return revisions
+      .filter((revision) => revision.status === 'active' || revision.status === 'weakened')
+      .sort((left, right) => right.score - left.score || right.updatedAt.localeCompare(left.updatedAt))
+  }
+
+  private currentRaw(traitKey: MorrowTraitKey): MorrowTraitRevision | null {
+    const row = this.database.connection.prepare(`
+      SELECT * FROM morrow_trait_revisions WHERE trait_key = ? AND status != 'superseded' ORDER BY revision DESC LIMIT 1
+    `).get(traitKey) as unknown as RevisionRow | undefined
+    return row ? mapRevision(row) : null
   }
 
   /** Bounded appraisal sensitivity input; no trait can decide an emotion. */
@@ -437,12 +479,12 @@ export class MorrowTraitService {
     return MORROW_TRAIT_KEYS.map((key) => this.recompute(key, at))
   }
 
-  private recompute(traitKey: MorrowTraitKey, at: string): MorrowTraitRevision {
+  private recompute(traitKey: MorrowTraitKey, at: string, priorOverride?: MorrowTraitRevision): MorrowTraitRevision {
     const rows = this.database.connection.prepare(
       'SELECT * FROM morrow_trait_observations WHERE trait_key = ? ORDER BY created_at, id'
     ).all(traitKey) as unknown as ObservationRow[]
     const observations = rows.map(mapObservation)
-    const prior = this.current(traitKey)
+    const prior = priorOverride ?? this.currentRaw(traitKey)
     const definition = TRAIT_DEFINITIONS[traitKey]
     const folded = foldTraitObservations(observations, at, definition)
     const priorStatus = prior?.status ?? null
@@ -451,6 +493,10 @@ export class MorrowTraitService {
       status = 'retracted'
     } else if (folded.counterRefs.length > 0 && !folded.applied) {
       status = priorStatus === 'active' ? 'weakened' : 'conflict_pending'
+    } else if (priorStatus === 'active' && folded.counterRefs.length > 0) {
+      // Counter-evidence changes the status before it erases the trait; the
+      // strength and the evidence remain auditable, so a later run can recover.
+      status = 'weakened'
     } else if (priorStatus === 'active' && (folded.strength < 0.18 || folded.score < definition.weakeningThreshold)) {
       status = 'weakened'
     } else if (folded.applied && folded.strength >= 0.22) {

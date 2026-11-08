@@ -208,6 +208,9 @@ export function appraiseTurn(input: AffectAppraisalInput): AppraisalResult {
   const negative = eventType === 'negative_feedback' || eventType === 'system_correction' ||
     (analysis?.signals.correction === true && eventType === null)
   const exploration = eventType === 'exploration_request' || analysis?.intent === 'exploration'
+  // A user request to explore is not a Morrow-owned interest. Only an
+  // internally generated question that Morrow chose to pursue may become one.
+  const userRequestedExploration = analysis?.intent === 'exploration' && eventType !== 'exploration_request'
   const planning = analysis?.intent === 'planning'
   const loss = input.morrowLoss
   const progress = input.verifiedProgress
@@ -228,7 +231,7 @@ export function appraiseTurn(input: AffectAppraisalInput): AppraisalResult {
       ? 'morrow_self_appraisal'
       : progress
         ? 'system_evidence'
-        : positive || eventType === 'exploration_request'
+        : userRequestedExploration || positive || eventType === 'exploration_request'
           ? 'shared_interaction'
           : 'morrow_self_appraisal'
 
@@ -273,6 +276,7 @@ export function appraiseTurn(input: AffectAppraisalInput): AppraisalResult {
   const reasonCodes: string[] = []
   if (scopedAway) reasonCodes.push('quoted_or_reported_text_only')
   if (userEmotion) reasonCodes.push('user_emotion_not_morrow_sadness')
+  if (userRequestedExploration) reasonCodes.push('user_requested_exploration_not_morrow_interest')
   if (loss) reasonCodes.push('morrow_owned_loss')
   if (progress) reasonCodes.push('verified_progress')
   if (interestMatch) reasonCodes.push('active_interest_match')
@@ -326,7 +330,7 @@ export function appraiseTurn(input: AffectAppraisalInput): AppraisalResult {
     }
     if (exploration || planning) {
       if (components.novelty > 0.45 && components.agency > 0.5) {
-        push('curiosity', 0.22 + 0.34 * components.novelty + 0.12 * components.goalRelevance, 'explorable novelty with agency', { traitEligible: eventType !== 'exploration_request' })
+        push('curiosity', 0.22 + 0.34 * components.novelty + 0.12 * components.goalRelevance, 'explorable novelty with agency', { traitEligible: !userRequestedExploration && eventType !== 'exploration_request' })
       }
       if (planning || (components.expectationGap >= 0.2 && components.expectationGap < 0.65)) {
         push('anticipation', 0.18 + 0.26 * components.goalRelevance, 'relevant expected next step')

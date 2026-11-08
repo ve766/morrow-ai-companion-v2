@@ -1219,3 +1219,19 @@ body[data-effect="plasma"] .chat-message-user {
   }
   .view[data-view="chat"].active { padding-bottom: 230px; }
 }
+
+/* Issue #74: read/control surfaces for the affect and provider-consent ledgers. */
+.suggestion-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+}
+.suggestion-row > div:first-child { min-width: 0; flex: 1; }
+.suggestion-row strong { display: block; font-size: 10.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.suggestion-row .companion-actions { margin: 0; flex: none; }
+.affect-panel, .consent-panel { display: grid; gap: 10px; }

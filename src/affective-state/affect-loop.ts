@@ -31,7 +31,7 @@ import {
   type VerifiedProgressSignal
 } from './appraisal-engine'
 import { EmotionService, deterministicEmotionId, type EmotionEventDraft } from './emotion-service'
-import { MorrowTraitService, traitObservationFromEmotion, type MorrowTraitRevision } from '../self-model/morrow-trait-service'
+import { MorrowTraitService, counterObservationFromEmotion, traitObservationFromEmotion, type MorrowTraitRevision } from '../self-model/morrow-trait-service'
 import { IntrinsicRewardService, rewardForPromotedThought, type RewardSignal } from '../self-model/intrinsic-reward'
 import type { MorrowSelfState } from '../self-model/inner-cognition'
 import type { FeelingEventType } from './feeling'
@@ -138,6 +138,9 @@ export class AffectLoopService {
 
   recordCompletedTurnInTransaction(input: AffectRecordInput): boolean {
     const draft: EmotionEventDraft = { ...input.draft, assistantMessageId: input.assistantMessageId }
+    // Counter-evidence may only act on a trait that was already active before
+    // this turn. Otherwise the promotion turn would immediately counter itself.
+    const activeBefore = new Set(this.traits.active().filter((trait) => trait.status === 'active').map((trait) => trait.traitKey))
     const recorded = this.emotions.recordInTransaction(draft, input.assistantMessageId, input.processedAt)
     // Trait observations ride the same transaction as the emotion event. A
     // user-context or shared-interaction candidate is filtered inside the
@@ -151,6 +154,22 @@ export class AffectLoopService {
         at: input.processedAt
       })
       if (observation) this.traits.observeInTransaction(observation)
+    }
+    // A Morrow-owned failure appraisal is also counter-evidence for an already
+    // active trait. It never creates a trait on its own; it can only weaken an
+    // existing, independently promoted pattern.
+    for (const candidate of input.draft.accepted) {
+      const counter = counterObservationFromEmotion(candidate, {
+        turnId: input.draft.idempotencyKey,
+        conversationId: input.draft.conversationId,
+        sourceMessageId: input.draft.sourceMessageId,
+        sourceEventId: input.draft.eventId,
+        at: input.processedAt
+      })
+      if (!counter || !activeBefore.has(counter.traitKey)) continue
+      const active = this.traits.current(counter.traitKey)
+      if (active?.status !== 'active') continue
+      this.traits.addCounterEvidence(counter)
     }
     return recorded
   }
@@ -190,21 +209,28 @@ export class AffectLoopService {
       uncertainty: appraisal.uncertainty,
       conflict: appraisal.conflict
     }
-    const recorded = this.emotions.record(draft, null, input.at)
-    for (const candidate of draft.accepted) {
-      const observation = traitObservationFromEmotion(candidate, {
-        turnId: draft.idempotencyKey,
-        conversationId: draft.conversationId,
-        sourceMessageId: draft.sourceMessageId,
-        sourceEventId: draft.eventId,
-        at: input.at
-      })
-      if (observation) this.traits.observe(observation)
-    }
-    return recorded
+    return this.database.transaction(() => {
+      const recorded = this.emotions.record(draft, null, input.at)
+      for (const candidate of draft.accepted) {
+        const observation = traitObservationFromEmotion(candidate, {
+          turnId: draft.idempotencyKey,
+          conversationId: draft.conversationId,
+          sourceMessageId: draft.sourceMessageId,
+          sourceEventId: draft.eventId,
+          at: input.at
+        })
+        if (observation) this.traits.observe(observation)
+      }
+      return recorded
+    })
   }
 
-  /** Verified progress from a promoted thought; also records a positive affect event. */
+  /**
+   * Verified progress from a promoted thought; also records a positive affect
+   * event. Reward, event log and trait/affect projection share one transaction:
+   * if the affect event cannot commit, the reward rolls back instead of leaving
+   * a half-written state. This is deliberately not a best-effort catch.
+   */
   observeThoughtReviews(states: readonly MorrowSelfState[]): RewardSignal[] {
     const recorded: RewardSignal[] = []
     for (const state of states) {
@@ -216,45 +242,58 @@ export class AffectLoopService {
         evidenceIds: state.evidenceRefs.map((ref) => ref.messageId)
       })
       if (!rewardInput) continue
-      const reward = this.rewards.record({
-        kind: rewardInput.kind,
-        sourceEventId: rewardInput.sourceEventId,
-        magnitude: rewardInput.magnitude,
-        evidenceRefs: rewardInput.evidenceRefs,
-        at: state.updatedAt
-      })
-      if (reward) recorded.push(reward)
       const first = state.evidenceRefs[0]
       if (!first) continue
       try {
-        const appraisal = appraiseTurn({
-          content: state.proposition,
-          at: state.updatedAt,
-          sourceMessageId: first.messageId,
-          verifiedProgress: { label: state.proposition.slice(0, 64), kind: 'thought_promoted' },
-          activeInterestLabels: [state.proposition.slice(0, 48)],
-          priorState: this.emotions.snapshot(state.updatedAt)
+        const reward = this.database.transaction(() => {
+          const row = this.rewards.record({
+            kind: rewardInput.kind,
+            sourceEventId: rewardInput.sourceEventId,
+            magnitude: rewardInput.magnitude,
+            evidenceRefs: rewardInput.evidenceRefs,
+            at: state.updatedAt
+          })
+          if (!row) return null
+          const appraisal = appraiseTurn({
+            content: state.proposition,
+            at: state.updatedAt,
+            sourceMessageId: first.messageId,
+            verifiedProgress: { label: state.proposition.slice(0, 64), kind: 'thought_promoted' },
+            activeInterestLabels: [state.proposition.slice(0, 48)],
+            priorState: this.emotions.snapshot(state.updatedAt)
+          })
+          const eventId = deterministicEmotionId(`affect-progress:${state.id}`)
+          const draft: EmotionEventDraft = {
+            eventId,
+            idempotencyKey: deterministicEmotionId(`affect-progress-key:${state.id}`),
+            conversationId: first.conversationId,
+            sourceMessageId: first.messageId,
+            assistantMessageId: null,
+            occurredAt: state.updatedAt,
+            sourceKind: appraisal.sourceKind,
+            topicTags: appraisal.topicTags,
+            appraisal,
+            accepted: appraisal.accepted,
+            confidence: appraisal.confidence,
+            uncertainty: appraisal.uncertainty,
+            conflict: appraisal.conflict
+          }
+          this.emotions.record(draft, null, state.updatedAt)
+          return row
         })
-        const eventId = deterministicEmotionId(`affect-progress:${state.id}`)
-        const draft: EmotionEventDraft = {
-          eventId,
-          idempotencyKey: deterministicEmotionId(`affect-progress-key:${state.id}`),
-          conversationId: first.conversationId,
-          sourceMessageId: first.messageId,
-          assistantMessageId: null,
-          occurredAt: state.updatedAt,
-          sourceKind: appraisal.sourceKind,
-          topicTags: appraisal.topicTags,
-          appraisal,
-          accepted: appraisal.accepted,
-          confidence: appraisal.confidence,
-          uncertainty: appraisal.uncertainty,
-          conflict: appraisal.conflict
-        }
-        this.emotions.record(draft, null, state.updatedAt)
+        if (reward) recorded.push(reward)
       } catch {
-        // A progress affect event is optional evidence; the reward row is the
-        // durable fact and a projection failure must not corrupt it.
+        // No message text or ids are logged; the failed transaction is the
+        // evidence, and no reward row survives.
+        this.events?.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'affect.progress_commit_failed',
+          actor: 'system',
+          subjectType: 'morrow_self_state',
+          subjectId: state.id,
+          correlationId: null,
+          payload: { reason: 'atomic_reward_affect_commit' }
+        })
       }
     }
     return recorded

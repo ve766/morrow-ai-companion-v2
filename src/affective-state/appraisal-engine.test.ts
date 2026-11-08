@@ -85,6 +85,18 @@ describe('affect appraisal boundaries', () => {
     expect(thanks.accepted.some((candidate) => candidate.family === 'joy')).toBe(true)
   })
 
+  it('does not turn a user-requested exploration into a Morrow-owned trait source even without an explicit feedback event', () => {
+    const content = '我想继续探索分布式系统的共识算法。'
+    const base = analysis(content)
+    const result = appraiseTurn({ content, analysis: { ...base, intent: 'exploration' }, at, sourceMessageId: randomUUID() })
+    const curiosity = result.accepted.find((candidate) => candidate.family === 'curiosity')
+    if (curiosity) {
+      expect(curiosity.sourceKind).toBe('shared_interaction')
+      expect(curiosity.traitEligible).toBe(false)
+    }
+    expect(result.reasonCodes).toContain('user_requested_exploration_not_morrow_interest')
+  })
+
   it('marks exploration curiosity as shared rather than a Morrow-owned trait evidence source', () => {
     const content = '我想继续探索分布式系统的共识算法。'
     const result = appraiseTurn({ content, analysis: analysis(content), at, interactionEventType: 'exploration_request', sourceMessageId: randomUUID() })

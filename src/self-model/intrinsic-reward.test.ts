@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '../persistence/database'
 import { IntrinsicRewardService, REWARD_CONTRACT_VERSION, rewardForPromotedThought } from './intrinsic-reward'
 import { AffectLoopService } from '../affective-state/affect-loop'
+import { ConversationService } from '../conversation/conversation-service'
+import { SqliteConversationRepository } from '../persistence/conversation-repository'
 
 const directories: string[] = []
 const at = '2026-11-08T03:00:00.000Z'
@@ -72,7 +74,17 @@ describe('intrinsic reward contract', () => {
     const context = setup()
     try {
       const affect = new AffectLoopService(context.database, () => at, () => randomUUID())
-      const conversationId = randomUUID()
+      const conversations = new ConversationService(new SqliteConversationRepository(context.database), () => at)
+      const firstConversation = conversations.create()
+      const firstTurn = randomUUID()
+      const firstUser = conversations.appendMessage(firstConversation.id, 'user', '蛋白质折叠的动力学问题', firstTurn)
+        .messages.find((message) => message.turnId === firstTurn && message.role === 'user')!
+      conversations.appendMessage(firstConversation.id, 'assistant', '这是一个尚未解决的问题。', firstTurn)
+      const secondConversation = conversations.create()
+      const secondTurn = randomUUID()
+      const secondUser = conversations.appendMessage(secondConversation.id, 'user', '继续讨论蛋白质折叠。', secondTurn)
+        .messages.find((message) => message.turnId === secondTurn && message.role === 'user')!
+      const conversationId = firstConversation.id
       const state = {
         id: randomUUID(),
         actor: 'morrow' as const,
@@ -80,8 +92,8 @@ describe('intrinsic reward contract', () => {
         proposition: '蛋白质折叠的动力学问题',
         stance: 'uncertain' as const,
         evidenceRefs: [
-          { turnId: randomUUID(), conversationId, messageId: randomUUID(), occurredAt: at, kind: 'turn' as const, ref: 'one' },
-          { turnId: randomUUID(), conversationId: randomUUID(), messageId: randomUUID(), occurredAt: at, kind: 'turn' as const, ref: 'two' }
+          { turnId: firstTurn, conversationId, messageId: firstUser.id, occurredAt: at, kind: 'turn' as const, ref: 'one' },
+          { turnId: secondTurn, conversationId: secondConversation.id, messageId: secondUser.id, occurredAt: at, kind: 'turn' as const, ref: 'two' }
         ],
         counterEvidenceRefs: [],
         independentContexts: 2,
