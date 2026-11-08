@@ -1,0 +1,44 @@
+{
+  "issue": 72,
+  "status": "PARTIAL",
+  "branch": "feat/personality-affect-integration-20261108",
+  "stackedOn": { "pr": 70, "baseBranch": "fix/chat-consent-latency-20261108", "baseSha": "b9988861e49f87ab235847792ac32e21c74e3ca0" },
+  "requirements": [
+    { "id": "multi-dimensional-emotion-taxonomy", "status": "PASS", "evidence": "src/affective-state/emotion-model.ts; emotion-model.test via emotion-service.test.ts", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+    { "id": "appraisal-components-and-versioned-weights", "status": "PASS", "evidence": "appraiseTurn + APPRAISAL_WEIGHTS/v1; intensity via sigmoid potential", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+    { "id": "source-ownership-and-user-emotion-boundary", "status": "PASS", "evidence": "user_context concern only; user sadness never Morrow sadness", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+    { "id": "misjudgment-boundaries-K", "status": "PASS", "evidence": "quote/report/negation/sarcasm/refusal/short thanks/mixed language cases", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+    { "id": "coexistence-decay-conflict", "status": "PASS", "evidence": "mergeEmotionCandidates + decayAffect + conflict flag; merge test", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+    { "id": "regulation-reappraisal-retraction", "status": "PASS_API_ONLY", "evidence": "EmotionService.regulate + rebuild keeps retracted; no UI", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+    { "id": "production-affect-in-chat", "status": "PASS", "evidence": "real loopback provider system prompt contains affect; DB event persisted", "command": "npx vitest run src/app/personality-affect.integration.test.ts", "exitCode": 0 },
+    { "id": "three-production-decision-points", "status": "PARTIAL", "evidence": "expression strategy + exploration topic bias + inner-cognition consolidation trigger wired; only expression/attention have object-level tests", "command": "npx vitest run src/self-model/affect-attention.test.ts src/app/personality-affect.integration.test.ts", "exitCode": 0 },
+    { "id": "morrow-trait-evidence-gate", "status": "PASS", "evidence": "3 conversations, 2 contexts, 24h window; one event cannot promote; hysteresis/cooldown", "command": "npx vitest run src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+    { "id": "trait-counter-evidence-and-retraction", "status": "PASS", "evidence": "counter observations weaken active trait; retract path; revision history", "command": "npx vitest run src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+    { "id": "user-adaptation-isolation", "status": "PASS", "evidence": "explicit style request creates growth signals but zero Morrow trait observations", "command": "npx vitest run src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+    { "id": "emotion-to-trait-production-loop", "status": "PASS", "evidence": "7 independent correction turns produced frustration observations and active responsibility trait in prompt", "command": "npx vitest run src/app/personality-affect.integration.test.ts", "exitCode": 0 },
+    { "id": "reward-contract-and-forbidden-sources", "status": "PASS", "evidence": "verified progress accepted; user praise/retention/dependency/self-praise rejected", "command": "npx vitest run src/self-model/intrinsic-reward.test.ts", "exitCode": 0 },
+    { "id": "reward-from-promoted-thought", "status": "PASS", "evidence": "observeThoughtReviews bridge writes verified_progress row", "command": "npx vitest run src/self-model/intrinsic-reward.test.ts", "exitCode": 0 },
+    { "id": "v55-migration-and-reopen", "status": "PASS", "evidence": "emotion/trait restart tests; full migration suite 23 tests", "command": "npx vitest run src/persistence/migrations.test.ts src/affective-state/emotion-service.test.ts src/self-model/morrow-trait-service.test.ts", "exitCode": 0 },
+    { "id": "delete-and-clear-propagation", "status": "PASS", "evidence": "conversation delete rebuilds projection; clearAll clears emotion/trait/reward; clearCognitiveHistory wired", "command": "npx vitest run src/affective-state/emotion-service.test.ts", "exitCode": 0 },
+    { "id": "performance-baseline", "status": "PASS", "evidence": "npm run eval:affect; benchmark-raw.json", "command": "npm run eval:affect", "exitCode": 0 },
+    { "id": "real-cloud-provider-A-K", "status": "NOT_RUN", "evidence": "loopback HTTP production path used; no cloud credential experiment this task", "command": null, "exitCode": null },
+    { "id": "sadness-loneliness-production-trigger", "status": "PARTIAL", "evidence": "API + unit only; knowledge gap maps to concern", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 },
+    { "id": "anger-fear-production-trigger", "status": "UNIT_ONLY", "evidence": "boundary tests; no stable production scenario", "command": "npx vitest run src/affective-state/appraisal-engine.test.ts", "exitCode": 0 }
+  ],
+  "scenarios": {
+    "A": "PARTIAL", "B": "PARTIAL", "C": "PARTIAL", "D": "PARTIAL", "E": "PARTIAL",
+    "F": "PASS", "G": "PASS", "H": "PARTIAL", "I": "PASS", "J": "PASS", "K": "PASS"
+  },
+  "commands": [
+    { "command": "npm run typecheck", "exitCode": 0 },
+    { "command": "npm test", "exitCode": 0, "files": 147, "tests": 1244 },
+    { "command": "npm run build", "exitCode": 0 },
+    { "command": "npm run eval:affect", "exitCode": 0 }
+  ],
+  "limits": [
+    "real cloud Provider A-K NOT_RUN",
+    "no UI for emotion regulation/clear panel",
+    "single-message deletion trait recompute depends on startup",
+    "appraisal weights are code constants, not runtime UI config"
+  ]
+}

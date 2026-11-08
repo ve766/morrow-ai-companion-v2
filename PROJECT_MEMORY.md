@@ -1,5 +1,18 @@
 # Morrow V2 项目记忆
 
+## 0. 最新任务（Issue #72，2026-11-08）
+
+- Issue：https://github.com/ve766/morrow-ai-companion-v2/issues/72
+- 分支：`feat/personality-affect-integration-20261108`（stacked on PR #70）
+- 基线/父 head：`fix/chat-consent-latency-20261108` @ `b9988861e49f87ab235847792ac32e21c74e3ca0`
+- 状态：**PARTIAL**；未合并、未改 main、未发 Release、未改 UI。
+- 已完成：18 族多维情绪（共存/衰减/来源归属/证据/regulation）、G/C/N/A/S/R/L/E appraisal + 版本化权重 + P_e/I_e、v55 emotion/trait/reward 表、Morrow-owned trait evidence gate（3 会话/2 情境/24h/反证/迟滞/冷却）、intrinsic reward 契约、生产 prompt/expression/exploration/inner-cognition 接线、删除/清空传播。
+- 验证：typecheck PASS；tests 147 files / 1244 tests PASS；build PASS；`npm run eval:affect` PASS（appraisal p95 0.060ms、projection 0.183ms、trait fold 0.733ms、trait write 14.016ms）。
+- 未完成：真实 cloud Provider A–K、sadness/loneliness 自动 loss 触发、anger/fear 稳定生产场景、情绪调节 UI、真实 7 天 trait 数据、单条消息删除即时 trait 重算。
+- 报告：`docs/reports/personality-affect-integration-2026-11-08/`（12 固定文件 + benchmark-raw.json）。
+
+> 以下为 Issue #69/#61/#65 的历史记录，保留原文。
+
 ## 0. 最新任务（Issue #69，2026-11-08）
 
 - Issue：https://github.com/ve766/morrow-ai-companion-v2/issues/69
