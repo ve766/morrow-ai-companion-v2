@@ -1,0 +1,38 @@
+
+> morrow-ai-companion-v2@2.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mE:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo[39m
+
+(node:14100) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23960) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2700) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22300) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17388) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:7128) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6092) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17324) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1516) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21476) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17516) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the model was asked but never raised the topic
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the model was asked but never raised the topic
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the model was asked but never raised the topic
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
