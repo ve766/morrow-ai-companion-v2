@@ -1282,25 +1282,18 @@ export function buildCognitiveProjectors(services: SelfModelLoopServices): Cogni
       version: COGNITIVE_HANDLER_VERSION,
       project: (input) => {
         // One style signal, two ledgers, on purpose (D-1 remediation):
-        //   G1 `personality_growth_signals` — Morrow's own evidence-formed
-        //      presentation drift, folded into the prompt personality numbers;
-        //   G2 `user_interaction_signals` — how to adapt to *this* user,
-        //      surfaced as a separate adaptation line.
-        // The ledgers never mix: each apply() is idempotent on
-        // (dimension, turn_id), so a retried projection converges.
-        if (!services.growth && !services.interaction) return
+        // Issue #81 F4: a user's explicit style request is user adaptation
+        // (G2) only. It must not be written to G1 personality_growth_signals,
+        // which is reserved for Morrow-owned evidence and the intrinsic trait
+        // gate. The two ledgers deliberately no longer share this projector.
+        if (!services.interaction) return
         const signals = deriveGrowthSignals({
           analysis: input.analysis ?? undefined,
           content: input.readUserMessage(),
           ...(services.personalization ? { personalization: services.personalization.list() } : {})
         })
         for (const signal of signals) {
-          if (services.growth) {
-            services.growth.apply({ dimension: signal.dimension, signal: signal.signal, weight: signal.weight, source: signal.source, turnId: input.turnId, at: input.occurredAt })
-          }
-          if (services.interaction) {
-            services.interaction.apply({ dimension: signal.dimension, signal: signal.signal, weight: signal.weight, source: signal.source, turnId: input.turnId, at: input.occurredAt })
-          }
+          services.interaction.apply({ dimension: signal.dimension, signal: signal.signal, weight: signal.weight, source: signal.source, turnId: input.turnId, at: input.occurredAt })
         }
       }
     },
@@ -2537,6 +2530,25 @@ export class ChatService {
               this.recordDegradation('affect_persist', requestId)
             }
           }
+          // Issue #81 F3: inner observation belongs to the assistant-message
+          // transaction. A process death after the message commit can no longer
+          // lose it; a failure rolls the message back instead of silently
+          // dropping cognition.
+          if (!identityGuarded) {
+            this.selfModel?.innerCognition?.observeTurn({
+              turnId: requestId,
+              conversationId,
+              userMessageId: userMessage.id,
+              occurredAt: this.now(),
+              content: request.content,
+              reply: deliveredText,
+              ...(verified.analysis ? { analysisIntent: verified.analysis.intent } : {}),
+              ...(verified.affectPreview ? {
+                conflict: verified.affectPreview.appraisal.conflict,
+                predictionError: verified.affectPreview.appraisal.components.expectationGap >= 0.7
+              } : {})
+            })
+          }
           if (finalization) {
             // Derived data failing must not cost the user their answer: keep
             // the intent and let recovery finish it deterministically.
@@ -2603,25 +2615,6 @@ export class ChatService {
       // R5: the reflection router grades what its injected hints achieved in
       // this exact reply (deterministic term evidence, never model self-report).
       this.selfModel?.observeConsumption?.({ turnId: requestId, reply: deliveredText })
-      try {
-        if (!identityGuarded) this.selfModel?.innerCognition?.observeTurn({
-          turnId: requestId,
-          conversationId,
-          userMessageId: userMessage.id,
-          occurredAt: this.now(),
-          content: request.content,
-          reply: deliveredText,
-          ...(verified.analysis ? { analysisIntent: verified.analysis.intent } : {}),
-          // Issue #72: strong affect is a consolidation signal, but only as a
-          // trigger for Morrow's own review queue — never as a fact claim.
-          ...(verified.affectPreview ? {
-            conflict: verified.affectPreview.appraisal.conflict,
-            predictionError: verified.affectPreview.appraisal.components.expectationGap >= 0.7
-          } : {})
-        })
-      } catch {
-        this.recordDegradation('inner_cognition_observe', requestId)
-      }
       this.recordTraceStage(conversationId, requestId, 'persistence', 'completed', 'persistence/conversation-repository', 'assistant_message_saved')
       this.recordTurnState(conversationId, requestId, 'committed')
       if (this.outbox && this.projectors.length > 0) {
