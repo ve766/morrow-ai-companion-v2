@@ -113,7 +113,7 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   logger.info('app', 'provider consent requested', { action: preview.action, sensitivity: preview.maximumSensitivity, auto: process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' })
   // Acceptance-only bypass for the automated UI smoke. It is never enabled by
   // the product; sensitive payloads still use the real dialog.
-  if (process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' && preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive') {
+  if (!app.isPackaged && process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' && preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive') {
     const approvedAt = new Date().toISOString()
     return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Date.now() + 120_000).toISOString(), includeSensitive: false }
   }
@@ -441,7 +441,17 @@ if (hasSingleInstanceLock) {
     companionService = companion
     innerCognitionTimer = setInterval(() => {
       try {
-        const reviewed = innerCognition.reviewDue(new Date().toISOString(), 3)
+        const now = new Date().toISOString()
+        const latestReflection = reflection.listRuns(1)[0]
+        const reflectionFindings = latestReflection
+          ? reflection.findings(latestReflection.id).map((finding) => ({ statement: finding.statement, kind: finding.kind, runId: latestReflection.id, createdAt: finding.createdAt }))
+          : []
+        innerCognition.synthesizeFromContext({
+          at: now,
+          interests: interests.activeForContext(6).map((interest) => ({ label: interest.label, origin: interest.origin, strength: interest.strength, status: interest.status })),
+          reflectionFindings
+        })
+        const reviewed = innerCognition.reviewDue(now, 3)
         // A promoted thought is verified Morrow-owned progress. The reward
         // ledger records it; user praise never reaches this path.
         affect.observeThoughtReviews(reviewed)

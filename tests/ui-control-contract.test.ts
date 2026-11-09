@@ -39,7 +39,7 @@ describe('UI control contract', () => {
 
   it('covers the critical conversation, provider, memory, personality and presentation controls', () => {
     const ids = new Set(contract.controls.map((control) => control.id))
-    for (const required of ['chat-content', 'chat-send', 'chat-cancel', 'conversation-new', 'conversation-select', 'provider-profile-save', 'provider-profile-test', 'personality-save', 'memory-create-submit', 'effect-perspective', 'effect-holo', 'effect-brutal', 'effect-collage', 'effect-plasma', 'affect-refresh', 'affect-clear', 'consent-refresh']) {
+    for (const required of ['chat-content', 'chat-send', 'chat-cancel', 'conversation-new', 'conversation-select', 'provider-profile-save', 'provider-profile-test', 'personality-save', 'memory-create-submit', 'effect-perspective', 'effect-holo', 'effect-brutal', 'effect-collage', 'effect-plasma', 'affect-refresh', 'affect-clear', 'consent-refresh', 'affect-mood-pause', 'affect-mood-resume']) {
       expect(ids.has(required), required).toBe(true)
     }
   })

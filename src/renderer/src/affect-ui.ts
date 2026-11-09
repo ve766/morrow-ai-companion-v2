@@ -54,11 +54,15 @@ function renderAffect(state: AffectStateView): void {
   const summary = element<HTMLDivElement>('#affect-state-summary')
   const emotions = element<HTMLDivElement>('#affect-emotion-list')
   const traits = element<HTMLDivElement>('#affect-trait-list')
-  if (!summary || !emotions || !traits) return
+  const moodNode = element<HTMLDivElement>('#affect-mood-summary')
+  if (!summary || !emotions || !traits || !moodNode) return
   summary.replaceChildren(
     text('div', 'meta-item', state.available ? `状态可用 · revision ${state.revision} · ${shortTime(state.evaluatedAt)}` : '情绪账本不可用（数据库尚未升级或未启用）'),
     text('div', 'meta-item', `当前 ${state.emotions.length} 个情绪 · ${state.traits.length} 个活跃/减弱特质`)
   )
+  moodNode.textContent = state.mood?.available
+    ? `连续 mood：valence ${state.mood.valence.toFixed(2)} · arousal ${state.mood.arousal.toFixed(2)} · dominance ${state.mood.dominance.toFixed(2)} · tension ${state.mood.tension.toFixed(2)} · revision ${state.mood.revision} · ${state.mood.paused ? '已暂停' : '演化中'}`
+    : '连续 mood 不可用（schema 尚未升级）'
   emotions.replaceChildren()
   if (state.emotions.length === 0) {
     emotions.append(text('p', 'companion-muted', '当前没有活跃情绪。'))
@@ -165,6 +169,15 @@ async function revokeGrant(fingerprint: string): Promise<void> {
   }
 }
 
+async function setMoodPaused(paused: boolean): Promise<void> {
+  try {
+    renderAffect(unwrap(paused ? await window.morrow.cognition.pauseAffectMood() : await window.morrow.cognition.resumeAffectMood()))
+    feedback('#affect-feedback', paused ? '连续 mood 已暂停演化。' : '连续 mood 已恢复。')
+  } catch (error) {
+    feedback('#affect-feedback', error instanceof Error ? error.message : '操作失败。', true)
+  }
+}
+
 async function clearAffect(): Promise<void> {
   if (!window.confirm('清除情绪、人格特质和奖励记录？原始对话不会被删除。')) return
   try {
@@ -179,10 +192,14 @@ export function initializeAffect(): void {
   const refresh = element<HTMLButtonElement>('#affect-refresh')
   const clear = element<HTMLButtonElement>('#affect-clear')
   const consentRefresh = element<HTMLButtonElement>('#consent-refresh')
-  if (!refresh || !clear || !consentRefresh) return
+  const pause = element<HTMLButtonElement>('#affect-mood-pause')
+  const resume = element<HTMLButtonElement>('#affect-mood-resume')
+  if (!refresh || !clear || !consentRefresh || !pause || !resume) return
   refresh.addEventListener('click', () => void refreshAffect())
   clear.addEventListener('click', () => void clearAffect())
   consentRefresh.addEventListener('click', () => void refreshGrants())
+  pause.addEventListener('click', () => void setMoodPaused(true))
+  resume.addEventListener('click', () => void setMoodPaused(false))
   void refreshAffect()
   void refreshGrants()
 }

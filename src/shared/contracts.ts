@@ -101,6 +101,8 @@ export const IPC_CHANNELS = {
   affectStateGet: 'morrow:affect:state:get',
   affectRegulate: 'morrow:affect:regulate',
   affectClear: 'morrow:affect:clear',
+  affectMoodPause: 'morrow:affect:mood:pause',
+  affectMoodResume: 'morrow:affect:mood:resume',
   consentGrantsList: 'morrow:provider:consent:list',
   consentGrantRevoke: 'morrow:provider:consent:revoke',
   interestsList: 'morrow:selfmodel:interests:list',
@@ -319,12 +321,25 @@ export interface AffectTraitView {
   updatedAt: string
 }
 
+export interface AffectMoodView {
+  available: boolean
+  paused: boolean
+  lastAdvancedAt: string
+  valence: number
+  arousal: number
+  dominance: number
+  tension: number
+  revision: number
+  evaluatedAt: string
+}
+
 export interface AffectStateView {
   available: boolean
   revision: number
   evaluatedAt: string
   emotions: AffectEmotionView[]
   traits: AffectTraitView[]
+  mood: AffectMoodView
 }
 
 export interface AffectRegulateRequest {
@@ -380,6 +395,8 @@ export interface MorrowBridge {
     getAffectState(): Promise<IpcResult<AffectStateView>>
     regulateAffect(request: AffectRegulateRequest): Promise<IpcResult<AffectStateView>>
     clearAffect(): Promise<IpcResult<AffectStateView>>
+    pauseAffectMood(): Promise<IpcResult<AffectStateView>>
+    resumeAffectMood(): Promise<IpcResult<AffectStateView>>
   }
   /**
    * Phase 2.4 continuity. Read-only except `decidePendingItem`, the single

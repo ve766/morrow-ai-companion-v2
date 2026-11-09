@@ -17,37 +17,47 @@
     {
       "command": "npm run typecheck",
       "exitCode": 0,
-      "log": "results/typecheck.log"
+      "log": "results/typecheck-round2-final.log"
     },
     {
       "command": "npm test",
       "exitCode": 0,
-      "files": 147,
-      "tests": 1246,
-      "log": "results/full-tests.log"
+      "files": 149,
+      "tests": 1254,
+      "log": "results/full-tests-round2-final.log"
     },
     {
       "command": "npm run build",
       "exitCode": 0,
-      "log": "results/build.log"
+      "log": "results/build-round2-final.log"
     },
     {
       "command": "npm run smoke:chat-ui",
       "exitCode": 0,
-      "log": "results/chat-ui-smoke.log"
+      "log": "results/chat-ui-smoke-round2-final.log"
     },
     {
-      "command": "npm run smoke:product-path",
+      "command": "npm run smoke:product-path (portable)",
       "exitCode": 0,
-      "log": "results/product-path-smoke.json.log"
+      "log": "results/portable-smoke-round2-final.log"
     },
     {
-      "command": "npm run smoke:product-path (portable exe)",
+      "command": "npm run eval:affect",
       "exitCode": 0,
-      "log": "results/portable-smoke.log"
+      "log": "results/eval-affect.log"
     },
     {
-      "command": "npx electron-builder --win nsis --x64",
+      "command": "npm run eval:provider-multi-source",
+      "exitCode": 0,
+      "log": "results/eval-provider-multi-source.log"
+    },
+    {
+      "command": "makensis custom NSIS",
+      "exitCode": 0,
+      "log": "results/custom-nsis-build.log"
+    },
+    {
+      "command": "electron-builder NSIS",
       "exitCode": 1,
       "status": "BLOCKED",
       "log": "results/nsis-package-attempt1.log"
@@ -65,33 +75,45 @@
     },
     "productPath": {
       "status": "PASS",
-      "runId": "20261108T101020Z-64686c86"
+      "runId": "20261109T052530Z-71ed544f"
     },
     "portable": {
       "status": "PASS",
-      "runId": "20261108T101020Z-64686c86"
+      "runId": "20261109T052530Z-71ed544f"
     }
   },
   "package": {
-    "portableZip": { "path": "release/Morrow-2.0.0-x64-portable.zip", "sha256": "e1eaaa5fb2653fac78acd208941a63cb445e17435e6abf8bf131ee2b6cfdad99", "bytes": 154656028 },
+    "portableZip": {
+      "path": "release/Morrow-2.0.0-x64-portable.zip",
+      "sha256": "8591f10b630c0766223d0cb598b485ecfea4ff3ea70e58160313122098ca0109",
+      "bytes": 154660976
+    },
     "portableAsar": {
       "path": "release/win-unpacked/resources/app.asar",
-      "sha256": "ba2e88764b1f9a12cddda76c819ce8b46681afbc7939bf55da94001ede93b895",
-      "bytes": 1369540
+      "sha256": "a98ca6dee0e668d92eed2a2cce0346ed431844237841ee1421fbfb357fdbf423",
+      "bytes": 1393038
     },
-    "nsis": {
+    "customNsis": {
+      "path": "release/Morrow-2.0.0-x64-custom-setup.exe",
+      "sha256": "dd7a2f895c23bc5805264705aeb3a37b6500046bc2a060abfcfca47c3f9b8184",
+      "bytes": 158382905,
+      "status": "BUILT_NOT_INSTALL_VERIFIED",
+      "reason": "PE/Nullsoft header valid; silent install exited 2 in this environment; not used on user data"
+    },
+    "electronBuilderNsis": {
       "status": "BLOCKED",
-      "reason": "electron-builder 504 while downloading winCodeSign/electron assets; old 189KB stub is not a valid installer"
+      "reason": "HTTP 504 while downloading winCodeSign/electron assets"
     }
   },
   "tests": {
-    "fullSuite": "147 files / 1246 tests PASS",
-    "newRegression": [
-      "user exploration ownership",
-      "production counter-evidence",
-      "trait freshness",
-      "reward-affect atomicity",
-      "UI contract affect/consent"
+    "fullSuite": "149 files / 1254 tests PASS",
+    "newRound2": [
+      "reflection-state-gate",
+      "autonomous question synthesis",
+      "evidence derivation lineage",
+      "continuous mood + pause/resume",
+      "packaged consent bypass guard",
+      "mood UI controls"
     ]
   },
   "knownGaps": [

@@ -471,6 +471,36 @@
       "persistence": "provider_consent_grants read",
       "feedback": "grant list refreshed",
       "tests": "affect-ui.test.ts"
+    },
+    {
+      "id": "affect-mood-pause",
+      "selector": "#affect-mood-pause",
+      "view": "settings",
+      "label": "暂停 mood 演化",
+      "event": "click",
+      "renderer": "affect-ui.ts",
+      "preload": "cognition.pauseAffectMood",
+      "ipc": "morrow:affect:mood:pause",
+      "ipcKey": "affectMoodPause",
+      "service": "MoodService.pause",
+      "persistence": "morrow_mood_state.paused",
+      "feedback": "mood paused",
+      "tests": "mood-service.test.ts"
+    },
+    {
+      "id": "affect-mood-resume",
+      "selector": "#affect-mood-resume",
+      "view": "settings",
+      "label": "恢复 mood",
+      "event": "click",
+      "renderer": "affect-ui.ts",
+      "preload": "cognition.resumeAffectMood",
+      "ipc": "morrow:affect:mood:resume",
+      "ipcKey": "affectMoodResume",
+      "service": "MoodService.resume",
+      "persistence": "morrow_mood_state.paused",
+      "feedback": "mood resumed",
+      "tests": "mood-service.test.ts"
     }
   ]
 }

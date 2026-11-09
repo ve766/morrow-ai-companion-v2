@@ -39,3 +39,10 @@
 - 原生 consent 对话框无法自动化，E2E 只证明“自动同意变量”下的 chat；产品默认按钮行为需要人工点一次。
 - 真实 cloud Provider 的 quota/auth/timeout 分支没有在本环境实跑；现有 provider error 映射保留。
 - 本任务没有做 1000/5000 记忆隐私/删除压力测试。
+
+## 第二轮补充
+
+- 新 v56 migration：`morrow_mood_state`（单行、JSON、revision、paused、last_advanced_at）。这是前向迁移，不改 v54/v55 数据。
+- `MORROW_ACCEPTANCE_AUTO_CONSENT` 现在只在 `!app.isPackaged` 时生效；打包后的生产应用即使继承该环境变量也不会绕过 consent。敏感仍每次确认。
+- mood pause/resume 是本地状态，不联网；clear 清理 mood 行。
+- 仍未做原生 consent 对话框自动化点击（PENDING_HUMAN）；单消息删除的 emotion UI 路径仍未真实点击。

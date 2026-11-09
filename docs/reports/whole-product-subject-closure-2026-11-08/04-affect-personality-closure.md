@@ -29,11 +29,33 @@
 
 ## 未完成
 
-- **continuous mood**：没有独立 mood 表；三维 `feeling.ts` 仍承担短期 mood 投影。事件情绪与 trait 已分离，但“mood 按真实 elapsed time 回归”只在 feeling 的 3D 半衰期上部分成立。
+- **continuous mood**：第二轮已新增 v56 `morrow_mood_state` 与确定性 elapsed-time 回归；完整随机 OU/真实模型 A/B 仍未做。
 - **sadness/loneliness 自动 loss**：只有显式 `recordMorrowLoss`；生产只接 knowledge gap→concern。
 - **anger/fear 生产场景**：UNIT_ONLY；不声称已稳定触发。
-- **情绪暂停**：没有持久化 pause 开关；只有缓解/撤销/清除。
+- **情绪暂停**：第二轮已实现 v56 mood pause/resume（event emotion 仍记录，只暂停 mood dynamics）；见下方第二轮补充。
 - **真实 7 天人格数据**：测试时钟模拟，不是真实 7 天。
 - **真实模型表达 A/B**：没有 cloud provider 对照，只有 prompt/策略对象与 loopback E2E。
 - **single-message delete**：trait 读时重算已修；emotion projection 依赖 FK/dirty rebuild，测试覆盖 conversation delete 而非 UI 单消息删除。
 - **Beta/fractional evidence**：trait 使用 bounded score，不是 Beta 后验。
+
+## 第二轮补充（代码已实现）
+
+### 独立 continuous mood（v56）
+
+新增 `src/affective-state/mood-service.ts` 与 v56 `morrow_mood_state` 表：
+
+- 四轴 `valence/arousal/dominance/tension`，独立 revision、`lastAdvancedAt`、`paused`。
+- 确定性均值回归（半衰期：valence 6h、arousal 1h、dominance/tension 24h），按真实 elapsed time；不使用随机项，报告不称 OU 概率过程。
+- `pause`/`resume` 持久化；resume 默认不补算暂停区间，避免静默跳变。
+- `applyEvent` 由 AffectLoop 在 assistant 消息事务内调用；mood 进入 affect prompt、attention bias、expression strategy。
+- 测试：`mood-service.test.ts` 3 tests（impulse/decay、pause/resume、reopen/clear）。
+- UI：设置页增加 mood 数值、暂停/恢复按钮；IPC `affectMoodPause/Resume`；control contract 已登记。
+- 仍未完成：mood 的 A/B 行为差异只在策略对象/prompt 层，不是独立真实模型对照；sadness/loneliness 自动 loss、anger/fear 仍 PARTIAL/UNIT_ONLY。
+
+### 情绪影响三个决策点（更新）
+
+1. 注意力/兴趣排序：`AffectLoop.attentionBias` = emotion bias + mood valence/arousal，传入 exploration gate；只重排已合格兴趣。
+2. 反思/巩固：affect conflict/predictionError 进入 inner cognition；reflection finding gate 另走 self-state。
+3. 表达：expression policy 读取 query-relevant emotion families + mood；direct request 仍优先。
+
+仍缺真实模型 A/B 行为差异证据，标 PARTIAL。

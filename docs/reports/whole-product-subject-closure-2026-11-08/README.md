@@ -18,17 +18,18 @@
 5. 生产反证：对已 active trait，Morrow-owned failure appraisal 写 counter observation；active→weakened，可追溯。
 6. Reward/affect 原子性：promoted thought 的 reward + progress affect 同一 transaction；失败回滚，不留半状态。
 7. Trait freshness：消息删除级联 observation 后，下一次读取立即 recompute。
+8. 第二轮：reflection finding → evidence gate → `morrow_self_states` revision；自主问题从 Morrow interest/reflection 生成；evidence derivation lineage；v56 独立 continuous mood + pause/resume + UI。
 8. UI contract：新控件加入 `docs/ui/control-contract.json` 和 `tests/ui-control-contract.test.ts`。
 
 ## 验证（同一最终代码）
 
 - `npm run typecheck` PASS
-- `npm test` PASS：147 files / 1246 tests
+- `npm test` PASS：149 files / 1254 tests
 - `npm run build` PASS
 - `npm run smoke:chat-ui` PASS（真实 Electron + loopback SSE + 持久化）
 - `npm run smoke:product-path` PASS（Provider profile/OS 密钥/重启/隔离 profile）
 - portable `release/win-unpacked` product-path PASS
-- NSIS installer：**BLOCKED**（electron-builder 504），旧 189KB stub 不冒充
+- electron-builder NSIS：**BLOCKED**（504）；手动编译 NSIS `Morrow-2.0.0-x64-custom-setup.exe` 158,382,905 bytes SHA `dd7a2f89...`，PE/Nullsoft 有效但静默安装 exit 2，**BUILT_NOT_INSTALL_VERIFIED**；旧 189KB stub 不冒充
 - 真实 cloud Provider A–K：NOT_RUN
 - 记忆 100/500/1000/5000 benchmark：NOT_RUN
 

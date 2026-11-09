@@ -48,6 +48,21 @@ describe('inner cognition workspace', () => {
     } finally { database.close() }
   })
 
+  it('synthesizes a Morrow-owned question from its own interest, ignores user origin, and dedupes repeats', () => {
+    const { database, service } = setup()
+    try {
+      const at = '2026-11-08T10:00:00.000Z'
+      const userOnly = service.synthesizeFromContext({ at, interests: [{ label: '用户喜欢的话题', origin: 'user', strength: 1, status: 'active' }] })
+      expect(userOnly).toBeNull()
+      const first = service.synthesizeFromContext({ at, interests: [{ label: '蛋白质折叠', origin: 'morrow', strength: 0.8, status: 'active' }] })
+      expect(first).toMatchObject({ actor: 'morrow', trigger: 'morrow_interest', status: 'open' })
+      expect(first!.question).toContain('蛋白质折叠')
+      const repeat = service.synthesizeFromContext({ at: '2026-11-08T10:05:00.000Z', interests: [{ label: '蛋白质折叠', origin: 'morrow', strength: 0.8, status: 'active' }] })
+      expect(repeat).toBeNull()
+      expect(service.listThoughts()).toHaveLength(1)
+    } finally { database.close() }
+  })
+
   it('does not activate a thought with counter-evidence', () => {
     const { database, service } = setup()
     try {

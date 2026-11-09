@@ -25,6 +25,7 @@ import { InnerCognitionService, SqliteInnerCognitionRepository } from '../self-m
 import { PendingCognitionService, PendingSchemaUnavailableError } from '../cognition/pending-items'
 import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
 import { ReflectionFindingRouter } from '../cognition/reflection-routing'
+import { ReflectionStateGate } from '../self-model/reflection-state-gate'
 
 export interface StartupReflectionLogger {
   debug(category: string, message: string, detail?: Record<string, unknown>): void
@@ -74,7 +75,8 @@ export function composeStartupReflectionServices(
     events
   )
   const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database, events), undefined, clock)
-  const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events, ...(clock ? { clock } : {}) })
+  const reflectionStateGate = new ReflectionStateGate(database, clock ?? (() => new Date().toISOString()), () => globalThis.crypto.randomUUID(), events)
+  const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events, ...(clock ? { clock } : {}), stateGate: reflectionStateGate })
   return { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter }
 }
 

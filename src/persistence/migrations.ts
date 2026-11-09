@@ -2956,6 +2956,40 @@ export const migrations: readonly Migration[] = [
     }
   },
 
+  {
+    version: 56,
+    name: 'continuous-mood-state',
+    up(database) {
+      database.exec(`
+        CREATE TABLE morrow_mood_state (
+          id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+          state_json TEXT NOT NULL CHECK (length(state_json) <= 4000 AND json_valid(state_json)),
+          revision INTEGER NOT NULL CHECK (revision >= 0),
+          paused INTEGER NOT NULL CHECK (paused IN (0, 1)),
+          last_advanced_at TEXT NOT NULL CHECK (length(last_advanced_at) BETWEEN 20 AND 40),
+          updated_at TEXT NOT NULL CHECK (length(updated_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        INSERT INTO morrow_mood_state(id, state_json, revision, paused, last_advanced_at, updated_at)
+        VALUES (
+          1,
+          json_object(
+            'valence', 0.0,
+            'arousal', 0.35,
+            'dominance', 0.5,
+            'tension', 0.0,
+            'revision', 0,
+            'evaluatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            'algorithmVersion', 'mood-ou-v1'
+          ),
+          0,
+          0,
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        );
+      `)
+    }
+  },
+
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

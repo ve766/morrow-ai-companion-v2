@@ -196,6 +196,8 @@ export function deriveExpressionPolicy(input: {
   text?: string | undefined
   /** Query-relevant emotion families from the affect projection. */
   affectFamilies?: readonly string[] | undefined
+  /** Continuous mood state, if the mood layer is available. */
+  mood?: { valence: number; arousal: number; tension: number } | undefined
 }): ExpressionPolicy {
   const state = input.state
   const analysis = input.analysis
@@ -203,13 +205,14 @@ export function deriveExpressionPolicy(input: {
   const uncertainty = analysis?.uncertainty === 'high' ? 0.8 : analysis?.uncertainty === 'medium' ? 0.55 : 0.25
   const evidence = assessDistressEvidence({ text: input.text ?? '', tension })
   const families = new Set(input.affectFamilies ?? [])
-  const affectStrategy: AffectStrategy = families.has('frustration') || families.has('regret') || families.has('disappointment')
+  const mood = input.mood
+  const affectStrategy: AffectStrategy = families.has('frustration') || families.has('regret') || families.has('disappointment') || (mood && mood.valence < -0.2 && mood.arousal > 0.6)
     ? 'repair'
     : families.has('concern') || families.has('fear')
       ? 'clarify'
       : families.has('curiosity') || families.has('anticipation') || families.has('excitement')
         ? 'explore'
-        : families.has('sadness') || families.has('loneliness')
+        : families.has('sadness') || families.has('loneliness') || (mood && mood.arousal < 0.2)
           ? 'steady'
           : null
 

@@ -132,6 +132,8 @@ export class ReflectionFindingRouter {
     events?: EventLogService
     clock?: (() => string) | undefined
     makeId?: (() => string) | undefined
+    /** Optional evidence gate that turns eligible findings into self-state revisions. */
+    stateGate?: { ingestInTransaction(finding: { findingId: string; runId: string; kind: string; statement: string; confidence: number; createdAt: string }): unknown } | undefined
   }) {}
 
   private get clock(): () => string {
@@ -289,6 +291,14 @@ export class ReflectionFindingRouter {
           }
         }
       }
+      this.options.stateGate?.ingestInTransaction({
+        findingId: finding.id,
+        runId,
+        kind: finding.kind,
+        statement: finding.statement,
+        confidence: finding.confidence,
+        createdAt: finding.createdAt
+      })
       this.recordRequired(`reflection-routed:${finding.id}`, 'reflection.finding_routed', runId, {
         findingId: finding.id,
         kind: finding.kind,

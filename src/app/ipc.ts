@@ -118,6 +118,8 @@ export interface CompanionActions {
   getAffectState?(): AffectStateView
   regulateAffect?(request: AffectRegulateRequest): AffectStateView
   clearAffect?(): AffectStateView
+  pauseAffectMood?(): AffectStateView
+  resumeAffectMood?(): AffectStateView
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult>
   getTurnTrace(conversationId: string, limit?: number): import('../cognition/turn-state-machine').TurnTraceRecord[]
   cancelChat(request: { conversationId: string }): boolean
@@ -237,7 +239,7 @@ async function execute<T, P>(
 }
 
 function unavailableAffectState(): AffectStateView {
-  return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [] }
+  return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [], mood: { available: false, paused: false, lastAdvancedAt: new Date(0).toISOString(), valence: 0, arousal: 0, dominance: 0, tension: 0, revision: 0, evaluatedAt: new Date(0).toISOString() } }
 }
 
 export function createIpcHandlers(
@@ -331,6 +333,8 @@ export function createIpcHandlers(
     [IPC_CHANNELS.affectStateGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getAffectState?.() ?? unavailableAffectState()),
     [IPC_CHANNELS.affectRegulate]: (event, payload) => execute(event, trustedRendererUrl, payload, parseAffectRegulateRequest, (request) => companion.regulateAffect?.(request) ?? unavailableAffectState()),
     [IPC_CHANNELS.affectClear]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.clearAffect?.() ?? unavailableAffectState()),
+    [IPC_CHANNELS.affectMoodPause]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.pauseAffectMood?.() ?? unavailableAffectState()),
+    [IPC_CHANNELS.affectMoodResume]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.resumeAffectMood?.() ?? unavailableAffectState()),
     [IPC_CHANNELS.consentGrantsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listConsentGrants?.() ?? []),
     [IPC_CHANNELS.consentGrantRevoke]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConsentGrantRevokeRequest, (request) => companion.revokeConsentGrant?.(request) ?? false),
       [IPC_CHANNELS.chatSend]: (event, payload) => execute(event, trustedRendererUrl, payload, parseChatRequest, (request) => companion.sendChat(request, (delta) => {

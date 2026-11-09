@@ -29,3 +29,10 @@
 - `src/self-model/morrow-trait-service.ts`（fold/status）
 - `src/self-model/inner-cognition.ts`（evidence gate）
 - 报告 `06` 的检索基准为 NOT_RUN。
+
+## 第二轮补充
+
+- 新增 MoodService：确定性指数均值回归 `m(t+Δ)=μ+(m(t)-μ)e^{-λΔ}`；没有随机项，因此不声称 OU 过程/概率。
+- Reflection state gate：bounded score `0.50*confidence + 30*min(1,independent/2) + 5 - counter`，是工程规则，不是 Beta posterior/校准概率。
+- 自主问题 priority 是启发式加权和，不是 VoI 或概率。
+- v56 migration 只有 mood 表；A1/A2/F1/G1 仍未实现，保持 EXPERIMENTAL/NOT_IMPLEMENTED。

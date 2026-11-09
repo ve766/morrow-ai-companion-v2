@@ -112,7 +112,9 @@ const bridge: MorrowBridge = Object.freeze({
     clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory),
     getAffectState: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectStateGet),
     regulateAffect: (request: import('../shared/contracts').AffectRegulateRequest) => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectRegulate, request),
-    clearAffect: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectClear)
+    clearAffect: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectClear),
+    pauseAffectMood: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectMoodPause),
+    resumeAffectMood: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectMoodResume)
   }),
   continuity: Object.freeze({
     listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),

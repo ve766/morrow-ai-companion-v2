@@ -1754,8 +1754,9 @@ export class CompanionService {
     return cleared
   }
   getAffectState(): AffectStateView {
-    if (!this.affect?.available) return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [] }
+    if (!this.affect?.available) return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [], mood: { available: false, paused: false, lastAdvancedAt: new Date(0).toISOString(), valence: 0, arousal: 0, dominance: 0, tension: 0, revision: 0, evaluatedAt: new Date(0).toISOString() } }
     const state = this.affect.emotions.snapshot()
+    const mood = this.affect.mood.snapshot()
     return {
       available: true,
       revision: state.revision,
@@ -1779,7 +1780,18 @@ export class CompanionService {
         evidenceCount: trait.evidenceCount,
         independentContexts: trait.independentContexts,
         updatedAt: trait.updatedAt
-      }))
+      })),
+      mood: {
+        available: mood.available,
+        paused: mood.paused,
+        lastAdvancedAt: mood.lastAdvancedAt,
+        valence: mood.state.valence,
+        arousal: mood.state.arousal,
+        dominance: mood.state.dominance,
+        tension: mood.state.tension,
+        revision: mood.state.revision,
+        evaluatedAt: mood.state.evaluatedAt
+      }
     }
   }
   regulateAffect(request: AffectRegulateRequest): AffectStateView {
@@ -1789,6 +1801,14 @@ export class CompanionService {
   }
   clearAffect(): AffectStateView {
     if (this.affect?.available) this.affect.clearAll()
+    return this.getAffectState()
+  }
+  pauseAffectMood(): AffectStateView {
+    if (this.affect?.available) this.affect.mood.pause()
+    return this.getAffectState()
+  }
+  resumeAffectMood(): AffectStateView {
+    if (this.affect?.available) this.affect.mood.resume()
     return this.getAffectState()
   }
   listConsentGrants(): ConsentGrantView[] {
@@ -2920,7 +2940,8 @@ export class ChatService {
       analysis: analysis ?? null,
       wantsDirectAnswer,
       text: content,
-      affectFamilies: affectPreview ? relevantEmotions(affectPreview.state, content).map((emotion) => emotion.family) : []
+      affectFamilies: affectPreview ? relevantEmotions(affectPreview.state, content).map((emotion) => emotion.family) : [],
+      ...(affectPreview?.mood.available ? { mood: { valence: affectPreview.mood.state.valence, arousal: affectPreview.mood.state.arousal, tension: affectPreview.mood.state.tension } } : {})
     })
 
     const exploration = this.selfModel?.explorationLine?.({

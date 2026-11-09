@@ -35,6 +35,7 @@ import { MorrowTraitService, counterObservationFromEmotion, traitObservationFrom
 import { IntrinsicRewardService, rewardForPromotedThought, type RewardSignal } from '../self-model/intrinsic-reward'
 import type { MorrowSelfState } from '../self-model/inner-cognition'
 import type { FeelingEventType } from './feeling'
+import { MoodService, describeMood, type MoodView } from './mood-service'
 
 export interface AffectPreviewInput {
   content: string
@@ -57,6 +58,7 @@ export interface AffectPreview {
   promptLine: string
   traitLine: string
   bias: { bias: number; curiosity: number; concern: number; frustration: number; topicTags: string[] }
+  mood: MoodView
 }
 
 export interface AffectRecordInput {
@@ -69,6 +71,7 @@ export class AffectLoopService {
   readonly emotions: EmotionService
   readonly traits: MorrowTraitService
   readonly rewards: IntrinsicRewardService
+  readonly mood: MoodService
 
   constructor(
     private readonly database: SqliteDatabase,
@@ -79,6 +82,7 @@ export class AffectLoopService {
     this.emotions = new EmotionService(database, clock, makeId, events)
     this.traits = new MorrowTraitService(database, clock, makeId, events)
     this.rewards = new IntrinsicRewardService(database, clock, makeId)
+    this.mood = new MoodService(database, clock)
   }
 
   get available(): boolean {
@@ -130,9 +134,10 @@ export class AffectLoopService {
       state,
       appraisal,
       draft,
-      promptLine: describeAffect(state, input.content),
+      promptLine: [describeMood(this.mood.snapshot(input.at)), describeAffect(state, input.content)].filter(Boolean).join(String.fromCharCode(10)),
       traitLine: this.traits.contextBlock(input.content),
-      bias: { ...affectAttentionBias(state), topicTags: [...appraisal.topicTags] }
+      bias: { ...affectAttentionBias(state), topicTags: [...appraisal.topicTags] },
+      mood: this.mood.snapshot(input.at)
     }
   }
 
@@ -145,6 +150,13 @@ export class AffectLoopService {
     // Trait observations ride the same transaction as the emotion event. A
     // user-context or shared-interaction candidate is filtered inside the
     // mapper, so praise cannot become a Morrow trait.
+    if (this.mood.available && input.draft.accepted.length > 0) {
+      const weight = 0.55
+      const valence = input.draft.accepted.reduce((sum, candidate) => sum + candidate.valence, 0) / input.draft.accepted.length
+      const arousal = input.draft.accepted.reduce((sum, candidate) => sum + candidate.arousal, 0) / input.draft.accepted.length
+      const tension = input.draft.accepted.reduce((sum, candidate) => sum + (candidate.valence < 0 ? candidate.intensity : 0), 0) / input.draft.accepted.length
+      this.mood.applyEvent({ at: input.processedAt, valence, arousal, dominance: 0.5, tension, weight })
+    }
     for (const candidate of input.draft.accepted) {
       const observation = traitObservationFromEmotion(candidate, {
         turnId: input.draft.idempotencyKey,
@@ -307,7 +319,10 @@ export class AffectLoopService {
 
   attentionBias(): { bias: number; curiosity: number; concern: number; frustration: number } {
     if (!this.available) return { bias: 0, curiosity: 0, concern: 0, frustration: 0 }
-    return affectAttentionBias(this.emotions.snapshot(this.clock()))
+    const base = affectAttentionBias(this.emotions.snapshot(this.clock()))
+    const mood = this.mood.snapshot(this.clock())
+    const moodBias = mood.available ? 0.05 * mood.state.valence + 0.03 * (mood.state.arousal - 0.35) : 0
+    return { ...base, bias: Math.min(0.12, Math.max(-0.12, base.bias + moodBias)) }
   }
 
   activeEmotions(): Array<{ family: string; intensity: number; regulationState: string; sourceKind: string }> {
@@ -331,6 +346,7 @@ export class AffectLoopService {
     this.emotions.clearHistory(this.clock())
     this.traits.clearAll(this.clock())
     this.rewards.clearAll()
+    if (this.mood.available) this.mood.clear(this.clock())
   }
 
   deleteConversation(conversationId: string): void {

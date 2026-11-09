@@ -45,3 +45,17 @@
 ## 结论
 
 本轮不是“零缺陷”；上述已修项有明确测试/命令，未修项在 `10-acceptance-matrix.json` 中标记 PARTIAL/NOT_RUN/BLOCKED/PENDING_HUMAN。
+
+## 第二轮新增修复
+
+- Reflection gate：finding 经 owned/evidence gate 写 `morrow_self_states`，两 run 才 active；bias 可 weakened；幂等；query 过滤。
+- 自主问题：从 Morrow/shared interest、reflection finding 生成候选，用户 origin 不生成，重复去重。
+- 证据 lineage：`ThoughtEvidence` 增加 derivationKind/origin/parentEvidenceIds；summary/assistant paraphrase/duplicate 不计独立 context。
+- Mood：v56 独立四轴状态、真实 elapsed 衰减、pause/resume、UI 控件；进入 prompt/attention/expression。
+- Acceptance-only auto consent 在 packaged app 强制关闭。
+
+## 仍未修复
+
+- 完整 ChatService→reflection producer→router 的 live integration（当前 gate/router DB 测试）。
+- goals 的 stall 参数未接实际 CompanionGoal 时间。
+- 真实 cloud Provider A–K、memory benchmark、NSIS installer。

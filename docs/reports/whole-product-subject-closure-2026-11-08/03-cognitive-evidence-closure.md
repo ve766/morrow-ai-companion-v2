@@ -50,3 +50,36 @@ ChatService.send → prepare → system prompt
 - `src/self-model/intrinsic-reward.test.ts`（6 tests）
 - `src/self-model/inner-cognition.test.ts`（既有 7 tests）
 - 全量：`results/issue74-tests2.log`（最终计数见 `11-machine-results.json`）
+
+## 第二轮补充（代码已实现）
+
+### Reflection finding → self-state gate
+
+新增 `src/self-model/reflection-state-gate.ts`，并接入 `ReflectionFindingRouter` 的 `stateGate` 选项（`src/app/startup-composition.ts`）。生产路径：
+
+```text
+reflection run → finding routed → stateGate.ingestInTransaction
+  → eligible kind (memory_gap/bias_hint/consistency_note/open_question)
+  → evidence refs (findingId/runId/kind/createdAt)
+  → independent run count + bounded score
+  → candidate / active / weakened
+  → morrow_self_states append revision + supersede prior
+  → reflection_finding_routes.status='consumed' + reflection.state_decision event
+```
+
+- 两个独立 run 才 active；单 run 只 candidate。
+- `bias_hint` 对已 active state 产生 counterEvidenceRefs 并 weakened。
+- 低置信/不相关 kind 拒绝，不写 state。
+- 幂等：同一 findingId 只记录一次 decision/一条 state。
+- `InnerCognitionService.contextBlock` 按 query 读取 active/candidate；无关 query 不注入。
+- 测试：`src/self-model/reflection-state-gate.test.ts`（4 tests）。仍缺：完整 ChatService→reflection producer→router 的 loopback 集成测试；当前是 gate + router 单元/DB 级证据，报告标 **PARTIAL** 而非完整 A。
+
+### Morrow-owned 自主问题生成
+
+`InnerCognitionService.synthesizeFromContext`：
+- 输入只来自 Morrow/shared active interest、可选 stalled goal、reflection finding；不读取当前用户 prompt。
+- `trigger`：morrow_interest / goal_stall / reflection_novelty。
+- 有界 priority 公式（informationGap/goalStall/interestRelevance/reflectionNovelty − repeatPenalty − cost），不是概率/VoI。
+- 去重按规范化 question 与 24h repeat penalty；每轮最多 1 个。
+- `index.ts` 5 分钟 scheduler 调用；reflection findings 来自最新 run；goalStalls 参数已保留但未接 CompanionGoal 时间估算。
+- 测试：`inner-cognition.test.ts` 新增；用户 origin 不生成、重复不生成。

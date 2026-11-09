@@ -19,6 +19,10 @@ export interface ThoughtEvidence {
   occurredAt: string
   kind: 'turn' | 'reflection'
   ref: string
+  /** Provenance for independence accounting; absent means a raw turn ref. */
+  derivationKind?: 'raw' | 'summary' | 'assistant_paraphrase' | 'derived' | 'duplicate'
+  origin?: 'morrow' | 'user' | 'shared' | 'system'
+  parentEvidenceIds?: string[]
 }
 
 export interface MorrowThought {
@@ -111,16 +115,36 @@ export class SqliteInnerCognitionRepository implements InnerCognitionRepositoryP
 const UNCERTAINTY_MARKERS = /(?:不知道|不确定|无法确认|不清楚|不能确定|没有.{0,16}(?:记录|信息|线索|证据)|not sure|don't know|no (?:record|information|evidence))/iu
 
 function independentContexts(refs: ThoughtEvidence[]): number {
-  return new Set(refs.map((ref) => ref.conversationId)).size
+  // Summaries, assistant paraphrases and duplicate derivations share their
+  // ancestor's source; they are retained as evidence but do not create a new
+  // independent context. A concrete parent lineage wins when present.
+  const parentIds = new Set(refs.flatMap((ref) => ref.parentEvidenceIds ?? []))
+  return new Set(refs
+    .filter((ref) => ref.derivationKind !== 'summary' && ref.derivationKind !== 'assistant_paraphrase' && ref.derivationKind !== 'duplicate')
+    .filter((ref) => !parentIds.has(ref.messageId))
+    .map((ref) => ref.conversationId)).size
 }
 
 function normalized(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase()
 }
 
+function retrievalTerms(value: string): Set<string> {
+  const terms = new Set<string>()
+  for (const token of normalized(value).match(/[\p{L}\p{N}]+/gu) ?? []) {
+    terms.add(token)
+    if (/[一-鿿]/u.test(token) && token.length >= 2) {
+      for (let size = 2; size <= Math.min(4, token.length); size += 1) {
+        for (let start = 0; start + size <= token.length; start += 1) terms.add(token.slice(start, start + size))
+      }
+    }
+  }
+  return terms
+}
+
 function overlap(left: string, right: string): number {
-  const a = new Set(normalized(left).match(/[\p{L}\p{N}]+/gu) ?? [])
-  const b = new Set(normalized(right).match(/[\p{L}\p{N}]+/gu) ?? [])
+  const a = retrievalTerms(left)
+  const b = retrievalTerms(right)
   if (a.size === 0 || b.size === 0) return 0
   let shared = 0
   for (const token of a) if (b.has(token)) shared += 1
@@ -226,6 +250,99 @@ export class InnerCognitionService {
     if (this.repository.transaction) this.repository.transaction(write); else write()
     this.events?.tryRecord({ sourceModule: 'cognition', eventType: 'inner.thought.reviewed', actor: 'system', subjectType: 'morrow_thought', subjectId: thought.id, correlationId: null, payload: { stateId: state.id, status, independent, score } })
     return state
+  }
+
+  /**
+   * Produces at most one Morrow-owned question from Morrow's own standing
+   * context (active interest, stalled goal, or reflection finding). It never
+   * reads the current user prompt and never turns "research X" into an interest.
+   * The priority is an explicit heuristic, not a probability or a VoI score.
+   */
+  synthesizeFromContext(input: {
+    at: string
+    interests: ReadonlyArray<{ label: string; origin: 'user' | 'morrow' | 'shared'; strength: number; status: string }>
+    goalStalls?: ReadonlyArray<{ title: string; days: number }>
+    reflectionFindings?: ReadonlyArray<{ statement: string; kind: string; runId: string; createdAt: string }>
+  }): MorrowThought | null {
+    const at = this.safeTimestamp(input.at)
+    const owned = input.interests
+      .filter((interest) => interest.status === 'active' && (interest.origin === 'morrow' || interest.origin === 'shared') && interest.label.trim().length >= 2)
+      .sort((left, right) => right.strength - left.strength)
+    const stall = (input.goalStalls ?? []).filter((goal) => goal.days >= 2).sort((left, right) => right.days - left.days)[0]
+    const reflection = (input.reflectionFindings ?? []).filter((finding) => finding.statement.trim().length >= 8)[0]
+    let question: string | null = null
+    let trigger = 'morrow_interest'
+    let informationGap = 0.55
+    let goalStall = 0
+    let reflectionNovelty = 0
+    let sourceRef = ''
+    if (stall) {
+      question = `「${stall.title}」已经停滞 ${Math.round(stall.days)} 天；我可以先核对哪个假设？`
+      trigger = 'goal_stall'
+      informationGap = 0.7
+      goalStall = Math.min(1, stall.days / 14)
+      sourceRef = stall.title
+    } else if (owned[0]) {
+      question = `关于「${owned[0].label}」，我还没有弄清的关键问题是什么？`
+      trigger = 'morrow_interest'
+      informationGap = 0.55
+      sourceRef = owned[0].label
+    } else if (reflection) {
+      question = `反思记录提出了「${reflection.statement.slice(0, 80)}」；其中哪个判断仍缺少独立证据？`
+      trigger = 'reflection_novelty'
+      informationGap = 0.6
+      reflectionNovelty = 0.7
+      sourceRef = reflection.runId
+    }
+    if (!question) return null
+    const normalizedQuestion = normalized(question)
+    const duplicate = this.repository.allThoughts().some((thought) =>
+      (thought.status === 'open' || thought.status === 'reviewed' || thought.status === 'candidate') &&
+      overlap(thought.question, question) >= 0.62
+    )
+    if (duplicate) return null
+    const interestRelevance = owned[0] ? Math.min(1, owned[0].strength) : 0
+    const recentRepeat = this.repository.allThoughts().filter((thought) => thought.createdAt >= new Date(Date.parse(at) - 24 * 3_600_000).toISOString()).length
+    const repeatPenalty = Math.min(1, recentRepeat / 3)
+    const priority = Math.max(0, Math.min(1,
+      0.30 * informationGap + 0.20 * goalStall + 0.20 * interestRelevance + 0.15 * reflectionNovelty - 0.25 * repeatPenalty - 0.10 * 0.2
+    ))
+    const evidence: ThoughtEvidence = {
+      turnId: this.makeId().toLowerCase(),
+      conversationId: this.makeId().toLowerCase(),
+      messageId: this.makeId().toLowerCase(),
+      occurredAt: at,
+      kind: 'reflection',
+      ref: sourceRef.slice(0, 80)
+    }
+    const thought: MorrowThought = {
+      id: this.makeId().toLowerCase(),
+      actor: 'morrow',
+      trigger,
+      question: question.slice(0, 1000),
+      hypothesis: `我还没有足够证据；先检查「${sourceRef.slice(0, 60)}」相关的前提，再决定是否探索。`,
+      evidenceRefs: [evidence],
+      counterEvidenceRefs: [],
+      uncertainty: 60,
+      priority: Math.round(priority * 1000) / 1000,
+      status: 'open',
+      createdAt: at,
+      updatedAt: at,
+      nextReviewAt: new Date(Date.parse(at) + 24 * 3_600_000).toISOString(),
+      algorithmVersion: INNER_COGNITION_VERSION
+    }
+    const write = (): void => { this.repository.createThought(thought) }
+    if (this.repository.transaction) this.repository.transaction(write); else write()
+    this.events?.tryRecord({
+      sourceModule: 'cognition',
+      eventType: 'inner.thought.synthesized',
+      actor: 'system',
+      subjectType: 'morrow_thought',
+      subjectId: thought.id,
+      correlationId: null,
+      payload: { trigger, priority: thought.priority, sourceRef: sourceRef.slice(0, 64), dedupe: normalizedQuestion.slice(0, 80) }
+    })
+    return thought
   }
 
   /** Bounded context for the next real turn. User preferences are never read as Morrow's. */
