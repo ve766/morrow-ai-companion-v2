@@ -105,7 +105,17 @@
     }
   },
   "tests": {
-    "fullSuite": "149 files / 1256 tests PASS",
+    "fullSuite": "149 files / 1256 tests PASS twice",
+    "runs": [
+      {
+        "log": "results/full-tests-issue76.log",
+        "exitCode": 0
+      },
+      {
+        "log": "results/full-tests-issue76-second.log",
+        "exitCode": 0
+      }
+    ],
     "round3": [
       "reflection root/correlation lineage",
       "shared/user ownership exclusion",
