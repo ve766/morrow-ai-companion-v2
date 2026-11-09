@@ -69,7 +69,17 @@
   "provider": "loopback only; real cloud NOT_RUN",
   "memoryBenchmark": "NOT_RUN",
   "tests": {
-    "fullSuite": "149 files / 1259 tests PASS",
+    "fullSuite": "149 files / 1259 tests PASS twice",
+    "runs": [
+      {
+        "log": "results/issue78-tests-final.log",
+        "exitCode": 0
+      },
+      {
+        "log": "results/issue78-tests-second.log",
+        "exitCode": 0
+      }
+    ],
     "round78": [
       "reflection fail-closed provenance",
       "synthetic provenance exclusion",
