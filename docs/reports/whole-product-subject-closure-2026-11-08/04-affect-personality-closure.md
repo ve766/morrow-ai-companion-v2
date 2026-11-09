@@ -59,3 +59,9 @@
 3. 表达：expression policy 读取 query-relevant emotion families + mood；direct request 仍优先。
 
 仍缺真实模型 A/B 行为差异证据，标 PARTIAL。
+
+## 第三轮（最终）Mood 修正
+
+- `MoodService.setPaused` 在暂停前先按真实 elapsed time 推进到 `now`，再冻结；resume 保持冻结值、不补算暂停区间；重复 pause 保持冻结。
+- 测试替换了“pause 后等于 pause 前旧值”的错误断言：12:00→12:10 先衰减，pause 后冻结，暂停 2 天不变，resume 后 10 分钟继续衰减；另加重复 pause/resume 与时钟回拨。
+- Mood 已参与 prompt、attention bias、expression、synthesis priority、review limit；仍缺真实模型 A/B 行为对照。

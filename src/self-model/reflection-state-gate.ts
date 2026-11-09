@@ -22,6 +22,22 @@ export interface ReflectionStateFinding {
   statement: string
   confidence: number
   createdAt: string
+  rootSourceId?: string
+  correlationGroupId?: string
+  owner?: 'user' | 'morrow' | 'shared' | 'system'
+  parentEvidenceIds?: string[]
+}
+
+interface LineageRef {
+  findingId: string
+  runId: string
+  kind: string
+  createdAt: string
+  rootSourceId: string
+  correlationGroupId: string
+  owner: 'user' | 'morrow' | 'shared' | 'system'
+  derivationKind: 'reflection'
+  parentEvidenceIds: string[]
 }
 
 interface StateRow {
@@ -56,7 +72,7 @@ function overlap(left: string, right: string): number {
   return hits / Math.max(1, size - 1)
 }
 
-function refsOf(row: StateRow): Array<{ findingId: string; runId: string; kind: string; createdAt: string }> {
+function refsOf(row: StateRow): LineageRef[] {
   try {
     const parsed = JSON.parse(row.evidence_json)
     return Array.isArray(parsed) ? parsed : []
@@ -86,13 +102,35 @@ export class ReflectionStateGate {
     ).all() as unknown as StateRow[]
     const prior = rows.find((row) => overlap(row.proposition, finding.statement) >= 0.6) ?? null
     const priorRefs = prior ? refsOf(prior) : []
-    const evidenceRefs = [...priorRefs, {
+    // The lineage root is the original event/message, not the random reflection
+    // run id. A hundred reruns over the same original source therefore collapse
+    // to one root/cluster.
+    let rawRefs: Array<{ id?: unknown }> = []
+    try {
+      const row = this.database.connection.prepare('SELECT evidence_json FROM reflection_findings WHERE id = ?').get(finding.findingId) as { evidence_json: string } | undefined
+      const parsed = row ? JSON.parse(row.evidence_json) : []
+      rawRefs = Array.isArray(parsed) ? parsed.filter((item): item is { id?: unknown } => Boolean(item) && typeof item === 'object') : []
+    } catch {
+      rawRefs = []
+    }
+    const rawIds = rawRefs.map((ref) => typeof ref.id === 'string' ? ref.id : null).filter((id): id is string => Boolean(id))
+    const rootSourceId = finding.rootSourceId ?? rawIds[0] ?? finding.findingId
+    const correlationGroupId = finding.correlationGroupId ?? rootSourceId
+    const owner = finding.owner ?? 'morrow'
+    const newRef: LineageRef = {
       findingId: finding.findingId,
       runId: finding.runId,
       kind: finding.kind,
-      createdAt: finding.createdAt
-    }].filter((ref, index, all) => all.findIndex((candidate) => candidate.findingId === ref.findingId) === index)
-    const independent = new Set(evidenceRefs.map((ref) => ref.runId)).size
+      createdAt: finding.createdAt,
+      rootSourceId,
+      correlationGroupId,
+      owner,
+      derivationKind: 'reflection',
+      parentEvidenceIds: finding.parentEvidenceIds ?? (rawIds.length > 0 ? rawIds : [rootSourceId])
+    }
+    const evidenceRefs = [...priorRefs, newRef]
+      .filter((ref, index, all) => all.findIndex((candidate) => candidate.findingId === ref.findingId) === index)
+    const independent = new Set(evidenceRefs.map((ref) => ref.correlationGroupId)).size
     const counter = COUNTER_KINDS.has(finding.kind) && prior?.status === 'active'
     const score = Math.max(0, Math.min(100, Math.round(0.50 * finding.confidence + 30 * Math.min(1, independent / 2) + (counter ? -20 : 5))))
     const status = counter

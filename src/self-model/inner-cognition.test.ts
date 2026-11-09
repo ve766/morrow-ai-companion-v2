@@ -54,6 +54,8 @@ describe('inner cognition workspace', () => {
       const at = '2026-11-08T10:00:00.000Z'
       const userOnly = service.synthesizeFromContext({ at, interests: [{ label: '用户喜欢的话题', origin: 'user', strength: 1, status: 'active' }] })
       expect(userOnly).toBeNull()
+      const sharedOnly = service.synthesizeFromContext({ at, interests: [{ label: '共同话题', origin: 'shared', strength: 1, status: 'active' }] })
+      expect(sharedOnly).toBeNull()
       const first = service.synthesizeFromContext({ at, interests: [{ label: '蛋白质折叠', origin: 'morrow', strength: 0.8, status: 'active' }] })
       expect(first).toMatchObject({ actor: 'morrow', trigger: 'morrow_interest', status: 'open' })
       expect(first!.question).toContain('蛋白质折叠')

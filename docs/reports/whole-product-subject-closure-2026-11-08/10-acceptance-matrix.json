@@ -321,7 +321,7 @@
         "command": "npm test",
         "exitCode": 0,
         "files": 149,
-        "tests": 1254
+        "tests": 1256
       },
       {
         "id": "build",

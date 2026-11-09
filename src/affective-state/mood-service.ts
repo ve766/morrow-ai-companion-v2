@@ -176,9 +176,11 @@ export class MoodService {
     const now = iso(at)
     return this.database.transaction(() => {
       const row = this.row()
-      // Pause and resume both capture the current values at `now`; the paused
-      // interval is deliberately not replayed on resume.
-      const state: MoodState = { ...parseState(row), evaluatedAt: now }
+      const current = parseState(row)
+      // Pause first settles elapsed time up to `now`; resume keeps the frozen
+      // value and deliberately does not replay the paused interval.
+      const advanced = row.paused === 1 ? current : advanceMood(current, now)
+      const state: MoodState = { ...advanced, evaluatedAt: now }
       this.write(state, paused, now, now)
       return { available: true, paused, lastAdvancedAt: now, state }
     })

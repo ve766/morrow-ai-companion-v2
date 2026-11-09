@@ -47,11 +47,29 @@ describe('continuous mood layer', () => {
       context.setTime('2026-11-10T12:00:00.000Z')
       const paused = context.mood.snapshot()
       expect(paused.paused).toBe(true)
-      expect(paused.state.valence).toBe(before.state.valence)
+      // Pause settles the 10 minutes before freezing.
+      expect(paused.state.valence).toBeLessThan(before.state.valence)
+      const pausedAgain = context.mood.pause('2026-11-10T18:00:00.000Z')
+      expect(pausedAgain.state.valence).toBe(paused.state.valence)
       context.mood.resume('2026-11-10T12:00:00.000Z')
       const resumed = context.mood.snapshot('2026-11-10T12:00:00.000Z')
       expect(resumed.paused).toBe(false)
       expect(resumed.state.valence).toBe(paused.state.valence)
+      const later = context.mood.snapshot('2026-11-10T12:10:00.000Z')
+      expect(later.state.valence).toBeLessThan(resumed.state.valence)
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('does not explode or move backwards on a clock rollback', () => {
+    const context = setup()
+    try {
+      context.mood.applyEvent({ at: start, valence: 0.5, arousal: 0.5, dominance: 0.5, tension: 0.2, weight: 1 })
+      const atStart = context.mood.snapshot(start)
+      const earlier = context.mood.snapshot('2026-11-01T00:00:00.000Z')
+      expect(Number.isFinite(earlier.state.valence)).toBe(true)
+      expect(earlier.state.valence).toBe(atStart.state.valence)
     } finally {
       context.database.close()
     }

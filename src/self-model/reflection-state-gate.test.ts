@@ -51,6 +51,23 @@ describe('reflection finding -> self-state evidence gate', () => {
     }
   })
 
+  it('collapses many findings from the same root source into one independent root', () => {
+    const context = setup()
+    try {
+      const root = randomUUID()
+      for (let index = 0; index < 100; index += 1) {
+        context.gate.ingestInTransaction({ ...finding(), rootSourceId: root, correlationGroupId: root })
+      }
+      const row = context.database.connection.prepare(
+        "SELECT * FROM morrow_self_states ORDER BY revision DESC LIMIT 1"
+      ).get() as Record<string, unknown>
+      expect(row.independent_contexts).toBe(1)
+      expect(row.status).toBe('candidate')
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('is idempotent per finding and records one decision event', () => {
     const context = setup()
     try {

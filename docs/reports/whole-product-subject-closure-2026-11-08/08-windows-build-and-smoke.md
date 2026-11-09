@@ -21,9 +21,9 @@
 ## Portable
 
 - 重新打包：`npx asar pack .tmp/asar-stage release/win-unpacked/resources/app.asar`
-- 结果：1,393,038 bytes，SHA-256 `a98ca6dee0e668d92eed2a2cce0346ed431844237841ee1421fbfb357fdbf423`。
-- Portable zip：`release/Morrow-2.0.0-x64-portable.zip`，154,660,976 bytes，SHA-256 `8591f10b630c0766223d0cb598b485ecfea4ff3ea70e58160313122098ca0109`。
-- 目录：`release/win-unpacked/`；可启动性由 `smoke:product-path`（`MORROW_PRODUCT_EXECUTABLE=release/win-unpacked/Morrow.exe`）验证；结果见 `results/issue74-portable-smoke.log`（PASS，runId `20261109T052530Z-71ed544f`）。
+- 结果：1,394,458 bytes，SHA-256 `e6ea3d4a7d2e794da9c3f7b07f4e6dbc97a2171a89f79ef3dff75c7e1345a656`。
+- Portable zip：`release/Morrow-2.0.0-x64-portable.zip`，154,661,381 bytes，SHA-256 `8f6b4a993a676a95704dd4c44ff609e051639e9f72ab62d106794d8f45818ff2`。
+- 目录：`release/win-unpacked/`；可启动性由 `smoke:product-path`（`MORROW_PRODUCT_EXECUTABLE=release/win-unpacked/Morrow.exe`）验证；结果见 `results/issue74-portable-smoke.log`（PASS，runId `20261109T082806Z-71ac7c91`）。
 - 该 portable 不是正式 NSIS 安装器；不得把它误标为 installer。
 
 ## 安装/升级隔离
@@ -46,7 +46,12 @@
 
 - 由于 electron-builder 的 winCodeSign 下载 504，使用缓存 NSIS 3.0.4.1 手动编译了真实 NSIS 安装器：
   - `release/Morrow-2.0.0-x64-custom-setup.exe`
-  - 158,382,905 bytes，SHA-256 `dd7a2f895c23bc5805264705aeb3a37b6500046bc2a060abfcfca47c3f9b8184`
+  - 158,383,287 bytes，SHA-256 `b5c222b7fcd103e863d367acc01e3f69ddc8e4e7a63506df2bc7a81fda1362de`
   - PE `MZ` 与 `Nullsoft NSIS` 标记存在；编译日志 `results/custom-nsis-build.log`。
 - 隔离安装尝试：`/S /D=C:\morrow-install-test` 返回 exit 2，目录未创建；未把它标记为安装 PASS。自定义安装器 **BUILT_NOT_INSTALL_VERIFIED**，不是 electron-builder 产物。
 - 未运行旧 189KB stub；未触碰 `F:\morrow1` 或生产 userData。
+
+## 第三轮
+
+- 最终 portable/asar 与自定义 NSIS 重新构建；自定义 NSIS 仍为 BUILT_NOT_INSTALL_VERIFIED（静默安装 exit 2）。
+- electron-builder NSIS 仍 504；没有把 portable 当 installer。

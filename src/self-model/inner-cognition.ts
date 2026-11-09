@@ -263,10 +263,11 @@ export class InnerCognitionService {
     interests: ReadonlyArray<{ label: string; origin: 'user' | 'morrow' | 'shared'; strength: number; status: string }>
     goalStalls?: ReadonlyArray<{ title: string; days: number }>
     reflectionFindings?: ReadonlyArray<{ statement: string; kind: string; runId: string; createdAt: string }>
+    mood?: { valence: number; arousal: number }
   }): MorrowThought | null {
     const at = this.safeTimestamp(input.at)
     const owned = input.interests
-      .filter((interest) => interest.status === 'active' && (interest.origin === 'morrow' || interest.origin === 'shared') && interest.label.trim().length >= 2)
+      .filter((interest) => interest.status === 'active' && interest.origin === 'morrow' && interest.label.trim().length >= 2)
       .sort((left, right) => right.strength - left.strength)
     const stall = (input.goalStalls ?? []).filter((goal) => goal.days >= 2).sort((left, right) => right.days - left.days)[0]
     const reflection = (input.reflectionFindings ?? []).filter((finding) => finding.statement.trim().length >= 8)[0]
@@ -304,8 +305,9 @@ export class InnerCognitionService {
     const interestRelevance = owned[0] ? Math.min(1, owned[0].strength) : 0
     const recentRepeat = this.repository.allThoughts().filter((thought) => thought.createdAt >= new Date(Date.parse(at) - 24 * 3_600_000).toISOString()).length
     const repeatPenalty = Math.min(1, recentRepeat / 3)
+    const moodBoost = input.mood ? Math.max(-0.08, Math.min(0.08, 0.06 * input.mood.arousal + 0.04 * input.mood.valence)) : 0
     const priority = Math.max(0, Math.min(1,
-      0.30 * informationGap + 0.20 * goalStall + 0.20 * interestRelevance + 0.15 * reflectionNovelty - 0.25 * repeatPenalty - 0.10 * 0.2
+      0.30 * informationGap + 0.20 * goalStall + 0.20 * interestRelevance + 0.15 * reflectionNovelty - 0.25 * repeatPenalty - 0.10 * 0.2 + moodBoost
     ))
     const evidence: ThoughtEvidence = {
       turnId: this.makeId().toLowerCase(),
