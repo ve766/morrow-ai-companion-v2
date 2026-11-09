@@ -136,7 +136,13 @@ export class MoodService {
     return this.database.transaction(() => {
       const row = this.row()
       const current = parseState(row)
-      const base = row.paused === 1 ? current : advanceMood(current, at)
+      if (row.paused === 1) {
+        // Automatic affect events are suppressed while paused; the frozen state
+        // is returned unchanged and no revision is written.
+        return { available: true, paused: true, lastAdvancedAt: row.last_advanced_at, state: current }
+      }
+      const effectiveAt = new Date(Math.max(Date.parse(current.evaluatedAt), Date.parse(at))).toISOString()
+      const base = advanceMood(current, effectiveAt)
       const next = clampMood({
         ...base,
         valence: base.valence + input.valence * weight * 0.25,
@@ -144,10 +150,10 @@ export class MoodService {
         dominance: base.dominance + input.dominance * weight * 0.15,
         tension: base.tension + input.tension * weight * 0.2,
         revision: base.revision + 1,
-        evaluatedAt: at
+        evaluatedAt: effectiveAt
       })
-      this.write(next, row.paused === 1, at, at)
-      return { available: true, paused: row.paused === 1, lastAdvancedAt: at, state: next }
+      this.write(next, false, effectiveAt, effectiveAt)
+      return { available: true, paused: false, lastAdvancedAt: effectiveAt, state: next }
     })
   }
 
@@ -178,11 +184,13 @@ export class MoodService {
       const row = this.row()
       const current = parseState(row)
       // Pause first settles elapsed time up to `now`; resume keeps the frozen
-      // value and deliberately does not replay the paused interval.
-      const advanced = row.paused === 1 ? current : advanceMood(current, now)
-      const state: MoodState = { ...advanced, evaluatedAt: now }
-      this.write(state, paused, now, now)
-      return { available: true, paused, lastAdvancedAt: now, state }
+      // value and deliberately does not replay the paused interval. Persisted
+      // logical time is monotonic even if the wall clock moved backwards.
+      const effectiveAt = new Date(Math.max(Date.parse(current.evaluatedAt), Date.parse(now))).toISOString()
+      const advanced = row.paused === 1 ? current : advanceMood(current, effectiveAt)
+      const state: MoodState = { ...advanced, evaluatedAt: effectiveAt }
+      this.write(state, paused, effectiveAt, effectiveAt)
+      return { available: true, paused, lastAdvancedAt: effectiveAt, state }
     })
   }
 

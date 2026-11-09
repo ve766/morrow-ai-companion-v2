@@ -251,10 +251,10 @@ export class AffectLoopService {
         stateId: state.id,
         score: state.score,
         independentContexts: state.independentContexts,
-        evidenceIds: state.evidenceRefs.map((ref) => ref.messageId)
+        evidenceIds: state.evidenceRefs.filter((ref) => ref.synthetic !== true && ref.messageId.length > 0).map((ref) => ref.messageId)
       })
       if (!rewardInput) continue
-      const first = state.evidenceRefs[0]
+      const first = state.evidenceRefs.find((ref) => ref.synthetic !== true && ref.messageId.length > 0)
       if (!first) continue
       try {
         const reward = this.database.transaction(() => {

@@ -6,7 +6,7 @@ import { SqliteDatabase } from '../persistence/database'
 import { MoodService } from './mood-service'
 
 const directories: string[] = []
-const start = '2026-11-08T12:00:00.000Z'
+const start = '2026-11-12T12:00:00.000Z'
 
 function setup() {
   const directory = mkdtempSync(join(tmpdir(), 'morrow-mood-'))
@@ -14,6 +14,7 @@ function setup() {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   let now = start
   const mood = new MoodService(database, () => now)
+  mood.clear(start)
   return { directory, database, mood, setTime(value: string) { now = value } }
 }
 
@@ -29,7 +30,7 @@ describe('continuous mood layer', () => {
       const excited = context.mood.snapshot(start)
       expect(excited.state.valence).toBeGreaterThan(0)
       expect(excited.state.tension).toBeGreaterThan(0)
-      context.setTime('2026-11-09T12:00:00.000Z')
+      context.setTime('2026-11-13T12:00:00.000Z')
       const decayed = context.mood.snapshot()
       expect(Math.abs(decayed.state.valence)).toBeLessThan(Math.abs(excited.state.valence))
       expect(decayed.state.tension).toBeLessThan(excited.state.tension)
@@ -43,19 +44,22 @@ describe('continuous mood layer', () => {
     try {
       context.mood.applyEvent({ at: start, valence: 0.6, arousal: 0.6, dominance: 0.5, tension: 0.2, weight: 1 })
       const before = context.mood.snapshot(start)
-      context.mood.pause('2026-11-08T12:10:00.000Z')
-      context.setTime('2026-11-10T12:00:00.000Z')
+      context.mood.pause('2026-11-12T12:10:00.000Z')
+      context.setTime('2026-11-12T12:00:00.000Z')
       const paused = context.mood.snapshot()
       expect(paused.paused).toBe(true)
       // Pause settles the 10 minutes before freezing.
       expect(paused.state.valence).toBeLessThan(before.state.valence)
-      const pausedAgain = context.mood.pause('2026-11-10T18:00:00.000Z')
+      const pausedAgain = context.mood.pause('2026-11-12T12:30:00.000Z')
       expect(pausedAgain.state.valence).toBe(paused.state.valence)
-      context.mood.resume('2026-11-10T12:00:00.000Z')
-      const resumed = context.mood.snapshot('2026-11-10T12:00:00.000Z')
+      const suppressed = context.mood.applyEvent({ at: '2026-11-12T12:40:00.000Z', valence: 1, arousal: 1, dominance: 1, tension: 1, weight: 1 })
+      expect(suppressed.state.valence).toBe(paused.state.valence)
+      expect(suppressed.state.revision).toBe(paused.state.revision)
+      context.mood.resume('2026-11-12T12:45:00.000Z')
+      const resumed = context.mood.snapshot('2026-11-12T12:45:00.000Z')
       expect(resumed.paused).toBe(false)
       expect(resumed.state.valence).toBe(paused.state.valence)
-      const later = context.mood.snapshot('2026-11-10T12:10:00.000Z')
+      const later = context.mood.snapshot('2026-11-12T12:55:00.000Z')
       expect(later.state.valence).toBeLessThan(resumed.state.valence)
     } finally {
       context.database.close()
@@ -70,6 +74,10 @@ describe('continuous mood layer', () => {
       const earlier = context.mood.snapshot('2026-11-01T00:00:00.000Z')
       expect(Number.isFinite(earlier.state.valence)).toBe(true)
       expect(earlier.state.valence).toBe(atStart.state.valence)
+      const persisted = context.database.connection.prepare('SELECT state_json, last_advanced_at FROM morrow_mood_state WHERE id = 1').get() as { state_json: string; last_advanced_at: string }
+      const state = JSON.parse(persisted.state_json) as { evaluatedAt: string }
+      expect(Date.parse(state.evaluatedAt)).toBeGreaterThanOrEqual(Date.parse(start))
+      expect(Date.parse(persisted.last_advanced_at)).toBeGreaterThanOrEqual(Date.parse(start))
     } finally {
       context.database.close()
     }

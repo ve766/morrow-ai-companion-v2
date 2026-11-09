@@ -20,9 +20,11 @@ export interface ThoughtEvidence {
   kind: 'turn' | 'reflection'
   ref: string
   /** Provenance for independence accounting; absent means a raw turn ref. */
-  derivationKind?: 'raw' | 'summary' | 'assistant_paraphrase' | 'derived' | 'duplicate'
+  derivationKind?: 'raw' | 'summary' | 'assistant_paraphrase' | 'derived' | 'duplicate' | 'reflection'
   origin?: 'morrow' | 'user' | 'shared' | 'system'
   parentEvidenceIds?: string[]
+  /** Synthetic discovery/reflection refs carry no real conversation IDs. */
+  synthetic?: true
 }
 
 export interface MorrowThought {
@@ -120,6 +122,7 @@ function independentContexts(refs: ThoughtEvidence[]): number {
   // independent context. A concrete parent lineage wins when present.
   const parentIds = new Set(refs.flatMap((ref) => ref.parentEvidenceIds ?? []))
   return new Set(refs
+    .filter((ref) => ref.synthetic !== true)
     .filter((ref) => ref.derivationKind !== 'summary' && ref.derivationKind !== 'assistant_paraphrase' && ref.derivationKind !== 'duplicate')
     .filter((ref) => !parentIds.has(ref.messageId))
     .map((ref) => ref.conversationId)).size
@@ -310,12 +313,19 @@ export class InnerCognitionService {
       0.30 * informationGap + 0.20 * goalStall + 0.20 * interestRelevance + 0.15 * reflectionNovelty - 0.25 * repeatPenalty - 0.10 * 0.2 + moodBoost
     ))
     const evidence: ThoughtEvidence = {
-      turnId: this.makeId().toLowerCase(),
-      conversationId: this.makeId().toLowerCase(),
-      messageId: this.makeId().toLowerCase(),
+      // Synthetic discovery has no real turn/conversation/message source. Empty
+      // IDs plus synthetic=true are excluded from independent-context counting;
+      // they are never allowed to look like a real conversation.
+      turnId: '',
+      conversationId: '',
+      messageId: '',
       occurredAt: at,
       kind: 'reflection',
-      ref: sourceRef.slice(0, 80)
+      ref: sourceRef.slice(0, 80),
+      synthetic: true,
+      origin: 'morrow',
+      derivationKind: 'reflection',
+      parentEvidenceIds: []
     }
     const thought: MorrowThought = {
       id: this.makeId().toLowerCase(),
@@ -371,6 +381,25 @@ export class InnerCognitionService {
     const counter = [...thought.counterEvidenceRefs, evidence].filter((ref, index, all) => all.findIndex((candidate) => candidate.turnId === ref.turnId && candidate.messageId === ref.messageId) === index)
     this.repository.updateThoughtEvidence?.(thoughtId, JSON.stringify(thought.evidenceRefs), JSON.stringify(counter), at)
     return this.reviewThought(thoughtId, at)
+  }
+
+  /** Conversation deletion invalidates thoughts and states whose evidence cites it. */
+  deleteConversation(conversationId: string): number {
+    const id = conversationId.toLowerCase()
+    return this.repository.transaction ? this.repository.transaction(() => this.deleteConversationInTransaction(id)) : this.deleteConversationInTransaction(id)
+  }
+
+  private deleteConversationInTransaction(id: string): number {
+    const thoughts = this.repository.allThoughts().filter((thought) => thought.evidenceRefs.some((ref) => ref.conversationId === id))
+    const states = this.repository.allStates().filter((state) => state.evidenceRefs.some((ref) => ref.conversationId === id) || state.counterEvidenceRefs.some((ref) => ref.conversationId === id))
+    const database = (this.repository as unknown as { database?: import('../persistence/database').SqliteDatabase }).database
+    if (!database) return 0
+    let removed = 0
+    for (const thought of thoughts) removed += Number(database.connection.prepare('DELETE FROM morrow_thoughts WHERE id = ?').run(thought.id).changes)
+    for (const state of states) {
+      removed += Number(database.connection.prepare("UPDATE morrow_self_states SET status = 'retracted', updated_at = ? WHERE id = ?").run(this.safeTimestamp(this.clock()), state.id).changes)
+    }
+    return removed
   }
 
   listThoughts(limit = 20): MorrowThought[] { return this.repository.allThoughts().slice(0, limit) }
