@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SqliteDatabase } from '../persistence/database'
 import { EventLogService } from '../persistence/event-log'
-import { ReflectionStateGate } from './reflection-state-gate'
+import { ReflectionStateGate, type ReflectionStateFinding } from './reflection-state-gate'
 import { InnerCognitionService, SqliteInnerCognitionRepository } from './inner-cognition'
 
 const directories: string[] = []
@@ -17,32 +17,51 @@ function setup() {
   const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
   const events = new EventLogService(database)
   const gate = new ReflectionStateGate(database, () => at, () => randomUUID(), events)
-  return { directory, database, events, gate }
+  const seedRoot = (label = 'test-gap'): string => events.recordDeterministic(`test-gap:${label}:${randomUUID()}`, {
+    sourceModule: 'cognition',
+    eventType: 'cognition.knowledge_gap',
+    actor: 'system',
+    subjectType: 'interest',
+    subjectId: label.slice(0, 64),
+    correlationId: null,
+    payload: { label: label.slice(0, 64), owner: 'morrow' }
+  }).event.id
+  const finding = (kind = 'memory_gap', confidence = 60, statement = '多次用户纠正提示：在相关话题上应降低断言置信度。', rootId?: string): ReflectionStateFinding => {
+    const root = rootId ?? seedRoot()
+    const runId = randomUUID()
+    const findingId = randomUUID()
+    database.connection.prepare(`
+      INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status)
+      VALUES (?, 'manual', ?, ?, 0, 1, 1, 'completed')
+    `).run(runId, at, at)
+    database.connection.prepare(`
+      INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(findingId, runId, kind, statement, confidence, JSON.stringify([{ kind: 'event', id: root }]), at)
+    return { findingId, runId, kind, statement, confidence, createdAt: at }
+  }
+  return { directory, database, events, gate, finding, seedRoot }
 }
 
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-function finding(kind = 'memory_gap', confidence = 60, statement = '多次用户纠正提示：在相关话题上应降低断言置信度。') {
-  return { findingId: randomUUID(), runId: randomUUID(), kind, statement, confidence, createdAt: at }
-}
-
 describe('reflection finding -> self-state evidence gate', () => {
-  it('creates a candidate from one run and promotes after two independent runs', () => {
+  it('creates a candidate from one root and promotes after two independent roots', () => {
     const context = setup()
     try {
-      const first = finding()
+      const first = context.finding()
       expect(context.gate.ingestInTransaction(first)).toBe('candidate')
-      const second = finding()
+      const second = context.finding()
       expect(context.gate.ingestInTransaction(second)).toBe('promoted')
       const row = context.database.connection.prepare(
         "SELECT * FROM morrow_self_states WHERE actor = 'morrow' AND status = 'active' ORDER BY revision DESC LIMIT 1"
       ).get() as Record<string, unknown>
       expect(row.independent_contexts).toBe(2)
       expect(row.revision).toBe(2)
-      const refs = JSON.parse(String(row.evidence_json)) as Array<{ runId: string }>
-      expect(new Set(refs.map((ref) => ref.runId)).size).toBe(2)
+      const refs = JSON.parse(String(row.evidence_json)) as Array<{ rootSourceId: string }>
+      expect(new Set(refs.map((ref) => ref.rootSourceId)).size).toBe(2)
       const inner = new InnerCognitionService(new SqliteInnerCognitionRepository(context.database), context.events, () => at)
       expect(inner.contextBlock('用户纠正')).toContain('多次用户纠正')
       expect(inner.contextBlock('烘焙面包的温度')).toBe('')
@@ -54,12 +73,12 @@ describe('reflection finding -> self-state evidence gate', () => {
   it('collapses many findings from the same root source into one independent root', () => {
     const context = setup()
     try {
-      const root = randomUUID()
+      const root = context.seedRoot('same-root')
       for (let index = 0; index < 100; index += 1) {
-        context.gate.ingestInTransaction({ ...finding(), rootSourceId: root, correlationGroupId: root })
+        expect(context.gate.ingestInTransaction(context.finding('memory_gap', 60, undefined, root))).toBe('candidate')
       }
       const row = context.database.connection.prepare(
-        "SELECT * FROM morrow_self_states ORDER BY revision DESC LIMIT 1"
+        'SELECT * FROM morrow_self_states ORDER BY revision DESC LIMIT 1'
       ).get() as Record<string, unknown>
       expect(row.independent_contexts).toBe(1)
       expect(row.status).toBe('candidate')
@@ -68,10 +87,24 @@ describe('reflection finding -> self-state evidence gate', () => {
     }
   })
 
+  it('rejects findings whose root cannot be resolved in the source journal', () => {
+    const context = setup()
+    try {
+      const forged: ReflectionStateFinding = {
+        findingId: randomUUID(), runId: randomUUID(), kind: 'memory_gap', confidence: 90,
+        statement: '伪造来源', createdAt: at, rootSourceId: randomUUID()
+      }
+      expect(context.gate.ingestInTransaction(forged)).toBe('rejected')
+      expect(context.database.connection.prepare('SELECT COUNT(*) AS count FROM morrow_self_states').get()?.count).toBe(0)
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('is idempotent per finding and records one decision event', () => {
     const context = setup()
     try {
-      const item = finding()
+      const item = context.finding()
       expect(context.gate.ingestInTransaction(item)).toBe('candidate')
       expect(context.gate.ingestInTransaction(item)).toBe('candidate')
       const count = context.database.connection.prepare(
@@ -89,9 +122,9 @@ describe('reflection finding -> self-state evidence gate', () => {
     const context = setup()
     try {
       const statement = '多次交互被用户纠正；近期回答应更直接地承认不确定性。'
-      expect(context.gate.ingestInTransaction(finding('memory_gap', 65, statement))).toBe('candidate')
-      expect(context.gate.ingestInTransaction(finding('memory_gap', 65, statement))).toBe('promoted')
-      expect(context.gate.ingestInTransaction(finding('bias_hint', 65, statement))).toBe('weakened')
+      expect(context.gate.ingestInTransaction(context.finding('memory_gap', 65, statement))).toBe('candidate')
+      expect(context.gate.ingestInTransaction(context.finding('memory_gap', 65, statement))).toBe('promoted')
+      expect(context.gate.ingestInTransaction(context.finding('bias_hint', 65, statement))).toBe('weakened')
       const row = context.database.connection.prepare(
         "SELECT * FROM morrow_self_states WHERE status = 'weakened' ORDER BY revision DESC LIMIT 1"
       ).get() as Record<string, unknown>
@@ -104,8 +137,8 @@ describe('reflection finding -> self-state evidence gate', () => {
   it('rejects low-confidence and ineligible findings without creating a state', () => {
     const context = setup()
     try {
-      expect(context.gate.ingestInTransaction(finding('next_turn_suggestion', 80))).toBe('rejected')
-      expect(context.gate.ingestInTransaction(finding('memory_gap', 20))).toBe('rejected')
+      expect(context.gate.ingestInTransaction(context.finding('next_turn_suggestion', 80))).toBe('rejected')
+      expect(context.gate.ingestInTransaction(context.finding('memory_gap', 20))).toBe('rejected')
       const count = context.database.connection.prepare('SELECT COUNT(*) AS count FROM morrow_self_states').get() as { count: number }
       expect(count.count).toBe(0)
     } finally {

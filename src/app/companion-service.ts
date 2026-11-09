@@ -2199,6 +2199,11 @@ export class ChatService {
       this.recordDegradation('affect_delete_conversation', normalized)
     }
     try {
+      this.selfModel?.innerCognition?.deleteConversation(normalized)
+    } catch {
+      this.recordDegradation('inner_cognition_delete_conversation', normalized)
+    }
+    try {
       this.continuity?.states?.deleteTraceForConversation?.(normalized)
     } catch {
       // Cleanup is best effort; a stale trace row must not block deletion.

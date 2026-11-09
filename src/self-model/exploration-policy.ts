@@ -72,7 +72,10 @@ export function decideExploration(input: ExplorationInput): ExplorationDecision 
   // Only a topic Morrow owns may be raised as hers. A user interest is not
   // eligible no matter how strong it is: "the user talks about X" is not
   // "Morrow wants to talk about X".
-  const owned = input.interests.filter((interest) => interest.origin === 'morrow' || interest.origin === 'shared')
+  // Shared interests are discovery clues only; they cannot be raised as
+  // Morrow's own topic or become a Morrow-owned trait without later independent
+  // Morrow choice/evidence.
+  const owned = input.interests.filter((interest) => interest.origin === 'morrow')
   const eligible = owned.filter((interest) =>
     interest.status === 'active' &&
     interest.evidenceCount >= EXPLORATION_MIN_EVIDENCE &&

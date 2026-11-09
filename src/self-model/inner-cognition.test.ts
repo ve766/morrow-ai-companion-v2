@@ -65,6 +65,31 @@ describe('inner cognition workspace', () => {
     } finally { database.close() }
   })
 
+  it('does not let a synthetic discovery count as an independent real context', () => {
+    const { database, service } = setup()
+    try {
+      const at = '2026-11-08T10:00:00.000Z'
+      const synthetic = service.synthesizeFromContext({ at, interests: [{ label: '蛋白质折叠', origin: 'morrow', strength: 0.8, status: 'active' }] })!
+      expect(synthetic.evidenceRefs.every((ref) => ref.synthetic === true && ref.conversationId === '' && ref.messageId === '')).toBe(true)
+      service.observeTurn({ turnId: randomUUID(), conversationId: randomUUID(), userMessageId: randomUUID(), occurredAt: '2026-11-08T10:05:00.000Z', content: '蛋白质折叠我还不确定。', reply: '我不确定。' })
+      const states = service.listStates()
+      expect(states.some((state) => state.status === 'active')).toBe(false)
+      expect(states.every((state) => state.independentContexts <= 1)).toBe(true)
+    } finally { database.close() }
+  })
+
+  it('invalidates thoughts and states when their source conversation is deleted', () => {
+    const { database, service } = setup()
+    try {
+      const conversationId = randomUUID()
+      service.observeTurn({ turnId: randomUUID(), conversationId, userMessageId: randomUUID(), occurredAt: '2026-11-08T10:00:00.000Z', content: '你知道我怎么想吗？', reply: '我不知道。' })
+      expect(service.listThoughts().length).toBe(1)
+      expect(service.deleteConversation(conversationId)).toBeGreaterThan(0)
+      expect(service.listThoughts().length).toBe(0)
+      expect(service.listStates().every((state) => state.status === 'retracted')).toBe(true)
+    } finally { database.close() }
+  })
+
   it('does not activate a thought with counter-evidence', () => {
     const { database, service } = setup()
     try {

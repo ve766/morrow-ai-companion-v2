@@ -89,6 +89,26 @@ export class ReflectionStateGate {
     private readonly events?: EventLogService
   ) {}
 
+  /** Resolve one persisted source id to an owner; unknown ids fail closed. */
+  private resolveOwner(id: string): { owner: 'user' | 'morrow' | 'shared' | 'system'; rootSourceId: string } | null {
+    try {
+      const event = this.database.connection.prepare(
+        'SELECT event_type, actor, source_module FROM event_journal WHERE id = ?'
+      ).get(id) as { event_type: string; actor: string; source_module: string } | undefined
+      if (event) {
+        const morrowOwned = event.event_type === 'cognition.knowledge_gap' || event.event_type.startsWith('inner.thought.')
+        if (morrowOwned) return { owner: 'morrow', rootSourceId: id }
+        if (event.actor === 'user' || event.source_module === 'memory') return { owner: 'user', rootSourceId: id }
+        return { owner: 'system', rootSourceId: id }
+      }
+      if (this.database.connection.prepare('SELECT 1 AS present FROM memories WHERE id = ?').get(id)) return { owner: 'user', rootSourceId: id }
+      if (this.database.connection.prepare('SELECT 1 AS present FROM self_model_entries WHERE id = ?').get(id)) return { owner: 'system', rootSourceId: id }
+      return null
+    } catch {
+      return null
+    }
+  }
+
   /** Must be called inside the router's transaction. */
   ingestInTransaction(finding: ReflectionStateFinding): ReflectionStateDecision {
     if (!ELIGIBLE.has(finding.kind) || finding.confidence < 40) {
@@ -113,10 +133,19 @@ export class ReflectionStateGate {
     } catch {
       rawRefs = []
     }
-    const rawIds = rawRefs.map((ref) => typeof ref.id === 'string' ? ref.id : null).filter((id): id is string => Boolean(id))
-    const rootSourceId = finding.rootSourceId ?? rawIds[0] ?? finding.findingId
+    const rawIds = [...new Set(rawRefs.map((ref) => typeof ref.id === 'string' ? ref.id : null).filter((id): id is string => Boolean(id)))]
+    // Fail closed: a finding without resolvable source rows is legacy_unverified
+    // and cannot become a Morrow-owned self-state. This is the difference
+    // between a real source record and a caller-supplied id.
+    const resolved = rawIds.map((id) => this.resolveOwner(id))
+    const unresolved = resolved.some((entry) => entry === null)
+    const owner = resolved.length > 0 && !unresolved ? resolved[0]!.owner : 'system'
+    if (rawIds.length === 0 || unresolved || owner !== 'morrow' || (finding.owner !== undefined && finding.owner !== 'morrow') || (finding.rootSourceId !== undefined && !rawIds.includes(finding.rootSourceId))) {
+      this.recordDecision(finding, 'rejected', rawIds.length === 0 ? 'legacy_unverified' : 'ownership_or_provenance_rejected', 0, 0)
+      return 'rejected'
+    }
+    const rootSourceId = finding.rootSourceId ?? resolved[0]!.rootSourceId
     const correlationGroupId = finding.correlationGroupId ?? rootSourceId
-    const owner = finding.owner ?? 'morrow'
     const newRef: LineageRef = {
       findingId: finding.findingId,
       runId: finding.runId,

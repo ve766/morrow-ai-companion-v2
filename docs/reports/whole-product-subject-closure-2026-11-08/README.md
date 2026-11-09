@@ -1,4 +1,22 @@
-# Morrow V2 全项目修复与可运行交付（Issue #74）
+# Morrow V2 全项目交付（Issue #76 / #78 最终审计整改）
+
+- Issue #78：https://github.com/ve766/morrow-ai-companion-v2/issues/78
+- 分支：`fix/audit-driven-companion-remediation-20261109`（从 PR #77 HEAD `1b7ba08` 建立）
+- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/PR_NUMBER_PLACEHOLDER（Draft，stacked on #77，base `fix/core-subjectivity-final-closure-20261109`）
+- 状态：**PARTIAL**
+- 最新报告：`15-audit-driven-remediation.md`、`16-evidence-lineage-deletion-and-recovery.md`、`17-mood-personality-exploration.md`、`18-memory-provider-ui-windows-validation.md`、`19-acceptance-matrix.json`、`20-machine-results.json`、`21-known-limitations.md`
+
+## Issue #78 实际修复
+
+- Reflection gate 改为 fail-closed：从持久化 finding evidence 解析 root/owner，未知/伪造/非 Morrow 来源拒绝；独立数按 root/correlation cluster，不按 runId。
+- Synthetic thought 不再伪造 conversation/turn/message UUID；synthetic refs 不计独立 context、不产生 reward；Shared/User interest 不生成 Morrow thought，X1 shared 排除。
+- Conversation deletion 删除相关 thoughts、retract 相关 states；affect/trait 删除已有路径；reflection/mood 全量重建仍 PARTIAL。
+- Mood：pause 前结算衰减；paused 自动事件抑制；persisted evaluatedAt/lastAdvancedAt 单调；重复 pause/resume、重启、时钟回拨测试。
+- 未修复：P0-D inner cognition durable outbox、P1-B G1/G2 分离、P1-C 完整 investigation、P1-D memory benchmark、P1-E installer install verification。
+
+旧 Issue #76/PR #77 的交付说明保留在下方历史段落。
+
+# 历史：Issue #74 / PR #75 交付
 
 - Issue：https://github.com/ve766/morrow-ai-companion-v2/issues/74
 - 实现分支：`fix/whole-product-subject-closure-20261108`
@@ -25,7 +43,7 @@
 ## 验证（同一最终代码）
 
 - `npm run typecheck` PASS
-- `npm test` PASS：149 files / 1256 tests
+- `npm test` PASS：149 files / 1259 tests
 - `npm run build` PASS
 - `npm run smoke:chat-ui` PASS（真实 Electron + loopback SSE + 持久化）
 - `npm run smoke:product-path` PASS（Provider profile/OS 密钥/重启/隔离 profile）
