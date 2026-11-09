@@ -1,4 +1,4 @@
-import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, PendingDecisionResult, ProviderGetRequest } from '../shared/contracts'
+import type { AffectRegulateRequest, AffectStateView, AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, ConsentGrantRevokeRequest, ConsentGrantView, IpcErrorCode, IpcResult, PendingDecisionResult, ProviderGetRequest } from '../shared/contracts'
 import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
@@ -53,6 +53,8 @@ import {
   parseMemoryProposalRequest,
   parseMemorySuggestionReviewRequest,
   parseCognitiveSettingsRequest,
+  parseAffectRegulateRequest,
+  parseConsentGrantRevokeRequest,
   parseInterestIdRequest,
   parseInterestStatusRequest,
   parseSelfModelListRequest,
@@ -97,6 +99,8 @@ export interface CompanionActions {
   deleteProfile?(request: import('../shared/companion').ProviderProfileIdRequest): void
   setDefaultProfile?(request: import('../shared/companion').ProviderProfileIdRequest): ProviderConfigRecord
   discoverModels?(request: import('../shared/companion').ProviderModelsRequest): Promise<import('../shared/companion').ProviderModelsResult>
+  listConsentGrants?(): ConsentGrantView[]
+  revokeConsentGrant?(request: ConsentGrantRevokeRequest): boolean
   createConversation(): ConversationRecord
   listConversations(): ConversationRecord[]
   readConversation(request: { conversationId: string }): ConversationWithMessages
@@ -111,6 +115,11 @@ export interface CompanionActions {
   saveCognitiveSettings(request: CognitiveSettingsRequest): CognitiveCoreSettings
   getFeelingState(): FeelingStateView
   clearCognitiveHistory(): FeelingStateView
+  getAffectState?(): AffectStateView
+  regulateAffect?(request: AffectRegulateRequest): AffectStateView
+  clearAffect?(): AffectStateView
+  pauseAffectMood?(): AffectStateView
+  resumeAffectMood?(): AffectStateView
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult>
   getTurnTrace(conversationId: string, limit?: number): import('../cognition/turn-state-machine').TurnTraceRecord[]
   cancelChat(request: { conversationId: string }): boolean
@@ -229,6 +238,10 @@ async function execute<T, P>(
   }
 }
 
+function unavailableAffectState(): AffectStateView {
+  return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [], mood: { available: false, paused: false, lastAdvancedAt: new Date(0).toISOString(), valence: 0, arousal: 0, dominance: 0, tension: 0, revision: 0, evaluatedAt: new Date(0).toISOString() } }
+}
+
 export function createIpcHandlers(
   appInfo: AppInfoProvider,
   trustedRendererUrl: string,
@@ -317,6 +330,13 @@ export function createIpcHandlers(
       [IPC_CHANNELS.cognitiveSettingsSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseCognitiveSettingsRequest, (request) => companion.saveCognitiveSettings(request)),
       [IPC_CHANNELS.cognitiveFeelingSnapshot]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getFeelingState()),
       [IPC_CHANNELS.cognitiveClearHistory]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.clearCognitiveHistory()),
+    [IPC_CHANNELS.affectStateGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getAffectState?.() ?? unavailableAffectState()),
+    [IPC_CHANNELS.affectRegulate]: (event, payload) => execute(event, trustedRendererUrl, payload, parseAffectRegulateRequest, (request) => companion.regulateAffect?.(request) ?? unavailableAffectState()),
+    [IPC_CHANNELS.affectClear]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.clearAffect?.() ?? unavailableAffectState()),
+    [IPC_CHANNELS.affectMoodPause]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.pauseAffectMood?.() ?? unavailableAffectState()),
+    [IPC_CHANNELS.affectMoodResume]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.resumeAffectMood?.() ?? unavailableAffectState()),
+    [IPC_CHANNELS.consentGrantsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listConsentGrants?.() ?? []),
+    [IPC_CHANNELS.consentGrantRevoke]: (event, payload) => execute(event, trustedRendererUrl, payload, parseConsentGrantRevokeRequest, (request) => companion.revokeConsentGrant?.(request) ?? false),
       [IPC_CHANNELS.chatSend]: (event, payload) => execute(event, trustedRendererUrl, payload, parseChatRequest, (request) => companion.sendChat(request, (delta) => {
         const streamEvent: ChatStreamEvent = { conversationId: request.conversationId, requestId: request.requestId, delta }
         event.sender.send?.(IPC_CHANNELS.chatDelta, streamEvent)

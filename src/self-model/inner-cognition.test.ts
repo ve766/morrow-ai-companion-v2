@@ -48,6 +48,21 @@ describe('inner cognition workspace', () => {
     } finally { database.close() }
   })
 
+  it('synthesizes a Morrow-owned question from its own interest, ignores user origin, and dedupes repeats', () => {
+    const { database, service } = setup()
+    try {
+      const at = '2026-11-08T10:00:00.000Z'
+      const userOnly = service.synthesizeFromContext({ at, interests: [{ label: '用户喜欢的话题', origin: 'user', strength: 1, status: 'active' }] })
+      expect(userOnly).toBeNull()
+      const first = service.synthesizeFromContext({ at, interests: [{ label: '蛋白质折叠', origin: 'morrow', strength: 0.8, status: 'active' }] })
+      expect(first).toMatchObject({ actor: 'morrow', trigger: 'morrow_interest', status: 'open' })
+      expect(first!.question).toContain('蛋白质折叠')
+      const repeat = service.synthesizeFromContext({ at: '2026-11-08T10:05:00.000Z', interests: [{ label: '蛋白质折叠', origin: 'morrow', strength: 0.8, status: 'active' }] })
+      expect(repeat).toBeNull()
+      expect(service.listThoughts()).toHaveLength(1)
+    } finally { database.close() }
+  })
+
   it('does not activate a thought with counter-evidence', () => {
     const { database, service } = setup()
     try {
@@ -60,6 +75,38 @@ describe('inner cognition workspace', () => {
       const state = service.reviewDue('2026-11-08T12:00:00.000Z', 3)
       expect(state.length).toBeGreaterThanOrEqual(0)
       expect(before.status).toBe('candidate')
+    } finally { database.close() }
+  })
+})
+
+describe('inner cognition evidence and relevance', () => {
+  it('creates a thought from prediction error even without an "I do not know" phrase', () => {
+    const { database, service } = setup()
+    try {
+      const thought = service.observeTurn({ turnId: randomUUID(), conversationId: randomUUID(), userMessageId: randomUUID(), occurredAt: '2026-11-08T10:00:00.000Z', content: '你刚才说错了。', reply: '我会修正。', predictionError: true })
+      expect(thought).toMatchObject({ actor: 'morrow', trigger: 'prediction_error' })
+    } finally { database.close() }
+  })
+
+  it('filters unrelated self-state out of the next-turn context', () => {
+    const { database, service } = setup()
+    try {
+      service.observeTurn({ turnId: randomUUID(), conversationId: 'conversation-e', userMessageId: randomUUID(), occurredAt: '2026-11-08T10:00:00.000Z', content: '你知道我昨天做了什么梦吗？', reply: '我不知道。' })
+      expect(service.contextBlock('今天天气怎么样？')).toBe('')
+      expect(service.contextBlock('你知道我昨天做了什么梦吗？')).toContain('Morrow-owned')
+    } finally { database.close() }
+  })
+
+  it('lets counter-evidence weaken an active state and keeps the revision', () => {
+    const { database, service } = setup()
+    try {
+      const content = '你知道我昨天做了什么梦吗？'
+      service.observeTurn({ turnId: randomUUID(), conversationId: 'conversation-f', userMessageId: randomUUID(), occurredAt: '2026-11-08T10:00:00.000Z', content, reply: '我不知道。' })
+      service.observeTurn({ turnId: randomUUID(), conversationId: 'conversation-g', userMessageId: randomUUID(), occurredAt: '2026-11-08T10:01:00.000Z', content, reply: '我不确定。' })
+      const thought = service.listThoughts()[0]!
+      const weakened = service.addCounterEvidence(thought.id, { turnId: randomUUID(), conversationId: 'conversation-h', messageId: randomUUID(), occurredAt: '2026-11-08T10:02:00.000Z', kind: 'reflection', ref: 'counter-1' })
+      expect(weakened?.status).toBe('weakened')
+      expect(weakened?.revision).toBeGreaterThanOrEqual(2)
     } finally { database.close() }
   })
 })

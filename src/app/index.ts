@@ -6,6 +6,7 @@ import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPrevie
 import type { ApprovalChallenge } from '../motivation/goals'
 import type { ProviderConsent, ProviderConsentPreview } from '../providers/provider-policy'
 import { presentProviderConsent } from '../providers/consent-presentation'
+import { ConsentGrantService, SqliteConsentGrantRepository, consentScopeForPreview, consentScopeFingerprint } from '../providers/consent-grants'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
 import { ARCHIVE_THRESHOLD } from '../memory/memory-importance'
@@ -24,6 +25,7 @@ import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
 import { PersonalizationService } from '../personalization/personalization-service'
 import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { AffectLoopService } from '../affective-state/affect-loop'
 import { composeStartupReflectionServices, runStartupReflection } from './startup-composition'
 import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
@@ -49,6 +51,7 @@ if (acceptanceUserData) {
 
 const logger = createLogger({ minimumLevel: 'info' })
 
+let consentGrants: ConsentGrantService | undefined
 let mainWindow: BrowserWindow | undefined
 let windowLifecycle = new WindowLifecycle()
 let unregisterIpc: (() => void) | undefined
@@ -107,6 +110,22 @@ function getAppInfo(): AppInfo {
 async function requestProviderConsent(preview: ProviderConsentPreview): Promise<ProviderConsent | undefined> {
   const window = mainWindow
   if (!window || window.isDestroyed()) return undefined
+  logger.info('app', 'provider consent requested', { action: preview.action, sensitivity: preview.maximumSensitivity, auto: process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' })
+  // Acceptance-only bypass for the automated UI smoke. It is never enabled by
+  // the product; sensitive payloads still use the real dialog.
+  if (!app.isPackaged && process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' && preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive') {
+    const approvedAt = new Date().toISOString()
+    return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Date.now() + 120_000).toISOString(), includeSensitive: false }
+  }
+  const scope = consentScopeForPreview(preview)
+  if (preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive' && consentGrants) {
+    const grant = consentGrants.find(scope)
+    logger.info('app', 'provider consent scope', { action: preview.action, sensitivity: preview.maximumSensitivity, scope: consentScopeFingerprint(scope).slice(0, 12), grant: Boolean(grant) })
+    if (grant) {
+      const approvedAt = new Date().toISOString()
+      return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Math.min(Date.parse(grant.expiresAt), Date.now() + 120_000)).toISOString(), includeSensitive: false }
+    }
+  }
   const presentation = presentProviderConsent(preview)
   const sensitivityLabel = preview.maximumSensitivity === 'sensitive'
     ? '敏感（仅在本次明确确认后发送）'
@@ -131,18 +150,26 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
     `已选记忆：\n${memories}`,
     `精确请求正文：\n${preview.exactPayload}`
   ].join('\n\n')
+  const canRemember = preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive'
+  const buttons = canRemember ? ['取消', '仅本次', '记住 30 天'] : ['取消', '允许本次发送']
   const result = await dialog.showMessageBox(window, {
     type: preview.maximumSensitivity === 'sensitive' || presentation.warning ? 'warning' : 'question',
     title: presentation.title,
     message: presentation.message,
-    detail,
-    buttons: ['取消', '允许并发送'],
-    defaultId: 0,
+    detail: canRemember
+      ? `${detail}
+
+“仅本次”只批准当前请求；“记住 30 天”只记住当前 Provider/端点/模型/敏感级别范围，不保存正文或密钥。`
+      : detail,
+    buttons,
+    defaultId: canRemember ? 1 : 0,
     cancelId: 0,
     noLink: true
   })
-  if (result.response !== 1) return undefined
+  if (result.response <= 0) return undefined
   const approvedAt = new Date().toISOString()
+  if (canRemember && result.response === 2) consentGrants?.grant(scope)
+  logger.info('app', 'provider consent decision', { action: preview.action, sensitivity: preview.maximumSensitivity, remember: canRemember && result.response === 2 })
   return {
     providerId: preview.providerId,
     payloadSha256: preview.payloadSha256,
@@ -276,7 +303,15 @@ if (hasSingleInstanceLock) {
     )
     const databasePath = join(app.getPath('userData'), 'morrow.sqlite3')
     database = SqliteDatabase.open(databasePath)
+    consentGrants = new ConsentGrantService(new SqliteConsentGrantRepository(database))
     eventLog = new EventLogService(database)
+    // Issue #72: one affect authority owns emotion events, Morrow traits and
+    // verified intrinsic reward signals. It is created before the chat service
+    // so the same instance is used by the turn path and the review scheduler.
+    const affect = new AffectLoopService(database, () => new Date().toISOString(), () => globalThis.crypto.randomUUID(), eventLog)
+    // Trait revisions are a cache over observations. Rebuild them at startup so
+    // a message deletion that cascaded observations cannot leave a stale trait.
+    try { affect.traits.recomputeAll() } catch { logger.warn('cognition', 'trait projection rebuild failed; chat is unaffected') }
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
     // Issue #43: the reflection dependency graph is composed by the same
     // production function the startup integration test calls. This is the real
@@ -355,7 +390,8 @@ if (hasSingleInstanceLock) {
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships },
+      consentGrants,
+      selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships, affect },
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,
@@ -404,7 +440,24 @@ if (hasSingleInstanceLock) {
     }
     companionService = companion
     innerCognitionTimer = setInterval(() => {
-      try { innerCognition.reviewDue(new Date().toISOString(), 3) } catch { logger.warn('cognition', 'inner cognition review failed; normal chat is unaffected') }
+      try {
+        const now = new Date().toISOString()
+        const latestReflection = reflection.listRuns(1)[0]
+        const reflectionFindings = latestReflection
+          ? reflection.findings(latestReflection.id).map((finding) => ({ statement: finding.statement, kind: finding.kind, runId: latestReflection.id, createdAt: finding.createdAt }))
+          : []
+        innerCognition.synthesizeFromContext({
+          at: now,
+          interests: interests.activeForContext(6).map((interest) => ({ label: interest.label, origin: interest.origin, strength: interest.strength, status: interest.status })),
+          reflectionFindings
+        })
+        const reviewed = innerCognition.reviewDue(now, 3)
+        // A promoted thought is verified Morrow-owned progress. The reward
+        // ledger records it; user praise never reaches this path.
+        affect.observeThoughtReviews(reviewed)
+      } catch {
+        logger.warn('cognition', 'inner cognition review failed; normal chat is unaffected')
+      }
     }, 5 * 60 * 1000)
     const goalRepository = new SqliteGoalRepository(database)
     const reminders = new ReminderService(

@@ -1,0 +1,46 @@
+
+> morrow-ai-companion-v2@2.0.0 eval:affect
+> node node_modules/esbuild/bin/esbuild evals/affect-integration/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/affect-eval.cjs --log-level=warning && node node_modules/.cache/affect-eval.cjs
+
+{
+  "issue": 72,
+  "measuredAt": "2026-11-08T10:14:49.245Z",
+  "environment": {
+    "node": "v22.23.2",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "units": "milliseconds",
+  "appraisal": {
+    "count": 500,
+    "p50Ms": 0.013,
+    "p95Ms": 0.038,
+    "meanMs": 0.026,
+    "maxMs": 2.719
+  },
+  "emotionProjection": {
+    "count": 300,
+    "p50Ms": 0.047,
+    "p95Ms": 0.13,
+    "meanMs": 0.097,
+    "maxMs": 10.905
+  },
+  "traitFold": {
+    "count": 100,
+    "p50Ms": 0.114,
+    "p95Ms": 0.548,
+    "meanMs": 0.161,
+    "maxMs": 1.073
+  },
+  "traitWrite": {
+    "count": 200,
+    "p50Ms": 6.271,
+    "p95Ms": 12.001,
+    "meanMs": 6.885,
+    "maxMs": 24.549
+  },
+  "note": "Local deterministic functions and SQLite; no provider call, no network."
+}
+(node:24560) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+AFFECT_EVAL=0

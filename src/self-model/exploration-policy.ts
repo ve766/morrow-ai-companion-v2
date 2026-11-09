@@ -39,6 +39,8 @@ export interface ExplorationInput {
   turn: { intent: string; uncertainty: string; correction: boolean; directRequest?: boolean } | null
   /** Topics already used in the current conversation, to avoid repetition. */
   recentlyUsed?: readonly string[]
+  /** Bounded affect bias from the current emotion projection, ±0.12. */
+  affectBias?: { bias: number; topicTags?: readonly string[] } | undefined
 }
 
 export interface ExplorationDecision {
@@ -55,6 +57,8 @@ export interface ExplorationDecision {
     | 'allowed'
   interestId: string | null
   label: string | null
+  /** The bounded affect ranking bias applied to this decision. */
+  bias?: number
 }
 
 /**
@@ -105,16 +109,25 @@ export function decideExploration(input: ExplorationInput): ExplorationDecision 
     return { allowed: false, reason: 'already_used', interestId: null, label: null }
   }
 
-  // Highest strength wins; ties break on recency of evidence, then on id so the
-  // choice is deterministic for a fixed input.
+  // Strength remains the evidence gate; affect only reorders eligible topics.
+  // The bias is capped by the caller, so it cannot create a candidate.
+  const bias = Math.min(0.12, Math.max(-0.12, input.affectBias?.bias ?? 0))
+  const affectTags = (input.affectBias?.topicTags ?? []).map((tag) => tag.normalize('NFKC').toLocaleLowerCase())
+  const related = (interest: InterestRecord): boolean => affectTags.length > 0 && (
+    interest.label.normalize('NFKC').toLocaleLowerCase().split(/[\s，。！？、；：,.!?;:()（）[\]"'“”‘’]+/u).some((token) => token.length >= 2 && affectTags.some((tag) => tag.includes(token) || token.includes(tag))) ||
+    interest.terms.some((term) => affectTags.some((tag) => tag.includes(term.normalize('NFKC').toLocaleLowerCase()) || term.normalize('NFKC').toLocaleLowerCase().includes(tag)))
+  )
   const chosen = [...fresh].sort((left, right) => {
+    const adjustedLeft = left.strength + (related(left) ? bias : 0)
+    const adjustedRight = right.strength + (related(right) ? bias : 0)
+    if (adjustedRight !== adjustedLeft) return adjustedRight - adjustedLeft
     if (right.strength !== left.strength) return right.strength - left.strength
     const leftSeen = Date.parse(left.lastSeenAt)
     const rightSeen = Date.parse(right.lastSeenAt)
     if (rightSeen !== leftSeen) return rightSeen - leftSeen
     return left.id.localeCompare(right.id)
   })[0]!
-  return { allowed: true, reason: 'allowed', interestId: chosen.id, label: chosen.label }
+  return { allowed: true, reason: 'allowed', interestId: chosen.id, label: chosen.label, bias }
 }
 
 /** One line for the system prompt, only when a topic was actually permitted. */
@@ -388,7 +401,7 @@ export class ExplorationService {
    * (cooldown, suitability) ahead of the budget so the recorded reason stays
    * truthful.
    */
-  decide(input: { turnId: string; interests: readonly InterestRecord[]; turn: ExplorationInput['turn'] }): ExplorationDecision {
+  decide(input: { turnId: string; interests: readonly InterestRecord[]; turn: ExplorationInput['turn']; affectBias?: { bias: number; topicTags?: readonly string[] } }): ExplorationDecision {
     const recent = this.recent(input.turnId)
     const decision = decideExploration({
       interests: input.interests,
@@ -396,7 +409,8 @@ export class ExplorationService {
       lastRaisedAt: recent.lastRaisedAt,
       raisedLastDay: recent.raisedLastDay,
       turn: input.turn,
-      recentlyUsed: recent.raisedInterestIds
+      recentlyUsed: recent.raisedInterestIds,
+      ...(input.affectBias ? { affectBias: input.affectBias } : {})
     })
     if (!decision.allowed) return decision
 

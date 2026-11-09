@@ -1,0 +1,127 @@
+{
+  "issue": 74,
+  "branch": "fix/whole-product-subject-closure-20261108",
+  "base": {
+    "branch": "fix/morrow-core-cognitive-closure-20261108",
+    "sha": "efdbf52a25e896ee159d296944f019f9b94ab687"
+  },
+  "sourceCommit": "4d463fbc758c9c0b7e99fc9af8c2624664b62df6",
+  "finalHead": "4d463fbc758c9c0b7e99fc9af8c2624664b62df6",
+  "environment": {
+    "os": "win32 10.0.26200 x64",
+    "node": "v22.23.2",
+    "electron": "44.9.3",
+    "electronBuilder": "26.15.3"
+  },
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0,
+      "log": "results/typecheck-round2-final.log"
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "files": 149,
+      "tests": 1254,
+      "log": "results/full-tests-round2-final.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "results/build-round2-final.log"
+    },
+    {
+      "command": "npm run smoke:chat-ui",
+      "exitCode": 0,
+      "log": "results/chat-ui-smoke-round2-final.log"
+    },
+    {
+      "command": "npm run smoke:product-path (portable)",
+      "exitCode": 0,
+      "log": "results/portable-smoke-round2-final.log"
+    },
+    {
+      "command": "npm run eval:affect",
+      "exitCode": 0,
+      "log": "results/eval-affect.log"
+    },
+    {
+      "command": "npm run eval:provider-multi-source",
+      "exitCode": 0,
+      "log": "results/eval-provider-multi-source.log"
+    },
+    {
+      "command": "makensis custom NSIS",
+      "exitCode": 0,
+      "log": "results/custom-nsis-build.log"
+    },
+    {
+      "command": "electron-builder NSIS",
+      "exitCode": 1,
+      "status": "BLOCKED",
+      "log": "results/nsis-package-attempt1.log"
+    }
+  ],
+  "smoke": {
+    "chatUi": {
+      "status": "PASS",
+      "runId": null,
+      "requests": 1,
+      "messages": [
+        "user",
+        "assistant"
+      ]
+    },
+    "productPath": {
+      "status": "PASS",
+      "runId": "20261109T052530Z-71ed544f"
+    },
+    "portable": {
+      "status": "PASS",
+      "runId": "20261109T052530Z-71ed544f"
+    }
+  },
+  "package": {
+    "portableZip": {
+      "path": "release/Morrow-2.0.0-x64-portable.zip",
+      "sha256": "8591f10b630c0766223d0cb598b485ecfea4ff3ea70e58160313122098ca0109",
+      "bytes": 154660976
+    },
+    "portableAsar": {
+      "path": "release/win-unpacked/resources/app.asar",
+      "sha256": "a98ca6dee0e668d92eed2a2cce0346ed431844237841ee1421fbfb357fdbf423",
+      "bytes": 1393038
+    },
+    "customNsis": {
+      "path": "release/Morrow-2.0.0-x64-custom-setup.exe",
+      "sha256": "dd7a2f895c23bc5805264705aeb3a37b6500046bc2a060abfcfca47c3f9b8184",
+      "bytes": 158382905,
+      "status": "BUILT_NOT_INSTALL_VERIFIED",
+      "reason": "PE/Nullsoft header valid; silent install exited 2 in this environment; not used on user data"
+    },
+    "electronBuilderNsis": {
+      "status": "BLOCKED",
+      "reason": "HTTP 504 while downloading winCodeSign/electron assets"
+    }
+  },
+  "tests": {
+    "fullSuite": "149 files / 1254 tests PASS",
+    "newRound2": [
+      "reflection-state-gate",
+      "autonomous question synthesis",
+      "evidence derivation lineage",
+      "continuous mood + pause/resume",
+      "packaged consent bypass guard",
+      "mood UI controls"
+    ]
+  },
+  "knownGaps": [
+    "NSIS installer BLOCKED",
+    "real cloud Provider A-K NOT_RUN",
+    "memory benchmark NOT_RUN",
+    "reflection finding->self-state PARTIAL",
+    "mood/pause NOT_IMPLEMENTED",
+    "native consent click PENDING_HUMAN"
+  ]
+}

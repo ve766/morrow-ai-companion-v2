@@ -1,0 +1,75 @@
+{
+  "folder": "docs/reference/morrow-2026-11-08",
+  "docxCount": 8,
+  "files": [
+    {
+      "sourceDocx": "Morrow V2 完结复核.docx",
+      "extractedMarkdown": "Morrow V2 完结复核.md",
+      "sourceBytes": 3131597,
+      "markdownBytes": 14084,
+      "sourceSha256": "df7605897d7eb0a05a374a2613f68d9a8b6799bcae3e1eafd21438c57610fbac",
+      "markdownSha256": "31ce80b5a132783e87092d86c397b65c57691b0fd730b405dd9bcfe3ada1c53a"
+    },
+    {
+      "sourceDocx": "接着往后做.docx",
+      "extractedMarkdown": "接着往后做.md",
+      "sourceBytes": 3149004,
+      "markdownBytes": 34954,
+      "sourceSha256": "97ddb93d6ac625c093039b9d962fb5fce4ce4de336c722d540d1a7512ad9d97a",
+      "markdownSha256": "9962402283a67218808696883ef597372be805eefb8963409946202e3f1011a2"
+    },
+    {
+      "sourceDocx": "继续完成未完成任务.docx",
+      "extractedMarkdown": "继续完成未完成任务.md",
+      "sourceBytes": 3138014,
+      "markdownBytes": 21426,
+      "sourceSha256": "9bcb27a3909d3d078edbd6abc8de26ecfee568189166dc15cdc4699b03ec70e5",
+      "markdownSha256": "a88603955df2faa4dcfc08670ea4ffd9ee08a8fc6611f544cdf9da250bc3d3f0"
+    },
+    {
+      "sourceDocx": "继续完成未完成任务，继续往后做.docx",
+      "extractedMarkdown": "继续完成未完成任务，继续往后做.md",
+      "sourceBytes": 3146239,
+      "markdownBytes": 30939,
+      "sourceSha256": "ffcc77657194abf08cab93cb1b45b887fc9ff42fb7bd6004eb5ef637a550a951",
+      "markdownSha256": "c8579f9d91870fb9bb50b84d30dccc4c74392952aa36337e3fc617013490b412"
+    },
+    {
+      "sourceDocx": "继续完成未完成的任务.docx",
+      "extractedMarkdown": "继续完成未完成的任务.md",
+      "sourceBytes": 3139128,
+      "markdownBytes": 21700,
+      "sourceSha256": "d08b44572705bc1ef9a5b07158a97e1b68c32d5953b6409ee8f55effe6c0674b",
+      "markdownSha256": "162dd42d6a95b97e84b6a7276fd48a23283678d03f4da2a995cdbdad70147bde"
+    },
+    {
+      "sourceDocx": "继续往后做.docx",
+      "extractedMarkdown": "继续往后做.md",
+      "sourceBytes": 3135610,
+      "markdownBytes": 18400,
+      "sourceSha256": "a21bd535f6e09a6b72c0a2d030bb33a18f53e2ee1fc367759b1459f4cea3f0d6",
+      "markdownSha256": "465292a57c36017e233f6428ff1fdc3b5f430d7c84dca650afff753cbc509030"
+    },
+    {
+      "sourceDocx": "请接着往后做.docx",
+      "extractedMarkdown": "请接着往后做.md",
+      "sourceBytes": 42496,
+      "markdownBytes": 50109,
+      "sourceSha256": "c10cfd0035abe2337d2686f28ed6a808de51c8cfd49b1ec99210f84fb2f6578f",
+      "markdownSha256": "023bf5f02cc1542aeb19abc3ff3356c47c738c87b9b999344fcae99b3e842e61"
+    },
+    {
+      "sourceDocx": "请继续往后做，做好一次性做完.docx",
+      "extractedMarkdown": "请继续往后做，做好一次性做完.md",
+      "sourceBytes": 3139735,
+      "markdownBytes": 21353,
+      "sourceSha256": "24ae53686a887dbba802961510e7322db9b8c24e57996af7cae8086aeb876be6",
+      "markdownSha256": "800f7048ee3abd92d02aa665e92099afc8f53c7889cb25750741dd5f841e5d09"
+    },
+    {
+      "sourceDocx": null,
+      "originalMarkdown": "00-task-brief.md",
+      "note": "The ninth provided document was already Markdown (originally a very long .md filename); it was not a DOCX and was not re-converted."
+    }
+  ]
+}

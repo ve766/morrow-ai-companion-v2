@@ -98,6 +98,13 @@ export const IPC_CHANNELS = {
   cognitiveSettingsSave: 'morrow:cognitive:settings:save',
   cognitiveFeelingSnapshot: 'morrow:cognitive:feeling:snapshot',
   cognitiveClearHistory: 'morrow:cognitive:history:clear',
+  affectStateGet: 'morrow:affect:state:get',
+  affectRegulate: 'morrow:affect:regulate',
+  affectClear: 'morrow:affect:clear',
+  affectMoodPause: 'morrow:affect:mood:pause',
+  affectMoodResume: 'morrow:affect:mood:resume',
+  consentGrantsList: 'morrow:provider:consent:list',
+  consentGrantRevoke: 'morrow:provider:consent:revoke',
   interestsList: 'morrow:selfmodel:interests:list',
   interestSetStatus: 'morrow:selfmodel:interests:set-status',
   selfModelList: 'morrow:selfmodel:entries:list',
@@ -280,6 +287,67 @@ export type BackupRestoreOutcome =
   | { status: 'restored'; schemaVersion: number; reappliedDeletions: number; reappliedRetractions: number; reappliedUnretractions: number }
   | { status: 'cancelled' }
 
+export interface ConsentGrantView {
+  scopeFingerprint: string
+  providerId: string
+  action: string
+  endpoint: string
+  model: string
+  maximumSensitivity: 'normal' | 'personal' | 'sensitive'
+  createdAt: string
+  expiresAt: string
+  revokedAt: string | null
+}
+
+export interface ConsentGrantRevokeRequest { scopeFingerprint: string }
+
+export interface AffectEmotionView {
+  emotionId: string
+  family: string
+  intensity: number
+  regulationState: string
+  sourceKind: string
+  onsetAt: string
+  lastUpdatedAt: string
+  topicTags: string[]
+}
+
+export interface AffectTraitView {
+  traitKey: string
+  status: string
+  strength: number
+  evidenceCount: number
+  independentContexts: number
+  updatedAt: string
+}
+
+export interface AffectMoodView {
+  available: boolean
+  paused: boolean
+  lastAdvancedAt: string
+  valence: number
+  arousal: number
+  dominance: number
+  tension: number
+  revision: number
+  evaluatedAt: string
+}
+
+export interface AffectStateView {
+  available: boolean
+  revision: number
+  evaluatedAt: string
+  emotions: AffectEmotionView[]
+  traits: AffectTraitView[]
+  mood: AffectMoodView
+}
+
+export interface AffectRegulateRequest {
+  emotionId: string
+  kind: 'reappraised' | 'regulated' | 'retracted'
+  rationale: string
+}
+
 export interface MorrowBridge {
   getAppInfo(): Promise<IpcResult<AppInfo>>
   providers: {
@@ -292,6 +360,8 @@ export interface MorrowBridge {
     deleteProfile(request: ProviderProfileIdRequest): Promise<IpcResult<void>>
     setDefaultProfile(request: ProviderProfileIdRequest): Promise<IpcResult<ProviderConfigRecord>>
     discoverModels(request: ProviderModelsRequest): Promise<IpcResult<ProviderModelsResult>>
+    listConsentGrants(): Promise<IpcResult<ConsentGrantView[]>>
+    revokeConsentGrant(request: ConsentGrantRevokeRequest): Promise<IpcResult<boolean>>
   }
   conversations: {
     create(): Promise<IpcResult<ConversationRecord>>
@@ -322,6 +392,11 @@ export interface MorrowBridge {
     saveSettings(request: CognitiveSettingsRequest): Promise<IpcResult<CognitiveCoreSettings>>
     getFeelingState(): Promise<IpcResult<FeelingStateView>>
     clearHistory(): Promise<IpcResult<FeelingStateView>>
+    getAffectState(): Promise<IpcResult<AffectStateView>>
+    regulateAffect(request: AffectRegulateRequest): Promise<IpcResult<AffectStateView>>
+    clearAffect(): Promise<IpcResult<AffectStateView>>
+    pauseAffectMood(): Promise<IpcResult<AffectStateView>>
+    resumeAffectMood(): Promise<IpcResult<AffectStateView>>
   }
   /**
    * Phase 2.4 continuity. Read-only except `decidePendingItem`, the single

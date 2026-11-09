@@ -2814,6 +2814,182 @@ export const migrations: readonly Migration[] = [
     }
   },
 
+  {
+    version: 55,
+    name: 'personality-affect-integration',
+    up(database) {
+      database.exec(`
+        CREATE TABLE emotion_events (
+          event_id TEXT PRIMARY KEY NOT NULL CHECK (length(event_id) = 36),
+          sequence INTEGER NOT NULL UNIQUE CHECK (sequence > 0),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          source_message_id TEXT NOT NULL CHECK (length(source_message_id) = 36),
+          assistant_message_id TEXT CHECK (assistant_message_id IS NULL OR length(assistant_message_id) = 36),
+          idempotency_key TEXT NOT NULL UNIQUE CHECK (length(idempotency_key) = 36),
+          occurred_at TEXT NOT NULL CHECK (length(occurred_at) BETWEEN 20 AND 40),
+          processed_at TEXT NOT NULL CHECK (length(processed_at) BETWEEN 20 AND 40),
+          actor TEXT NOT NULL CHECK (actor = 'morrow'),
+          source_kind TEXT NOT NULL CHECK (source_kind IN ('morrow_self_appraisal', 'user_context', 'shared_interaction', 'system_evidence')),
+          event_json TEXT NOT NULL CHECK (length(event_json) <= 24000 AND json_valid(event_json)),
+          schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+          algorithm_version TEXT NOT NULL CHECK (algorithm_version = 'affect-appraisal-v1'),
+          FOREIGN KEY (source_message_id, conversation_id) REFERENCES messages(id, conversation_id) ON DELETE CASCADE,
+          FOREIGN KEY (assistant_message_id, conversation_id) REFERENCES messages(id, conversation_id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE INDEX emotion_events_conversation_idx ON emotion_events(conversation_id, occurred_at);
+        CREATE INDEX emotion_events_processed_idx ON emotion_events(processed_at, event_id);
+
+        CREATE TABLE emotion_states (
+          id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+          state_json TEXT NOT NULL CHECK (length(state_json) <= 24000 AND json_valid(state_json)),
+          revision INTEGER NOT NULL CHECK (revision >= 0),
+          dirty INTEGER NOT NULL CHECK (dirty IN (0, 1)),
+          updated_at TEXT NOT NULL CHECK (length(updated_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        INSERT INTO emotion_states(id, state_json, revision, dirty, updated_at)
+        VALUES (
+          1,
+          json_object(
+            'stateId', 'morrow-affect-state',
+            'schemaVersion', 1,
+            'algorithmVersion', 'affect-appraisal-v1',
+            'revision', 0,
+            'evaluatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            'lastEventId', NULL,
+            'emotions', json('[]')
+          ),
+          0,
+          0,
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        );
+        CREATE TABLE emotion_revisions (
+          revision INTEGER PRIMARY KEY NOT NULL CHECK (revision > 0),
+          event_id TEXT NOT NULL UNIQUE REFERENCES emotion_events(event_id) ON DELETE CASCADE,
+          processed_at TEXT NOT NULL CHECK (length(processed_at) BETWEEN 20 AND 40),
+          before_json TEXT NOT NULL CHECK (length(before_json) <= 24000 AND json_valid(before_json)),
+          after_json TEXT NOT NULL CHECK (length(after_json) <= 24000 AND json_valid(after_json))
+        ) STRICT;
+        CREATE TRIGGER emotion_events_insert_marks_dirty AFTER INSERT ON emotion_events
+        BEGIN UPDATE emotion_states SET dirty = 1 WHERE id = 1; END;
+        CREATE TRIGGER emotion_events_update_marks_dirty AFTER UPDATE ON emotion_events
+        BEGIN UPDATE emotion_states SET dirty = 1 WHERE id = 1; END;
+        CREATE TRIGGER emotion_events_delete_marks_dirty AFTER DELETE ON emotion_events
+        BEGIN UPDATE emotion_states SET dirty = 1 WHERE id = 1; END;
+
+        CREATE TABLE emotion_regulations (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          emotion_id TEXT NOT NULL CHECK (length(emotion_id) = 36),
+          event_id TEXT REFERENCES emotion_events(event_id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK (kind IN ('reappraised', 'regulated', 'retracted')),
+          rationale TEXT NOT NULL CHECK (length(trim(rationale)) BETWEEN 1 AND 240 AND instr(rationale, char(0)) = 0),
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        CREATE INDEX emotion_regulations_emotion_idx ON emotion_regulations(emotion_id, created_at);
+
+        CREATE TABLE morrow_trait_observations (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          trait_key TEXT NOT NULL CHECK (length(trait_key) BETWEEN 1 AND 48),
+          turn_id TEXT NOT NULL CHECK (length(turn_id) = 36),
+          conversation_id TEXT NOT NULL CHECK (length(conversation_id) = 36),
+          source_message_id TEXT CHECK (source_message_id IS NULL OR length(source_message_id) = 36),
+          source_event_id TEXT NOT NULL CHECK (length(source_event_id) = 36),
+          source_kind TEXT NOT NULL CHECK (source_kind IN ('morrow_self_appraisal', 'system_evidence')),
+          signal REAL NOT NULL CHECK (signal >= -1 AND signal <= 1),
+          weight REAL NOT NULL CHECK (weight >= 0 AND weight <= 1),
+          quality REAL NOT NULL CHECK (quality >= 0 AND quality <= 1),
+          context_tag TEXT NOT NULL CHECK (length(context_tag) BETWEEN 1 AND 64 AND instr(context_tag, char(0)) = 0),
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40),
+          UNIQUE (trait_key, turn_id, context_tag),
+          FOREIGN KEY (source_message_id, conversation_id) REFERENCES messages(id, conversation_id) ON DELETE CASCADE
+        ) STRICT;
+        CREATE INDEX morrow_trait_observations_key_idx ON morrow_trait_observations(trait_key, created_at);
+        CREATE INDEX morrow_trait_observations_conversation_idx ON morrow_trait_observations(conversation_id);
+
+        CREATE TABLE morrow_trait_revisions (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          trait_key TEXT NOT NULL CHECK (length(trait_key) BETWEEN 1 AND 48),
+          actor TEXT NOT NULL CHECK (actor = 'morrow'),
+          status TEXT NOT NULL CHECK (status IN ('candidate', 'active', 'weakened', 'conflict_pending', 'rejected', 'superseded', 'retracted')),
+          score REAL NOT NULL CHECK (score >= 0 AND score <= 1),
+          strength REAL NOT NULL CHECK (strength >= 0 AND strength <= 1),
+          evidence_count INTEGER NOT NULL CHECK (evidence_count >= 0),
+          independent_contexts INTEGER NOT NULL CHECK (independent_contexts >= 0),
+          distinct_contexts INTEGER NOT NULL CHECK (distinct_contexts >= 0),
+          evidence_json TEXT NOT NULL CHECK (length(evidence_json) <= 12000 AND json_valid(evidence_json)),
+          counter_evidence_json TEXT NOT NULL CHECK (length(counter_evidence_json) <= 8000 AND json_valid(counter_evidence_json)),
+          revision INTEGER NOT NULL CHECK (revision >= 1),
+          supersedes TEXT REFERENCES morrow_trait_revisions(id),
+          rationale TEXT NOT NULL CHECK (length(trim(rationale)) BETWEEN 1 AND 1000 AND instr(rationale, char(0)) = 0),
+          cooldown_until TEXT,
+          algorithm_version TEXT NOT NULL,
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40),
+          updated_at TEXT NOT NULL CHECK (length(updated_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        CREATE INDEX morrow_trait_revisions_key_idx ON morrow_trait_revisions(trait_key, revision DESC);
+        CREATE INDEX morrow_trait_revisions_active_idx ON morrow_trait_revisions(actor, status, score DESC, updated_at DESC);
+
+        CREATE TABLE morrow_trait_events (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          trait_key TEXT NOT NULL CHECK (length(trait_key) BETWEEN 1 AND 48),
+          kind TEXT NOT NULL CHECK (kind IN ('observed', 'withheld', 'promoted', 'weakened', 'decayed', 'retracted', 'rolled_back')),
+          score_before REAL NOT NULL CHECK (score_before >= 0 AND score_before <= 1),
+          score_after REAL NOT NULL CHECK (score_after >= 0 AND score_after <= 1),
+          evidence_count INTEGER NOT NULL CHECK (evidence_count >= 0),
+          reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 240 AND instr(reason, char(0)) = 0),
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        CREATE INDEX morrow_trait_events_key_idx ON morrow_trait_events(trait_key, created_at);
+
+        CREATE TABLE reward_signals (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          actor TEXT NOT NULL CHECK (actor = 'morrow'),
+          kind TEXT NOT NULL CHECK (kind IN ('verified_progress', 'prediction_error_reduction', 'evidence_quality_gain', 'exploration_finding', 'goal_completion')),
+          source_event_id TEXT NOT NULL CHECK (length(source_event_id) = 36),
+          magnitude REAL NOT NULL CHECK (magnitude >= 0 AND magnitude <= 1),
+          verified INTEGER NOT NULL CHECK (verified = 1),
+          evidence_json TEXT NOT NULL CHECK (length(evidence_json) <= 8000 AND json_valid(evidence_json)),
+          algorithm_version TEXT NOT NULL,
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        CREATE UNIQUE INDEX reward_signals_source_uq ON reward_signals(kind, source_event_id);
+      `)
+    }
+  },
+
+  {
+    version: 56,
+    name: 'continuous-mood-state',
+    up(database) {
+      database.exec(`
+        CREATE TABLE morrow_mood_state (
+          id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+          state_json TEXT NOT NULL CHECK (length(state_json) <= 4000 AND json_valid(state_json)),
+          revision INTEGER NOT NULL CHECK (revision >= 0),
+          paused INTEGER NOT NULL CHECK (paused IN (0, 1)),
+          last_advanced_at TEXT NOT NULL CHECK (length(last_advanced_at) BETWEEN 20 AND 40),
+          updated_at TEXT NOT NULL CHECK (length(updated_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        INSERT INTO morrow_mood_state(id, state_json, revision, paused, last_advanced_at, updated_at)
+        VALUES (
+          1,
+          json_object(
+            'valence', 0.0,
+            'arousal', 0.35,
+            'dominance', 0.5,
+            'tension', 0.0,
+            'revision', 0,
+            'evaluatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+            'algorithmVersion', 'mood-ou-v1'
+          ),
+          0,
+          0,
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        );
+      `)
+    }
+  },
+
 ]
 
 export const CURRENT_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0

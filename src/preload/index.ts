@@ -77,7 +77,9 @@ const bridge: MorrowBridge = Object.freeze({
     saveProfile: (request: ProviderProfileSaveInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerProfileSave, request),
     deleteProfile: (request: ProviderProfileIdRequest) => invoke<void>(IPC_CHANNELS.providerProfileDelete, request),
     setDefaultProfile: (request: ProviderProfileIdRequest) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerProfileSetDefault, request),
-    discoverModels: (request: ProviderModelsRequest) => invoke<ProviderModelsResult>(IPC_CHANNELS.providerProfileDiscoverModels, request)
+    discoverModels: (request: ProviderModelsRequest) => invoke<ProviderModelsResult>(IPC_CHANNELS.providerProfileDiscoverModels, request),
+    listConsentGrants: () => invoke<import('../shared/contracts').ConsentGrantView[]>(IPC_CHANNELS.consentGrantsList),
+    revokeConsentGrant: (request: import('../shared/contracts').ConsentGrantRevokeRequest) => invoke<boolean>(IPC_CHANNELS.consentGrantRevoke, request)
   }),
   conversations: Object.freeze({
     create: () => invoke<ConversationRecord>(IPC_CHANNELS.conversationsCreate),
@@ -107,7 +109,12 @@ const bridge: MorrowBridge = Object.freeze({
     getSettings: () => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsGet),
     saveSettings: (request: CognitiveSettingsRequest) => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsSave, request),
     getFeelingState: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveFeelingSnapshot),
-    clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory)
+    clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory),
+    getAffectState: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectStateGet),
+    regulateAffect: (request: import('../shared/contracts').AffectRegulateRequest) => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectRegulate, request),
+    clearAffect: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectClear),
+    pauseAffectMood: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectMoodPause),
+    resumeAffectMood: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectMoodResume)
   }),
   continuity: Object.freeze({
     listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),

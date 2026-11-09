@@ -1,0 +1,6 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "reason": "The pre-change prepare count/timing was not captured before the fix; no fabricated baseline. The current trace-derived samples are in latency-after.json.",
+  "missing": ["prepare call count before/after", "IPC/renderer first-delta timing", "Provider headers/TTFT separate measurement"]
+}

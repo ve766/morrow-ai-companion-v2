@@ -1,0 +1,15 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "source": "turn_trace_events, occurred_at >= 2026-11-07T15:00:00, 10 turns",
+  "samples": 10,
+  "stages": {
+    "cognition_analysis": { "p50Ms": 83.5, "p95Ms": 254 },
+    "context_built": { "p50Ms": 11, "p95Ms": 45 },
+    "consent": { "p50Ms": 11.5, "p95Ms": 41 },
+    "persistence": { "p50Ms": 38.5, "p95Ms": 50 },
+    "provider_delta": { "p50Ms": 10.5, "p95Ms": 318 }
+  },
+  "prepareReuse": { "status": "IMPLEMENTED", "evidence": "ChatService.send uses immutable prepared snapshot after consent; no second prepare; conflict on conversation/config changes" },
+  "limitations": ["prepareMs not separately persisted", "provider_delta is completion interval, not TTFT", "renderer first-delta not measured", "1000-memory benchmark not run"]
+}

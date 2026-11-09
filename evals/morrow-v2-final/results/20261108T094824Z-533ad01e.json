@@ -1,0 +1,21 @@
+{
+  "runId": "20261108T094824Z-533ad01e",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-08T09:48:24.972Z",
+  "finishedAt": "2026-11-08T09:48:29.101Z",
+  "status": "FAILED",
+  "platform": "win32",
+  "electronVersion": "",
+  "sandboxDisabled": true,
+  "profile": "isolated-temporary-profile",
+  "checks": [],
+  "continuity": {},
+  "secrets": {},
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.",
+  "controlledRequest": {
+    "mode": "service-level",
+    "status": "COVERED_BY_INTEGRATION_TEST",
+    "detail": "Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated."
+  },
+  "error": "Application exited during launch (3221225477): DevTools listening on ws://127.0.0.1:52878/devtools/browser/decd596d-1d6e-473e-8706-1f503243e795"
+}

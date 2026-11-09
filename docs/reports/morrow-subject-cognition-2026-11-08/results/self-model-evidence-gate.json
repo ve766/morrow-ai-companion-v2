@@ -1,0 +1,15 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "version": "inner-cognition-v1",
+  "schemaVersion": 54,
+  "formula": "score=100*(0.50*q+0.25*min(1,independent/2)+0.15*recency-0.20*counter); q=min(1,0.45+0.15*min(2,independent)+0.10*min(1,uniqueRefs/4))",
+  "uncertaintyPolicy": "uncertainty affects exploration priority only; removed from belief score",
+  "evidenceIndependence": "distinct conversationId; duplicate turn/message refs deduped",
+  "states": [
+    { "id": "293a5774-70ed-4333-982a-377dddf22a97", "status": "superseded", "score": 70, "independentContexts": 1, "revision": 1, "supersedes": "b07b848d-4438-4b09-a132-abc563014322" },
+    { "id": "b07b848d-4438-4b09-a132-abc563014322", "status": "active", "score": 91, "independentContexts": 2, "revision": 2, "supersedes": "293a5774-70ed-4333-982a-377dddf22a97" }
+  ],
+  "counterEvidence": { "status": "PASS_UNIT", "evidence": "inner-cognition.test.ts: active -> weakened revision" },
+  "limitations": ["active score 91 in evidence was produced by v1 formula before uncertainty removal; new formula is lower but not re-run live", "counter evidence not exercised live", "no calibrated probability"]
+}

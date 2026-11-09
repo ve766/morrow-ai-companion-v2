@@ -1,0 +1,10 @@
+{
+  "issue": 69,
+  "commands": [
+    { "command": "npm run typecheck", "status": "PASS", "exitCode": 0 },
+    { "command": "npm test", "status": "PASS", "exitCode": 0, "files": 141, "tests": 1207, "durationSeconds": 269.93, "note": "full suite twice, both exit 0 (141/1207 and 141/1207); new consent-grants file + 3 new inner-cognition tests" },
+    { "command": "npm run build", "status": "PASS", "exitCode": 0 }
+  ],
+  "installedAsarSha256": "2fb59d5aef57fa0f696e95036024c83f147e45db8cbcfb723e39e0090397333b",
+  "ci": { "status": "BLOCKED", "reason": "self-hosted workflow/runner constraints inherited from #65; no hosted billing" }
+}

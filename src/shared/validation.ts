@@ -470,3 +470,20 @@ export function parsePendingItemDecisionRequest(value: unknown): { itemId: strin
   }
   return { itemId: parseIdentifier(input.itemId), decision: input.decision }
 }
+
+export function parseAffectRegulateRequest(value: unknown): { emotionId: string; kind: 'reappraised' | 'regulated' | 'retracted'; rationale: string } {
+  const input = parseObject(value, ['emotionId', 'kind', 'rationale'], 'Affect regulation request')
+  if (input.kind !== 'reappraised' && input.kind !== 'regulated' && input.kind !== 'retracted') {
+    throw new InputValidationError('Affect regulation kind is invalid.')
+  }
+  const rationale = parseText(input.rationale, 'Affect regulation rationale', 1, 240)
+  return { emotionId: parseIdentifier(input.emotionId), kind: input.kind, rationale }
+}
+
+export function parseConsentGrantRevokeRequest(value: unknown): { scopeFingerprint: string } {
+  const input = parseObject(value, ['scopeFingerprint'], 'Consent grant revoke request')
+  if (typeof input.scopeFingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(input.scopeFingerprint)) {
+    throw new InputValidationError('Consent grant fingerprint is invalid.')
+  }
+  return { scopeFingerprint: input.scopeFingerprint }
+}

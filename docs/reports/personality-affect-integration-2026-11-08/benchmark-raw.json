@@ -1,0 +1,39 @@
+{
+  "issue": 72,
+  "measuredAt": "2026-11-08T06:40:29.778Z",
+  "environment": {
+    "node": "v22.23.2",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "units": "milliseconds",
+  "appraisal": {
+    "count": 500,
+    "p50Ms": 0.015,
+    "p95Ms": 0.06,
+    "meanMs": 0.035,
+    "maxMs": 3.208
+  },
+  "emotionProjection": {
+    "count": 300,
+    "p50Ms": 0.053,
+    "p95Ms": 0.183,
+    "meanMs": 0.125,
+    "maxMs": 13.726
+  },
+  "traitFold": {
+    "count": 100,
+    "p50Ms": 0.173,
+    "p95Ms": 0.733,
+    "meanMs": 0.262,
+    "maxMs": 1.789
+  },
+  "traitWrite": {
+    "count": 200,
+    "p50Ms": 6.923,
+    "p95Ms": 14.016,
+    "meanMs": 8.801,
+    "maxMs": 199.177
+  },
+  "note": "Local deterministic functions and SQLite; no provider call, no network."
+}

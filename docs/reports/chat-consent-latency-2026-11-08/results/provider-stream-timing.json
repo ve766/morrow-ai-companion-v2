@@ -1,0 +1,9 @@
+{
+  "issue": 69,
+  "status": "PARTIAL",
+  "provider": "Spark/spark-x2.6 real",
+  "sse": { "status": "PASS_EXISTING_TESTS", "evidence": "src/providers/openai-compatible.test.ts covers CRLF, empty, malformed, cancel, timeout" },
+  "ttft": { "status": "NOT_MEASURED", "reason": "trace records request started and delta completion, not headers/first byte" },
+  "uiFirstDelta": { "status": "NOT_MEASURED" },
+  "limitations": ["no p50/p95 TTFT", "no renderer delta timing"]
+}

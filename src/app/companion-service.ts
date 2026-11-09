@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
+import type { AffectRegulateRequest, AffectStateView, ConsentGrantRevokeRequest, ConsentGrantView } from '../shared/contracts'
+import type { ConsentGrantService } from '../providers/consent-grants'
 import type {
   AssembledMemoryContext,
   ChatPreview,
@@ -73,6 +75,8 @@ import { personalizationFit, type PersonalizationService, type PersonalizationSi
 import { applyGrowth, deriveGrowthSignals, describeGrowth, type PersonalityGrowthService } from '../personalization/personality-growth'
 import type { ReflectionFindingRouter } from '../cognition/reflection-routing'
 import { deriveExpressionPolicy, describeExpressionPolicy, type ExpressionPolicy } from '../affective-state/expression-policy'
+import { relevantEmotions } from '../affective-state/emotion-model'
+import type { AffectLoopService, AffectPreview } from '../affective-state/affect-loop'
 import type { RelationshipThreadService } from '../relationship/relationship-threads'
 import { describeExploration, type ExplorationService } from '../self-model/exploration-policy'
 import { describeGoals } from '../motivation/companion-goal'
@@ -1142,6 +1146,8 @@ export interface SelfModelLoopServices {
   relationships?: RelationshipThreadService
   /** Stage 3 §2D: companionship goals, kept separate by ownership. */
   goals?: Pick<import('../motivation/companion-goal').CompanionGoalService, 'activeForContext' | 'detectFromTurn'>
+  /** Issue #72: multi-dimensional affect, Morrow traits and intrinsic reward. */
+  affect?: AffectLoopService
   /**
    * Stage 3 P0-5: the memory evidence producer. Without it the repetition term
    * in the importance formula has no input, which is how it read zero forever.
@@ -1156,6 +1162,8 @@ export interface SelfModelContextTurn {
   decision?: IntentDecision
   /** The user asked for a direct answer or fix; self-initiated topics yield. */
   directRequest?: boolean
+  /** Current-turn affect ranking bias, when the affect loop is wired. */
+  affectBias?: { bias: number; curiosity: number; concern: number; frustration: number; topicTags?: string[] }
 }
 
 // Context block for the long-term layer: rule-derived interests and
@@ -1433,6 +1441,8 @@ export class CompanionService {
   readonly memorySuggestions: MemorySuggestionService
   /** D-1: the authoritative G1 ledger, exposed for diagnostics and rollback. */
   private readonly growth: PersonalityGrowthService | null
+  private readonly affect: AffectLoopService | null
+  private readonly consentGrants: ConsentGrantService | null
   private readonly guidanceVariant: EvidenceGuidanceVariant
   private readonly evidencePresentation: EvidencePresentation
   /** Phase 2.4 stores, exposed so the shell can read pending items. */
@@ -1460,6 +1470,8 @@ export class CompanionService {
     evidencePresentation?: EvidencePresentation
     /** Turn context + pending-item stores; omitted by offline callers. */
     continuity?: ContinuityPorts
+    /** Provider consent grants; omitted by offline callers. */
+    consentGrants?: ConsentGrantService
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
@@ -1471,6 +1483,8 @@ export class CompanionService {
     this.feelings = new CognitiveFeelingService(options.database, clock, options.selfModelLoop?.events)
     // Diagnostic/rollback access to the authoritative growth ledger (D-1).
     this.growth = options.selfModelLoop?.growth ?? null
+    this.affect = options.selfModelLoop?.affect ?? null
+    this.consentGrants = options.consentGrants ?? null
     const providerFactory = options.providerFactory ?? ((config) => this.providers.createAdapter(config))
     const selfModelLoop = options.selfModelLoop
     // The gap ledger is written in the same transaction as the assistant
@@ -1495,6 +1509,14 @@ export class CompanionService {
     const hooks: SelfModelLoopHooks | undefined = selfModelLoop
       ? {
           ...(selfModelLoop.innerCognition ? { innerCognition: selfModelLoop.innerCognition } : {}),
+          ...(selfModelLoop.affect
+            ? {
+                affect: selfModelLoop.affect,
+                activeInterestLabels: () => {
+                  try { return selfModelLoop.interests.activeForContext(6).map((interest) => interest.label) } catch { return [] }
+                }
+              }
+            : {}),
           ...(selfModelLoop.personalization
             ? {
                 preferenceFor: (record: MemoryRecord) => {
@@ -1522,6 +1544,7 @@ export class CompanionService {
                     const decision = selfModelLoop.exploration!.decide({
                       turnId: turn.turnId,
                       interests: selfModelLoop.interests.activeForContext(6),
+                      ...(turn.affectBias ?? (selfModelLoop.affect ? { affectBias: selfModelLoop.affect.attentionBias() } : {})),
                       turn: turn.analysis
                         ? {
                             intent: turn.analysis.intent,
@@ -1601,6 +1624,21 @@ export class CompanionService {
           // silent no-op (which is exactly how this was missed first time).
           ...(selfModelLoop.relationships ? { relationships: selfModelLoop.relationships } : {}),
           recordKnowledgeGap: (input) => {
+            // Issue #72: a failed grounding is a real Morrow-owned concern
+            // event. It is best effort: it must never roll back the answer.
+            if (input.sourceMessageId && selfModelLoop.affect) {
+              try {
+                selfModelLoop.affect.recordMorrowLoss({
+                  loss: { label: input.label, kind: 'knowledge_gap' },
+                  conversationId: input.conversationId,
+                  turnId: input.turnId,
+                  sourceMessageId: input.sourceMessageId,
+                  at: new Date().toISOString()
+                })
+              } catch {
+                recordCognitiveDegradation('affect_knowledge_gap', input.turnId)
+              }
+            }
             // Durable on purpose. This event is the input to reflection — the
             // evidence that Morrow failed to ground something — not telemetry.
             // It runs inside the assistant-message transaction, so a failure
@@ -1707,7 +1745,88 @@ export class CompanionService {
   getCognitiveSettings(): CognitiveCoreSettings { return this.cognition.get() }
   saveCognitiveSettings(request: { enabled: boolean }): CognitiveCoreSettings { return this.cognition.save(request.enabled) }
   getFeelingState(): ReturnType<CognitiveFeelingService['snapshot']> { return this.feelings.snapshot() }
-  clearCognitiveHistory(): ReturnType<CognitiveFeelingService['clearHistory']> { return this.feelings.clearHistory() }
+  clearCognitiveHistory(): ReturnType<CognitiveFeelingService['clearHistory']> {
+    const cleared = this.feelings.clearHistory()
+    // Issue #72: the affect projection, trait evidence and reward ledger are
+    // part of cognitive history. A partial clear would be a privacy regression,
+    // so a failure here is surfaced rather than swallowed.
+    this.affect?.clearAll()
+    return cleared
+  }
+  getAffectState(): AffectStateView {
+    if (!this.affect?.available) return { available: false, revision: 0, evaluatedAt: new Date(0).toISOString(), emotions: [], traits: [], mood: { available: false, paused: false, lastAdvancedAt: new Date(0).toISOString(), valence: 0, arousal: 0, dominance: 0, tension: 0, revision: 0, evaluatedAt: new Date(0).toISOString() } }
+    const state = this.affect.emotions.snapshot()
+    const mood = this.affect.mood.snapshot()
+    return {
+      available: true,
+      revision: state.revision,
+      evaluatedAt: state.evaluatedAt,
+      emotions: state.emotions
+        .filter((emotion) => emotion.regulationState !== 'retracted')
+        .map((emotion) => ({
+          emotionId: emotion.emotionId,
+          family: emotion.family,
+          intensity: emotion.intensity,
+          regulationState: emotion.regulationState,
+          sourceKind: emotion.sourceKind,
+          onsetAt: emotion.onsetAt,
+          lastUpdatedAt: emotion.lastUpdatedAt,
+          topicTags: [...emotion.topicTags]
+        })),
+      traits: this.affect.traits.active().map((trait) => ({
+        traitKey: trait.traitKey,
+        status: trait.status,
+        strength: trait.strength,
+        evidenceCount: trait.evidenceCount,
+        independentContexts: trait.independentContexts,
+        updatedAt: trait.updatedAt
+      })),
+      mood: {
+        available: mood.available,
+        paused: mood.paused,
+        lastAdvancedAt: mood.lastAdvancedAt,
+        valence: mood.state.valence,
+        arousal: mood.state.arousal,
+        dominance: mood.state.dominance,
+        tension: mood.state.tension,
+        revision: mood.state.revision,
+        evaluatedAt: mood.state.evaluatedAt
+      }
+    }
+  }
+  regulateAffect(request: AffectRegulateRequest): AffectStateView {
+    if (!this.affect?.available) throw new ApplicationError('STORAGE_ERROR')
+    this.affect.regulate(request.emotionId, request.kind, request.rationale)
+    return this.getAffectState()
+  }
+  clearAffect(): AffectStateView {
+    if (this.affect?.available) this.affect.clearAll()
+    return this.getAffectState()
+  }
+  pauseAffectMood(): AffectStateView {
+    if (this.affect?.available) this.affect.mood.pause()
+    return this.getAffectState()
+  }
+  resumeAffectMood(): AffectStateView {
+    if (this.affect?.available) this.affect.mood.resume()
+    return this.getAffectState()
+  }
+  listConsentGrants(): ConsentGrantView[] {
+    return this.consentGrants?.list().map((grant) => ({
+      scopeFingerprint: grant.scopeFingerprint,
+      providerId: grant.providerId,
+      action: grant.action,
+      endpoint: grant.endpoint,
+      model: grant.model,
+      maximumSensitivity: grant.maximumSensitivity,
+      createdAt: grant.createdAt,
+      expiresAt: grant.expiresAt,
+      revokedAt: grant.revokedAt
+    })) ?? []
+  }
+  revokeConsentGrant(request: ConsentGrantRevokeRequest): boolean {
+    return this.consentGrants?.revoke(request.scopeFingerprint) ?? false
+  }
   sendChat(request: ChatRequest, onDelta: (delta: string) => void): Promise<ChatResult> { return this.chat.send(request, onDelta) }
   getTurnTrace(conversationId: string, limit = 200): ReturnType<ChatService['getTurnTrace']> { return this.chat.getTurnTrace(conversationId, limit) }
   cancelChat(request: { conversationId: string }): boolean { return this.chat.cancel(request.conversationId) }
@@ -1747,6 +1866,10 @@ export interface SelfModelLoopHooks {
   contextBlock(turn?: SelfModelContextTurn): string
   /** Bounded local internal cognition workspace (Issue #67). */
   innerCognition?: InnerCognitionService
+  /** Issue #72: multi-dimensional affect projection, traits and reward. */
+  affect?: AffectLoopService
+  /** Labels of active interests, for appraisal goal relevance only. */
+  activeInterestLabels?(): string[]
   /**
    * Stage 3 G1: the profile actually sent to the model. The baseline the user
    * edited plus the bounded drift the evidence earned. Absent when growth is not
@@ -1774,7 +1897,7 @@ export interface SelfModelLoopHooks {
    * This is the only producer of Morrow's own interest: a knowledge gap she
    * failed to close. It is deliberately not "the user mentioned X often".
    */
-  recordKnowledgeGap?(input: { label: string; conversationId: string; turnId: string }): void
+  recordKnowledgeGap?(input: { label: string; conversationId: string; turnId: string; sourceMessageId?: string }): void
   /** R5: grades the consumption of hints this turn injected. */
   observeConsumption?(input: { turnId: string; reply: string }): void
   /** Stage 5: relationship continuity threads (read + observe). */
@@ -1834,6 +1957,8 @@ export interface PreparedTurn {
   expressionPolicy?: ExpressionPolicy
   /** Stage 5: relationship threads that were in front of the model. */
   relationshipThreads?: import('../relationship/relationship-threads').RelationshipThread[]
+  /** Issue #72: the affect draft previewed for this turn. */
+  affectPreview?: AffectPreview
 }
 
 export class ChatService {
@@ -2069,6 +2194,11 @@ export class ChatService {
     this.conversations.delete(id)
     const normalized = normalizedUuid(id)
     try {
+      this.selfModel?.affect?.deleteConversation(normalized)
+    } catch {
+      this.recordDegradation('affect_delete_conversation', normalized)
+    }
+    try {
       this.continuity?.states?.deleteTraceForConversation?.(normalized)
     } catch {
       // Cleanup is best effort; a stale trace row must not block deletion.
@@ -2132,6 +2262,26 @@ export class ChatService {
           this.recordDegradation('feeling_state_recovery', requestId)
           console.warn('Local feeling-state recovery was unavailable; returning the saved conversation.')
         }
+        if (this.selfModel?.affect?.available && storedObservation) {
+          try {
+            const recovered = this.selfModel.affect.preview({
+              content: existingUser.body,
+              analysis: storedObservation.analysis,
+              at: existingUser.createdAt,
+              turnId: requestId,
+              conversationId,
+              sourceMessageId: existingUser.id,
+              activeInterestLabels: this.selfModel.activeInterestLabels?.() ?? []
+            })
+            this.selfModel.affect.recordCompletedTurnInTransaction({
+              draft: recovered.draft,
+              assistantMessageId: existingAssistant.id,
+              processedAt: this.now()
+            })
+          } catch {
+            this.recordDegradation('affect_recovery', requestId)
+          }
+        }
       }
       return { conversation: existing.conversation, userMessage: existingUser, assistantMessage: existingAssistant, includedMemoryCount: 0 }
     }
@@ -2153,12 +2303,15 @@ export class ChatService {
     const controller = new AbortController()
     this.controllers.set(conversationId, controller)
     let terminalRecorded = false
+    const timings = { prepareMs: 0, consentMs: 0, providerMs: 0, persistMs: 0 }
+    let phaseStart = performance.now()
     try {
       const settingSnapshot = this.cognitiveSettingsOrDisabled()
       const evaluationAt = this.now()
       const candidateMessageId = existingUser?.id ?? this.makeId()
       const initialHistory = existing.messages.filter((message) => message.turnId !== requestId)
       const prepared = this.prepare(request, config, initialHistory, candidateMessageId, requestId, settingSnapshot, evaluationAt)
+      timings.prepareMs = Math.max(0, performance.now() - phaseStart)
       // The request payload exists at this point, so the turn has been analysed
       // and its context assembled. Recording both here is what makes the trace
       // show *when* consent was requested relative to the analysis, instead of
@@ -2167,7 +2320,9 @@ export class ChatService {
       this.recordTurnState(conversationId, requestId, 'context_ready')
       const preview = consentPreview('chat', config, prepared.input)
       this.recordTurnState(conversationId, requestId, 'awaiting_consent')
+      phaseStart = performance.now()
       const consent = await this.authorize(preview)
+      timings.consentMs = Math.max(0, performance.now() - phaseStart)
       if (!consent) throw new ApplicationError('FORBIDDEN')
       const latest = this.conversations.read(conversationId)
       const latestUser = latest.messages.find((message) => message.turnId === requestId && message.role === 'user')
@@ -2175,8 +2330,15 @@ export class ChatService {
       if (latestSettings.enabled !== settingSnapshot.enabled || latestSettings.available !== settingSnapshot.available || latestSettings.updatedAt !== settingSnapshot.updatedAt) {
         throw new ApplicationError('CONFLICT')
       }
+      const afterConfig = this.providers.requireConfigured()
+      const configUnchanged = afterConfig.id === config.id && afterConfig.endpoint === config.endpoint && afterConfig.endpointPath === config.endpointPath && afterConfig.model === config.model && afterConfig.updatedAt === config.updatedAt
+      // Reuse the immutable prepared snapshot: re-running prepare after consent
+      // re-reads memories and rebuilds the prompt for identical state. Any state
+      // change is rejected rather than silently re-prepared.
+      const conversationUnchanged = latest.messages.length === existing.messages.length && latest.conversation.updatedAt === existing.conversation.updatedAt
+      if (!configUnchanged || !conversationUnchanged) throw new ApplicationError('CONFLICT')
       const messageId = latestUser?.id ?? candidateMessageId
-      const verified = this.prepare(request, this.providers.requireConfigured(), latest.messages.filter((message) => message.turnId !== requestId), messageId, requestId, latestSettings, evaluationAt)
+      const verified = prepared
       if (hashProviderInput(verified.input) !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
       let userMessage = latestUser
       let cognitiveObservationPersisted = Boolean(userMessage?.cognitiveObservations?.length)
@@ -2243,6 +2405,7 @@ export class ChatService {
         // The permission is in the payload and the call is about to happen.
         // Recorded before dispatch so a thrown call still counts as attempted.
         this.selfModel?.markExplorationAttempted?.(requestId)
+        phaseStart = performance.now()
         output = await dispatchToProvider(this.providerFactory(config), { ...verified.input, signal: controller.signal }, consent, this.now(), (delta) => {
           if (!receivedDelta) {
             receivedDelta = true
@@ -2250,6 +2413,7 @@ export class ChatService {
           }
           onDelta?.(delta)
         })
+        timings.providerMs = Math.max(0, performance.now() - phaseStart)
         this.recordTurnState(conversationId, requestId, 'response_received', receivedDelta ? null : 'no_stream_delta')
       } catch (error) {
         // A cancelled request is not a failed one: the adapter reports
@@ -2356,6 +2520,18 @@ export class ChatService {
               complete = false
             }
           }
+          if (verified.affectPreview && this.selfModel?.affect) {
+            try {
+              this.selfModel.affect.recordCompletedTurnInTransaction({
+                draft: verified.affectPreview.draft,
+                assistantMessageId: savedAssistant.id,
+                processedAt: this.now()
+              })
+            } catch {
+              complete = false
+              this.recordDegradation('affect_persist', requestId)
+            }
+          }
           if (finalization) {
             // Derived data failing must not cost the user their answer: keep
             // the intent and let recovery finish it deterministically.
@@ -2396,11 +2572,13 @@ export class ChatService {
           // question about it. Only the derived topic label is stored.
           if (guard.verdict === 'rewrite') {
             const label = deriveInterestLabel(request.content)
-            if (label) this.selfModel?.recordKnowledgeGap?.({ label, conversationId, turnId: requestId })
+            if (label) this.selfModel?.recordKnowledgeGap?.({ label, conversationId, turnId: requestId, sourceMessageId: userMessage.id })
           }
         }
         try {
+          const persistStart = performance.now()
           const appended = this.conversations.appendMessage(conversationId, 'assistant', deliveredText, requestId, { messageId: assistantMessageId, afterPersist })
+          timings.persistMs = Math.max(0, performance.now() - persistStart)
           assistantMessage = appended.messages.find((message) => message.turnId === requestId && message.role === 'assistant')
         } catch (error) {
           // The transaction rolled back, so nothing of this turn is stored and
@@ -2421,7 +2599,21 @@ export class ChatService {
       // this exact reply (deterministic term evidence, never model self-report).
       this.selfModel?.observeConsumption?.({ turnId: requestId, reply: deliveredText })
       try {
-        if (!identityGuarded) this.selfModel?.innerCognition?.observeTurn({ turnId: requestId, conversationId, userMessageId: userMessage.id, occurredAt: this.now(), content: request.content, reply: deliveredText, ...(verified.analysis ? { analysisIntent: verified.analysis.intent } : {}) })
+        if (!identityGuarded) this.selfModel?.innerCognition?.observeTurn({
+          turnId: requestId,
+          conversationId,
+          userMessageId: userMessage.id,
+          occurredAt: this.now(),
+          content: request.content,
+          reply: deliveredText,
+          ...(verified.analysis ? { analysisIntent: verified.analysis.intent } : {}),
+          // Issue #72: strong affect is a consolidation signal, but only as a
+          // trigger for Morrow's own review queue — never as a fact claim.
+          ...(verified.affectPreview ? {
+            conflict: verified.affectPreview.appraisal.conflict,
+            predictionError: verified.affectPreview.appraisal.components.expectationGap >= 0.7
+          } : {})
+        })
       } catch {
         this.recordDegradation('inner_cognition_observe', requestId)
       }
@@ -2488,6 +2680,7 @@ export class ChatService {
         userMessage,
         assistantMessage,
         includedMemoryCount: verified.memory.selected.length,
+        timings,
         ...(evaluation ? { evaluation } : {})
       }
     } catch (error) {
@@ -2600,6 +2793,7 @@ export class ChatService {
     let feelingEvent: CognitiveFeelingEvent | undefined
     let feelingState: FeelingState | undefined
     let previousFeelingState: FeelingState | undefined
+    let affectPreview: AffectPreview | undefined
     let retrieval: RetrievalAdjustment = adjustPolicyForState(unrestrictedPolicy(), null)
 
     if (settings.available && settings.enabled) {
@@ -2693,6 +2887,23 @@ export class ChatService {
           }) ?? undefined
           feelingState = this.feelings.preview(stateView.state, feelingEvent ?? null, evaluationAt)
         }
+        if (this.selfModel?.affect?.available) {
+          try {
+            affectPreview = this.selfModel.affect.preview({
+              content,
+              ...(analysis ? { analysis } : {}),
+              at: evaluationAt,
+              turnId: idempotencyKey,
+              conversationId: request.conversationId,
+              sourceMessageId,
+              ...(feelingEvent ? { interactionEventType: feelingEvent.type } : {}),
+              activeInterestLabels: this.selfModel.activeInterestLabels?.() ?? [],
+              relationshipRelevance: relationshipThreads.length > 0 ? 0.55 : 0.25
+            })
+          } catch {
+            this.recordDegradation('affect_preview', sourceMessageId)
+          }
+        }
       } catch (error) {
         // D1 (Stage 5): a single sub-step failure must not be reported as all
         // of them failing. The stage is recorded with a stable component name
@@ -2728,14 +2939,17 @@ export class ChatService {
       state: feelingState ?? previousFeelingState ?? null,
       analysis: analysis ?? null,
       wantsDirectAnswer,
-      text: content
+      text: content,
+      affectFamilies: affectPreview ? relevantEmotions(affectPreview.state, content).map((emotion) => emotion.family) : [],
+      ...(affectPreview?.mood.available ? { mood: { valence: affectPreview.mood.state.valence, arousal: affectPreview.mood.state.arousal, tension: affectPreview.mood.state.tension } } : {})
     })
 
     const exploration = this.selfModel?.explorationLine?.({
       turnId: idempotencyKey,
       ...(analysis ? { analysis } : {}),
       ...(decision ? { decision } : {}),
-      directRequest: wantsDirectAnswer
+      directRequest: wantsDirectAnswer,
+      ...(affectPreview ? { affectBias: affectPreview.bias } : {})
     })
     const system = [
       identityContract(config),
@@ -2743,6 +2957,8 @@ export class ChatService {
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
       analysis ? cognitivePromptGuidance(analysis, decision, memory.selected.length > 0, memory.conflicts ?? [], this.guidanceVariant, reading) : '',
       analysis && feelingState ? feelingPromptGuidance(analysis, feelingState, feelingEvent ?? null, previousFeelingState) : '',
+      affectPreview?.promptLine ?? '',
+      affectPreview?.traitLine ?? '',
       this.selfModel?.contextBlock({
         turnId: idempotencyKey,
         ...(analysis ? { analysis } : {}),
@@ -2789,6 +3005,7 @@ export class ChatService {
       ...(feelingEvent ? { feelingEvent } : {}),
       ...(feelingState ? { nextFeelingState: feelingState } : {}),
       ...(previousFeelingState ? { previousFeelingState } : {}),
+      ...(affectPreview ? { affectPreview } : {}),
       ...(exploration?.interestId && exploration.label
         ? { exploration: { interestId: exploration.interestId, label: exploration.label } }
         : {}),

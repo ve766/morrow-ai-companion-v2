@@ -19,6 +19,10 @@ export interface ThoughtEvidence {
   occurredAt: string
   kind: 'turn' | 'reflection'
   ref: string
+  /** Provenance for independence accounting; absent means a raw turn ref. */
+  derivationKind?: 'raw' | 'summary' | 'assistant_paraphrase' | 'derived' | 'duplicate'
+  origin?: 'morrow' | 'user' | 'shared' | 'system'
+  parentEvidenceIds?: string[]
 }
 
 export interface MorrowThought {
@@ -61,6 +65,7 @@ export interface InnerCognitionRepositoryPort {
   allThoughts(): MorrowThought[]
   createThought(thought: MorrowThought): void
   updateThought(id: string, status: MorrowThought['status'], nextReviewAt: string | null, priority: number, updatedAt: string): void
+  updateThoughtEvidence?(id: string, evidenceJson: string, counterJson: string, updatedAt: string): void
   allStates(): MorrowSelfState[]
   createState(state: MorrowSelfState): void
   supersedeState(id: string, byId: string, updatedAt: string): void
@@ -92,6 +97,9 @@ export class SqliteInnerCognitionRepository implements InnerCognitionRepositoryP
   updateThought(id: string, status: MorrowThought['status'], nextReviewAt: string | null, priority: number, updatedAt: string): void {
     this.database.connection.prepare('UPDATE morrow_thoughts SET status = ?, next_review_at = ?, priority = ?, updated_at = ? WHERE id = ?').run(status, nextReviewAt, priority, updatedAt, id)
   }
+  updateThoughtEvidence(id: string, evidenceJson: string, counterJson: string, updatedAt: string): void {
+    this.database.connection.prepare('UPDATE morrow_thoughts SET evidence_json = ?, counter_evidence_json = ?, updated_at = ? WHERE id = ?').run(evidenceJson, counterJson, updatedAt, id)
+  }
   allStates(): MorrowSelfState[] {
     return (this.database.connection.prepare('SELECT * FROM morrow_self_states ORDER BY updated_at DESC').all() as unknown as StateRow[]).map(stateRow)
   }
@@ -107,16 +115,36 @@ export class SqliteInnerCognitionRepository implements InnerCognitionRepositoryP
 const UNCERTAINTY_MARKERS = /(?:不知道|不确定|无法确认|不清楚|不能确定|没有.{0,16}(?:记录|信息|线索|证据)|not sure|don't know|no (?:record|information|evidence))/iu
 
 function independentContexts(refs: ThoughtEvidence[]): number {
-  return new Set(refs.map((ref) => ref.conversationId)).size
+  // Summaries, assistant paraphrases and duplicate derivations share their
+  // ancestor's source; they are retained as evidence but do not create a new
+  // independent context. A concrete parent lineage wins when present.
+  const parentIds = new Set(refs.flatMap((ref) => ref.parentEvidenceIds ?? []))
+  return new Set(refs
+    .filter((ref) => ref.derivationKind !== 'summary' && ref.derivationKind !== 'assistant_paraphrase' && ref.derivationKind !== 'duplicate')
+    .filter((ref) => !parentIds.has(ref.messageId))
+    .map((ref) => ref.conversationId)).size
 }
 
 function normalized(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase()
 }
 
+function retrievalTerms(value: string): Set<string> {
+  const terms = new Set<string>()
+  for (const token of normalized(value).match(/[\p{L}\p{N}]+/gu) ?? []) {
+    terms.add(token)
+    if (/[一-鿿]/u.test(token) && token.length >= 2) {
+      for (let size = 2; size <= Math.min(4, token.length); size += 1) {
+        for (let start = 0; start + size <= token.length; start += 1) terms.add(token.slice(start, start + size))
+      }
+    }
+  }
+  return terms
+}
+
 function overlap(left: string, right: string): number {
-  const a = new Set(normalized(left).match(/[\p{L}\p{N}]+/gu) ?? [])
-  const b = new Set(normalized(right).match(/[\p{L}\p{N}]+/gu) ?? [])
+  const a = retrievalTerms(left)
+  const b = retrievalTerms(right)
   if (a.size === 0 || b.size === 0) return 0
   let shared = 0
   for (const token of a) if (b.has(token)) shared += 1
@@ -131,6 +159,8 @@ export interface InnerCognitionTurn {
   content: string
   reply: string
   analysisIntent?: string
+  predictionError?: boolean
+  conflict?: boolean
 }
 
 export class InnerCognitionService {
@@ -145,13 +175,14 @@ export class InnerCognitionService {
   observeTurn(input: InnerCognitionTurn): MorrowThought | null {
     const at = this.safeTimestamp(input.occurredAt)
     const replyUncertain = UNCERTAINTY_MARKERS.test(input.reply)
-    const correction = input.analysisIntent === 'correction'
-    if (!replyUncertain && !correction) return null
+    const correction = input.analysisIntent === 'correction' || input.conflict === true
+    const predictionError = input.predictionError === true
+    if (!replyUncertain && !correction && !predictionError) return null
     const question = this.deriveQuestion(input)
     const similar = this.repository.allThoughts().filter((thought) => overlap(thought.question, question) >= 0.6 || thought.evidenceRefs.some((ref) => ref.turnId === input.turnId))
     const recurrence = Math.min(1, similar.length / 3)
     const novelty = 1 - recurrence
-    const uncertainty = replyUncertain ? 0.8 : 0.5
+    const uncertainty = replyUncertain ? 0.8 : predictionError ? 0.65 : 0.5
     const relevance = input.analysisIntent ? 0.75 : 0.5
     const importance = 0.6
     const risk = 0
@@ -163,7 +194,7 @@ export class InnerCognitionService {
     const inherited = similar.flatMap((entry) => entry.evidenceRefs)
     const evidenceRefs = [...inherited, evidence].filter((ref, index, all) => all.findIndex((candidate) => candidate.turnId === ref.turnId && candidate.messageId === ref.messageId) === index)
     const thought: MorrowThought = {
-      id: this.makeId().toLowerCase(), actor: 'morrow', trigger: correction ? 'user_correction' : THOUGHT_TRIGGER,
+      id: this.makeId().toLowerCase(), actor: 'morrow', trigger: predictionError ? 'prediction_error' : correction ? 'user_correction' : THOUGHT_TRIGGER,
       question: question.slice(0, 1000), hypothesis: `我还不确定：${question.slice(0, 900)}`, evidenceRefs, counterEvidenceRefs: [],
       uncertainty: Math.round(uncertainty * 100), priority: Math.round(priority * 1000) / 1000, status: 'open', createdAt: at, updatedAt: at,
       nextReviewAt: new Date(Date.parse(at) + 60_000).toISOString(), algorithmVersion: INNER_COGNITION_VERSION
@@ -192,17 +223,20 @@ export class InnerCognitionService {
     const thought = this.repository.allThoughts().find((entry) => entry.id === id)
     if (!thought) return null
     const independent = independentContexts(thought.evidenceRefs)
-    const evidenceQuality = Math.min(1, 0.45 + 0.15 * independent + 0.1 * thought.evidenceRefs.length)
+    const uniqueRefs = [...new Map(thought.evidenceRefs.map((ref) => [`${ref.turnId}:${ref.messageId}`, ref])).values()]
+    const evidenceQuality = Math.min(1, 0.45 + 0.15 * Math.min(2, independent) + 0.1 * Math.min(1, uniqueRefs.length / 4))
     const recency = 0.8
-    const score = Math.max(0, Math.min(100, Math.round(100 * (0.45 * evidenceQuality + 0.2 * Math.min(1, independent / 2) + 0.2 * (thought.uncertainty / 100) + 0.15 * recency - 0.2 * (thought.counterEvidenceRefs.length > 0 ? 1 : 0)))))
+    // Uncertainty belongs to exploration priority, not belief confidence. A
+    // single source cannot be promoted just because Morrow is unsure.
+    const score = Math.max(0, Math.min(100, Math.round(100 * (0.50 * evidenceQuality + 0.25 * Math.min(1, independent / 2) + 0.15 * recency - 0.20 * (thought.counterEvidenceRefs.length > 0 ? 1 : 0)))))
     const prior = this.repository.allStates().find((state) => state.actor === 'morrow' && state.status !== 'superseded' && state.status !== 'retracted' && overlap(state.proposition, thought.question) >= 0.6) ?? null
     const status: MorrowSelfState['status'] = thought.counterEvidenceRefs.length > 0
-      ? 'conflict_pending'
+      ? prior && prior.status === 'active' ? 'weakened' : 'conflict_pending'
       : independent >= 2 && score >= 55
         ? 'active'
         : 'candidate'
     const state: MorrowSelfState = {
-      id: this.makeId().toLowerCase(), actor: 'morrow', domain: 'question', proposition: thought.question.slice(0, 1000), stance: 'uncertain',
+      id: this.makeId().toLowerCase(), actor: 'morrow', domain: status === 'active' && thought.priority >= 0.6 ? 'interest' : 'question', proposition: thought.question.slice(0, 1000), stance: 'uncertain',
       evidenceRefs: thought.evidenceRefs, counterEvidenceRefs: thought.counterEvidenceRefs, independentContexts: independent, score,
       status, revision: prior ? prior.revision + 1 : 1, supersedes: prior ? prior.id : null,
       rationale: `thought_review independent=${independent} score=${score} status=${status}`, algorithmVersion: INNER_COGNITION_VERSION,
@@ -218,15 +252,123 @@ export class InnerCognitionService {
     return state
   }
 
+  /**
+   * Produces at most one Morrow-owned question from Morrow's own standing
+   * context (active interest, stalled goal, or reflection finding). It never
+   * reads the current user prompt and never turns "research X" into an interest.
+   * The priority is an explicit heuristic, not a probability or a VoI score.
+   */
+  synthesizeFromContext(input: {
+    at: string
+    interests: ReadonlyArray<{ label: string; origin: 'user' | 'morrow' | 'shared'; strength: number; status: string }>
+    goalStalls?: ReadonlyArray<{ title: string; days: number }>
+    reflectionFindings?: ReadonlyArray<{ statement: string; kind: string; runId: string; createdAt: string }>
+  }): MorrowThought | null {
+    const at = this.safeTimestamp(input.at)
+    const owned = input.interests
+      .filter((interest) => interest.status === 'active' && (interest.origin === 'morrow' || interest.origin === 'shared') && interest.label.trim().length >= 2)
+      .sort((left, right) => right.strength - left.strength)
+    const stall = (input.goalStalls ?? []).filter((goal) => goal.days >= 2).sort((left, right) => right.days - left.days)[0]
+    const reflection = (input.reflectionFindings ?? []).filter((finding) => finding.statement.trim().length >= 8)[0]
+    let question: string | null = null
+    let trigger = 'morrow_interest'
+    let informationGap = 0.55
+    let goalStall = 0
+    let reflectionNovelty = 0
+    let sourceRef = ''
+    if (stall) {
+      question = `「${stall.title}」已经停滞 ${Math.round(stall.days)} 天；我可以先核对哪个假设？`
+      trigger = 'goal_stall'
+      informationGap = 0.7
+      goalStall = Math.min(1, stall.days / 14)
+      sourceRef = stall.title
+    } else if (owned[0]) {
+      question = `关于「${owned[0].label}」，我还没有弄清的关键问题是什么？`
+      trigger = 'morrow_interest'
+      informationGap = 0.55
+      sourceRef = owned[0].label
+    } else if (reflection) {
+      question = `反思记录提出了「${reflection.statement.slice(0, 80)}」；其中哪个判断仍缺少独立证据？`
+      trigger = 'reflection_novelty'
+      informationGap = 0.6
+      reflectionNovelty = 0.7
+      sourceRef = reflection.runId
+    }
+    if (!question) return null
+    const normalizedQuestion = normalized(question)
+    const duplicate = this.repository.allThoughts().some((thought) =>
+      (thought.status === 'open' || thought.status === 'reviewed' || thought.status === 'candidate') &&
+      overlap(thought.question, question) >= 0.62
+    )
+    if (duplicate) return null
+    const interestRelevance = owned[0] ? Math.min(1, owned[0].strength) : 0
+    const recentRepeat = this.repository.allThoughts().filter((thought) => thought.createdAt >= new Date(Date.parse(at) - 24 * 3_600_000).toISOString()).length
+    const repeatPenalty = Math.min(1, recentRepeat / 3)
+    const priority = Math.max(0, Math.min(1,
+      0.30 * informationGap + 0.20 * goalStall + 0.20 * interestRelevance + 0.15 * reflectionNovelty - 0.25 * repeatPenalty - 0.10 * 0.2
+    ))
+    const evidence: ThoughtEvidence = {
+      turnId: this.makeId().toLowerCase(),
+      conversationId: this.makeId().toLowerCase(),
+      messageId: this.makeId().toLowerCase(),
+      occurredAt: at,
+      kind: 'reflection',
+      ref: sourceRef.slice(0, 80)
+    }
+    const thought: MorrowThought = {
+      id: this.makeId().toLowerCase(),
+      actor: 'morrow',
+      trigger,
+      question: question.slice(0, 1000),
+      hypothesis: `我还没有足够证据；先检查「${sourceRef.slice(0, 60)}」相关的前提，再决定是否探索。`,
+      evidenceRefs: [evidence],
+      counterEvidenceRefs: [],
+      uncertainty: 60,
+      priority: Math.round(priority * 1000) / 1000,
+      status: 'open',
+      createdAt: at,
+      updatedAt: at,
+      nextReviewAt: new Date(Date.parse(at) + 24 * 3_600_000).toISOString(),
+      algorithmVersion: INNER_COGNITION_VERSION
+    }
+    const write = (): void => { this.repository.createThought(thought) }
+    if (this.repository.transaction) this.repository.transaction(write); else write()
+    this.events?.tryRecord({
+      sourceModule: 'cognition',
+      eventType: 'inner.thought.synthesized',
+      actor: 'system',
+      subjectType: 'morrow_thought',
+      subjectId: thought.id,
+      correlationId: null,
+      payload: { trigger, priority: thought.priority, sourceRef: sourceRef.slice(0, 64), dedupe: normalizedQuestion.slice(0, 80) }
+    })
+    return thought
+  }
+
   /** Bounded context for the next real turn. User preferences are never read as Morrow's. */
   contextBlock(query: string, limit = 3): string {
+    const queryTerms = new Set(normalized(query).match(/[\p{L}\p{N}]+/gu) ?? [])
     const states = this.repository.allStates()
       .filter((state) => state.actor === 'morrow' && (state.status === 'active' || state.status === 'candidate' || state.status === 'conflict_pending'))
+      .filter((state) => queryTerms.size === 0 || overlap(state.proposition, query) > 0.08)
       .sort((left, right) => (right.status === 'active' ? 1 : 0) - (left.status === 'active' ? 1 : 0) || right.score - left.score)
       .slice(0, limit)
     if (states.length === 0) return ''
     const described = states.map((state) => `[${state.status}/${state.domain}] 「${state.proposition.slice(0, 160)}」（Morrow-owned，score ${state.score}/100，独立情境 ${state.independentContexts}，revision ${state.revision}）`)
     return `Morrow's own unresolved thoughts and evidence-gated states (not the user's preferences; use only as your own bounded attention, never as user facts or permission): ${described.join('; ')}.`
+  }
+
+  /**
+   * Explicit counter-evidence. It can weaken an active state but cannot silently
+   * delete history; the new revision is persisted with rationale.
+   */
+  addCounterEvidence(thoughtId: string, evidence: ThoughtEvidence, rationale = 'counter_evidence'): MorrowSelfState | null {
+    const thought = this.repository.allThoughts().find((entry) => entry.id === thoughtId)
+    if (!thought) return null
+    const at = this.safeTimestamp(this.clock())
+    const counter = [...thought.counterEvidenceRefs, evidence].filter((ref, index, all) => all.findIndex((candidate) => candidate.turnId === ref.turnId && candidate.messageId === ref.messageId) === index)
+    this.repository.updateThoughtEvidence?.(thoughtId, JSON.stringify(thought.evidenceRefs), JSON.stringify(counter), at)
+    return this.reviewThought(thoughtId, at)
   }
 
   listThoughts(limit = 20): MorrowThought[] { return this.repository.allThoughts().slice(0, limit) }
