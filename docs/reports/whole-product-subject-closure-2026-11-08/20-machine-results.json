@@ -1,9 +1,9 @@
 {
   "issue": 78,
   "branch": "fix/audit-driven-companion-remediation-20261109",
-  "sourceCommit": "SOURCE_PLACEHOLDER",
-  "testedCommit": "SOURCE_PLACEHOLDER",
-  "finalHead": "FINAL_PLACEHOLDER",
+  "sourceCommit": "6cbfaac587d4ea0a9024b625a6886b65f928fde4",
+  "testedCommit": "6cbfaac587d4ea0a9024b625a6886b65f928fde4",
+  "finalHead": "6cbfaac587d4ea0a9024b625a6886b65f928fde4",
   "environment": {
     "os": "win32 10.0.26200 x64",
     "node": "v22.23.2",
