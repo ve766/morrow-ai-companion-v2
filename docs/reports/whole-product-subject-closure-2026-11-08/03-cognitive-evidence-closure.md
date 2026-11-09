@@ -83,3 +83,10 @@ reflection run → finding routed → stateGate.ingestInTransaction
 - 去重按规范化 question 与 24h repeat penalty；每轮最多 1 个。
 - `index.ts` 5 分钟 scheduler 调用；reflection findings 来自最新 run；goalStalls 参数已保留但未接 CompanionGoal 时间估算。
 - 测试：`inner-cognition.test.ts` 新增；用户 origin 不生成、重复不生成。
+
+## 第三轮（最终）修复
+
+- Reflection gate 不再用 `Unique(runId)`：从 finding 的 `evidence_json` 提取 root source，evidence ref 保存 `rootSourceId/correlationGroupId/owner/derivationKind/parentEvidenceIds`；独立数按 distinct correlation cluster。
+- 同一 root 的 100 个 finding 只算 1 个独立 root，仍为 candidate（测试 `reflection-state-gate.test.ts`）。
+- `InnerCognitionService.synthesizeFromContext` 只接受 `origin=morrow`；User/Shared interest 不生成 actor=morrow thought。
+- 仍未实现完整递归祖先环/缺失/retracted root 拒绝；仍缺 ChatService→producer→router 的 live 集成。标 PARTIAL，不冒充 PASS。

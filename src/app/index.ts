@@ -446,12 +446,15 @@ if (hasSingleInstanceLock) {
         const reflectionFindings = latestReflection
           ? reflection.findings(latestReflection.id).map((finding) => ({ statement: finding.statement, kind: finding.kind, runId: latestReflection.id, createdAt: finding.createdAt }))
           : []
+        const moodView = affect.mood.snapshot(now)
         innerCognition.synthesizeFromContext({
           at: now,
           interests: interests.activeForContext(6).map((interest) => ({ label: interest.label, origin: interest.origin, strength: interest.strength, status: interest.status })),
-          reflectionFindings
+          reflectionFindings,
+          ...(moodView.available ? { mood: { valence: moodView.state.valence, arousal: moodView.state.arousal } } : {})
         })
-        const reviewed = innerCognition.reviewDue(now, 3)
+        const reviewLimit = moodView.available && moodView.state.arousal < 0.2 ? 1 : 3
+        const reviewed = innerCognition.reviewDue(now, reviewLimit)
         // A promoted thought is verified Morrow-owned progress. The reward
         // ledger records it; user praise never reaches this path.
         affect.observeThoughtReviews(reviewed)

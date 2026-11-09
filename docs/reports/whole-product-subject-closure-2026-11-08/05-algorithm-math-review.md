@@ -36,3 +36,9 @@
 - Reflection state gate：bounded score `0.50*confidence + 30*min(1,independent/2) + 5 - counter`，是工程规则，不是 Beta posterior/校准概率。
 - 自主问题 priority 是启发式加权和，不是 VoI 或概率。
 - v56 migration 只有 mood 表；A1/A2/F1/G1 仍未实现，保持 EXPERIMENTAL/NOT_IMPLEMENTED。
+
+## 第三轮
+
+- Mood 仍是确定性指数均值回归，不是随机 OU；pause 先结算 elapsed 衰减，resume 不补算。
+- Reflection 独立性是 root/correlation cluster 计数，不是概率；分数仍是 bounded heuristic。
+- 未新增 Dense/PPR/F1/G1；A1/A2 仍 EXPERIMENTAL/NOT_IMPLEMENTED。

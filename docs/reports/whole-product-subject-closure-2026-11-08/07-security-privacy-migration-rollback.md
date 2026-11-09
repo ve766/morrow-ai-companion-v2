@@ -46,3 +46,9 @@
 - `MORROW_ACCEPTANCE_AUTO_CONSENT` 现在只在 `!app.isPackaged` 时生效；打包后的生产应用即使继承该环境变量也不会绕过 consent。敏感仍每次确认。
 - mood pause/resume 是本地状态，不联网；clear 清理 mood 行。
 - 仍未做原生 consent 对话框自动化点击（PENDING_HUMAN）；单消息删除的 emotion UI 路径仍未真实点击。
+
+## 第三轮
+
+- v56 mood 表沿用；没有 v57。Root lineage 存在 `morrow_self_states.evidence_json`，不新建第二套证据账本。
+- 打包应用 `!app.isPackaged` 保护仍在；acceptance auto consent 不可用于 packaged 安装。
+- 仍未演练 root evidence 删除→派生状态重算；这是确认缺口，不冒充完成。

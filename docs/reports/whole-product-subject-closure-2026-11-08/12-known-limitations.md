@@ -40,3 +40,11 @@
 
 - Hosted/self-hosted CI 未运行；不声称 CI PASS。
 - `npm run verify:full/product/release` 的完整 tier 组合未全部重跑；本报告只列实际运行的命令。
+
+## 第三轮更新
+
+- Reflection root lineage 已改 cluster 计数；递归祖先环/缺失 root/撤回 root 的完整传播仍未实现。
+- 完整 exploration investigation ledger（hypothesized/investigating/concluded 状态机）未实现；现有 thought/review 为 PARTIAL。
+- 真实 ChatService→reflection→gate→next turn 的 live 集成仍未完成。
+- Mood pause 已修正时间语义；真实模型 A/B 仍未跑。
+- 自定义 NSIS 安装器已生成但安装 exit 2；electron-builder NSIS 504。

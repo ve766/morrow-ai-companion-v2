@@ -5,8 +5,8 @@
 - PR：https://github.com/ve766/morrow-ai-companion-v2/pull/75（Draft，base `fix/morrow-core-cognitive-closure-20261108`）
 - 源分支起点：`83dab6ad8b2af3b0a2d98ceb9eb342ee5f081691`（PR #73）
 - base：`efdbf52a25e896ee159d296944f019f9b94ab687`（PR #68）
-- 源代码 commit：4d463fbc758c9c0b7e99fc9af8c2624664b62df6
-- 最终交付 HEAD：见 Issue #74 最终评论（代码结果对应 commit 22820625）
+- 源代码 commit：b8ba65558f0e3b7a49b9cc27be354bac1525c2d1
+- 最终交付 HEAD：见 Issue #76 最终评论（代码/tested commit 见 `11-machine-results.json`）
 - 总体状态：**PARTIAL**
 
 ## 本轮真实修复
@@ -19,17 +19,18 @@
 6. Reward/affect 原子性：promoted thought 的 reward + progress affect 同一 transaction；失败回滚，不留半状态。
 7. Trait freshness：消息删除级联 observation 后，下一次读取立即 recompute。
 8. 第二轮：reflection finding → evidence gate → `morrow_self_states` revision；自主问题从 Morrow interest/reflection 生成；evidence derivation lineage；v56 独立 continuous mood + pause/resume + UI。
+9. 第三轮：reflection 独立数改 root/correlation cluster（不再 runId）；Shared/User 不生成 Morrow thought；Mood pause 先结算衰减；新增 13/14 报告。
 8. UI contract：新控件加入 `docs/ui/control-contract.json` 和 `tests/ui-control-contract.test.ts`。
 
 ## 验证（同一最终代码）
 
 - `npm run typecheck` PASS
-- `npm test` PASS：149 files / 1254 tests
+- `npm test` PASS：149 files / 1256 tests
 - `npm run build` PASS
 - `npm run smoke:chat-ui` PASS（真实 Electron + loopback SSE + 持久化）
 - `npm run smoke:product-path` PASS（Provider profile/OS 密钥/重启/隔离 profile）
 - portable `release/win-unpacked` product-path PASS
-- electron-builder NSIS：**BLOCKED**（504）；手动编译 NSIS `Morrow-2.0.0-x64-custom-setup.exe` 158,382,905 bytes SHA `dd7a2f89...`，PE/Nullsoft 有效但静默安装 exit 2，**BUILT_NOT_INSTALL_VERIFIED**；旧 189KB stub 不冒充
+- electron-builder NSIS：**BLOCKED**（504）；手动编译 NSIS `Morrow-2.0.0-x64-custom-setup.exe` 158,383,287 bytes SHA `b5c222b7...`，PE/Nullsoft 有效但静默安装 exit 2，**BUILT_NOT_INSTALL_VERIFIED**；旧 189KB stub 不冒充
 - 真实 cloud Provider A–K：NOT_RUN
 - 记忆 100/500/1000/5000 benchmark：NOT_RUN
 
@@ -48,6 +49,8 @@
 - `10-acceptance-matrix.json`
 - `11-machine-results.json`
 - `12-known-limitations.md`
+- `13-autonomous-cognition-lifecycle.md`
+- `14-runtime-integration-map.md`
 - `results/`：原始命令日志
 
 ## 结论
