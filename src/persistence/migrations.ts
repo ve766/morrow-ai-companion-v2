@@ -2989,6 +2989,34 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 57,
+    name: 'evidence-lineage-graph',
+    up(database) {
+      // Issue #81 F1: a derived cognition node's lineage is a first-class row,
+      // not only a JSON payload. The gate walks these edges transitively and
+      // fails closed on a missing, retracted, deleted, cyclic, broken or
+      // cross-owner chain. `root_source_id` and `correlation_group_id` are the
+      // verified independence keys; callers cannot choose them.
+      database.exec(`
+        CREATE TABLE evidence_lineage (
+          node_id TEXT PRIMARY KEY NOT NULL CHECK (length(node_id) = 36),
+          owner TEXT NOT NULL CHECK (owner IN ('user', 'morrow', 'shared', 'system')),
+          root_source_id TEXT NOT NULL CHECK (length(root_source_id) = 36),
+          correlation_group_id TEXT NOT NULL CHECK (length(correlation_group_id) = 36),
+          derivation_kind TEXT NOT NULL CHECK (derivation_kind IN ('origin', 'reflection', 'thought', 'summary', 'synthetic')),
+          source_table TEXT NOT NULL CHECK (source_table IN ('event_journal', 'memories', 'self_model_entries', 'evidence_lineage')),
+          state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'retracted', 'deleted')),
+          parent_ids_json TEXT NOT NULL CHECK (json_valid(parent_ids_json) AND json_type(parent_ids_json) = 'array'),
+          verified_at TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX evidence_lineage_root_idx ON evidence_lineage(root_source_id);
+        CREATE INDEX evidence_lineage_cluster_idx ON evidence_lineage(correlation_group_id);
+        CREATE INDEX evidence_lineage_state_idx ON evidence_lineage(owner, state);
+      `)
+    }
+  },
 
 ]
 
