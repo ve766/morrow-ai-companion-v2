@@ -5,8 +5,8 @@
     "branch": "fix/morrow-core-cognitive-closure-20261108",
     "sha": "efdbf52a25e896ee159d296944f019f9b94ab687"
   },
-  "sourceCommit": "22820625db1037485fa4f862bb3b8b2fc2e4bc26",
-  "finalHead": "22820625db1037485fa4f862bb3b8b2fc2e4bc26",
+  "sourceCommit": "4d463fbc758c9c0b7e99fc9af8c2624664b62df6",
+  "finalHead": "4d463fbc758c9c0b7e99fc9af8c2624664b62df6",
   "overall": "PARTIAL",
   "categories": {
     "productUsability": [
