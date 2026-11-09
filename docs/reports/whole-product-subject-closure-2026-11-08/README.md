@@ -5,7 +5,7 @@
 - PR：https://github.com/ve766/morrow-ai-companion-v2/pull/75（Draft，base `fix/morrow-core-cognitive-closure-20261108`）
 - 源分支起点：`83dab6ad8b2af3b0a2d98ceb9eb342ee5f081691`（PR #73）
 - base：`efdbf52a25e896ee159d296944f019f9b94ab687`（PR #68）
-- 源代码 commit：4d463fbc758c9c0b7e99fc9af8c2624664b62df6
+- 源代码 commit：b8ba65558f0e3b7a49b9cc27be354bac1525c2d1
 - 最终交付 HEAD：见 Issue #76 最终评论（代码/tested commit 见 `11-machine-results.json`）
 - 总体状态：**PARTIAL**
 

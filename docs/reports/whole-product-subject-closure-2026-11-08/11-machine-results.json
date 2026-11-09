@@ -5,8 +5,8 @@
     "branch": "fix/morrow-core-cognitive-closure-20261108",
     "sha": "efdbf52a25e896ee159d296944f019f9b94ab687"
   },
-  "sourceCommit": "4d463fbc758c9c0b7e99fc9af8c2624664b62df6",
-  "finalHead": "4d463fbc758c9c0b7e99fc9af8c2624664b62df6",
+  "sourceCommit": "b8ba65558f0e3b7a49b9cc27be354bac1525c2d1",
+  "finalHead": "b8ba65558f0e3b7a49b9cc27be354bac1525c2d1",
   "environment": {
     "os": "win32 10.0.26200 x64",
     "node": "v22.23.2",
@@ -120,5 +120,6 @@
     "reflection finding->self-state PARTIAL",
     "mood/pause NOT_IMPLEMENTED",
     "native consent click PENDING_HUMAN"
-  ]
+  ],
+  "testedCommit": "b8ba65558f0e3b7a49b9cc27be354bac1525c2d1"
 }
