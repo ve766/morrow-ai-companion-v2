@@ -2,7 +2,7 @@
 
 - Issue #78：https://github.com/ve766/morrow-ai-companion-v2/issues/78
 - 分支：`fix/audit-driven-companion-remediation-20261109`（从 PR #77 HEAD `1b7ba08` 建立）
-- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/PR_NUMBER_PLACEHOLDER（Draft，stacked on #77，base `fix/core-subjectivity-final-closure-20261109`）
+- PR：https://github.com/ve766/morrow-ai-companion-v2/pull/80（Draft，stacked on #77，base `fix/core-subjectivity-final-closure-20261109`）
 - 状态：**PARTIAL**
 - 最新报告：`15-audit-driven-remediation.md`、`16-evidence-lineage-deletion-and-recovery.md`、`17-mood-personality-exploration.md`、`18-memory-provider-ui-windows-validation.md`、`19-acceptance-matrix.json`、`20-machine-results.json`、`21-known-limitations.md`
 
