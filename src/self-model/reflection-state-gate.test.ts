@@ -443,6 +443,37 @@ describe('recursive evidence lineage', () => {
     }
   })
 
+
+  it('rejects a synthetic lineage node even when its parents are valid', () => {
+    const context = setup()
+    try {
+      const root = context.seedRoot('synthetic-parent')
+      const synthetic = randomUUID()
+      lineage(context.database, synthetic, [root], { kind: 'synthetic', rootSourceId: root, cluster: root })
+      const finding = context.findingWithEvidence([synthetic])
+      expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('derived_origin_forbidden')
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('rejects a chain deeper than the maximum depth', () => {
+    const context = setup()
+    try {
+      const ids = Array.from({ length: 12 }, () => randomUUID())
+      lineage(context.database, ids[0]!, [], { kind: 'origin', table: 'event_journal' })
+      for (let index = 1; index < ids.length; index += 1) {
+        lineage(context.database, ids[index]!, [ids[index - 1]!], { rootSourceId: ids[0]!, cluster: ids[0]! })
+      }
+      const finding = context.findingWithEvidence([ids.at(-1)!])
+      expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('parent_depth_exceeded')
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('rejects an event whose memory subject was deleted', () => {
     const context = setup()
     try {

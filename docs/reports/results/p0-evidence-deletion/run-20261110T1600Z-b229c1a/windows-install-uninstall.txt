@@ -1,0 +1,37 @@
+Windows acceptance (Issue #83)
+Code SHA: b229c1ae3005dbee2790e208df258363867a1b8d
+Schema: v59
+
+Installer: C:\morrow-out\Morrow-2.0.0-x64-custom-setup.exe
+Bytes: 158336891
+SHA-256: ea8855e5f81e611a073889610deb5c2e5dcf048af30473498cb35d4cee645d6c
+
+Install:
+  command: <installer> /S /D=C:\morrow83test
+  exit: 0
+  C:\morrow83test\Morrow.exe exists: true
+  file count: 19
+
+Installed chat smoke:
+  command: MORROW_SMOKE_EXE=C:/morrow83test/Morrow.exe node scripts/chat-ui-smoke.mjs
+  result: PASS
+  checks:
+    - renderer input -> submit -> streamed assistant reply -> persisted conversation
+    - cognition consistency IPC reports ready before the Provider request
+  consent log: auto:false, grant:false, then remember:true; the exact native
+  click source is not independently observed (PENDING_HUMAN in the report)
+
+Uninstall:
+  command: C:\morrow83test\Uninstall.exe /S
+  exit: 0
+  directory remains: false
+
+Portable:
+  zip: release\Morrow-2.0.0-x64-portable-p0.zip
+  bytes: 162767754
+  SHA-256: 6bc7a13e7b8645eb36fea4014709a09b00687824a0a94cbbd887d82ebd0ee635
+  extracted: C:\morrow83portable
+  chat smoke: PASS (same two checks)
+
+Isolation: C:\morrow83test and C:\morrow83portable are new; no V1 path or
+existing V2 user data was touched.

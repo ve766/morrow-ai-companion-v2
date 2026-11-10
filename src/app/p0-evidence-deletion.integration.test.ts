@@ -113,6 +113,26 @@ describe('P0-A startup consistency gate', () => {
     expect(context.provider.calls).toBe(1)
   })
 
+
+  it('replays a pending conversation deletion before reporting ready', () => {
+    const context = stack()
+    const conversation = context.conversations.create()
+    const turnId = randomUUID()
+    const userMessageId = randomUUID()
+    context.conversations.appendMessage(conversation.id, 'user', '将被删除', turnId, { messageId: userMessageId })
+    context.conversations.delete(conversation.id)
+    const outcome = reconcileCognitionConsistency({
+      database: context.db,
+      gate: context.consistency,
+      sourceValidity: context.sourceValidity,
+      revalidate: () => ({ updated: 0, retracted: 0 }),
+      recoverInvestigations: () => 0,
+      replayConversation: () => undefined
+    })
+    expect(outcome.state).toBe('ready')
+    expect(outcome.details.conversations).toBeGreaterThanOrEqual(1)
+  })
+
   it('locks when self-state revalidation or investigation recovery throws', () => {
     const context = stack()
     const revalidation = reconcileCognitionConsistency({
@@ -246,6 +266,23 @@ describe('P0-C deletion propagation', () => {
     expect(context.provider.lastPayload).not.toContain('ORCA-831')
   })
 
+
+  it('keeps a memory active while another conversation still supports it', () => {
+    const context = stack()
+    const first = context.companion.createConversation()
+    const second = context.companion.createConversation()
+    const memory = context.memories.create('两个会话都支持的事实。')
+    const insert = context.db.connection.prepare(`
+      INSERT INTO memory_evidence(memory_id, source_ref, source_kind, actor, conversation_id, occurred_at, evidence_type, confidence, independence_group, algorithm_version)
+      VALUES (?, ?, 'message', 'user', ?, ?, 'statement', 0.9, ?, 'test-v1')
+    `)
+    insert.run(memory.id, randomUUID(), first.id, at, `${memory.id}:a`)
+    insert.run(memory.id, randomUUID(), second.id, at, `${memory.id}:b`)
+    context.companion.deleteConversation({ conversationId: first.id })
+    expect(context.db.connection.prepare('SELECT status FROM memories WHERE id = ?').get(memory.id)?.status).toBe('active')
+    context.companion.deleteConversation({ conversationId: second.id })
+    expect(context.db.connection.prepare('SELECT status FROM memories WHERE id = ?').get(memory.id)?.status).toBe('retracted')
+  })
   it('writes only counts, never the deleted statement, into the audit event', () => {
     const context = stack()
     const conversation = context.conversations.create()
