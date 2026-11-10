@@ -4,6 +4,7 @@
 - Branch: `fix/morrow-project-wide-final-convergence-20261110`
 - Final code SHA: `60ae6fe11e751bd7e5b80df942d231eade98b8eb`
 - Base: PR #80 head `094ca2cf35b84e5a342becf0508db2ec6287079e`
+- Draft PR: https://github.com/ve766/morrow-ai-companion-v2/pull/82
 
 ## Commits (code, oldest first)
 

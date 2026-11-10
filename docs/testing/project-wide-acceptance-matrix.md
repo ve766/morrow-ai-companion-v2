@@ -24,7 +24,7 @@ missing; `BLOCKED_*` and `PENDING_HUMAN` are not green.
 | 11 | Windows: install, start, chat, uninstall in isolation | installer `C:\morrow-out\Morrow-2.0.0-x64-custom-setup.exe`; install `/S /D=C:\morrow81test`, exit 0; smoke PASS; uninstall `/S`, exit 0, directory removed | **PASS** for BUILT + INSTALL_VERIFIED + APP_STARTED + CHAT_VERIFIED + UNINSTALL_VERIFIED |
 | 12 | Portable ZIP | extracted to `C:\morrow81portable`, smoke PASS | **PASS** |
 | 13 | Regression: typecheck, full suite twice, build | `npm run typecheck`; `npx vitest run` ×2 green; `npm run build` | **PASS** (logs in results directory) |
-| 14 | CI | No push yet at report time; workflow runs are checked after the Draft PR is opened | **PENDING** |
+| 14 | CI | Both workflows are `workflow_dispatch` only (GitHub-hosted minutes exhausted; self-hosted needs a runner token that this task must not request). `gh pr checks 82` reports no checks. | **NOT_RUN** (external constraint, not PASS) |
 
 ## Package evidence
 

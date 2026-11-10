@@ -101,5 +101,5 @@ Issue #81 同时要求 7 个方向、12 份固定交付物、真实 Provider、W
 ## 7. PR / Issue 状态
 
 - 本报告所在分支为 `fix/morrow-project-wide-final-convergence-20261110`，base 为 PR #80 的 head 分支 `fix/audit-driven-companion-remediation-20261109`。
-- Draft PR 在文档提交后创建；Issue #81 的交付评论包含 PR 链接、最终 SHA、命令/退出码与所有 PARTIAL/BLOCKED/PENDING_HUMAN。
+- Draft PR：https://github.com/ve766/morrow-ai-companion-v2/pull/82（OPEN/Draft，base 为 PR #80 的 head 分支）。Issue #81 的交付评论包含 PR 链接、最终 SHA、命令/退出码与所有 PARTIAL/BLOCKED/PENDING_HUMAN。
 - PR #77（`1b7ba085…`）与 PR #80（`094ca2cf…`）保持 OPEN/Draft，未被合并、关闭或覆盖。
