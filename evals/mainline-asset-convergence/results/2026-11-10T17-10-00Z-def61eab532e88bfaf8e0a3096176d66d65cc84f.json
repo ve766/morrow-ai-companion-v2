@@ -79,7 +79,7 @@
   "testedCommit": "def61eab532e88bfaf8e0a3096176d66d65cc84f",
   "packageCommit": null,
   "finalCodeSha": "def61eab532e88bfaf8e0a3096176d66d65cc84f",
-  "docsHead": null,
+  "docsHead": "331143d08d641c297e20cbfdfb674c7d7670cbff",
   "branchCount": 51,
   "divergentBranches": [
     "feature/algorithm-v2-phase-a",

@@ -7,6 +7,7 @@
 - 分支：`integration/morrow-mainline-asset-convergence-20261110`
 - 起始 main：`8b207b7d7b80b91ed4369d02fd6ef7e170b81133`（执行时已核实）
 - 阶段 1 代码 SHA：`def61eab532e88bfaf8e0a3096176d66d65cc84f`
+- 报告内容对应文档 HEAD：`331143d08d641c297e20cbfdfb674c7d7670cbff`（JSON docsHead 记账提交在其后一个 commit）
 - 总体状态：**PARTIAL**。完整 Issue 是 6 阶段总任务；本报告只交付**阶段 1**（≤24h）：全仓资产账本、基线冻结、产品线整合、冲突图和 C1–C4 修复。阶段 2–6 未完成，不能标记 DONE。
 - `main` 未被直接修改；没有合并/关闭任何历史 PR；没有删除分支；没有 force-push。
 
