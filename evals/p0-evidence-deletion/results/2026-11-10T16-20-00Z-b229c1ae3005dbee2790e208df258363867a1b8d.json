@@ -9,7 +9,7 @@
   "testedCommit": "b229c1ae3005dbee2790e208df258363867a1b8d",
   "packageCommit": "b229c1ae3005dbee2790e208df258363867a1b8d",
   "finalCodeSha": "b229c1ae3005dbee2790e208df258363867a1b8d",
-  "finalHead": null,
+  "finalHead": "13c13959cca205584f216513f9895bd8f2f3aa98",
   "docsHeadNote": "finalHead is filled by the report commit; runtime code stays b229c1a",
   "databaseSchema": 59,
   "status": "PARTIAL",
@@ -180,5 +180,6 @@
     "mainModified": false,
     "releasePublished": false,
     "pr82Modified": false
-  }
+  },
+  "docsHead": "13c13959cca205584f216513f9895bd8f2f3aa98"
 }

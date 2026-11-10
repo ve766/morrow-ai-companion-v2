@@ -6,6 +6,7 @@
 - Branch：`fix/morrow-p0-evidence-deletion-closure-20261110`
 - Base：PR #82 head `dc2743d7a3877a56db4d3d3bb55feb574dc1a8e8`
 - **最终代码 SHA**：`b229c1ae3005dbee2790e208df258363867a1b8d`
+- 报告内容对应文档 HEAD：`13c13959cca205584f216513f9895bd8f2f3aa98`（JSON 的 finalHead 记账提交在其后一个 commit，不改变代码 SHA）
 - Schema：v59（本 Issue 未新增迁移）
 - 总体状态：**PARTIAL**。P0-A 与 P0-B 的代码闭环为 DONE；P0-C、P0-D 的主要生产路径和测试为 DONE，但仍列出未覆盖的验收子项，因此不把整个 Issue 标成 PASS。
 - PR #82 未被 reset/force-push/覆盖；`main` 未修改；没有合并、关闭或发布 Release。
