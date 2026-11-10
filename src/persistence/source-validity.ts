@@ -21,6 +21,11 @@ export interface InvalidationResult {
   projections: number
 }
 
+function missingTable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : ''
+  return /no such table/iu.test(message)
+}
+
 const EMPTY: InvalidationResult = {
   lineageNodes: 0,
   findings: 0,
@@ -137,10 +142,13 @@ export class SourceValidityService {
         }
         // Goals sourced from a deleted message stay as history but must not be
         // read as active commitments. This matches activeForContext's filter.
-        result.projections += this.runIgnoringMissing(
-          "UPDATE companion_goals SET status = 'cancelled', updated_at = ? WHERE status = 'active' AND source_message_id IN (" + placeholders + ")",
-          [this.clock(), ...messageIds]
-        )
+        if (messageIds.length > 0) {
+          const messagePlaceholders = messageIds.map(() => '?').join(',')
+          result.projections += this.runIgnoringMissing(
+            "UPDATE companion_goals SET status = 'cancelled', updated_at = ? WHERE status = 'active' AND source_message_id IN (" + messagePlaceholders + ")",
+            [this.clock(), ...messageIds]
+          )
+        }
       }
       // Self-model entries sourced from the conversation are retracted, not
       // deleted: their statement is derived from user text and must leave the
@@ -200,9 +208,7 @@ export class SourceValidityService {
     const id = memoryId.toLowerCase()
     return this.database.transaction(() => {
       const result: InvalidationResult = { ...EMPTY }
-      result.lineageNodes = Number(this.database.connection.prepare(
-        "UPDATE evidence_lineage SET state = ?, verified_at = ? WHERE state = 'active' AND (node_id = ? OR root_source_id = ?)"
-      ).run(state, this.clock(), id, id).changes)
+      result.lineageNodes = this.invalidateLineage([id], state)
       result.projections += this.runIgnoringMissing('DELETE FROM memory_evidence WHERE memory_id = ?', [id])
       result.projections += this.runIgnoringMissing('DELETE FROM interest_evidence WHERE evidence_ref = ?', [id])
       result.projections += this.runIgnoringMissing('DELETE FROM fact_records WHERE source_memory_id = ?', [id])
@@ -243,17 +249,19 @@ export class SourceValidityService {
         for (const row of correlated) ids.add(row.id)
       }
       for (const messageId of messageIds) ids.add(messageId)
-    } catch {
-      // A degraded schema still allows the SQL deletions below; the caller
-      // records the lock instead of pretending the lineage was checked.
+    } catch (error) {
+      if (missingTable(error)) return [...ids]
+      throw error
     }
     return [...ids]
   }
 
-  private invalidateLineage(ids: string[], state: 'deleted'): number {
+  private invalidateLineage(ids: string[], state: 'deleted' | 'retracted'): number {
     if (ids.length === 0) return 0
     const json = JSON.stringify(ids)
-    const result = this.database.connection.prepare(`
+    let result
+    try {
+      result = this.database.connection.prepare(`
       WITH RECURSIVE descendants(node_id) AS (
         SELECT node_id FROM evidence_lineage
           WHERE node_id IN (SELECT value FROM json_each(?))
@@ -265,6 +273,10 @@ export class SourceValidityService {
       UPDATE evidence_lineage SET state = ?, verified_at = ?
         WHERE node_id IN (SELECT node_id FROM descendants)
     `).run(json, json, state, this.clock())
+    } catch (error) {
+      if (missingTable(error)) return 0
+      throw error
+    }
     return Number(result.changes)
   }
 
@@ -280,8 +292,9 @@ export class SourceValidityService {
         )
       `).all(json) as Array<{ id: string }>
       return rows.map((row) => row.id)
-    } catch {
-      return []
+    } catch (error) {
+      if (missingTable(error)) return []
+      throw error
     }
   }
 
@@ -295,8 +308,9 @@ export class SourceValidityService {
         ).run(this.clock(), ...turnIds).changes)
       }
       return 0
-    } catch {
-      return 0
+    } catch (error) {
+      if (missingTable(error)) return 0
+      throw error
     }
   }
 
@@ -310,16 +324,18 @@ export class SourceValidityService {
             claim_owner = NULL, lease_until = NULL, updated_at = ?
         WHERE state IN ('pending', 'running', 'failed_retryable') AND turn_id IN (${placeholders})
       `).run(this.clock(), ...turnIds).changes)
-    } catch {
-      return 0
+    } catch (error) {
+      if (missingTable(error)) return 0
+      throw error
     }
   }
 
   private ids(sql: string, ...parameters: string[]): string[] {
     try {
       return (this.database.connection.prepare(sql).all(...parameters) as Array<{ id: string }>).map((row) => row.id)
-    } catch {
-      return []
+    } catch (error) {
+      if (missingTable(error)) return []
+      throw error
     }
   }
 
@@ -330,8 +346,9 @@ export class SourceValidityService {
   private runIgnoringMissing(sql: string, parameters: Array<string | number>): number {
     try {
       return Number(this.database.connection.prepare(sql).run(...parameters).changes)
-    } catch {
-      return 0
+    } catch (error) {
+      if (missingTable(error)) return 0
+      throw error
     }
   }
 }

@@ -2017,6 +2017,9 @@ export class ChatService {
    * the rows survived the crash because they were committed with the message.
    */
   drainCognition(turnId?: string): { done: number; failed: number; skipped: number } {
+    // A locked consistency gate means source validity is unknown; running a
+    // projector here could write from a source that should already be gone.
+    if (this.cognitionConsistency?.locked) return { done: 0, failed: 0, skipped: 0 }
     if (!this.outbox) return { done: 0, failed: 0, skipped: 0 }
     return this.outbox.drain(this.projectors, turnId ? { turnId } : {})
   }

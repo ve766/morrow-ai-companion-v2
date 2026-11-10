@@ -283,6 +283,29 @@ describe('P0-C deletion propagation', () => {
     context.companion.deleteConversation({ conversationId: second.id })
     expect(context.db.connection.prepare('SELECT status FROM memories WHERE id = ?').get(memory.id)?.status).toBe('retracted')
   })
+
+  it('propagates memory retraction to a derived lineage child', () => {
+    const context = stack()
+    const memory = context.memories.create('父记忆。')
+    const child = randomUUID()
+    context.db.connection.prepare(`
+      INSERT INTO evidence_lineage(node_id, owner, root_source_id, correlation_group_id, derivation_kind, source_table, state, parent_ids_json, verified_at, created_at)
+      VALUES (?, 'user', ?, ?, 'origin', 'memories', 'active', '[]', ?, ?)
+    `).run(memory.id, memory.id, memory.id, at, at)
+    context.db.connection.prepare(`
+      INSERT INTO evidence_lineage(node_id, owner, root_source_id, correlation_group_id, derivation_kind, source_table, state, parent_ids_json, verified_at, created_at)
+      VALUES (?, 'user', ?, ?, 'reflection', 'evidence_lineage', 'active', ?, ?, ?)
+    `).run(child, memory.id, memory.id, JSON.stringify([memory.id]), at, at)
+    context.memories.retract(memory.id)
+    expect(context.db.connection.prepare('SELECT state FROM evidence_lineage WHERE node_id = ?').get(child)?.state).toBe('retracted')
+  })
+
+  it('does not swallow a closed-database failure as successful cleanup', () => {
+    const context = stack()
+    const conversation = context.conversations.create()
+    context.db.close()
+    expect(() => context.sourceValidity.invalidateConversation(conversation.id)).toThrow()
+  })
   it('writes only counts, never the deleted statement, into the audit event', () => {
     const context = stack()
     const conversation = context.conversations.create()

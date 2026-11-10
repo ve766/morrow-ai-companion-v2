@@ -474,6 +474,41 @@ describe('recursive evidence lineage', () => {
     }
   })
 
+
+  it('rejects a user-actored event that tries to inherit a Morrow parent chain', () => {
+    const context = setup()
+    try {
+      const root = context.seedRoot('morrow-parent')
+      const event = context.events.recordDeterministic(`user-derived:${randomUUID()}`, {
+        sourceModule: 'memory', eventType: 'memory.derived', actor: 'user',
+        subjectType: 'interest', subjectId: 'x', correlationId: null,
+        payload: { parentEvidenceIds: [root] }
+      }).event.id
+      const finding = context.findingWithEvidence([event])
+      expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('cross_owner_evidence')
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('rejects a derived event whose correlation id is not proven by its parents', () => {
+    const context = setup()
+    try {
+      const root = context.seedRoot('cluster-root')
+      const event = context.events.recordDeterministic(`bad-correlation:${randomUUID()}`, {
+        sourceModule: 'cognition', eventType: 'cognition.derived', actor: 'system',
+        subjectType: 'interest', subjectId: 'x', correlationId: randomUUID(),
+        payload: { parentEvidenceIds: [root] }
+      }).event.id
+      const finding = context.findingWithEvidence([event])
+      expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('unproven_lineage_key')
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('rejects an event whose memory subject was deleted', () => {
     const context = setup()
     try {

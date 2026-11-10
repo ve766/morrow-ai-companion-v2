@@ -323,7 +323,29 @@ export class ReflectionStateGate {
         }
         const parents = parseParentIds((payload as { parentEvidenceIds?: unknown }).parentEvidenceIds)
         if (parents.status === 'malformed') return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
-        if (parents.status === 'valid') return this.verifyAll(parents.ids, visited, depth)
+        if (parents.status === 'valid') {
+          // A known origin event cannot acquire parents later; and a user/memory
+          // actor cannot launder a Morrow-owned parent chain. System/provider
+          // events are processors and inherit the parents' owner.
+          if (event.event_type === 'cognition.knowledge_gap') {
+            return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
+          }
+          const roots = this.verifyAll(parents.ids, visited, depth)
+          if (!roots.ok) return roots
+          if (event.actor === 'user' || event.source_module === 'memory') {
+            if (roots.roots.some((root) => root.owner !== 'user')) return { ok: false, reason: REFLECTION_GATE_REASONS.crossOwner }
+          }
+          if (event.actor === 'provider') return { ok: false, reason: REFLECTION_GATE_REASONS.crossOwner }
+          // A non-null correlation id is a claim about the cluster; it must be
+          // one the verified parent chain actually proves.
+          if (isUuid(event.correlation_id)) {
+            const claimed = event.correlation_id
+            if (!roots.roots.some((root) => root.correlationGroupId === claimed || root.rootSourceId === claimed)) {
+              return { ok: false, reason: REFLECTION_GATE_REASONS.unprovenKey }
+            }
+          }
+          return roots
+        }
         if (requiresParents(event.event_type)) {
           return { ok: false, reason: REFLECTION_GATE_REASONS.derivedOriginForbidden }
         }
