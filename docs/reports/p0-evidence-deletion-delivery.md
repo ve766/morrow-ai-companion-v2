@@ -3,6 +3,7 @@
 ## 0. 结论
 
 - 仓库：`ve766/morrow-ai-companion-v2`
+- Draft PR：#84 https://github.com/ve766/morrow-ai-companion-v2/pull/84
 - Branch：`fix/morrow-p0-evidence-deletion-closure-20261110`
 - Base：PR #82 head `dc2743d7a3877a56db4d3d3bb55feb574dc1a8e8`
 - **最终代码 SHA**：`b229c1ae3005dbee2790e208df258363867a1b8d`

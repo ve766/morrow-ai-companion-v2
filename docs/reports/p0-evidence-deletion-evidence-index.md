@@ -5,6 +5,7 @@
 - Base: `dc2743d7a3877a56db4d3d3bb55feb574dc1a8e8` (PR #82 head)
 - Final code SHA: `b229c1ae3005dbee2790e208df258363867a1b8d`
 - Schema: v59
+- Draft PR: https://github.com/ve766/morrow-ai-companion-v2/pull/84
 
 ## Code
 
