@@ -15,6 +15,7 @@
 | `d424409` | F5 investigation lifecycle v59 + scheduler wiring |
 | `fceb567` | F6 fixed-dataset benchmark script |
 | `60ae6fe` | Emotion fixture timeline isolation (test-only) |
+| `a83c36c` | Final report, matrices, algorithm/architecture notes and run logs |
 
 ## Source changes
 

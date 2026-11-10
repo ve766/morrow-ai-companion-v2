@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "issue": 81,
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "fix/morrow-project-wide-final-convergence-20261110",
+  "baseBranch": "fix/audit-driven-companion-remediation-20261109",
+  "baseCommit": "094ca2cf35b84e5a342becf0508db2ec6287079e",
+  "sourceCommit": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+  "testedCommit": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+  "finalCodeSha": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+  "finalHead": "a83c36c71314677be7c0aef343848e3f22c8f888",
+  "docsHead": "a83c36c71314677be7c0aef343848e3f22c8f888",
+  "docsHeadNote": "finalHead is the docs commit whose content this JSON reports. The JSON commit is bookkeeping and may be one commit later; the code SHA never changes for it.",
+  "status": "PARTIAL",
+  "generatedAt": "2026-11-10T06:40:00.000Z",
+  "schemaVersionDatabase": 59,
+  "features": [
+    {
+      "id": "F1",
+      "status": "DONE",
+      "tests": "src/self-model/reflection-state-gate.test.ts (14)",
+      "evidence": "recursive lineage, cycle, broken chain, retracted/deleted, cross-owner, forged root/cluster, revalidate"
+    },
+    {
+      "id": "F2",
+      "status": "PARTIAL",
+      "tests": "mood-service.test.ts (7), gate revalidation (1)",
+      "evidence": "mood ledger + deletion replay + self-state revalidation; reflection finding/route row purge missing"
+    },
+    {
+      "id": "F3",
+      "status": "PARTIAL",
+      "tests": "stage3-remediation.integration.test.ts (6), b4-recovery.integration.test.ts",
+      "evidence": "observeTurn inside assistant transaction; no outbox lease/dead-letter for this obligation"
+    },
+    {
+      "id": "F4",
+      "status": "PARTIAL",
+      "tests": "stage3-remediation D-1 (4)",
+      "evidence": "G2-only; G1 untouched; no intrinsic G1 writer"
+    },
+    {
+      "id": "F5",
+      "status": "PARTIAL",
+      "tests": "investigation.test.ts (6)",
+      "evidence": "durable 9-state machine, real goal stalls, budget recovery; no external evidence collector"
+    },
+    {
+      "id": "F6",
+      "status": "PARTIAL",
+      "tests": "scripts/memory-retrieval-benchmark.ts",
+      "evidence": "100/500/1000/5000 lexical run; semantic UNAVAILABLE_NO_ONNX_MODEL"
+    },
+    {
+      "id": "F7",
+      "status": "PARTIAL",
+      "tests": "chat-ui-smoke.mjs built/installed/portable",
+      "evidence": "install/start/chat/uninstall verified; cloud BLOCKED_NO_SECRET; consent PENDING_HUMAN"
+    }
+  ],
+  "tests": {
+    "command": "npx vitest run",
+    "environment": "Windows 10.0.26200, Node 22.23.2, local TMP/TEMP workaround for esbuild",
+    "files": 150,
+    "tests": 1276,
+    "passed": 1276,
+    "failed": 0,
+    "skipped": 0,
+    "consecutiveGreenRuns": 2,
+    "runIds": [
+      "2026-11-10T14:28:45",
+      "2026-11-10T14:34:48"
+    ],
+    "logs": [
+      "docs/reports/results/project-wide/run-20261110T0630Z-60ae6fe/vitest-run-2.txt",
+      "docs/reports/results/project-wide/run-20261110T0630Z-60ae6fe/vitest-run-3.txt"
+    ]
+  },
+  "typecheck": {
+    "command": "npm run typecheck",
+    "exitCode": 0,
+    "log": "docs/reports/results/project-wide/run-20261110T0630Z-60ae6fe/typecheck.txt"
+  },
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "log": "docs/reports/results/project-wide/run-20261110T0630Z-60ae6fe/build.txt",
+    "mainBytes": 1171750,
+    "preloadBytes": 11540,
+    "rendererBytes": 140750
+  },
+  "benchmark": {
+    "path": "evals/memory-retrieval/benchmark/2026-11-10T06-31-17-730Z-60ae6fe11e751bd7e5b80df942d231eade98b8eb.json",
+    "semanticStatus": "UNAVAILABLE_NO_ONNX_MODEL",
+    "sizes": [
+      100,
+      500,
+      1000,
+      5000
+    ],
+    "summary": [
+      {
+        "size": 100,
+        "recallAt5": 1.0,
+        "mrr": 1.0,
+        "misrecall": 0.1,
+        "retractedLeak": 0,
+        "sensitiveLeak": 0,
+        "correctionAccuracy": 1.0,
+        "p95Ms": 13.28
+      },
+      {
+        "size": 500,
+        "recallAt5": 1.0,
+        "mrr": 1.0,
+        "misrecall": 0.1,
+        "retractedLeak": 0,
+        "sensitiveLeak": 0,
+        "correctionAccuracy": 1.0,
+        "p95Ms": 212.76
+      },
+      {
+        "size": 1000,
+        "recallAt5": 1.0,
+        "mrr": 1.0,
+        "misrecall": 0.1,
+        "retractedLeak": 0,
+        "sensitiveLeak": 0,
+        "correctionAccuracy": 1.0,
+        "p95Ms": 819.11
+      },
+      {
+        "size": 5000,
+        "recallAt5": 1.0,
+        "mrr": 1.0,
+        "misrecall": 0.1,
+        "retractedLeak": 0,
+        "sensitiveLeak": 0,
+        "correctionAccuracy": 1.0,
+        "p95Ms": 421.72
+      }
+    ]
+  },
+  "windows": {
+    "installer": {
+      "path": "C:\\morrow-out\\Morrow-2.0.0-x64-custom-setup.exe",
+      "bytes": 158332209,
+      "sha256": "80c15fb5aac6e54bd1aab92226b31c345ea9d490da6f33f751b5e570c202f7a9"
+    },
+    "portable": {
+      "path": "release\\Morrow-2.0.0-x64-portable-final.zip",
+      "bytes": 162762914,
+      "sha256": "276cc9aba550fdc62d0cbd266fe970797e257013229fc463723309c4fe48148c"
+    },
+    "install": {
+      "exitCode": 0,
+      "path": "C:\\morrow81test",
+      "files": 19
+    },
+    "appStarted": true,
+    "chatVerified": true,
+    "uninstall": {
+      "exitCode": 0,
+      "directoryRemoved": true
+    },
+    "portableChatVerified": true,
+    "isolation": "new C:\\morrow81test and C:\\morrow81portable; no V1 path touched"
+  },
+  "provider": {
+    "cloudStatus": "BLOCKED_NO_SECRET",
+    "cloudReason": "MORROW_TEST_API_KEY and DEEPSEEK_API_KEY are not set",
+    "loopbackStatus": "PASS",
+    "loopbackEvidence": [
+      "chat-ui-smoke-built.json",
+      "chat-ui-smoke-installed.json",
+      "chat-ui-smoke-portable.json"
+    ],
+    "consentStatus": "PENDING_HUMAN",
+    "consentNote": "packaged run saw auto:false, grant:false, then remember:true; no human click independently observed"
+  },
+  "limitations": [
+    "F2 reflection findings/routes row purge and global outbox/cache purge are missing",
+    "F3 has transactional write but no outbox lease/backoff/dead-letter for inner observation",
+    "F4 has no Morrow-owned intrinsic G1 writer",
+    "F5 has no external evidence collector by design",
+    "F6 semantic channel blocked by no ONNX model/runtime; 20 labelled queries, 1000-row candidate window",
+    "F7 cloud provider blocked by no secret; native consent interaction pending human confirmation",
+    "CI not run at the time this JSON was generated; Draft PR is opened after it"
+  ],
+  "notDone": {
+    "merged": false,
+    "mainModified": false,
+    "releasePublished": false,
+    "pr77Modified": false,
+    "pr80Modified": false
+  }
+}
