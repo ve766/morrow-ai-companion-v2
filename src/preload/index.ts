@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CHANNELS,
   type AppInfo,
+  type CognitionConsistencyStatus,
   type BackupExportOutcome,
   type BackupPreviewOutcome,
   type BackupRestoreOutcome,
@@ -106,6 +107,8 @@ const bridge: MorrowBridge = Object.freeze({
     listReflectionFindings: (request: ReflectionFindingsRequest) => invoke<import('../self-model/self-model-domain').ReflectionFinding[]>(IPC_CHANNELS.reflectionFindings, request)
   }),
   cognition: Object.freeze({
+    consistency: () => invoke<CognitionConsistencyStatus>(IPC_CHANNELS.cognitionConsistencyStatus),
+    reconcile: () => invoke<CognitionConsistencyStatus>(IPC_CHANNELS.cognitionConsistencyReconcile),
     getSettings: () => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsGet),
     saveSettings: (request: CognitiveSettingsRequest) => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsSave, request),
     getFeelingState: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveFeelingSnapshot),

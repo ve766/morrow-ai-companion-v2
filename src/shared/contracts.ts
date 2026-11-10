@@ -104,6 +104,8 @@ export const IPC_CHANNELS = {
   affectMoodPause: 'morrow:affect:mood:pause',
   affectMoodResume: 'morrow:affect:mood:resume',
   consentGrantsList: 'morrow:provider:consent:list',
+  cognitionConsistencyStatus: 'morrow:cognition:consistency:status',
+  cognitionConsistencyReconcile: 'morrow:cognition:consistency:reconcile',
   consentGrantRevoke: 'morrow:provider:consent:revoke',
   interestsList: 'morrow:selfmodel:interests:list',
   interestSetStatus: 'morrow:selfmodel:interests:set-status',
@@ -126,6 +128,7 @@ export type IpcErrorCode =
   | 'STORAGE_ERROR'
   | 'BACKUP_INVALID'
   | 'SCHEMA_UPGRADE_REQUIRED'
+  | 'COGNITION_LOCKED'
   | 'INTERNAL_ERROR'
   | 'PROVIDER_STORAGE_UNAVAILABLE'
   | 'PROVIDER_CREDENTIAL_STORE_ERROR'
@@ -145,6 +148,14 @@ export type IpcErrorCode =
 export type IpcResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: IpcErrorCode; message: string } }
+
+export interface CognitionConsistencyStatus {
+  state: 'ready' | 'locked'
+  reasons: string[]
+  checkedAt: string
+  details: Record<string, number>
+  reconciled?: boolean
+}
 
 export interface AppInfo {
   name: string
@@ -388,6 +399,8 @@ export interface MorrowBridge {
     listReflectionFindings(request: ReflectionFindingsRequest): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionFinding[]>>
   }
   cognition: {
+    consistency(): Promise<IpcResult<CognitionConsistencyStatus>>
+    reconcile(): Promise<IpcResult<CognitionConsistencyStatus>>
     getSettings(): Promise<IpcResult<CognitiveCoreSettings>>
     saveSettings(request: CognitiveSettingsRequest): Promise<IpcResult<CognitiveCoreSettings>>
     getFeelingState(): Promise<IpcResult<FeelingStateView>>

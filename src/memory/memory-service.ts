@@ -102,10 +102,20 @@ export class MemoryService {
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly makeId: () => string = () => randomUUID(),
     private readonly events?: MemoryEventSink,
-    options: { useContextUtility?: boolean; importance?: import('./memory-importance').MemoryImportancePort; factIndex?: import('./fact-memory').FactMemoryService } = {}
+    options: {
+      useContextUtility?: boolean
+      importance?: import('./memory-importance').MemoryImportancePort
+      factIndex?: import('./fact-memory').FactMemoryService
+      /** Issue #83: invalidate lineage/derived rows on delete or retract. */
+      sourceValidity?: {
+        invalidateMemory(id: string, state: 'deleted' | 'retracted'): unknown
+        restoreMemory(id: string): unknown
+      }
+    } = {}
   ) {
     this.importance = options.importance
     this.factIndex = options.factIndex
+    this.sourceValidity = options.sourceValidity
     this.contextAssembler = new MemoryContextAssembler({
       ...(options.useContextUtility === undefined ? {} : { useContextUtility: options.useContextUtility }),
       // Ranking reads the cached importance score. Admission does not: a memory
@@ -114,6 +124,7 @@ export class MemoryService {
     })
   }
 
+  private readonly sourceValidity: { invalidateMemory(id: string, state: 'deleted' | 'retracted'): unknown; restoreMemory(id: string): unknown } | undefined
   private readonly importance: import('./memory-importance').MemoryImportancePort | undefined
   /** P0-A: the addressable fact layer, re-indexed after every lifecycle write. */
   private readonly factIndex: import('./fact-memory').FactMemoryService | undefined
@@ -353,12 +364,14 @@ export class MemoryService {
 
   retract(id: string, correlationId?: string): MemoryRecord {
     const record = this.transition(id, { type: 'retract' }, 'retracted', correlationId)
+    this.sourceValidity?.invalidateMemory(id, 'retracted')
     this.reindexFact(id)
     return record
   }
 
   restore(id: string, correlationId?: string): MemoryRecord {
     const record = this.transition(id, { type: 'restore' }, 'restored', correlationId)
+    this.sourceValidity?.restoreMemory(id)
     this.reindexFact(id)
     return record
   }
@@ -416,6 +429,7 @@ export class MemoryService {
   }
 
   delete(id: string): void {
+    this.sourceValidity?.invalidateMemory(id, 'deleted')
     if (!this.repository.delete(id)) throw new ApplicationError('NOT_FOUND')
     this.reindexFact(id)
   }

@@ -1,4 +1,4 @@
-import type { IpcResult } from '../../shared/contracts'
+import type { CognitionConsistencyStatus, IpcResult } from '../../shared/contracts'
 import type { TurnTraceRecord } from '../../cognition/turn-state-machine'
 import type { FeelingEventType } from '../../affective-state/feeling'
 import type {
@@ -76,12 +76,13 @@ export function initializeCompanion(): void {
     officialProvider: ProviderConfigRecord | null
     localProvider: ProviderConfigRecord | null
     providerStorageUnverified: boolean
+    cognitionConsistency: CognitionConsistencyStatus | null
     sending: boolean
     follow: boolean
     requestId: string
     retry: { conversationId: string; requestId: string; content: string; includeSensitive: boolean } | undefined
     streaming: HTMLElement | undefined
-  } = { conversationId: '', provider: null, officialProvider: null, localProvider: null, providerStorageUnverified: false, sending: false, follow: true, requestId: '', retry: undefined, streaming: undefined }
+  } = { conversationId: '', provider: null, officialProvider: null, localProvider: null, providerStorageUnverified: false, cognitionConsistency: null, sending: false, follow: true, requestId: '', retry: undefined, streaming: undefined }
 
   const setStatus = (message: string, isError = false): void => {
     const status = element<HTMLParagraphElement>('#chat-feedback')
@@ -149,7 +150,8 @@ export function initializeCompanion(): void {
     const chatReady = isProviderUsable(provider)
     const localReady = Boolean(localProvider?.enabled)
     const officialReady = Boolean(officialProvider?.enabled && officialProvider.apiKeyConfigured)
-    const ready = Boolean(!state.providerStorageUnverified && chatReady)
+    const cognitionLocked = state.cognitionConsistency?.state === 'locked'
+    const ready = Boolean(!state.providerStorageUnverified && !cognitionLocked && chatReady)
     const dot = element<HTMLSpanElement>('#status-dot')
     dot.classList.toggle('ready', ready)
     dot.classList.toggle('unverified', state.providerStorageUnverified)
@@ -159,10 +161,18 @@ export function initializeCompanion(): void {
         ? `${provider.displayName ?? provider.id} · ${chatReady ? '已就绪' : '未就绪'}`
         : 'Provider 未就绪'
     element<HTMLButtonElement>('#chat-send').disabled = !ready || state.sending
+    const consistencyBanner = element<HTMLDivElement>('#cognition-consistency')
+    consistencyBanner.hidden = !cognitionLocked
+    if (cognitionLocked) {
+      const reasons = state.cognitionConsistency?.reasons.join(', ') || 'unknown'
+      element<HTMLParagraphElement>('#cognition-consistency-reason').textContent = `本地删除/撤回检查未完成（${reasons}）。聊天记录不会被删除；修复数据后可重试。`
+    }
     element<HTMLDivElement>('#chat-provider-cta').hidden = ready
     element<HTMLButtonElement>('#provider-test').disabled = !officialReady || state.sending
     if (!state.sending) {
-      element<HTMLSpanElement>('#chat-state').textContent = provider ? (chatReady ? `${provider.displayName ?? provider.id} · 已就绪` : 'Provider 尚未就绪') : '尚未配置 Provider'
+      element<HTMLSpanElement>('#chat-state').textContent = cognitionLocked
+        ? '数据一致性检查未完成'
+        : provider ? (chatReady ? `${provider.displayName ?? provider.id} · 已就绪` : 'Provider 尚未就绪') : '尚未配置 Provider'
     }
     element<HTMLButtonElement>('#local-provider-test').disabled = !localReady || state.sending
     element<HTMLButtonElement>('#conversation-new').disabled = state.sending
@@ -175,6 +185,11 @@ export function initializeCompanion(): void {
   const markProviderStorageUnverified = (error: unknown): void => {
     if (!(error instanceof UiError) || !['PROVIDER_STORAGE_UNAVAILABLE', 'PROVIDER_CREDENTIAL_STORE_ERROR'].includes(error.code)) return
     state.providerStorageUnverified = true
+    updateProviderStatus(state.provider)
+  }
+
+  const loadCognitionConsistency = async (): Promise<void> => {
+    state.cognitionConsistency = unwrap(await window.morrow.cognition.consistency())
     updateProviderStatus(state.provider)
   }
 
@@ -746,7 +761,7 @@ export function initializeCompanion(): void {
       element<HTMLButtonElement>('#conversation-delete').disabled = false
       element<HTMLSelectElement>('#conversation-select').disabled = false
       element<HTMLButtonElement>('#provider-clear-key').disabled = false
-      element<HTMLButtonElement>('#chat-send').disabled = state.providerStorageUnverified || !isProviderUsable(state.provider)
+      element<HTMLButtonElement>('#chat-send').disabled = state.providerStorageUnverified || state.cognitionConsistency?.state === 'locked' || !isProviderUsable(state.provider)
       await loadCognitive().catch((error) => setStatus(errorText(error), true))
     }
   })
@@ -799,5 +814,15 @@ export function initializeCompanion(): void {
     setTimeout(() => element<HTMLInputElement>('#provider-profile-name').focus(), 120)
   })
 
-  void Promise.all([loadCurrentProviderSafe(), loadConversations(), loadPersonality(), loadCognitive()]).catch((error) => setStatus(errorText(error), true))
+  element<HTMLButtonElement>('#cognition-consistency-retry').addEventListener('click', async () => {
+    try {
+      state.cognitionConsistency = unwrap(await window.morrow.cognition.reconcile())
+      updateProviderStatus(state.provider)
+      setStatus(state.cognitionConsistency.state === 'ready' ? '数据一致性检查已完成，可以发送消息。' : '检查仍未完成，请查看原因后重试。', state.cognitionConsistency.state !== 'ready')
+    } catch (error) {
+      setStatus(errorText(error), true)
+    }
+  })
+
+  void Promise.all([loadCurrentProviderSafe(), loadCognitionConsistency(), loadConversations(), loadPersonality(), loadCognitive()]).catch((error) => setStatus(errorText(error), true))
 }

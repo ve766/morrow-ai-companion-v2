@@ -158,7 +158,9 @@ export class CognitionOutbox {
   constructor(
     private readonly database: SqliteDatabase,
     private readonly clock: () => string = () => new Date().toISOString(),
-    ledger?: CognitiveEffectLedger
+    ledger?: CognitiveEffectLedger,
+    /** Issue #83: re-run the idempotent invalidation when a post-check fails. */
+    private readonly sourceValidity?: { invalidateConversation(conversationId: string): unknown }
   ) {
     this.ledger = ledger ?? new CognitiveEffectLedger(database, clock)
   }
@@ -209,7 +211,7 @@ export class CognitionOutbox {
     }))
   }
 
-  private mark(row: OutboxRow, status: 'done' | 'failed' | 'pending', error: string | null, attempts: number): void {
+  private mark(row: OutboxRow, status: 'done' | 'failed' | 'pending' | 'cancelled', error: string | null, attempts: number): void {
     this.database.connection.prepare(`
       UPDATE cognitive_outbox
       SET status = ?, attempts = ?, last_error = ?, updated_at = ?
@@ -234,6 +236,13 @@ export class CognitionOutbox {
     const rows = this.pending(options.turnId, options.limit ?? 100)
     const result: DrainResult = { done: 0, failed: 0, skipped: 0, replayed: 0, busy: 0, lostLease: 0 }
     for (const row of rows) {
+      // Issue #83 P0-C: a deleted source can never execute or commit. This is
+      // checked before the claim and again inside the projector transaction.
+      if (!this.sourceValid(row)) {
+        this.cancelRow(row)
+        result.skipped += 1
+        continue
+      }
       const projector = projectors.find((candidate) => candidate.module === row.module && candidate.version === row.handlerVersion)
       if (!projector) {
         result.skipped += 1
@@ -261,6 +270,7 @@ export class CognitionOutbox {
           continue
         }
         claimGeneration = claim.generation
+        if (!this.sourceValid(row)) throw new Error('OUTBOX_SOURCE_INVALIDATED')
         projector.project({
           turnId: row.turnId,
           conversationId: row.conversationId,
@@ -269,6 +279,10 @@ export class CognitionOutbox {
           analysis: row.analysis,
           readUserMessage: () => this.readUserMessage(row.userMessageId)
         })
+        // Commit-time check: a deletion that committed while the projector ran
+        // wins. The invalidation is re-run idempotently to remove any domain row
+        // the projector just wrote for the dead source.
+        if (!this.sourceValid(row)) throw new Error('OUTBOX_SOURCE_INVALIDATED')
         // Ledger first, outbox second. The completion is fenced by the
         // generation claimed above: a worker whose lease was stolen must not
         // mark the obligation done, even if its side effect was idempotent.
@@ -279,6 +293,11 @@ export class CognitionOutbox {
         this.mark(row, 'done', null, row.attempts)
         result.done += 1
       } catch (error) {
+        if (error instanceof Error && error.message === 'OUTBOX_SOURCE_INVALIDATED') {
+          this.cancelRow(row)
+          result.skipped += 1
+          continue
+        }
         const attempts = row.attempts + 1
         const message = error instanceof Error ? error.message.slice(0, 200) : 'unknown'
         if (claimGeneration === null) {
@@ -298,6 +317,33 @@ export class CognitionOutbox {
       }
     }
     return result
+  }
+
+  /** A source is valid only while both its message and conversation exist. */
+  private sourceValid(row: OutboxRow): boolean {
+    try {
+      const message = this.database.connection.prepare('SELECT 1 AS present FROM messages WHERE id = ?').get(row.userMessageId)
+      const conversation = this.database.connection.prepare('SELECT 1 AS present FROM conversations WHERE id = ?').get(row.conversationId)
+      return Boolean(message) && Boolean(conversation)
+    } catch {
+      return false
+    }
+  }
+
+  private cancelRow(row: OutboxRow): void {
+    try {
+      this.sourceValidity?.invalidateConversation(row.conversationId)
+      this.mark(row, 'cancelled', 'source_invalidated', row.attempts)
+      this.database.connection.prepare(`
+        UPDATE cognitive_effect_ledger
+        SET state = 'terminal_failed', last_error_code = 'source_invalidated',
+            claim_owner = NULL, lease_until = NULL, updated_at = ?
+        WHERE turn_id = ? AND module = ? AND handler_version = ? AND effect_key = ?
+          AND state IN ('pending', 'running', 'failed_retryable')
+      `).run(this.clock(), row.turnId, row.module, row.handlerVersion, OUTBOX_EFFECT_KEY)
+    } catch {
+      // The row remains pending and will be re-checked next drain.
+    }
   }
 
   /** Effect ledger for one turn, for audits and crash-recovery tests. */
