@@ -30,6 +30,7 @@ import { AffectLoopService } from '../affective-state/affect-loop'
 import { composeStartupReflectionServices, runStartupReflection } from './startup-composition'
 import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
+import { InvestigationService } from '../self-model/investigation'
 import { CompanionGoalService } from '../motivation/companion-goal'
 import { UserInteractionProfileService } from '../personalization/interaction-profile'
 import { PendingSchemaUnavailableError, runBounded } from '../cognition/pending-items'
@@ -310,6 +311,10 @@ if (hasSingleInstanceLock) {
     // verified intrinsic reward signals. It is created before the chat service
     // so the same instance is used by the turn path and the review scheduler.
     const affect = new AffectLoopService(database, () => new Date().toISOString(), () => globalThis.crypto.randomUUID(), eventLog)
+    // Issue #81 F5: durable investigation lifecycle. It is local and bounded;
+    // the scheduler below opens one record per synthesized thought and closes
+    // it from the same review that produces a Morrow self-state.
+    const investigations = new InvestigationService(database, eventLog)
     // Trait revisions are a cache over observations. Rebuild them at startup so
     // a message deletion that cascaded observations cannot leave a stale trait.
     try { affect.traits.recomputeAll() } catch { logger.warn('cognition', 'trait projection rebuild failed; chat is unaffected') }
@@ -424,6 +429,14 @@ if (hasSingleInstanceLock) {
     } catch {
       logger.warn('self-model', 'reflection state revalidation failed; existing states stay until the next ingest')
     }
+    try {
+      const suspended = investigations.recover()
+      if (suspended > 0) {
+        console.warn(`Investigation recovery suspended ${suspended} overdue record(s).`)
+      }
+    } catch {
+      logger.warn('cognition', 'investigation recovery failed; records stay for the next scheduler pass')
+    }
     const companion = new CompanionService({
       database,
       memories,
@@ -487,14 +500,43 @@ if (hasSingleInstanceLock) {
           ? reflection.findings(latestReflection.id).map((finding) => ({ statement: finding.statement, kind: finding.kind, runId: latestReflection.id, createdAt: finding.createdAt }))
           : []
         const moodView = affect.mood.snapshot(now)
-        innerCognition.synthesizeFromContext({
+        // Goal stall comes from the real companionship ledger: days since the
+        // last recorded progress (or the goal's own update). No fabricated list.
+        const goalStalls = companionGoals.list({ status: 'active' }).map((goal) => {
+          const last = companionGoals.progress(goal.id, 1)[0]?.createdAt ?? goal.updatedAt
+          return { title: goal.title, days: Math.max(0, (Date.parse(now) - Date.parse(last)) / 86_400_000) }
+        }).filter((goal) => Number.isFinite(goal.days) && goal.days >= 2)
+        let priorityComponents: Parameters<InvestigationService['begin']>[0]['components'] | null = null
+        const thought = innerCognition.synthesizeFromContext({
           at: now,
           interests: interests.activeForContext(6).map((interest) => ({ label: interest.label, origin: interest.origin, strength: interest.strength, status: interest.status })),
           reflectionFindings,
-          ...(moodView.available ? { mood: { valence: moodView.state.valence, arousal: moodView.state.arousal } } : {})
+          goalStalls,
+          resourceAvailability: Math.max(0, 1 - investigations.openCount() / 10),
+          ...(moodView.available ? { mood: { valence: moodView.state.valence, arousal: moodView.state.arousal } } : {}),
+          onPriority: (components) => { priorityComponents = components }
         })
+        if (thought && priorityComponents) {
+          try {
+            investigations.begin({ thought, components: priorityComponents, at: now })
+          } catch {
+            logger.warn('cognition', 'investigation record could not be opened; the thought still exists')
+          }
+        }
         const reviewLimit = moodView.available && moodView.state.arousal < 0.2 ? 1 : 3
         const reviewed = innerCognition.reviewDue(now, reviewLimit)
+        for (const state of reviewed) {
+          try {
+            investigations.reviewFromState(state, now)
+          } catch {
+            logger.warn('cognition', 'investigation could not be closed from a reviewed thought')
+          }
+        }
+        try {
+          investigations.recover(now)
+        } catch {
+          logger.warn('cognition', 'investigation deadline recovery failed')
+        }
         // A promoted thought is verified Morrow-owned progress. The reward
         // ledger records it; user praise never reaches this path.
         affect.observeThoughtReviews(reviewed)

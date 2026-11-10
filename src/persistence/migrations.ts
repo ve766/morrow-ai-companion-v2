@@ -3046,6 +3046,57 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 59,
+    name: 'investigation-lifecycle',
+    up(database) {
+      // Issue #81 F5: a local, resumable investigation record. The state machine
+      // is explicit and versioned; every transition appends a step with the
+      // sources it used and whether they were still valid. Hypotheses and
+      // evidence stay separate from personality/self facts.
+      database.exec(`
+        CREATE TABLE morrow_investigations (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          thought_id TEXT REFERENCES morrow_thoughts(id) ON DELETE CASCADE,
+          trigger TEXT NOT NULL CHECK (length(trigger) BETWEEN 1 AND 64),
+          question TEXT NOT NULL CHECK (length(trim(question)) BETWEEN 1 AND 1000),
+          state TEXT NOT NULL CHECK (state IN (
+            'discovered', 'selected', 'hypothesized', 'investigating', 'reviewing',
+            'concluded', 'inconclusive', 'rejected', 'suspended'
+          )),
+          state_version INTEGER NOT NULL CHECK (state_version > 0),
+          priority REAL NOT NULL CHECK (priority BETWEEN 0 AND 1),
+          components_json TEXT NOT NULL CHECK (json_valid(components_json)),
+          primary_hypothesis TEXT NOT NULL CHECK (length(trim(primary_hypothesis)) BETWEEN 1 AND 1000),
+          alternatives_json TEXT NOT NULL CHECK (json_valid(alternatives_json) AND json_type(alternatives_json) = 'array'),
+          evidence_json TEXT NOT NULL CHECK (json_valid(evidence_json) AND json_type(evidence_json) = 'array'),
+          contradiction_json TEXT NOT NULL CHECK (json_valid(contradiction_json) AND json_type(contradiction_json) = 'array'),
+          confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+          stop_reason TEXT,
+          failure_reason TEXT,
+          budget_json TEXT NOT NULL CHECK (json_valid(budget_json)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          concluded_at TEXT
+        ) STRICT;
+        CREATE UNIQUE INDEX investigations_thought_uq ON morrow_investigations(thought_id) WHERE thought_id IS NOT NULL;
+        CREATE INDEX investigations_state_idx ON morrow_investigations(state, updated_at);
+        CREATE TABLE morrow_investigation_steps (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          investigation_id TEXT NOT NULL REFERENCES morrow_investigations(id) ON DELETE CASCADE,
+          from_state TEXT,
+          to_state TEXT NOT NULL,
+          state_version INTEGER NOT NULL CHECK (state_version > 0),
+          at TEXT NOT NULL,
+          sources_json TEXT NOT NULL CHECK (json_valid(sources_json) AND json_type(sources_json) = 'array'),
+          result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+          source_valid INTEGER NOT NULL CHECK (source_valid IN (0, 1)),
+          failure_reason TEXT
+        ) STRICT;
+        CREATE INDEX investigation_steps_investigation_idx ON morrow_investigation_steps(investigation_id, seq);
+      `)
+    }
+  },
 
 ]
 
