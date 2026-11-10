@@ -68,6 +68,7 @@ interface StateRow {
   score: number
   status: string
   revision: number
+  rationale: string
   created_at: string
   updated_at: string
 }
@@ -126,6 +127,58 @@ export class ReflectionStateGate {
     private readonly makeId: () => string = () => globalThis.crypto.randomUUID(),
     private readonly events?: EventLogService
   ) {}
+
+  /**
+   * Startup/backup-restore reconciliation: re-verify the support of every
+   * live state, drop invalid refs, downgrade a state that lost independence
+   * and retract one whose support is gone. Idempotent and safe to re-run.
+   */
+  revalidate(): { examined: number; updated: number; retracted: number } {
+    const rows = this.database.connection.prepare(
+      "SELECT * FROM morrow_self_states WHERE actor = 'morrow' AND status IN ('active', 'candidate', 'weakened') ORDER BY updated_at DESC"
+    ).all() as unknown as StateRow[]
+    let updated = 0
+    let retracted = 0
+    const at = this.clock()
+    for (const row of rows) {
+      const refs = refsOf(row)
+      const valid = refs.filter((ref) => {
+        if (!isUuid(ref.rootSourceId) || !isUuid(ref.correlationGroupId)) return false
+        const roots = this.verifyNode(ref.rootSourceId, new Set(), 0)
+        return Boolean(roots?.some((root) =>
+          root.rootSourceId === ref.rootSourceId && root.correlationGroupId === ref.correlationGroupId && root.owner === 'morrow'))
+      })
+      const independent = new Set(valid.map((ref) => ref.correlationGroupId)).size
+      if (valid.length === refs.length && independent === row.independent_contexts && valid.length > 0) continue
+      const status = valid.length === 0 ? 'retracted' : row.status === 'active' && independent < 2 ? 'candidate' : row.status
+      this.database.connection.prepare(
+        'UPDATE morrow_self_states SET evidence_json = ?, independent_contexts = ?, status = ?, updated_at = ?, rationale = ? WHERE id = ?'
+      ).run(
+        JSON.stringify(valid.slice(-40)),
+        independent,
+        status,
+        at,
+        `${row.rationale} | revalidated: removed ${refs.length - valid.length} invalid refs`.slice(0, 1000),
+        row.id
+      )
+      if (status === 'retracted') retracted += 1
+      updated += 1
+      try {
+        this.events?.recordDeterministic(`reflection-revalidate:${row.id}:${row.revision}`, {
+          sourceModule: 'self-model',
+          eventType: 'reflection.state_revalidated',
+          actor: 'system',
+          subjectType: 'morrow_self_state',
+          subjectId: row.id,
+          correlationId: null,
+          payload: { stateId: row.id, from: row.status, status, independent, removed: refs.length - valid.length }
+        })
+      } catch {
+        throw new Error('REFLECTION_STATE_AUDIT_UNAVAILABLE')
+      }
+    }
+    return { examined: rows.length, updated, retracted }
+  }
 
   private lineageRow(id: string): LineageRow | null {
     try {

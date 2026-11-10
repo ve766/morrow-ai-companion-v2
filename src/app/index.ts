@@ -17,6 +17,7 @@ import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
 import { ReminderService } from '../motivation/reminder-service'
 import { BackupService, RESTORE_BOUNDARY_NOTICE } from '../persistence/backup-service'
+import { readLatestDeletionStates } from '../persistence/deletion-journal'
 import { EventLogService } from '../persistence/event-log'
 import { SqliteGoalRepository } from '../persistence/goal-repository'
 import { SqliteDatabase } from '../persistence/database'
@@ -383,6 +384,45 @@ if (hasSingleInstanceLock) {
       }
     } else {
       console.warn(`Relationship reconcile skipped: schema v${database.schemaVersion} is below v46.`)
+    }
+    // Issue #81 F2: a backup restore replaces the database but the deletion
+    // journal travels with it (merged by recorded_at). Replaying it here makes
+    // the projections agree with the user's latest decisions before any context
+    // can reach a Provider. Every step is idempotent, so a normal start is a
+    // no-op when nothing was deleted.
+    try {
+      const deletions = readLatestDeletionStates(database)
+      let replayed = 0
+      for (const [key, entry] of deletions) {
+        if (!key.startsWith('conversation:') || entry.state === 'unretracted') continue
+        affect.deleteConversation(entry.entityId)
+        innerCognition.deleteConversation(entry.entityId)
+        replayed += 1
+      }
+      if (replayed > 0) {
+        eventLog.tryRecord({
+          sourceModule: 'app',
+          eventType: 'deletion.replayed',
+          actor: 'system',
+          subjectType: 'application',
+          subjectId: null,
+          correlationId: null,
+          payload: { conversations: replayed, schemaVersion: database.schemaVersion }
+        })
+      }
+    } catch {
+      logger.warn('cognition', 'deletion journal replay failed; projections may lag until the next delete')
+    }
+    // The self-state support is checked against the same lineage rules: a
+    // source deleted or retracted since the state was written can no longer
+    // carry it, and a state with no verified support becomes a tombstone.
+    try {
+      const revalidated = startup.reflectionStateGate.revalidate()
+      if (revalidated.updated > 0) {
+        console.warn(`Reflection state revalidation updated ${revalidated.updated} state(s), retracted ${revalidated.retracted}.`)
+      }
+    } catch {
+      logger.warn('self-model', 'reflection state revalidation failed; existing states stay until the next ingest')
     }
     const companion = new CompanionService({
       database,

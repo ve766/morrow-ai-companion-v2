@@ -3017,6 +3017,35 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 58,
+    name: 'mood-contribution-ledger',
+    up(database) {
+      // Issue #81 F2: mood is reconstructed from a source attribution ledger
+      // instead of being an irreversible global snapshot. Deleting one
+      // conversation removes only its impulses and replays the rest. A
+      // checkpoint carries the pre-v58 state (and any explicit clear) so the
+      // replay has a verified starting point.
+      database.exec(`
+        CREATE TABLE morrow_mood_contributions (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          kind TEXT NOT NULL CHECK (kind IN ('impulse', 'pause', 'resume', 'checkpoint')),
+          source_event_id TEXT NOT NULL,
+          source_conversation_id TEXT CHECK (source_conversation_id IS NULL OR length(source_conversation_id) = 36),
+          applied_at TEXT NOT NULL CHECK (length(applied_at) BETWEEN 20 AND 40),
+          payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        CREATE UNIQUE INDEX mood_contributions_source_uq ON morrow_mood_contributions(source_event_id);
+        CREATE INDEX mood_contributions_conversation_idx ON morrow_mood_contributions(source_conversation_id, seq);
+        CREATE INDEX mood_contributions_seq_idx ON morrow_mood_contributions(seq);
+        INSERT INTO morrow_mood_contributions(kind, source_event_id, source_conversation_id, applied_at, payload_json, created_at)
+          SELECT 'checkpoint', 'migration-v58', NULL, last_advanced_at,
+            json_object('state', json(state_json), 'paused', paused), updated_at
+          FROM morrow_mood_state WHERE id = 1;
+      `)
+    }
+  },
 
 ]
 

@@ -300,6 +300,36 @@ describe('recursive evidence lineage', () => {
     }
   })
 
+  it('revalidates live states: downgrades on lost independence and retracts with no support', () => {
+    const context = setup()
+    try {
+      expect(context.gate.ingestInTransaction(context.finding())).toBe('candidate')
+      expect(context.gate.ingestInTransaction(context.finding())).toBe('promoted')
+      const state = context.database.connection.prepare(
+        "SELECT * FROM morrow_self_states WHERE status = 'active' ORDER BY revision DESC LIMIT 1"
+      ).get() as Record<string, unknown>
+      const roots = (JSON.parse(String(state.evidence_json)) as Array<{ rootSourceId: string }>).map((ref) => ref.rootSourceId)
+      const stateId = String(state.id)
+      expect(roots).toHaveLength(2)
+
+      context.database.connection.prepare("UPDATE evidence_lineage SET state = 'retracted' WHERE node_id = ?").run(roots[0]!)
+      const first = context.gate.revalidate()
+      expect(first.updated).toBe(1)
+      const downgraded = context.database.connection.prepare('SELECT status, independent_contexts FROM morrow_self_states WHERE id = ?').get(stateId) as { status: string; independent_contexts: number }
+      expect(downgraded.status).toBe('candidate')
+      expect(downgraded.independent_contexts).toBe(1)
+
+      context.database.connection.prepare("UPDATE evidence_lineage SET state = 'retracted' WHERE node_id = ?").run(roots[1]!)
+      const second = context.gate.revalidate()
+      expect(second.retracted).toBe(1)
+      const retracted = context.database.connection.prepare('SELECT status, evidence_json FROM morrow_self_states WHERE id = ?').get(stateId) as { status: string; evidence_json: string }
+      expect(retracted.status).toBe('retracted')
+      expect(JSON.parse(retracted.evidence_json)).toHaveLength(0)
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('rejects an event whose memory subject was deleted', () => {
     const context = setup()
     try {

@@ -103,11 +103,30 @@ function parseState(row: MoodRow): MoodState {
   return clampMood({ ...state, algorithmVersion: MOOD_ALGORITHM_VERSION })
 }
 
+interface ContributionRow {
+  seq: number
+  kind: 'impulse' | 'pause' | 'resume' | 'checkpoint'
+  source_event_id: string
+  source_conversation_id: string | null
+  applied_at: string
+  payload_json: string
+}
+
+interface ContributionPayload {
+  state?: MoodState
+  paused?: number
+  delta?: MoodBase
+}
+
 export class MoodService {
   constructor(private readonly database: SqliteDatabase, private readonly clock: () => string = () => new Date().toISOString()) {}
 
   get available(): boolean {
     return this.database.schemaVersion >= 56 && this.database.cognitivePersistenceAvailable
+  }
+
+  private get ledgerAvailable(): boolean {
+    return this.database.schemaVersion >= 58 && this.database.cognitivePersistenceAvailable
   }
 
   snapshot(at = this.clock()): MoodView {
@@ -129,7 +148,16 @@ export class MoodService {
     }
   }
 
-  applyEvent(input: { at?: string; valence: number; arousal: number; dominance: number; tension: number; weight: number }): MoodView {
+  applyEvent(input: {
+    at?: string
+    valence: number
+    arousal: number
+    dominance: number
+    tension: number
+    weight: number
+    sourceEventId?: string
+    sourceConversationId?: string
+  }): MoodView {
     if (!this.available) throw new ApplicationError('STORAGE_ERROR')
     const at = iso(input.at ?? this.clock())
     const weight = clamp(input.weight, 0, 1)
@@ -141,19 +169,56 @@ export class MoodService {
         // is returned unchanged and no revision is written.
         return { available: true, paused: true, lastAdvancedAt: row.last_advanced_at, state: current }
       }
+      // A replayed turn must not double-count its impulse. The ledger key is the
+      // emotion event id, which is deterministic per turn.
+      if (this.ledgerAvailable && input.sourceEventId && this.contributionExists(input.sourceEventId)) {
+        return this.snapshot(at)
+      }
       const effectiveAt = new Date(Math.max(Date.parse(current.evaluatedAt), Date.parse(at))).toISOString()
       const base = advanceMood(current, effectiveAt)
+      const delta: MoodBase = {
+        valence: input.valence * weight * 0.25,
+        arousal: input.arousal * weight * 0.2,
+        dominance: input.dominance * weight * 0.15,
+        tension: input.tension * weight * 0.2
+      }
       const next = clampMood({
         ...base,
-        valence: base.valence + input.valence * weight * 0.25,
-        arousal: base.arousal + input.arousal * weight * 0.2,
-        dominance: base.dominance + input.dominance * weight * 0.15,
-        tension: base.tension + input.tension * weight * 0.2,
+        valence: base.valence + delta.valence,
+        arousal: base.arousal + delta.arousal,
+        dominance: base.dominance + delta.dominance,
+        tension: base.tension + delta.tension,
         revision: base.revision + 1,
         evaluatedAt: effectiveAt
       })
+      if (this.ledgerAvailable) {
+        this.insertContribution({
+          kind: 'impulse',
+          sourceEventId: input.sourceEventId ?? `auto:${effectiveAt}:${next.revision}`,
+          conversationId: input.sourceConversationId ?? null,
+          appliedAt: effectiveAt,
+          payload: { delta }
+        })
+      }
       this.write(next, false, effectiveAt, effectiveAt)
       return { available: true, paused: false, lastAdvancedAt: effectiveAt, state: next }
+    })
+  }
+
+  /**
+   * Rebuild mood from the surviving source contributions. Deleting one
+   * conversation removes exactly its impulses; pause/resume/checkpoint markers
+   * keep the replay faithful to the logical timeline.
+   */
+  deleteConversation(conversationId: string, at = this.clock()): number {
+    if (!this.available || !this.ledgerAvailable) return 0
+    const now = iso(at)
+    return this.database.transaction(() => {
+      const removed = Number(this.database.connection.prepare(
+        'DELETE FROM morrow_mood_contributions WHERE source_conversation_id = ?'
+      ).run(conversationId).changes)
+      if (removed > 0) this.rebuild(now)
+      return removed
     })
   }
 
@@ -172,6 +237,16 @@ export class MoodService {
     const now = iso(at)
     return this.database.transaction(() => {
       const state = defaultState(now)
+      if (this.ledgerAvailable) {
+        this.database.connection.prepare('DELETE FROM morrow_mood_contributions').run()
+        this.insertContribution({
+          kind: 'checkpoint',
+          sourceEventId: `clear:${now}`,
+          conversationId: null,
+          appliedAt: now,
+          payload: { state, paused: 0 }
+        })
+      }
       this.write(state, false, now, now)
       return { available: true, paused: false, lastAdvancedAt: now, state }
     })
@@ -189,9 +264,111 @@ export class MoodService {
       const effectiveAt = new Date(Math.max(Date.parse(current.evaluatedAt), Date.parse(now))).toISOString()
       const advanced = row.paused === 1 ? current : advanceMood(current, effectiveAt)
       const state: MoodState = { ...advanced, evaluatedAt: effectiveAt }
+      if (this.ledgerAvailable) {
+        this.insertContribution({
+          kind: paused ? 'pause' : 'resume',
+          sourceEventId: `${paused ? 'pause' : 'resume'}:${effectiveAt}`,
+          conversationId: null,
+          appliedAt: effectiveAt,
+          payload: {}
+        })
+      }
       this.write(state, paused, effectiveAt, effectiveAt)
       return { available: true, paused, lastAdvancedAt: effectiveAt, state }
     })
+  }
+
+  private contributionExists(sourceEventId: string): boolean {
+    return Boolean(this.database.connection.prepare(
+      'SELECT 1 AS present FROM morrow_mood_contributions WHERE source_event_id = ?'
+    ).get(sourceEventId))
+  }
+
+  private insertContribution(input: {
+    kind: ContributionRow['kind']
+    sourceEventId: string
+    conversationId: string | null
+    appliedAt: string
+    payload: ContributionPayload
+  }): void {
+    this.database.connection.prepare(`
+      INSERT OR IGNORE INTO morrow_mood_contributions(
+        kind, source_event_id, source_conversation_id, applied_at, payload_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(input.kind, input.sourceEventId, input.conversationId, input.appliedAt, JSON.stringify(input.payload), this.clock())
+  }
+
+  private rebuild(now: string): void {
+    const rows = this.database.connection.prepare(
+      'SELECT * FROM morrow_mood_contributions ORDER BY seq ASC'
+    ).all() as unknown as ContributionRow[]
+    if (rows.length === 0) return
+    let start = -1
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      if (rows[index]!.kind === 'checkpoint') {
+        start = index
+        break
+      }
+    }
+    let state: MoodState
+    let paused: boolean
+    let from: number
+    if (start >= 0) {
+      const checkpoint = rows[start]!
+      const parsed = this.payload(checkpoint)
+      state = parsed.state
+        ? clampMood({ ...parsed.state, algorithmVersion: MOOD_ALGORITHM_VERSION, evaluatedAt: checkpoint.applied_at })
+        : defaultState(checkpoint.applied_at)
+      paused = parsed.paused === 1
+      from = start + 1
+    } else {
+      state = defaultState(rows[0]!.applied_at)
+      paused = false
+      from = 0
+    }
+    for (const row of rows.slice(from)) {
+      const payload = this.payload(row)
+      if (row.kind === 'checkpoint') {
+        state = payload.state ? clampMood({ ...payload.state, algorithmVersion: MOOD_ALGORITHM_VERSION, evaluatedAt: row.applied_at }) : defaultState(row.applied_at)
+        paused = payload.paused === 1
+        continue
+      }
+      if (row.kind === 'pause') {
+        if (!paused) state = advanceMood(state, row.applied_at)
+        paused = true
+        state = { ...state, evaluatedAt: row.applied_at }
+        continue
+      }
+      if (row.kind === 'resume') {
+        paused = false
+        state = { ...state, evaluatedAt: row.applied_at }
+        continue
+      }
+      if (paused || !payload.delta) continue
+      const base = advanceMood(state, row.applied_at)
+      state = clampMood({
+        ...base,
+        valence: base.valence + payload.delta.valence,
+        arousal: base.arousal + payload.delta.arousal,
+        dominance: base.dominance + payload.delta.dominance,
+        tension: base.tension + payload.delta.tension,
+        revision: base.revision + 1,
+        evaluatedAt: row.applied_at
+      })
+    }
+    if (!paused) state = advanceMood(state, now)
+    const lastAdvancedAt = paused ? state.evaluatedAt : now
+    this.write(state, paused, lastAdvancedAt, now)
+  }
+
+  private payload(row: ContributionRow): ContributionPayload {
+    try {
+      const parsed = JSON.parse(row.payload_json) as ContributionPayload
+      if (!parsed || typeof parsed !== 'object') return {}
+      return parsed
+    } catch {
+      return {}
+    }
   }
 
   private row(): MoodRow {
