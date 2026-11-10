@@ -31,6 +31,8 @@ import { composeStartupReflectionServices, runStartupReflection } from './startu
 import { PersonalityService } from './companion-service'
 import { ExplorationService } from '../self-model/exploration-policy'
 import { InvestigationService } from '../self-model/investigation'
+import { CognitionConsistencyGate } from './cognition-consistency'
+import { reconcileCognitionConsistency as runCognitionReconciliation } from './cognition-reconciliation'
 import { CompanionGoalService } from '../motivation/companion-goal'
 import { UserInteractionProfileService } from '../personalization/interaction-profile'
 import { PendingSchemaUnavailableError, runBounded } from '../cognition/pending-items'
@@ -315,6 +317,7 @@ if (hasSingleInstanceLock) {
     // the scheduler below opens one record per synthesized thought and closes
     // it from the same review that produces a Morrow self-state.
     const investigations = new InvestigationService(database, eventLog)
+    const cognitionConsistency = new CognitionConsistencyGate()
     // Trait revisions are a cache over observations. Rebuild them at startup so
     // a message deletion that cascaded observations cannot leave a stale trait.
     try { affect.traits.recomputeAll() } catch { logger.warn('cognition', 'trait projection rebuild failed; chat is unaffected') }
@@ -390,53 +393,24 @@ if (hasSingleInstanceLock) {
     } else {
       console.warn(`Relationship reconcile skipped: schema v${database.schemaVersion} is below v46.`)
     }
-    // Issue #81 F2: a backup restore replaces the database but the deletion
-    // journal travels with it (merged by recorded_at). Replaying it here makes
-    // the projections agree with the user's latest decisions before any context
-    // can reach a Provider. Every step is idempotent, so a normal start is a
-    // no-op when nothing was deleted.
-    try {
-      const deletions = readLatestDeletionStates(database)
-      let replayed = 0
-      for (const [key, entry] of deletions) {
-        if (!key.startsWith('conversation:') || entry.state === 'unretracted') continue
-        affect.deleteConversation(entry.entityId)
-        innerCognition.deleteConversation(entry.entityId)
-        replayed += 1
-      }
-      if (replayed > 0) {
-        eventLog.tryRecord({
-          sourceModule: 'app',
-          eventType: 'deletion.replayed',
-          actor: 'system',
-          subjectType: 'application',
-          subjectId: null,
-          correlationId: null,
-          payload: { conversations: replayed, schemaVersion: database.schemaVersion }
-        })
-      }
-    } catch {
-      logger.warn('cognition', 'deletion journal replay failed; projections may lag until the next delete')
-    }
-    // The self-state support is checked against the same lineage rules: a
-    // source deleted or retracted since the state was written can no longer
-    // carry it, and a state with no verified support becomes a tombstone.
-    try {
-      const revalidated = startup.reflectionStateGate.revalidate()
-      if (revalidated.updated > 0) {
-        console.warn(`Reflection state revalidation updated ${revalidated.updated} state(s), retracted ${revalidated.retracted}.`)
-      }
-    } catch {
-      logger.warn('self-model', 'reflection state revalidation failed; existing states stay until the next ingest')
-    }
-    try {
-      const suspended = investigations.recover()
-      if (suspended > 0) {
-        console.warn(`Investigation recovery suspended ${suspended} overdue record(s).`)
-      }
-    } catch {
-      logger.warn('cognition', 'investigation recovery failed; records stay for the next scheduler pass')
-    }
+    const { sourceValidity } = startup
+    // Issue #83 P0-A: these steps are a hard gate, not best-effort cleanup.
+    // A failure leaves the app open for diagnosis and export but locks every
+    // memory/reflection/mood/personality/thought Provider payload. Re-running
+    // this function is the recovery entry; no database reset is required.
+    const reconcileCognitionConsistency = () => runCognitionReconciliation({
+      database: database!,
+      gate: cognitionConsistency,
+      sourceValidity,
+      revalidate: () => startup.reflectionStateGate.revalidate(),
+      recoverInvestigations: () => investigations.recover(),
+      replayConversation: (conversationId) => {
+        affect.deleteConversation(conversationId)
+        innerCognition.deleteConversation(conversationId)
+      },
+      events: eventLog
+    })
+    reconcileCognitionConsistency()
     const companion = new CompanionService({
       database,
       memories,
@@ -445,6 +419,8 @@ if (hasSingleInstanceLock) {
       authorize: requestProviderConsent,
       consentGrants,
       selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships, affect },
+      sourceValidity,
+      cognitionConsistency,
       continuity: {
         contexts: turnContexts,
         pending: pendingItems,
@@ -494,6 +470,9 @@ if (hasSingleInstanceLock) {
     companionService = companion
     innerCognitionTimer = setInterval(() => {
       try {
+        // A locked consistency gate means source validity is unknown; do not
+        // create new thoughts or close investigations from stale projections.
+        if (cognitionConsistency.locked) return
         const now = new Date().toISOString()
         const latestReflection = reflection.listRuns(1)[0]
         const reflectionFindings = latestReflection
@@ -660,6 +639,13 @@ if (hasSingleInstanceLock) {
       companionGoals,
       reminders,
       companion,
+      cognitionConsistency: {
+        status: () => cognitionConsistency.snapshot(),
+        reconcile: () => {
+          const outcome = reconcileCognitionConsistency()
+          return { ...cognitionConsistency.snapshot(), reconciled: outcome.state === 'ready' }
+        }
+      },
       backup: backupActions,
       // Phase 2.4: the shell can read what the subject is holding open and what
       // each turn actually read. Marking an item done is the only mutation.

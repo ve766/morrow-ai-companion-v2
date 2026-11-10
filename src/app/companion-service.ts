@@ -87,6 +87,8 @@ import { planMemoryOperation, type MemoryOperationOutcome } from '../memory/memo
 import { deriveSelfFactStatement } from '../self-model/self-fact-statement'
 import type { ReflectionService } from '../self-model/reflection-service'
 import type { EventLogService } from '../persistence/event-log'
+import type { SourceValidityService } from '../persistence/source-validity'
+import type { CognitionConsistencyGate } from './cognition-consistency'
 import { KnowledgeGapService } from '../self-model/knowledge-gap-service'
 
 
@@ -1465,6 +1467,9 @@ export class CompanionService {
     continuity?: ContinuityPorts
     /** Provider consent grants; omitted by offline callers. */
     consentGrants?: ConsentGrantService
+    /** Issue #83: source invalidation and the cognition consistency lock. */
+    sourceValidity?: SourceValidityService
+    cognitionConsistency?: CognitionConsistencyGate
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
@@ -1681,9 +1686,9 @@ export class CompanionService {
     this.continuity = options.continuity
     // Durable post-turn cognition is only meaningful when the loop is wired and
     // the database can hold the outbox; offline callers keep the direct path.
-    const outbox = selfModelLoop ? new CognitionOutbox(options.database, clock) : undefined
+    const outbox = selfModelLoop ? new CognitionOutbox(options.database, clock, undefined, options.sourceValidity) : undefined
     const projectors = selfModelLoop ? buildCognitiveProjectors(selfModelLoop) : []
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors, options.database.schemaVersion)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, ledger, this.guidanceVariant, this.evidencePresentation, options.continuity, recordCognitiveDegradation, outbox, projectors, options.database.schemaVersion, options.sourceValidity, options.cognitionConsistency)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -1999,7 +2004,10 @@ export class ChatService {
     private readonly outbox?: CognitionOutbox,
     private readonly projectors: readonly CognitiveProjector[] = [],
     /** v48 added the pending-decision columns; older schemas cannot write them. */
-    private readonly schemaVersion: number = 48
+    private readonly schemaVersion: number = 48,
+    /** Issue #83: source invalidation and the cognition consistency lock. */
+    private readonly sourceValidity?: SourceValidityService,
+    private readonly cognitionConsistency?: CognitionConsistencyGate
   ) {}
 
   /**
@@ -2184,6 +2192,10 @@ export class ChatService {
   readConversation(id: string): ReturnType<ConversationService['read']> { return this.conversations.read(id) }
   deleteConversation(id: string): void {
     this.cancel(id)
+    const normalizedForInvalidation = normalizedUuid(id)
+    // Capture dependent rows while the messages still exist, then delete the
+    // conversation itself. The service is idempotent for startup replay.
+    this.sourceValidity?.invalidateConversation(normalizedForInvalidation)
     this.conversations.delete(id)
     const normalized = normalizedUuid(id)
     try {
@@ -2230,6 +2242,9 @@ export class ChatService {
     const requestId = normalizedUuid(request.requestId)
     if (typeof request.content !== 'string' || request.content.trim().length === 0 || request.content.length > 8000 || request.content.includes('\u0000')) throw new ApplicationError('INVALID_INPUT')
     if (typeof request.includeSensitive !== 'boolean') throw new ApplicationError('INVALID_INPUT')
+    // Issue #83 P0-A: a failed deletion/revalidation pass locks cognition before
+    // any memory, reflection, mood, personality or thought can build a payload.
+    this.cognitionConsistency?.assertReady()
     if (this.locks.has(conversationId)) throw new ApplicationError('CONFLICT')
     const sensitivityCeiling: Sensitivity = request.includeSensitive ? 'sensitive' : 'personal'
     const config = this.providers.requireConfigured()

@@ -26,6 +26,7 @@ import { PendingCognitionService, PendingSchemaUnavailableError } from '../cogni
 import { SqlitePendingItemRepository } from '../persistence/cognitive-context-repository'
 import { ReflectionFindingRouter } from '../cognition/reflection-routing'
 import { ReflectionStateGate } from '../self-model/reflection-state-gate'
+import { SourceValidityService } from '../persistence/source-validity'
 
 export interface StartupReflectionLogger {
   debug(category: string, message: string, detail?: Record<string, unknown>): void
@@ -43,6 +44,7 @@ export interface StartupReflectionServices {
   pendingItems: PendingCognitionService
   findingRouter: ReflectionFindingRouter
   reflectionStateGate: ReflectionStateGate
+  sourceValidity: SourceValidityService
 }
 
 export type StartupReflectionStatus = 'ran' | 'skipped' | 'failed' | 'degraded'
@@ -61,11 +63,13 @@ export function composeStartupReflectionServices(
   options: { clock?: (() => string) | undefined } = {}
 ): StartupReflectionServices {
   const clock = options.clock
+  const sourceValidity = new SourceValidityService(database, clock ?? (() => new Date().toISOString()), events)
   const memoryImportance = new MemoryImportanceService(database, clock)
   const factMemory = new FactMemoryService({ database, ...(clock ? { clock } : {}) })
   const memories = new MemoryService(new SqliteMemoryRepository(database), clock, undefined, events, {
     importance: memoryImportance,
-    factIndex: factMemory
+    factIndex: factMemory,
+    sourceValidity
   })
   const interests = new InterestService(new SqliteInterestRepository(database), events)
   const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), events)
@@ -77,8 +81,11 @@ export function composeStartupReflectionServices(
   )
   const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database, events), undefined, clock)
   const reflectionStateGate = new ReflectionStateGate(database, clock ?? (() => new Date().toISOString()), () => globalThis.crypto.randomUUID(), events)
+  // Source invalidation must revalidate the affected self-states in the same
+  // logical operation; the gate remains the only writer of those revisions.
+  sourceValidity.setPostInvalidate(() => { reflectionStateGate.revalidate() })
   const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events, ...(clock ? { clock } : {}), stateGate: reflectionStateGate })
-  return { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter, reflectionStateGate }
+  return { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter, reflectionStateGate, sourceValidity }
 }
 
 /**

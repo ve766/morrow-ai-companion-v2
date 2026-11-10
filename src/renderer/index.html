@@ -72,6 +72,13 @@
               <button id="conversation-new" data-testid="conversation-new" class="button button-secondary button-small" type="button">新建</button>
               <button id="conversation-delete" data-testid="conversation-delete" class="button button-danger button-small" type="button">删除当前对话</button>
             </div>
+            <div id="cognition-consistency" class="provider-cta" hidden role="alert">
+              <div>
+                <strong>数据一致性检查未完成，暂不可发送消息</strong>
+                <p id="cognition-consistency-reason">本地删除/撤回检查尚未完成。聊天记录不会被删除。</p>
+              </div>
+              <button id="cognition-consistency-retry" data-testid="cognition-consistency-retry" class="button button-secondary button-small" type="button">重试检查</button>
+            </div>
             <div id="chat-messages" class="chat-messages" aria-live="polite" aria-busy="false"></div>
             <div class="composer-dock">
               <div id="chat-provider-cta" class="provider-cta" hidden>

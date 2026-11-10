@@ -181,13 +181,13 @@ describe('F1 — deletion erases relationship content', () => {
       "INSERT INTO cognitive_outbox(turn_id, module, handler_version, conversation_id, user_message_id, occurred_at, analysis_json, status, attempts, created_at, updated_at) VALUES (?, 'relationship', 1, ?, ?, ?, NULL, 'pending', 0, ?, ?)"
     ).run(turn, conversationId, messageId, new Date().toISOString(), new Date().toISOString(), new Date().toISOString())
     const drained = stack.companion.drainCognition()
-    expect(drained.done + drained.failed).toBeGreaterThanOrEqual(1)
+    expect(drained.skipped).toBeGreaterThanOrEqual(1)
     expect(threads(stack)).toHaveLength(0)
     expect(evidenceCount(stack)).toBe(0)
     const row = stack.database.connection.prepare(
       "SELECT status FROM cognitive_outbox WHERE module = 'relationship' AND turn_id = ?"
     ).get(turn) as { status: string }
-    expect(row.status).toBe('done')
+    expect(row.status).toBe('cancelled')
   })
 
   it('a stale obligation whose message was deleted cannot revive it', async () => {

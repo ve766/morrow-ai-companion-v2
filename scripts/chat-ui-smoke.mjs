@@ -143,6 +143,9 @@ try {
   await delay(1500)
   client = await connect(debugPort)
   await client.evaluate(`new Promise((resolve) => { const start=Date.now(); const timer=setInterval(() => { if (document.body?.dataset.providerUiReady === 'true' || Date.now()-start > 20000) { clearInterval(timer); resolve(true) } }, 100) })`)
+  const consistency = await client.evaluate(`window.morrow.cognition.consistency()`)
+  assert.equal(consistency.ok, true, JSON.stringify(consistency))
+  assert.equal(consistency.data?.state, 'ready', JSON.stringify(consistency))
   const sent = await client.evaluate(`(async () => {
     const deadline = Date.now() + 15000
     while (Date.now() < deadline && document.querySelector('#chat-send')?.disabled) await new Promise((resolve) => setTimeout(resolve, 100))
@@ -179,6 +182,7 @@ try {
   result.status = 'PASS'
   result.stderrTail = stderr.slice(-4000)
   result.checks.push('renderer input -> submit -> streamed assistant reply -> persisted conversation')
+  result.checks.push('cognition consistency IPC reports ready before the Provider request')
   result.requests = loopback.requests.length
   result.messages = persisted.messages.map((message) => message.role)
   client.close()

@@ -165,7 +165,13 @@ export interface CompanionGoalActions {
   decideCandidate(candidateId: string, decision: 'accept' | 'reject'): GoalCandidateDecisionResult
 }
 
+export interface CognitionConsistencyActions {
+  status(): import('../shared/contracts').CognitionConsistencyStatus
+  reconcile(): import('../shared/contracts').CognitionConsistencyStatus
+}
+
 export interface ApplicationActions {
+  cognitionConsistency?: CognitionConsistencyActions
   memories: MemoryService
   goals: GoalService
   companionGoals?: CompanionGoalActions
@@ -191,6 +197,7 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     STORAGE_ERROR: '本地数据暂不可用，请重试。',
     BACKUP_INVALID: '所选备份无效、已损坏或与当前版本不兼容；本地数据未做任何更改。',
     SCHEMA_UPGRADE_REQUIRED: '本地数据需要完成版本升级后才能处理该事项；请重启应用以完成升级。',
+    COGNITION_LOCKED: '数据一致性检查未完成，暂不可发送消息。请重试检查；聊天记录不会被删除。',
     INTERNAL_ERROR: '请求无法完成。',
     PROVIDER_STORAGE_UNAVAILABLE: '系统安全存储不可用，无法确认 API 密钥状态。聊天已暂停；请重试或重启应用后检查。',
     PROVIDER_CREDENTIAL_STORE_ERROR: '本机 API 凭据无法安全读取，可能已损坏或无权访问。聊天和替换密钥已阻止；请重启应用复查，仍无法读取时可在确认后删除本机密钥并重新设置。',
@@ -251,6 +258,10 @@ export function createIpcHandlers(
   const backup = actions.backup
   return {
     [IPC_CHANNELS.appInfo]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => appInfo.getAppInfo()),
+    ...(actions.cognitionConsistency ? {
+      [IPC_CHANNELS.cognitionConsistencyStatus]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.cognitionConsistency!.status()),
+      [IPC_CHANNELS.cognitionConsistencyReconcile]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.cognitionConsistency!.reconcile())
+    } : {}),
     [IPC_CHANNELS.memoryCreate]: (event, payload) => execute(event, trustedRendererUrl, payload, parseMemoryCreateRequest, ({ content, sensitivity }) => actions.memories.create(content, sensitivity)),
     [IPC_CHANNELS.memoryList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.memories.list()),
     [IPC_CHANNELS.memorySearch]: (event, payload) => execute(event, trustedRendererUrl, payload, parseMemorySearchRequest, ({ query }) => actions.memories.search(query)),

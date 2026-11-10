@@ -1,0 +1,16 @@
+  • electron-builder  version=26.15.3 os=10.0.26200
+  • loaded configuration  file=package.json ("build" field)
+  • author is missed in the package.json  appPackageFile=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\package.json
+  • executing @electron/rebuild  electronVersion=44.9.3 arch=x64 buildFromSource=false workspaceRoot=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=44.9.3 appOutDir=release\win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\release\win-unpacked
+  • searching for node modules  pm=npm searchDir=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo
+  • searching for node modules  pm=traversal searchDir=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo
+  • using manual traversal of node_modules to build dependency tree
+  • no node modules returned while searching directories  searchDirectories=[""]
+  • updating asar integrity executable resource  executablePath=release\win-unpacked\Morrow.exe
+  • default Electron icon is used  reason=application icon is not set
+  • signing with signtool.exe  path=release\win-unpacked\Morrow.exe

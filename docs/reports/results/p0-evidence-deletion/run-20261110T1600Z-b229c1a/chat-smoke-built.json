@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "checks": [
+    "renderer input -> submit -> streamed assistant reply -> persisted conversation",
+    "cognition consistency IPC reports ready before the Provider request"
+  ],
+  "stderrTail": "\r\nDevTools listening on ws://127.0.0.1:63447/devtools/browser/20590528-43f1-46b3-82fb-4cf360543fd7\r\n{\"ts\":\"2026-11-10T08:10:07.602Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"window state\",\"fields\":{\"event\":\"ready\",\"state\":\"READY\"}}\n{\"ts\":\"2026-11-10T08:10:07.613Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"window state\",\"fields\":{\"event\":\"show\",\"state\":\"VISIBLE\"}}\n{\"ts\":\"2026-11-10T08:10:09.510Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"provider consent requested\",\"fields\":{\"action\":\"chat\",\"sensitivity\":\"personal\",\"auto\":true}}\n",
+  "requests": 1,
+  "messages": [
+    "user",
+    "assistant"
+  ]
+}

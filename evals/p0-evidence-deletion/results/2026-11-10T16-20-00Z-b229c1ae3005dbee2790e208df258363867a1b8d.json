@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "issue": 83,
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "fix/morrow-p0-evidence-deletion-closure-20261110",
+  "baseBranch": "fix/morrow-project-wide-final-convergence-20261110",
+  "baseSha": "dc2743d7a3877a56db4d3d3bb55feb574dc1a8e8",
+  "sourceCommit": "b229c1ae3005dbee2790e208df258363867a1b8d",
+  "testedCommit": "b229c1ae3005dbee2790e208df258363867a1b8d",
+  "packageCommit": "b229c1ae3005dbee2790e208df258363867a1b8d",
+  "finalCodeSha": "b229c1ae3005dbee2790e208df258363867a1b8d",
+  "finalHead": "13c13959cca205584f216513f9895bd8f2f3aa98",
+  "docsHeadNote": "finalHead is filled by the report commit; runtime code stays b229c1a",
+  "databaseSchema": 59,
+  "status": "PARTIAL",
+  "features": [
+    {
+      "id": "P0-A",
+      "status": "DONE",
+      "evidence": "startup reconciliation gate, cognition lock, IPC/UI retry, fault-injection tests"
+    },
+    {
+      "id": "P0-B",
+      "status": "DONE",
+      "evidence": "strict parent parser, self-subject first, stable reasons, 21 gate tests"
+    },
+    {
+      "id": "P0-C",
+      "status": "PARTIAL",
+      "evidence": "lineage/findings/routes/outbox/effects/context/memory propagation + payload test; full four-projection vertical and combined restore fault injection missing; single-message delete surface absent"
+    },
+    {
+      "id": "P0-D",
+      "status": "PARTIAL",
+      "evidence": "assistant transaction rollback test, 10x replay, lease takeover, delete/claim multiprocess; not every named crash point injected"
+    }
+  ],
+  "scenarios": {
+    "A": {
+      "status": "PASS",
+      "tests": 10
+    },
+    "B": {
+      "status": "PARTIAL",
+      "passed": [
+        "B3",
+        "B4",
+        "B6",
+        "B8"
+      ],
+      "partial": [
+        "B1",
+        "B5",
+        "B7"
+      ],
+      "not_run": [
+        "B2"
+      ]
+    },
+    "C": {
+      "status": "PARTIAL",
+      "passed": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C6"
+      ],
+      "partial": [
+        "C5"
+      ]
+    },
+    "D": {
+      "status": "PARTIAL",
+      "passed": [
+        "D2",
+        "D3",
+        "D4",
+        "D5"
+      ],
+      "partial": [
+        "D1"
+      ]
+    },
+    "E": {
+      "status": "PASS"
+    }
+  },
+  "tests": {
+    "full": {
+      "files": 151,
+      "tests": 1295,
+      "passed": 1295,
+      "failed": 0,
+      "consecutiveGreenRuns": 2,
+      "logs": [
+        "docs/reports/results/p0-evidence-deletion/run-20261110T1600Z-b229c1a/vitest-run-1.txt",
+        "docs/reports/results/p0-evidence-deletion/run-20261110T1600Z-b229c1a/vitest-run-2.txt"
+      ]
+    },
+    "gate": {
+      "file": "src/self-model/reflection-state-gate.test.ts",
+      "tests": 21,
+      "status": "PASS"
+    },
+    "p0Integration": {
+      "file": "src/app/p0-evidence-deletion.integration.test.ts",
+      "tests": 12,
+      "status": "PASS"
+    },
+    "multiprocess": {
+      "file": "src/app/stage5-final-audit-repair.multiprocess.test.ts",
+      "tests": 5,
+      "status": "PASS"
+    }
+  },
+  "commands": [
+    {
+      "command": "npm run typecheck",
+      "exit": 0,
+      "log": "docs/reports/results/p0-evidence-deletion/run-20261110T1600Z-b229c1a/typecheck.txt"
+    },
+    {
+      "command": "npm run build",
+      "exit": 0,
+      "log": "docs/reports/results/p0-evidence-deletion/run-20261110T1600Z-b229c1a/build.txt"
+    },
+    {
+      "command": "npm run smoke:chat-ui",
+      "status": "PASS",
+      "evidence": "chat-smoke-built.json"
+    },
+    {
+      "command": "MORROW_SMOKE_EXE=C:/morrow83test/Morrow.exe node scripts/chat-ui-smoke.mjs",
+      "status": "PASS",
+      "evidence": "chat-smoke-installed.json"
+    },
+    {
+      "command": "MORROW_SMOKE_EXE=C:/morrow83portable/Morrow.exe node scripts/chat-ui-smoke.mjs",
+      "status": "PASS",
+      "evidence": "chat-smoke-portable.json"
+    }
+  ],
+  "windows": {
+    "installer": {
+      "path": "C:\\morrow-out\\Morrow-2.0.0-x64-custom-setup.exe",
+      "bytes": 158336891,
+      "sha256": "ea8855e5f81e611a073889610deb5c2e5dcf048af30473498cb35d4cee645d6c"
+    },
+    "portable": {
+      "path": "release\\Morrow-2.0.0-x64-portable-p0.zip",
+      "bytes": 162767754,
+      "sha256": "6bc7a13e7b8645eb36fea4014709a09b00687824a0a94cbbd887d82ebd0ee635"
+    },
+    "install": {
+      "exit": 0,
+      "path": "C:\\morrow83test",
+      "files": 19
+    },
+    "appStarted": true,
+    "chatVerified": true,
+    "uninstall": {
+      "exit": 0,
+      "directoryRemoved": true
+    },
+    "portableChatVerified": true,
+    "isolation": "C:\\morrow83test and C:\\morrow83portable new; no V1 data touched"
+  },
+  "provider": {
+    "cloud": "BLOCKED_NO_SECRET",
+    "loopback": "PASS",
+    "consent": "PENDING_HUMAN"
+  },
+  "ci": {
+    "status": "NOT_RUN",
+    "reason": "manual-only workflows; GitHub-hosted minutes exhausted; no runner token requested"
+  },
+  "notDone": {
+    "merged": false,
+    "mainModified": false,
+    "releasePublished": false,
+    "pr82Modified": false
+  },
+  "docsHead": "13c13959cca205584f216513f9895bd8f2f3aa98"
+}
