@@ -235,7 +235,7 @@ describe('recursive evidence lineage', () => {
       lineage(context.database, b, [a])
       const finding = context.findingWithEvidence([a])
       expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
-      expect(rejectionReason(context.database, finding.findingId)).toBe('evidence_lineage_unverified')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('parent_cycle')
     } finally {
       context.database.close()
     }
@@ -248,7 +248,7 @@ describe('recursive evidence lineage', () => {
       lineage(context.database, a, [randomUUID()])
       const finding = context.findingWithEvidence([a])
       expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
-      expect(rejectionReason(context.database, finding.findingId)).toBe('evidence_lineage_unverified')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('source_missing')
     } finally {
       context.database.close()
     }
@@ -330,6 +330,119 @@ describe('recursive evidence lineage', () => {
     }
   })
 
+
+  it('rejects a parent list that mixes a valid UUID with any malformed entry', () => {
+    const context = setup()
+    try {
+      const root = context.seedRoot('mixed-parent')
+      const malformed = context.events.recordDeterministic(`malformed:${randomUUID()}`, {
+        sourceModule: 'cognition', eventType: 'inner.thought.created', actor: 'system',
+        subjectType: 'interest', subjectId: 'x', correlationId: null,
+        payload: { parentEvidenceIds: [root, 'not-a-uuid'] }
+      }).event.id
+      const finding = context.findingWithEvidence([malformed])
+      expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('malformed_parent_chain')
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('treats null, object, string, duplicate and oversized parent fields as malformed', () => {
+    const context = setup()
+    try {
+      const root = context.seedRoot('bad-shape')
+      const payloads: unknown[] = [null, { id: root }, root, [root, root], Array.from({ length: 17 }, () => randomUUID())]
+      for (const value of payloads) {
+        const event = context.events.recordDeterministic(`bad-shape:${randomUUID()}`, {
+          sourceModule: 'cognition', eventType: 'inner.thought.created', actor: 'system',
+          subjectType: 'interest', subjectId: 'x', correlationId: null,
+          payload: { parentEvidenceIds: value as never }
+        }).event.id
+        const finding = context.findingWithEvidence([event])
+        expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+        expect(rejectionReason(context.database, finding.findingId)).toBe('malformed_parent_chain')
+      }
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('rejects a thought event with an empty or absent parent list instead of treating it as origin', () => {
+    const context = setup()
+    try {
+      const empty = context.events.recordDeterministic(`thought-empty:${randomUUID()}`, {
+        sourceModule: 'cognition', eventType: 'inner.thought.created', actor: 'system',
+        subjectType: 'interest', subjectId: 'x', correlationId: null,
+        payload: { parentEvidenceIds: [] }
+      }).event.id
+      const emptyFinding = context.findingWithEvidence([empty])
+      expect(context.gate.ingestInTransaction(emptyFinding)).toBe('rejected')
+      expect(rejectionReason(context.database, emptyFinding.findingId)).toBe('derived_origin_forbidden')
+
+      const absent = context.events.recordDeterministic(`thought-absent:${randomUUID()}`, {
+        sourceModule: 'cognition', eventType: 'inner.thought.created', actor: 'system',
+        subjectType: 'interest', subjectId: 'x', correlationId: null,
+        payload: { label: 'x' }
+      }).event.id
+      const absentFinding = context.findingWithEvidence([absent])
+      expect(context.gate.ingestInTransaction(absentFinding)).toBe('rejected')
+      expect(rejectionReason(context.database, absentFinding.findingId)).toBe('derived_origin_forbidden')
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it("checks the event's own invalid subject before following an active parent", () => {
+    const context = setup()
+    try {
+      const parent = context.seedRoot('active-parent')
+      const memoryId = randomUUID()
+      context.database.connection.prepare(`
+        INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, updated_at, revision)
+        VALUES (?, '将被删除的记忆', '将被删除的记忆', 'user_explicit_input', 'active', ?, ?, 1)
+      `).run(memoryId, at, at)
+      context.database.connection.prepare("INSERT INTO deletion_journal(entity, entity_id, state, recorded_at) VALUES ('memory', ?, 'deleted', ?)").run(memoryId, at)
+      const event = context.events.recordDeterministic(`self-invalid:${randomUUID()}`, {
+        sourceModule: 'memory', eventType: 'memory.created', actor: 'user',
+        subjectType: 'memory', subjectId: memoryId, correlationId: null,
+        payload: { parentEvidenceIds: [parent] }
+      }).event.id
+      const finding = context.findingWithEvidence([event])
+      expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('self_invalidated')
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('follows a multi-level event parent chain to the same origin root', () => {
+    const context = setup()
+    try {
+      const root = context.seedRoot('multi-level')
+      const first = context.events.recordDeterministic(`level-1:${randomUUID()}`, {
+        sourceModule: 'cognition', eventType: 'cognition.derived', actor: 'system',
+        subjectType: 'interest', subjectId: 'x', correlationId: null,
+        payload: { parentEvidenceIds: [root] }
+      }).event.id
+      const second = context.events.recordDeterministic(`level-2:${randomUUID()}`, {
+        sourceModule: 'cognition', eventType: 'cognition.derived', actor: 'system',
+        subjectType: 'interest', subjectId: 'x', correlationId: null,
+        payload: { parentEvidenceIds: [first] }
+      }).event.id
+      const finding = context.findingWithEvidence([second])
+      expect(context.gate.ingestInTransaction(finding)).toBe('candidate')
+      const row = context.database.connection.prepare(
+        'SELECT evidence_json, independent_contexts FROM morrow_self_states ORDER BY revision DESC LIMIT 1'
+      ).get() as { evidence_json: string; independent_contexts: number }
+      const refs = JSON.parse(row.evidence_json) as Array<{ rootSourceId: string }>
+      expect(refs.map((ref) => ref.rootSourceId)).toEqual([root])
+      expect(row.independent_contexts).toBe(1)
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('rejects an event whose memory subject was deleted', () => {
     const context = setup()
     try {
@@ -352,7 +465,7 @@ describe('recursive evidence lineage', () => {
       }).event.id
       const finding = context.findingWithEvidence([event])
       expect(context.gate.ingestInTransaction(finding)).toBe('rejected')
-      expect(rejectionReason(context.database, finding.findingId)).toBe('evidence_lineage_unverified')
+      expect(rejectionReason(context.database, finding.findingId)).toBe('self_invalidated')
     } finally {
       context.database.close()
     }

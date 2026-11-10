@@ -107,17 +107,72 @@ function isUuid(value: unknown): value is string {
   return typeof value === 'string' && UUID.test(value)
 }
 
-function extractParentIds(payload: unknown): string[] {
-  if (!payload || typeof payload !== 'object') return []
-  const raw = (payload as { parentEvidenceIds?: unknown }).parentEvidenceIds
-  if (!Array.isArray(raw)) return []
-  return [...new Set(raw.filter((entry): entry is string => isUuid(entry)))]
+/** Stable rejection reasons. Never put user text in this field. */
+export const REFLECTION_GATE_REASONS = {
+  ineligible: 'ineligible_kind_or_low_confidence',
+  legacyUnverified: 'legacy_unverified',
+  lineageUnverified: 'evidence_lineage_unverified',
+  malformedParentChain: 'malformed_parent_chain',
+  malformedEvidenceRefs: 'malformed_evidence_refs',
+  missingParentChain: 'missing_parent_chain',
+  derivedOriginForbidden: 'derived_origin_forbidden',
+  selfInvalidated: 'self_invalidated',
+  sourceMissing: 'source_missing',
+  parentCycle: 'parent_cycle',
+  parentDepth: 'parent_depth_exceeded',
+  crossOwner: 'cross_owner_evidence',
+  unprovenKey: 'unproven_lineage_key',
+  callerRoot: 'caller_root_mismatch',
+  callerCluster: 'caller_correlation_mismatch',
+  unsupportedSource: 'unsupported_source_type'
+} as const
+
+export type ReflectionGateReason = typeof REFLECTION_GATE_REASONS[keyof typeof REFLECTION_GATE_REASONS]
+
+export type ParentParse =
+  | { status: 'absent' }
+  | { status: 'empty' }
+  | { status: 'valid'; ids: string[] }
+  | { status: 'malformed'; reason: 'not_array' | 'non_string' | 'invalid_uuid' | 'duplicate' | 'too_many' }
+
+const MAX_PARENT_IDS = 16
+
+/**
+ * Strict parent parsing. A malformed field is never treated as "no parents":
+ * that conversion is exactly how a damaged derived record becomes an origin.
+ */
+export function parseParentIds(value: unknown): ParentParse {
+  if (value === undefined) return { status: 'absent' }
+  if (!Array.isArray(value)) return { status: 'malformed', reason: 'not_array' }
+  if (value.length > MAX_PARENT_IDS) return { status: 'malformed', reason: 'too_many' }
+  const ids: string[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'string') return { status: 'malformed', reason: 'non_string' }
+    if (!isUuid(entry)) return { status: 'malformed', reason: 'invalid_uuid' }
+    if (ids.includes(entry)) return { status: 'malformed', reason: 'duplicate' }
+    ids.push(entry)
+  }
+  return ids.length === 0 ? { status: 'empty' } : { status: 'valid', ids }
+}
+
+type Verification = { ok: true; roots: VerifiedRoot[] } | { ok: false; reason: ReflectionGateReason }
+
+function verified(roots: VerifiedRoot[]): Verification {
+  return roots.length > 0 ? { ok: true, roots } : { ok: false, reason: REFLECTION_GATE_REASONS.lineageUnverified }
 }
 
 function dedupeRoots(roots: VerifiedRoot[]): VerifiedRoot[] {
   const unique = new Map<string, VerifiedRoot>()
   for (const root of roots) unique.set(`${root.correlationGroupId}:${root.rootSourceId}`, root)
   return [...unique.values()]
+}
+
+/** Event families that are derived by definition and may never be an origin. */
+function requiresParents(eventType: string): boolean {
+  return eventType.startsWith('inner.thought.') ||
+    eventType.startsWith('reflection.') ||
+    eventType.startsWith('summary.') ||
+    eventType.startsWith('synthetic.')
 }
 
 export class ReflectionStateGate {
@@ -145,8 +200,8 @@ export class ReflectionStateGate {
       const valid = refs.filter((ref) => {
         if (!isUuid(ref.rootSourceId) || !isUuid(ref.correlationGroupId)) return false
         const roots = this.verifyNode(ref.rootSourceId, new Set(), 0)
-        return Boolean(roots?.some((root) =>
-          root.rootSourceId === ref.rootSourceId && root.correlationGroupId === ref.correlationGroupId && root.owner === 'morrow'))
+        return roots.ok && roots.roots.some((root) =>
+          root.rootSourceId === ref.rootSourceId && root.correlationGroupId === ref.correlationGroupId && root.owner === 'morrow')
       })
       const independent = new Set(valid.map((ref) => ref.correlationGroupId)).size
       if (valid.length === refs.length && independent === row.independent_contexts && valid.length > 0) continue
@@ -194,8 +249,9 @@ export class ReflectionStateGate {
    * chain is missing, cyclic, broken, retracted/deleted, or cross-owner. A
    * derived node contributes the roots of its parents, not a fresh identity.
    */
-  private verifyNode(id: string, visited: Set<string>, depth: number): VerifiedRoot[] | null {
-    if (depth > 8 || visited.has(id)) return null
+  private verifyNode(id: string, visited: Set<string>, depth: number): Verification {
+    if (depth > 8) return { ok: false, reason: REFLECTION_GATE_REASONS.parentDepth }
+    if (visited.has(id)) return { ok: false, reason: REFLECTION_GATE_REASONS.parentCycle }
     const path = new Set(visited)
     path.add(id)
     const lineage = this.lineageRow(id)
@@ -203,42 +259,46 @@ export class ReflectionStateGate {
     return this.verifyPersistedSource(id, path, depth)
   }
 
-  private verifyAll(ids: string[], visited: Set<string>, depth: number): VerifiedRoot[] | null {
+  private verifyAll(ids: string[], visited: Set<string>, depth: number): Verification {
     const roots: VerifiedRoot[] = []
     for (const id of ids) {
-      const verified = this.verifyNode(id, visited, depth + 1)
-      if (!verified || verified.length === 0) return null
-      roots.push(...verified)
+      const result = this.verifyNode(id, visited, depth + 1)
+      if (!result.ok) return result
+      roots.push(...result.roots)
     }
-    return dedupeRoots(roots)
+    return verified(dedupeRoots(roots))
   }
 
-  private verifyLineage(row: LineageRow, visited: Set<string>, depth: number): VerifiedRoot[] | null {
-    if (row.state !== 'active') return null
-    let parents: string[] = []
+  private verifyLineage(row: LineageRow, visited: Set<string>, depth: number): Verification {
+    if (row.state !== 'active') return { ok: false, reason: REFLECTION_GATE_REASONS.lineageUnverified }
+    let parsedParents: unknown
     try {
-      const parsed = JSON.parse(row.parent_ids_json)
-      parents = Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : []
+      parsedParents = JSON.parse(row.parent_ids_json)
     } catch {
-      return null
+      return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
     }
-    if (row.derivation_kind === 'synthetic') return null
+    const parents = parseParentIds(parsedParents)
+    if (parents.status === 'malformed') return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
+    if (row.derivation_kind === 'synthetic') return { ok: false, reason: REFLECTION_GATE_REASONS.derivedOriginForbidden }
     if (row.derivation_kind === 'origin') {
-      if (parents.length > 0 || row.root_source_id !== row.node_id) return null
-      return [{ rootSourceId: row.root_source_id, correlationGroupId: row.correlation_group_id, owner: row.owner }]
+      if (parents.status !== 'empty' && parents.status !== 'absent') return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
+      if (row.root_source_id !== row.node_id) return { ok: false, reason: REFLECTION_GATE_REASONS.lineageUnverified }
+      return { ok: true, roots: [{ rootSourceId: row.root_source_id, correlationGroupId: row.correlation_group_id, owner: row.owner }] }
     }
-    if (parents.length === 0) return null
-    const roots = this.verifyAll(parents, visited, depth)
-    if (!roots) return null
+    if (parents.status !== 'valid') {
+      return { ok: false, reason: REFLECTION_GATE_REASONS.missingParentChain }
+    }
+    const roots = this.verifyAll(parents.ids, visited, depth)
+    if (!roots.ok) return roots
     // A derived node cannot launder a cross-owner ancestor, and its recorded
     // root/cluster must be one the chain actually proves.
-    if (roots.some((root) => root.owner !== row.owner)) return null
-    if (!roots.some((root) => root.rootSourceId === row.root_source_id)) return null
-    if (!roots.some((root) => root.correlationGroupId === row.correlation_group_id)) return null
+    if (roots.roots.some((root) => root.owner !== row.owner)) return { ok: false, reason: REFLECTION_GATE_REASONS.crossOwner }
+    if (!roots.roots.some((root) => root.rootSourceId === row.root_source_id)) return { ok: false, reason: REFLECTION_GATE_REASONS.unprovenKey }
+    if (!roots.roots.some((root) => root.correlationGroupId === row.correlation_group_id)) return { ok: false, reason: REFLECTION_GATE_REASONS.unprovenKey }
     return roots
   }
 
-  private verifyPersistedSource(id: string, visited: Set<string>, depth: number): VerifiedRoot[] | null {
+  private verifyPersistedSource(id: string, visited: Set<string>, depth: number): Verification {
     try {
       const event = this.database.connection.prepare(
         'SELECT event_type, actor, source_module, subject_type, subject_id, correlation_id, payload_json FROM event_journal WHERE id = ?'
@@ -247,41 +307,51 @@ export class ReflectionStateGate {
         subject_type: string; subject_id: string | null; correlation_id: string | null; payload_json: string
       } | undefined
       if (event) {
+        // The node's own lifecycle comes first. A valid parent chain cannot
+        // resurrect an event whose own subject is deleted or retracted.
+        if (this.subjectInvalidated(event.subject_type, event.subject_id)) {
+          return { ok: false, reason: REFLECTION_GATE_REASONS.selfInvalidated }
+        }
         let payload: unknown = null
         try {
           payload = JSON.parse(event.payload_json)
         } catch {
-          return null
+          return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
         }
-        const parentIds = extractParentIds(payload)
-        if (parentIds.length > 0) {
-          return this.verifyAll(parentIds, visited, depth)
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+          return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
         }
-        // A reflection decision is derived by definition; without persisted
-        // lineage it is a broken chain, never an origin.
-        if (event.event_type === 'reflection.state_decision') return null
-        if (this.subjectInvalidated(event.subject_type, event.subject_id)) return null
-        const morrowOwned = event.event_type === 'cognition.knowledge_gap' || event.event_type.startsWith('inner.thought.')
+        const parents = parseParentIds((payload as { parentEvidenceIds?: unknown }).parentEvidenceIds)
+        if (parents.status === 'malformed') return { ok: false, reason: REFLECTION_GATE_REASONS.malformedParentChain }
+        if (parents.status === 'valid') return this.verifyAll(parents.ids, visited, depth)
+        if (requiresParents(event.event_type)) {
+          return { ok: false, reason: REFLECTION_GATE_REASONS.derivedOriginForbidden }
+        }
+        // An empty parent list is an explicit origin claim; absence is a legacy
+        // origin record. Both are accepted only for a real persisted event.
+        const morrowOwned = event.event_type === 'cognition.knowledge_gap'
         const owner: EvidenceOwner = morrowOwned ? 'morrow' : event.actor === 'user' || event.source_module === 'memory' ? 'user' : 'system'
         const cluster = isUuid(event.correlation_id) ? event.correlation_id : id
         this.persistOrigin(id, owner, id, cluster, 'event_journal')
-        return [{ rootSourceId: id, correlationGroupId: cluster, owner }]
+        return { ok: true, roots: [{ rootSourceId: id, correlationGroupId: cluster, owner }] }
       }
       const memory = this.database.connection.prepare('SELECT status FROM memories WHERE id = ?').get(id) as { status: string } | undefined
       if (memory) {
-        if (memory.status !== 'active' || this.deletionInvalidates('memory', id)) return null
+        if (memory.status !== 'active' || this.deletionInvalidates('memory', id)) {
+          return { ok: false, reason: REFLECTION_GATE_REASONS.selfInvalidated }
+        }
         this.persistOrigin(id, 'user', id, id, 'memories')
-        return [{ rootSourceId: id, correlationGroupId: id, owner: 'user' }]
+        return { ok: true, roots: [{ rootSourceId: id, correlationGroupId: id, owner: 'user' }] }
       }
       const entry = this.database.connection.prepare('SELECT status FROM self_model_entries WHERE id = ?').get(id) as { status: string } | undefined
       if (entry) {
-        if (entry.status !== 'active') return null
+        if (entry.status !== 'active') return { ok: false, reason: REFLECTION_GATE_REASONS.selfInvalidated }
         this.persistOrigin(id, 'system', id, id, 'self_model_entries')
-        return [{ rootSourceId: id, correlationGroupId: id, owner: 'system' }]
+        return { ok: true, roots: [{ rootSourceId: id, correlationGroupId: id, owner: 'system' }] }
       }
-      return null
+      return { ok: false, reason: REFLECTION_GATE_REASONS.sourceMissing }
     } catch {
-      return null
+      return { ok: false, reason: REFLECTION_GATE_REASONS.lineageUnverified }
     }
   }
 
@@ -292,9 +362,26 @@ export class ReflectionStateGate {
 
   private subjectInvalidated(subjectType: string, subjectId: string | null): boolean {
     if (!subjectId) return false
-    if (subjectType === 'memory') return this.deletionInvalidates('memory', subjectId)
-    if (subjectType === 'conversation') return this.deletionInvalidates('conversation', subjectId)
-    return false
+    try {
+      if (subjectType === 'memory') return this.deletionInvalidates('memory', subjectId)
+      if (subjectType === 'conversation') {
+        if (this.deletionInvalidates('conversation', subjectId)) return true
+        return !this.database.connection.prepare('SELECT 1 AS present FROM conversations WHERE id = ?').get(subjectId)
+      }
+      if (subjectType === 'message') {
+        return !this.database.connection.prepare('SELECT 1 AS present FROM messages WHERE id = ?').get(subjectId)
+      }
+      if (subjectType === 'reflection_finding') {
+        return !this.database.connection.prepare('SELECT 1 AS present FROM reflection_findings WHERE id = ?').get(subjectId)
+      }
+      if (subjectType === 'morrow_thought') {
+        const row = this.database.connection.prepare('SELECT status FROM morrow_thoughts WHERE id = ?').get(subjectId) as { status: string } | undefined
+        return !row || row.status === 'rejected'
+      }
+      return false
+    } catch {
+      return true
+    }
   }
 
   private persistOrigin(id: string, owner: EvidenceOwner, rootSourceId: string, cluster: string, table: 'event_journal' | 'memories' | 'self_model_entries'): void {
@@ -337,44 +424,59 @@ export class ReflectionStateGate {
     // The lineage root is the original event/message, not the random reflection
     // run id. A hundred reruns over the same original source therefore collapse
     // to one root/cluster, and a derived node only contributes its ancestors.
-    let rawRefs: Array<{ id?: unknown }> = []
+    let rawRefs: Array<{ id: string }> = []
+    let evidenceMalformed = false
     try {
       const row = this.database.connection.prepare('SELECT evidence_json FROM reflection_findings WHERE id = ?').get(finding.findingId) as { evidence_json: string } | undefined
-      const parsed = row ? JSON.parse(row.evidence_json) : []
-      rawRefs = Array.isArray(parsed) ? parsed.filter((item): item is { id?: unknown } => Boolean(item) && typeof item === 'object') : []
+      const parsed = row ? JSON.parse(row.evidence_json) : null
+      if (!Array.isArray(parsed)) {
+        evidenceMalformed = true
+      } else {
+        for (const item of parsed) {
+          if (!item || typeof item !== 'object' || Array.isArray(item) || !isUuid((item as { id?: unknown }).id)) {
+            evidenceMalformed = true
+            break
+          }
+          rawRefs.push({ id: (item as { id: string }).id })
+        }
+      }
     } catch {
-      rawRefs = []
+      evidenceMalformed = true
     }
-    const rawIds = [...new Set(rawRefs.map((ref) => isUuid(ref.id) ? ref.id : null).filter((id): id is string => Boolean(id)))]
+    if (evidenceMalformed) {
+      this.recordDecision(finding, 'rejected', REFLECTION_GATE_REASONS.malformedEvidenceRefs, 0, 0)
+      return 'rejected'
+    }
+    const rawIds = [...new Set(rawRefs.map((ref) => ref.id))]
     if (rawIds.length === 0) {
-      this.recordDecision(finding, 'rejected', 'legacy_unverified', 0, 0)
+      this.recordDecision(finding, 'rejected', REFLECTION_GATE_REASONS.legacyUnverified, 0, 0)
       return 'rejected'
     }
     // Fail closed: every evidence node must walk to active, Morrow-owned origin
     // roots. Missing, unknown, cyclic, broken, deleted/retracted and cross-owner
     // chains are all rejected here, not at the caller's discretion.
     const verified: VerifiedRoot[] = []
-    let reason: string | null = null
+    let reason: ReflectionGateReason | null = null
     for (const id of rawIds) {
-      const roots = this.verifyNode(id, new Set(), 0)
-      if (!roots || roots.length === 0) {
-        reason = 'evidence_lineage_unverified'
+      const result = this.verifyNode(id, new Set(), 0)
+      if (!result.ok) {
+        reason = result.reason
         break
       }
-      verified.push(...roots)
+      verified.push(...result.roots)
     }
     const trustedRoots = dedupeRoots(verified)
     if (!reason && (trustedRoots.length === 0 || trustedRoots.some((root) => root.owner !== 'morrow'))) {
-      reason = 'cross_owner_evidence'
+      reason = REFLECTION_GATE_REASONS.crossOwner
     }
-    if (!reason && finding.owner !== undefined && finding.owner !== 'morrow') reason = 'cross_owner_evidence'
+    if (!reason && finding.owner !== undefined && finding.owner !== 'morrow') reason = REFLECTION_GATE_REASONS.crossOwner
     // Caller-supplied root/cluster values are claims to verify, not inputs to
     // trust. A value the persisted chain does not prove rejects the finding.
     if (!reason && finding.rootSourceId !== undefined && !trustedRoots.some((root) => root.rootSourceId === finding.rootSourceId)) {
-      reason = 'caller_root_mismatch'
+      reason = REFLECTION_GATE_REASONS.callerRoot
     }
     if (!reason && finding.correlationGroupId !== undefined && !trustedRoots.some((root) => root.correlationGroupId === finding.correlationGroupId)) {
-      reason = 'caller_correlation_mismatch'
+      reason = REFLECTION_GATE_REASONS.callerCluster
     }
     if (reason) {
       this.recordDecision(finding, 'rejected', reason, 0, 0)
@@ -384,8 +486,8 @@ export class ReflectionStateGate {
     // retracted since the last revision can no longer carry the state.
     const validPriorRefs = priorRefs.filter((ref) => {
       const roots = this.verifyNode(ref.rootSourceId, new Set(), 0)
-      return Boolean(roots?.some((root) =>
-        root.rootSourceId === ref.rootSourceId && root.correlationGroupId === ref.correlationGroupId && root.owner === 'morrow'))
+      return roots.ok && roots.roots.some((root) =>
+        root.rootSourceId === ref.rootSourceId && root.correlationGroupId === ref.correlationGroupId && root.owner === 'morrow')
     })
     const newRefs: LineageRef[] = trustedRoots.map((root) => ({
       findingId: finding.findingId,
