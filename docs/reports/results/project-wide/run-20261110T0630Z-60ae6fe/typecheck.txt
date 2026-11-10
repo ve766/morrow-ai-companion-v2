@@ -1,0 +1,4 @@
+
+> morrow-ai-companion-v2@2.0.0 typecheck
+> tsc --noEmit
+

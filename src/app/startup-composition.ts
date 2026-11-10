@@ -42,6 +42,7 @@ export interface StartupReflectionServices {
   reflection: ReflectionService
   pendingItems: PendingCognitionService
   findingRouter: ReflectionFindingRouter
+  reflectionStateGate: ReflectionStateGate
 }
 
 export type StartupReflectionStatus = 'ran' | 'skipped' | 'failed' | 'degraded'
@@ -77,7 +78,7 @@ export function composeStartupReflectionServices(
   const pendingItems = new PendingCognitionService(new SqlitePendingItemRepository(database, events), undefined, clock)
   const reflectionStateGate = new ReflectionStateGate(database, clock ?? (() => new Date().toISOString()), () => globalThis.crypto.randomUUID(), events)
   const findingRouter = new ReflectionFindingRouter({ database, pending: pendingItems, events, ...(clock ? { clock } : {}), stateGate: reflectionStateGate })
-  return { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter }
+  return { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter, reflectionStateGate }
 }
 
 /**

@@ -83,6 +83,81 @@ describe('continuous mood layer', () => {
     }
   })
 
+  it('rebuilds mood from the remaining source after one conversation is deleted', () => {
+    const context = setup()
+    try {
+      const conversationA = '11111111-1111-4111-8111-111111111111'
+      const conversationB = '22222222-2222-4222-8222-222222222222'
+      context.mood.applyEvent({
+        at: start, valence: 0.9, arousal: 0.8, dominance: 0.6, tension: 0.7, weight: 1,
+        sourceEventId: '11111111-1111-4111-8111-111111111111', sourceConversationId: conversationA
+      })
+      context.mood.applyEvent({
+        at: '2026-11-12T12:10:00.000Z', valence: -0.6, arousal: 0.4, dominance: 0.5, tension: 0.5, weight: 1,
+        sourceEventId: '33333333-3333-4333-8333-333333333333', sourceConversationId: conversationB
+      })
+      const both = context.mood.snapshot('2026-11-12T12:10:00.000Z')
+      expect(both.state.revision).toBe(2)
+      expect(context.mood.deleteConversation(conversationA, '2026-11-12T12:10:00.000Z')).toBe(1)
+      const rebuilt = context.mood.snapshot('2026-11-12T12:10:00.000Z')
+      // A's positive impulse is gone; only B's negative turn remains.
+      expect(rebuilt.state.revision).toBe(1)
+      expect(rebuilt.state.valence).toBeLessThan(0)
+      const rows = context.database.connection.prepare(
+        'SELECT source_conversation_id FROM morrow_mood_contributions WHERE kind = ? ORDER BY seq'
+      ).all('impulse') as Array<{ source_conversation_id: string }>
+      expect(rows.map((row) => row.source_conversation_id)).toEqual([conversationB])
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('does not double-count a replayed source event', () => {
+    const context = setup()
+    try {
+      const input = {
+        at: start, valence: 0.6, arousal: 0.5, dominance: 0.5, tension: 0.2, weight: 1,
+        sourceEventId: '44444444-4444-4444-8444-444444444444',
+        sourceConversationId: '55555555-5555-4555-8555-555555555555'
+      }
+      const first = context.mood.applyEvent(input)
+      const second = context.mood.applyEvent({ ...input, at: '2026-11-12T12:05:00.000Z' })
+      expect(second.state.revision).toBe(first.state.revision)
+      const count = context.database.connection.prepare(
+        "SELECT COUNT(*) AS count FROM morrow_mood_contributions WHERE kind = 'impulse'"
+      ).get() as { count: number }
+      expect(count.count).toBe(1)
+    } finally {
+      context.database.close()
+    }
+  })
+
+  it('keeps pause and resume markers faithful when a source is removed', () => {
+    const context = setup()
+    try {
+      const conversation = '66666666-6666-4666-8666-666666666666'
+      context.mood.applyEvent({
+        at: start, valence: 0.5, arousal: 0.5, dominance: 0.5, tension: 0.2, weight: 1,
+        sourceEventId: '77777777-7777-4777-8777-777777777777', sourceConversationId: conversation
+      })
+      context.mood.pause('2026-11-12T12:05:00.000Z')
+      context.mood.resume('2026-11-12T12:20:00.000Z')
+      context.mood.applyEvent({
+        at: '2026-11-12T12:20:00.000Z', valence: -0.4, arousal: 0.3, dominance: 0.5, tension: 0.4, weight: 1,
+        sourceEventId: '88888888-8888-4888-8888-888888888888', sourceConversationId: '99999999-9999-4999-8999-999999999999'
+      })
+      const before = context.mood.snapshot('2026-11-12T12:25:00.000Z')
+      context.mood.deleteConversation(conversation, '2026-11-12T12:25:00.000Z')
+      const after = context.mood.snapshot('2026-11-12T12:25:00.000Z')
+      expect(after.state.revision).toBe(1)
+      expect(after.paused).toBe(false)
+      expect(after.state.valence).toBeLessThan(0)
+      expect(after.state.valence).toBeLessThan(before.state.valence)
+    } finally {
+      context.database.close()
+    }
+  })
+
   it('restores the same mood revision after database reopen and clears on request', () => {
     const context = setup()
     try {

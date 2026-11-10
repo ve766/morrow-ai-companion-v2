@@ -14,11 +14,12 @@ import { join, resolve } from 'node:path'
 import process from 'node:process'
 
 const root = resolve(import.meta.dirname, '..')
-const electron = join(root, 'node_modules', 'electron', 'dist', 'electron.exe')
+const electron = process.env.MORROW_SMOKE_EXE || join(root, 'node_modules', 'electron', 'dist', 'electron.exe')
+const packaged = Boolean(process.env.MORROW_SMOKE_EXE)
 const appEntry = join(root, 'out', 'main', 'index.js')
-const profile = join(root, '.tmp', 'chat-ui-smoke-profile')
-const reportPath = join(root, '.tmp', 'chat-ui-smoke-result.json')
-if (!existsSync(electron) || !existsSync(appEntry)) throw new Error('Run npm run build first.')
+const profile = process.env.MORROW_SMOKE_PROFILE || join(root, '.tmp', 'chat-ui-smoke-profile')
+const reportPath = process.env.MORROW_SMOKE_REPORT || join(root, '.tmp', 'chat-ui-smoke-result.json')
+if (!existsSync(electron) || (!packaged && !existsSync(appEntry))) throw new Error('Run npm run build first.')
 rmSync(profile, { recursive: true, force: true })
 mkdirSync(profile, { recursive: true })
 
@@ -104,14 +105,15 @@ const debugPort = await freePort()
 const loopback = await startLoopback(port)
 const child = spawn(electron, [
   `--remote-debugging-port=${debugPort}`, '--no-first-run', '--disable-gpu', '--window-size=1440,900',
-  '--disable-dev-shm-usage', `--user-data-dir=${profile}`, '--no-sandbox', root
+  '--disable-dev-shm-usage', `--user-data-dir=${profile}`, '--no-sandbox',
+  ...(packaged ? [] : [root])
 ], {
   cwd: root,
   env: {
     ...process.env,
     MORROW_SMOKE_DISABLE_SANDBOX: '1',
     MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX: '1',
-    MORROW_ACCEPTANCE_AUTO_CONSENT: '1'
+    MORROW_ACCEPTANCE_AUTO_CONSENT: packaged ? '0' : '1'
   },
   stdio: ['ignore', 'ignore', 'pipe']
 })
@@ -119,7 +121,7 @@ let stderr = ''
 child.stderr.on('data', (chunk) => { stderr = `${stderr}${chunk}`.slice(-4000) })
 const result = { status: 'FAILED', checks: [] }
 try {
-  const client = await connect(debugPort)
+  let client = await connect(debugPort)
   await client.evaluate(`new Promise((resolve) => { const start=Date.now(); const timer=setInterval(() => { if (document.body?.dataset.providerUiReady === 'true' || Date.now()-start > 20000) { clearInterval(timer); resolve(true) } }, 100) })`)
   const saved = await client.evaluate(`(async () => {
     const saved = await window.morrow.providers.save({
@@ -129,10 +131,17 @@ try {
       enabled: true
     })
     if (!saved.ok) return { ok: false, error: saved.error }
-    location.reload()
     return { ok: true }
   })()`)
   assert.equal(saved.ok, true, JSON.stringify(saved))
+  // The renderer re-reads provider state on load; reload and reconnect the
+  // DevTools socket instead of reusing a socket the navigation destroys.
+  try {
+    await client.evaluate(`(() => { setTimeout(() => location.reload(), 0); return true })()`)
+  } catch {}
+  client.close()
+  await delay(1500)
+  client = await connect(debugPort)
   await client.evaluate(`new Promise((resolve) => { const start=Date.now(); const timer=setInterval(() => { if (document.body?.dataset.providerUiReady === 'true' || Date.now()-start > 20000) { clearInterval(timer); resolve(true) } }, 100) })`)
   const sent = await client.evaluate(`(async () => {
     const deadline = Date.now() + 15000
@@ -168,6 +177,7 @@ try {
   assert.ok(persisted.messages.some((message) => message.role === 'assistant' && message.body.includes('UI stream reply')))
   assert.equal(loopback.requests.length, 1)
   result.status = 'PASS'
+  result.stderrTail = stderr.slice(-4000)
   result.checks.push('renderer input -> submit -> streamed assistant reply -> persisted conversation')
   result.requests = loopback.requests.length
   result.messages = persisted.messages.map((message) => message.role)

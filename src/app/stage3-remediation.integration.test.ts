@@ -34,7 +34,7 @@ async function send(stack: Stack, conversationId: string, content: string, reque
 }
 
 describe('D-1: the growth ledger is live in the production chain', () => {
-  it('writes G1 evidence through the outbox and puts the folded offset into the prompt numbers', async () => {
+  it('keeps a user style request in G2 and leaves G1 intrinsic personality untouched', async () => {
     const stack = openStack()
     const baseline = stack.companion.getPersonality()
     const conversation = stack.companion.createConversation()
@@ -42,29 +42,23 @@ describe('D-1: the growth ledger is live in the production chain', () => {
       await send(stack, conversation.id, '我更喜欢你直接一点，说重点就行，别绕弯子。')
     }
 
-    // The outbox projector wrote the G1 ledger (three independent turns).
+    // G1 is reserved for Morrow-owned evidence; a user style request only
+    // changes the G2 adaptation ledger.
     const rows = stack.database.connection.prepare(
       "SELECT COUNT(*) AS n FROM personality_growth_signals WHERE dimension = 'directness'"
     ).get() as { n: number }
-    expect(rows.n).toBe(3)
+    expect(rows.n).toBe(0)
     const entry = stack.growth.get('directness')
-    expect(entry.applied).toBe(true)
-    expect(entry.offset).toBeGreaterThan(0)
-    expect(entry.offset).toBeLessThanOrEqual(8)
+    expect(entry.applied).toBe(false)
+    expect(entry.offset).toBe(0)
+    const interaction = stack.interaction.list().find((item) => item.dimension === 'directness')
+    expect(interaction?.evidenceCount ?? 0).toBeGreaterThan(0)
 
-    // The prompt is assembled *before* the outbox drains, so a fourth turn is
-    // the first one whose prompt can already carry the three-turn offset.
     await send(stack, conversation.id, '你好，我们在聊什么来着？')
-    const folded = stack.growth.get('directness').offset
     const baselineNow = stack.companion.getPersonality()
-
-    // The prompt personality numbers come from the G1 fold, not from G2.
     const system = systemText(stack.provider.lastPayload)
-    const expected = Math.min(100, Math.max(0, baselineNow.directness + folded))
     expect(system).toContain(`Morrow's personality`)
-    expect(system).toContain(`directness ${expected}/100`)
-    // The G1 explanation and the G2 adaptation line are separate blocks.
-    expect(system).toContain('Bounded style drift from the user-edited baseline')
+    expect(system).toContain(`directness ${baselineNow.directness}/100`)
     expect(system).toContain('Interaction style adapted to what this user asked for')
 
     // The baseline the user edits is untouched by any of it.
@@ -74,7 +68,7 @@ describe('D-1: the growth ledger is live in the production chain', () => {
     expect(after.humor).toBe(baseline.humor)
   })
 
-  it('keeps two turns below the evidence gate: recorded, reported, not applied', async () => {
+  it('does not move G1 after two user style turns either', async () => {
     const stack = openStack()
     const baseline = stack.companion.getPersonality()
     const conversation = stack.companion.createConversation()
@@ -84,38 +78,22 @@ describe('D-1: the growth ledger is live in the production chain', () => {
     const rows = stack.database.connection.prepare(
       "SELECT COUNT(*) AS n FROM personality_growth_signals WHERE dimension = 'directness'"
     ).get() as { n: number }
-    expect(rows.n).toBe(2)
+    expect(rows.n).toBe(0)
     expect(stack.growth.get('directness').applied).toBe(false)
-    // Below the gate the effective number is exactly the baseline.
     const system = systemText(stack.provider.lastPayload)
     expect(system).toContain(`directness ${baseline.directness}/100`)
   })
 
-  it('recomputes the offset when the source message is deleted', async () => {
+  it('keeps the user baseline and G1 at zero after a style request and rollback', async () => {
     const stack = openStack()
     const conversation = stack.companion.createConversation()
-    const turnIds: string[] = []
     for (let index = 0; index < 3; index += 1) {
-      const requestId = randomUUID()
-      turnIds.push(requestId)
-      await send(stack, conversation.id, '我更喜欢你直接一点，说重点就行，别绕弯子。', requestId)
+      await send(stack, conversation.id, '我更喜欢你直接一点，说重点就行，别绕弯子。')
     }
-    expect(stack.growth.get('directness').applied).toBe(true)
-    const before = stack.growth.get('directness').offset
-
-    // Deleting one turn's message cascades through the v29 trigger; the fold
-    // re-derives from the remaining ledger on the next read.
-    stack.database.connection.prepare('DELETE FROM messages WHERE turn_id = ?').run(turnIds[0]!)
-    const after = stack.growth.get('directness')
-    expect(after.evidenceCount).toBe(2)
-    expect(after.offset).toBeLessThan(before)
-
-    // The user-facing rollback returns the dimension to zero, baseline intact.
-    expect(stack.companion.rollbackGrowth({ dimension: 'directness' })).toBe(true)
+    const baseline = stack.companion.getPersonality()
     expect(stack.growth.get('directness').offset).toBe(0)
-    expect(stack.companion.getPersonality().directness).toBe(stack.companion.getPersonality().directness)
-    const state = stack.companion.getGrowthState()
-    expect(state?.find((entry) => entry.dimension === 'directness')?.offset).toBe(0)
+    expect(stack.companion.rollbackGrowth({ dimension: 'directness' })).toBe(true)
+    expect(stack.companion.getPersonality()).toEqual(baseline)
   })
 
   it('keeps the growth ledger continuous across a full runtime restart', async () => {
@@ -131,13 +109,16 @@ describe('D-1: the growth ledger is live in the production chain', () => {
         await send(first, conversation.id, '我更喜欢你直接一点，说重点就行，别绕弯子。')
       }
       const firstOffsets = first.growth.list().map((entry) => entry.offset)
+      const firstInteraction = first.interaction.offsets()
       first.close()
 
       const second = buildStack({ growth: true, exploration: true, reflection: true, databasePath, keepDatabase: true })
       const secondOffsets = second.growth.list().map((entry) => entry.offset)
+      const secondInteraction = second.interaction.offsets()
       second.close()
       expect(secondOffsets).toEqual(firstOffsets)
-      expect(secondOffsets.some((offset) => offset !== 0)).toBe(true)
+      expect(secondOffsets.every((offset) => offset === 0)).toBe(true)
+      expect(secondInteraction).toEqual(firstInteraction)
     } finally {
       try {
         directory.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 })

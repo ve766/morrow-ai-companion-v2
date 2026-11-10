@@ -2989,6 +2989,114 @@ export const migrations: readonly Migration[] = [
       `)
     }
   },
+  {
+    version: 57,
+    name: 'evidence-lineage-graph',
+    up(database) {
+      // Issue #81 F1: a derived cognition node's lineage is a first-class row,
+      // not only a JSON payload. The gate walks these edges transitively and
+      // fails closed on a missing, retracted, deleted, cyclic, broken or
+      // cross-owner chain. `root_source_id` and `correlation_group_id` are the
+      // verified independence keys; callers cannot choose them.
+      database.exec(`
+        CREATE TABLE evidence_lineage (
+          node_id TEXT PRIMARY KEY NOT NULL CHECK (length(node_id) = 36),
+          owner TEXT NOT NULL CHECK (owner IN ('user', 'morrow', 'shared', 'system')),
+          root_source_id TEXT NOT NULL CHECK (length(root_source_id) = 36),
+          correlation_group_id TEXT NOT NULL CHECK (length(correlation_group_id) = 36),
+          derivation_kind TEXT NOT NULL CHECK (derivation_kind IN ('origin', 'reflection', 'thought', 'summary', 'synthetic')),
+          source_table TEXT NOT NULL CHECK (source_table IN ('event_journal', 'memories', 'self_model_entries', 'evidence_lineage')),
+          state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'retracted', 'deleted')),
+          parent_ids_json TEXT NOT NULL CHECK (json_valid(parent_ids_json) AND json_type(parent_ids_json) = 'array'),
+          verified_at TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX evidence_lineage_root_idx ON evidence_lineage(root_source_id);
+        CREATE INDEX evidence_lineage_cluster_idx ON evidence_lineage(correlation_group_id);
+        CREATE INDEX evidence_lineage_state_idx ON evidence_lineage(owner, state);
+      `)
+    }
+  },
+  {
+    version: 58,
+    name: 'mood-contribution-ledger',
+    up(database) {
+      // Issue #81 F2: mood is reconstructed from a source attribution ledger
+      // instead of being an irreversible global snapshot. Deleting one
+      // conversation removes only its impulses and replays the rest. A
+      // checkpoint carries the pre-v58 state (and any explicit clear) so the
+      // replay has a verified starting point.
+      database.exec(`
+        CREATE TABLE morrow_mood_contributions (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          kind TEXT NOT NULL CHECK (kind IN ('impulse', 'pause', 'resume', 'checkpoint')),
+          source_event_id TEXT NOT NULL,
+          source_conversation_id TEXT CHECK (source_conversation_id IS NULL OR length(source_conversation_id) = 36),
+          applied_at TEXT NOT NULL CHECK (length(applied_at) BETWEEN 20 AND 40),
+          payload_json TEXT NOT NULL CHECK (json_valid(payload_json)),
+          created_at TEXT NOT NULL CHECK (length(created_at) BETWEEN 20 AND 40)
+        ) STRICT;
+        CREATE UNIQUE INDEX mood_contributions_source_uq ON morrow_mood_contributions(source_event_id);
+        CREATE INDEX mood_contributions_conversation_idx ON morrow_mood_contributions(source_conversation_id, seq);
+        CREATE INDEX mood_contributions_seq_idx ON morrow_mood_contributions(seq);
+        INSERT INTO morrow_mood_contributions(kind, source_event_id, source_conversation_id, applied_at, payload_json, created_at)
+          SELECT 'checkpoint', 'migration-v58', NULL, last_advanced_at,
+            json_object('state', json(state_json), 'paused', paused), updated_at
+          FROM morrow_mood_state WHERE id = 1;
+      `)
+    }
+  },
+  {
+    version: 59,
+    name: 'investigation-lifecycle',
+    up(database) {
+      // Issue #81 F5: a local, resumable investigation record. The state machine
+      // is explicit and versioned; every transition appends a step with the
+      // sources it used and whether they were still valid. Hypotheses and
+      // evidence stay separate from personality/self facts.
+      database.exec(`
+        CREATE TABLE morrow_investigations (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          thought_id TEXT REFERENCES morrow_thoughts(id) ON DELETE CASCADE,
+          trigger TEXT NOT NULL CHECK (length(trigger) BETWEEN 1 AND 64),
+          question TEXT NOT NULL CHECK (length(trim(question)) BETWEEN 1 AND 1000),
+          state TEXT NOT NULL CHECK (state IN (
+            'discovered', 'selected', 'hypothesized', 'investigating', 'reviewing',
+            'concluded', 'inconclusive', 'rejected', 'suspended'
+          )),
+          state_version INTEGER NOT NULL CHECK (state_version > 0),
+          priority REAL NOT NULL CHECK (priority BETWEEN 0 AND 1),
+          components_json TEXT NOT NULL CHECK (json_valid(components_json)),
+          primary_hypothesis TEXT NOT NULL CHECK (length(trim(primary_hypothesis)) BETWEEN 1 AND 1000),
+          alternatives_json TEXT NOT NULL CHECK (json_valid(alternatives_json) AND json_type(alternatives_json) = 'array'),
+          evidence_json TEXT NOT NULL CHECK (json_valid(evidence_json) AND json_type(evidence_json) = 'array'),
+          contradiction_json TEXT NOT NULL CHECK (json_valid(contradiction_json) AND json_type(contradiction_json) = 'array'),
+          confidence REAL NOT NULL CHECK (confidence BETWEEN 0 AND 1),
+          stop_reason TEXT,
+          failure_reason TEXT,
+          budget_json TEXT NOT NULL CHECK (json_valid(budget_json)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          concluded_at TEXT
+        ) STRICT;
+        CREATE UNIQUE INDEX investigations_thought_uq ON morrow_investigations(thought_id) WHERE thought_id IS NOT NULL;
+        CREATE INDEX investigations_state_idx ON morrow_investigations(state, updated_at);
+        CREATE TABLE morrow_investigation_steps (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          investigation_id TEXT NOT NULL REFERENCES morrow_investigations(id) ON DELETE CASCADE,
+          from_state TEXT,
+          to_state TEXT NOT NULL,
+          state_version INTEGER NOT NULL CHECK (state_version > 0),
+          at TEXT NOT NULL,
+          sources_json TEXT NOT NULL CHECK (json_valid(sources_json) AND json_type(sources_json) = 'array'),
+          result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+          source_valid INTEGER NOT NULL CHECK (source_valid IN (0, 1)),
+          failure_reason TEXT
+        ) STRICT;
+        CREATE INDEX investigation_steps_investigation_idx ON morrow_investigation_steps(investigation_id, seq);
+      `)
+    }
+  },
 
 ]
 

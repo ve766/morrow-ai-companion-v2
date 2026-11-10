@@ -155,7 +155,16 @@ export class AffectLoopService {
       const valence = input.draft.accepted.reduce((sum, candidate) => sum + candidate.valence, 0) / input.draft.accepted.length
       const arousal = input.draft.accepted.reduce((sum, candidate) => sum + candidate.arousal, 0) / input.draft.accepted.length
       const tension = input.draft.accepted.reduce((sum, candidate) => sum + (candidate.valence < 0 ? candidate.intensity : 0), 0) / input.draft.accepted.length
-      this.mood.applyEvent({ at: input.processedAt, valence, arousal, dominance: 0.5, tension, weight })
+      this.mood.applyEvent({
+        at: input.processedAt,
+        valence,
+        arousal,
+        dominance: 0.5,
+        tension,
+        weight,
+        sourceEventId: input.draft.eventId,
+        sourceConversationId: input.draft.conversationId
+      })
     }
     for (const candidate of input.draft.accepted) {
       const observation = traitObservationFromEmotion(candidate, {
@@ -352,6 +361,7 @@ export class AffectLoopService {
   deleteConversation(conversationId: string): void {
     this.emotions.deleteConversation(conversationId, this.clock())
     this.traits.deleteConversation(conversationId, this.clock())
+    this.mood.deleteConversation(conversationId, this.clock())
   }
 }
 

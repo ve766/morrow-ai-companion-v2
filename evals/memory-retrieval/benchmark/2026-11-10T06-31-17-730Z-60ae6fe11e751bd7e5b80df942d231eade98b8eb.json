@@ -1,0 +1,1092 @@
+{
+  "schemaVersion": 1,
+  "issue": 81,
+  "generatedAt": "2026-11-10T06:34:25.030Z",
+  "codeSha": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+  "sourceCommit": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+  "testedCommit": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+  "semanticStatus": "UNAVAILABLE_NO_ONNX_MODEL",
+  "semanticReason": "The current runtime has no ONNX model file, no onnxruntime dependency and no call site; PR #1 code is not part of this line. The lexical channel below is the production path and never bypasses retraction, sensitivity or correction filtering.",
+  "dataset": {
+    "queryCount": 20,
+    "k": 5,
+    "seed": "fixed-marker-Q0..Q19",
+    "sizes": [
+      100,
+      500,
+      1000,
+      5000
+    ],
+    "corpusHash": "60ae6fe11e751bd7e5b80df942d231eade98b8eb",
+    "queryCategories": [
+      {
+        "index": 0,
+        "category": "correction",
+        "marker": "Q00"
+      },
+      {
+        "index": 1,
+        "category": "sensitive",
+        "marker": "Q01"
+      },
+      {
+        "index": 2,
+        "category": "retracted",
+        "marker": "Q02"
+      },
+      {
+        "index": 3,
+        "category": "lexical",
+        "marker": "Q03"
+      },
+      {
+        "index": 4,
+        "category": "lexical",
+        "marker": "Q04"
+      },
+      {
+        "index": 5,
+        "category": "lexical",
+        "marker": "Q05"
+      },
+      {
+        "index": 6,
+        "category": "lexical",
+        "marker": "Q06"
+      },
+      {
+        "index": 7,
+        "category": "lexical",
+        "marker": "Q07"
+      },
+      {
+        "index": 8,
+        "category": "lexical",
+        "marker": "Q08"
+      },
+      {
+        "index": 9,
+        "category": "lexical",
+        "marker": "Q09"
+      },
+      {
+        "index": 10,
+        "category": "lexical",
+        "marker": "Q10"
+      },
+      {
+        "index": 11,
+        "category": "lexical",
+        "marker": "Q11"
+      },
+      {
+        "index": 12,
+        "category": "lexical",
+        "marker": "Q12"
+      },
+      {
+        "index": 13,
+        "category": "lexical",
+        "marker": "Q13"
+      },
+      {
+        "index": 14,
+        "category": "lexical",
+        "marker": "Q14"
+      },
+      {
+        "index": 15,
+        "category": "lexical",
+        "marker": "Q15"
+      },
+      {
+        "index": 16,
+        "category": "lexical",
+        "marker": "Q16"
+      },
+      {
+        "index": 17,
+        "category": "lexical",
+        "marker": "Q17"
+      },
+      {
+        "index": 18,
+        "category": "lexical",
+        "marker": "Q18"
+      },
+      {
+        "index": 19,
+        "category": "lexical",
+        "marker": "Q19"
+      }
+    ]
+  },
+  "environment": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11260H @ 2.60GHz",
+    "totalMemoryBytes": 16948453376,
+    "node": "v22.23.2"
+  },
+  "parameters": {
+    "policy": "unrestrictedPolicy (information_query)",
+    "maximumSensitivity": "normal",
+    "presentation": "entries",
+    "candidateWindow": 1000,
+    "iterationsPerQuery": 5
+  },
+  "results": [
+    {
+      "size": 100,
+      "fixtureMs": 1912,
+      "coldStartMs": 40.43,
+      "queries": [
+        {
+          "index": 0,
+          "category": "correction",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 14.88,
+          "characterCount": 218,
+          "correctValue": true,
+          "leak": null
+        },
+        {
+          "index": 1,
+          "category": "sensitive",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 11.73,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 2,
+          "category": "retracted",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 11.88,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 3,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 12.19,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 4,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 12.51,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 5,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 11.52,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 6,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 11.39,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 7,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 13.1,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 8,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 10.25,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 9,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 10.87,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 10,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 10.68,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 11,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 8.17,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 12,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 6.92,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 13,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 8.25,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 14,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 8.44,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 15,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 8.63,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 16,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 13.28,
+          "characterCount": 210,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 17,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 12.04,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 18,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 7.8,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 19,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 6.9,
+          "characterCount": 211,
+          "correctValue": null,
+          "leak": null
+        }
+      ],
+      "recallAt5": 1,
+      "mrr": 1,
+      "misrecallRate": 0.1,
+      "retractedLeakCount": 0,
+      "sensitiveLeakCount": 0,
+      "correctionAccuracy": 1,
+      "latencyP50Ms": 10.87,
+      "latencyP95Ms": 13.28,
+      "characterCountMean": 214,
+      "databaseBytes": 1269760,
+      "rssBytes": 90984448
+    },
+    {
+      "size": 500,
+      "fixtureMs": 12708,
+      "coldStartMs": 116.79,
+      "queries": [
+        {
+          "index": 0,
+          "category": "correction",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 101.8,
+          "characterCount": 218,
+          "correctValue": true,
+          "leak": null
+        },
+        {
+          "index": 1,
+          "category": "sensitive",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 121.6,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 2,
+          "category": "retracted",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 110.64,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 3,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 119.27,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 4,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 100.3,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 5,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 111.96,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 6,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 136.77,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 7,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 145.61,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 8,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 175,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 9,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 138.13,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 10,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 105.36,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 11,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 122.05,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 12,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 182.23,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 13,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 265.62,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 14,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 212.76,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 15,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 146.89,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 16,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 117.61,
+          "characterCount": 210,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 17,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 145.2,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 18,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 187.19,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 19,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 189.23,
+          "characterCount": 211,
+          "correctValue": null,
+          "leak": null
+        }
+      ],
+      "recallAt5": 1,
+      "mrr": 1,
+      "misrecallRate": 0.1,
+      "retractedLeakCount": 0,
+      "sensitiveLeakCount": 0,
+      "correctionAccuracy": 1,
+      "latencyP50Ms": 136.77,
+      "latencyP95Ms": 212.76,
+      "characterCountMean": 214,
+      "databaseBytes": 1617920,
+      "rssBytes": 129454080
+    },
+    {
+      "size": 1000,
+      "fixtureMs": 28125,
+      "coldStartMs": 1179.47,
+      "queries": [
+        {
+          "index": 0,
+          "category": "correction",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 1072.26,
+          "characterCount": 218,
+          "correctValue": true,
+          "leak": null
+        },
+        {
+          "index": 1,
+          "category": "sensitive",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 819.11,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 2,
+          "category": "retracted",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 492.14,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 3,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 437.65,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 4,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 437.11,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 5,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 422.17,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 6,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 409.47,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 7,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 397.13,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 8,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 422.39,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 9,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 372.73,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 10,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 417,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 11,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 390.36,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 12,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 401.84,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 13,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 395.2,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 14,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 419.13,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 15,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 402.91,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 16,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 408.1,
+          "characterCount": 210,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 17,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 370.26,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 18,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 436.54,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 19,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 374.99,
+          "characterCount": 211,
+          "correctValue": null,
+          "leak": null
+        }
+      ],
+      "recallAt5": 1,
+      "mrr": 1,
+      "misrecallRate": 0.1,
+      "retractedLeakCount": 0,
+      "sensitiveLeakCount": 0,
+      "correctionAccuracy": 1,
+      "latencyP50Ms": 409.47,
+      "latencyP95Ms": 819.11,
+      "characterCountMean": 214,
+      "databaseBytes": 2052096,
+      "rssBytes": 137699328
+    },
+    {
+      "size": 5000,
+      "fixtureMs": 28415,
+      "coldStartMs": 403.47,
+      "queries": [
+        {
+          "index": 0,
+          "category": "correction",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 419.1,
+          "characterCount": 218,
+          "correctValue": true,
+          "leak": null
+        },
+        {
+          "index": 1,
+          "category": "sensitive",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 401.53,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 2,
+          "category": "retracted",
+          "rank": null,
+          "selected": 0,
+          "misrecalled": 0,
+          "latencyMs": 406.09,
+          "characterCount": 130,
+          "correctValue": null,
+          "leak": false
+        },
+        {
+          "index": 3,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 397.91,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 4,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 415.33,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 5,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 411.42,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 6,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 364.55,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 7,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 409.51,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 8,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 421.72,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 9,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 397.91,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 10,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 409.12,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 11,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 400.73,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 12,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 409.09,
+          "characterCount": 207,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 13,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 2,
+          "misrecalled": 1,
+          "latencyMs": 396.23,
+          "characterCount": 341,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 14,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 411.94,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 15,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 406.71,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 16,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 408.46,
+          "characterCount": 210,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 17,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 382,
+          "characterCount": 208,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 18,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 436.38,
+          "characterCount": 209,
+          "correctValue": null,
+          "leak": null
+        },
+        {
+          "index": 19,
+          "category": "lexical",
+          "rank": 1,
+          "selected": 1,
+          "misrecalled": 0,
+          "latencyMs": 389.02,
+          "characterCount": 211,
+          "correctValue": null,
+          "leak": null
+        }
+      ],
+      "recallAt5": 1,
+      "mrr": 1,
+      "misrecallRate": 0.1,
+      "retractedLeakCount": 0,
+      "sensitiveLeakCount": 0,
+      "correctionAccuracy": 1,
+      "latencyP50Ms": 406.71,
+      "latencyP95Ms": 421.72,
+      "characterCountMean": 214,
+      "databaseBytes": 5689344,
+      "rssBytes": 142381056
+    }
+  ]
+}

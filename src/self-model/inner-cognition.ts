@@ -8,6 +8,7 @@
  * a cloud provider, executes tools, or changes permissions.
  */
 import type { EventLogService } from '../persistence/event-log'
+import { investigationPriority } from './investigation'
 
 export const INNER_COGNITION_VERSION = 'inner-cognition-v1'
 export const THOUGHT_TRIGGER = 'assistant_uncertainty' as const
@@ -267,6 +268,17 @@ export class InnerCognitionService {
     goalStalls?: ReadonlyArray<{ title: string; days: number }>
     reflectionFindings?: ReadonlyArray<{ statement: string; kind: string; runId: string; createdAt: string }>
     mood?: { valence: number; arousal: number }
+    /** R in the Issue #76/#81 formula: local capacity, 0..1. */
+    resourceAvailability?: number
+    /** Records the exact components used, so an investigation can persist them. */
+    onPriority?: (components: {
+      informationGap: number
+      goalStall: number
+      interestRelevance: number
+      reflectionNovelty: number
+      resourceAvailability: number
+      cost: number
+    }) => void
   }): MorrowThought | null {
     const at = this.safeTimestamp(input.at)
     const owned = input.interests
@@ -307,11 +319,20 @@ export class InnerCognitionService {
     if (duplicate) return null
     const interestRelevance = owned[0] ? Math.min(1, owned[0].strength) : 0
     const recentRepeat = this.repository.allThoughts().filter((thought) => thought.createdAt >= new Date(Date.parse(at) - 24 * 3_600_000).toISOString()).length
-    const repeatPenalty = Math.min(1, recentRepeat / 3)
-    const moodBoost = input.mood ? Math.max(-0.08, Math.min(0.08, 0.06 * input.mood.arousal + 0.04 * input.mood.valence)) : 0
-    const priority = Math.max(0, Math.min(1,
-      0.30 * informationGap + 0.20 * goalStall + 0.20 * interestRelevance + 0.15 * reflectionNovelty - 0.25 * repeatPenalty - 0.10 * 0.2 + moodBoost
-    ))
+    const cost = Math.min(1, recentRepeat / 3)
+    const resourceAvailability = Math.min(1, Math.max(0, input.resourceAvailability ?? 1))
+    // Issue #81 F5 keeps the Issue #76 formula exactly:
+    // P = clamp(0.20I + 0.20G + 0.20U + 0.15N + 0.15R - 0.10C, 0, 1).
+    const components = {
+      informationGap,
+      goalStall,
+      interestRelevance,
+      reflectionNovelty,
+      resourceAvailability,
+      cost
+    }
+    const priority = investigationPriority(components)
+    input.onPriority?.(components)
     const evidence: ThoughtEvidence = {
       // Synthetic discovery has no real turn/conversation/message source. Empty
       // IDs plus synthetic=true are excluded from independent-context counting;
