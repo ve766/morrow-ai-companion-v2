@@ -23,6 +23,10 @@ function setup() {
   let currentTime = origin
   const conversations = new ConversationService(new SqliteConversationRepository(database), () => currentTime)
   const emotions = new EmotionService(database, () => currentTime)
+  // The v55 migration seeds emotion_states with the wall clock. Pin the
+  // fixture timeline to `origin` so a test that moves forward to a fixed date
+  // is not clamped by "now" on a later calendar day.
+  emotions.clearHistory(origin)
   const conversation = conversations.create()
 
   function turn(content: string, type?: 'positive_feedback' | 'negative_feedback' | 'system_correction' | 'exploration_request' | 'user_context', at = currentTime) {
