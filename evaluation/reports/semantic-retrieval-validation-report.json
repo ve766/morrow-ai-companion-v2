@@ -1,0 +1,1265 @@
+{
+  "reportVersion": 1,
+  "runnerVersion": "1.0.0",
+  "generatedAt": "2026-10-26T05:58:45.403Z",
+  "split": "validation",
+  "dataset": {
+    "id": "morrow-semantic-retrieval-validation",
+    "version": "1.0.0",
+    "caseCount": 12,
+    "scenarios": [
+      "paraphrase",
+      "indirect_expression",
+      "cross_lingual",
+      "lexical_trap",
+      "similar_topic_wrong_memory",
+      "semantic_contradiction",
+      "correction_safety",
+      "deletion_safety",
+      "low_confidence_inference",
+      "temporary_need_vs_longterm_preference",
+      "empty_evidence"
+    ],
+    "inputSetHash": "fcccf038f7487acf1e0e21a79e7f3b4db385591a633f8409b578992692a24510"
+  },
+  "encoder": {
+    "modelId": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+    "available": true,
+    "loadMs": 4477,
+    "meanEmbedMsPerCase": 29.8
+  },
+  "arms": [
+    {
+      "armId": "v2-lexical",
+      "label": "v2 multi-signal (lexical only)",
+      "algorithm": "memory-retrieval-v2",
+      "semanticApplied": false,
+      "recallAt1": 0.625,
+      "recallAt3": 0.625,
+      "recallAt5": 0.625,
+      "mrr": 0.6667,
+      "ndcgAt5": 0.6344,
+      "leakCount": 0,
+      "falseRelevantCount": 2,
+      "falseRelevantRate": 0.0833,
+      "orderViolations": 0,
+      "duplicatePairs": 0,
+      "topicCoverage": 0.6667,
+      "budgetOverruns": 0,
+      "deterministic": true
+    },
+    {
+      "armId": "v3-weighted",
+      "label": "v3 hybrid, normalized weighted fusion",
+      "algorithm": "memory-retrieval-v3-hybrid",
+      "semanticApplied": true,
+      "recallAt1": 0.9583,
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "mrr": 1,
+      "ndcgAt5": 1,
+      "leakCount": 0,
+      "falseRelevantCount": 2,
+      "falseRelevantRate": 0.0833,
+      "orderViolations": 0,
+      "duplicatePairs": 0,
+      "topicCoverage": 1,
+      "budgetOverruns": 0,
+      "deterministic": true
+    },
+    {
+      "armId": "v3-rrf",
+      "label": "v3 hybrid, reciprocal rank fusion",
+      "algorithm": "memory-retrieval-v3-hybrid",
+      "semanticApplied": true,
+      "recallAt1": 0.9583,
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "mrr": 1,
+      "ndcgAt5": 1,
+      "leakCount": 0,
+      "falseRelevantCount": 2,
+      "falseRelevantRate": 0.0833,
+      "orderViolations": 0,
+      "duplicatePairs": 0,
+      "topicCoverage": 1,
+      "budgetOverruns": 0,
+      "deterministic": true
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "val-paraphrase-caffeine",
+      "scenario": "paraphrase",
+      "rationale": "The memory constrains caffeine timing; the question names a caffeinated drink and a time. No shared content word.",
+      "query": "Can I drink an espresso in the evening?",
+      "expectedRelevantIds": [
+        "caffeine"
+      ],
+      "irrelevantIds": [
+        "bike"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 0,
+            "recallAt3": 0,
+            "recallAt5": 0,
+            "reciprocalRank": 0,
+            "ndcgAt5": 0,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 0,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "caffeine"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 365,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "caffeine"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 365,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-indirect-sibling",
+      "scenario": "indirect_expression",
+      "rationale": "'Sibling' and 'sister' are different words for the same relation; lexical matching cannot connect them.",
+      "query": "Where does my sibling live?",
+      "expectedRelevantIds": [
+        "sister"
+      ],
+      "irrelevantIds": [
+        "laptop"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [
+              "sister",
+              "laptop"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [
+              "laptop"
+            ],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 573,
+            "selectedCount": 2
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "sister",
+              "laptop"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [
+              "laptop"
+            ],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 573,
+            "selectedCount": 2
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "sister",
+              "laptop"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [
+              "laptop"
+            ],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 573,
+            "selectedCount": 2
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-cross-lingual-zh-query",
+      "scenario": "cross_lingual",
+      "rationale": "Chinese question about allergies against an English memory.",
+      "query": "我对什么过敏？",
+      "expectedRelevantIds": [
+        "shellfish"
+      ],
+      "irrelevantIds": [
+        "piano"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 0,
+            "recallAt3": 0,
+            "recallAt5": 0,
+            "reciprocalRank": 0,
+            "ndcgAt5": 0,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 0,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "shellfish"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 365,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "shellfish"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 365,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-cross-lingual-zh-memory",
+      "scenario": "cross_lingual",
+      "rationale": "English question against a Chinese memory about the workplace.",
+      "query": "Where do I work?",
+      "expectedRelevantIds": [
+        "work-zh"
+      ],
+      "irrelevantIds": [
+        "cat"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 0,
+            "recallAt3": 0,
+            "recallAt5": 0,
+            "reciprocalRank": 0,
+            "ndcgAt5": 0,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 0,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "work-zh"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 347,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "work-zh"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 347,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-lexical-trap-documentary",
+      "scenario": "lexical_trap",
+      "rationale": "Both mention documentaries. Only one is a recurring habit; the other is a single past viewing.",
+      "query": "What do I usually watch?",
+      "expectedRelevantIds": [
+        "habit-doc"
+      ],
+      "irrelevantIds": [
+        "volcano-doc"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [
+              "habit-doc"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 379,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "habit-doc"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 379,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "habit-doc"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 379,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-similar-topic-afternoon",
+      "scenario": "similar_topic_wrong_memory",
+      "rationale": "Two drink memories differing only in time of day.",
+      "query": "What do I drink in the afternoon?",
+      "expectedRelevantIds": [
+        "tea-afternoon"
+      ],
+      "irrelevantIds": [
+        "coffee-morning"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [
+              "tea-afternoon",
+              "coffee-morning"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [
+              "coffee-morning"
+            ],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 599,
+            "selectedCount": 2
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "tea-afternoon",
+              "coffee-morning"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [
+              "coffee-morning"
+            ],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 599,
+            "selectedCount": 2
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "tea-afternoon",
+              "coffee-morning"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [
+              "coffee-morning"
+            ],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 599,
+            "selectedCount": 2
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-semantic-contradiction-gym",
+      "scenario": "semantic_contradiction",
+      "rationale": "Corrected attitude, with the replaced statement re-created. Both are near-identical in meaning to the question.",
+      "query": "Do I enjoy going to the gym?",
+      "expectedRelevantIds": [
+        "gym-new"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "gym-restated"
+      ],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [
+              "gym-new"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 368,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "gym-new"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 368,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "gym-new"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 368,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-correction-pet",
+      "scenario": "correction_safety",
+      "rationale": "Corrected pet species, with the replaced statement present as a separate memory.",
+      "query": "What pet do I have?",
+      "expectedRelevantIds": [
+        "pet-new"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "pet-restated"
+      ],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 0,
+            "recallAt3": 0,
+            "recallAt5": 0,
+            "reciprocalRank": 0,
+            "ndcgAt5": 0,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 0,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "pet-new"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 361,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "pet-new"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 361,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-deletion-safety",
+      "scenario": "deletion_safety",
+      "rationale": "Retracted salary plus a sensitive identifier. Neither may be surfaced by any signal.",
+      "query": "What is my salary and my ID document number?",
+      "expectedRelevantIds": [],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "salary-retracted",
+        "id-sensitive"
+      ],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-low-confidence-instrument",
+      "scenario": "low_confidence_inference",
+      "rationale": "A low-confidence inference and an explicit statement about the same subject. Explicit must rank first.",
+      "query": "Can I play any instruments?",
+      "expectedRelevantIds": [
+        "explicit-none"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [
+              "explicit-none"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 385,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "explicit-none"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 385,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "explicit-none"
+            ],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 385,
+            "selectedCount": 1
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-temporary-vs-longterm",
+      "scenario": "temporary_need_vs_longterm_preference",
+      "rationale": "A standing preference about working hours versus a one-off request today.",
+      "query": "Should I work late today?",
+      "expectedRelevantIds": [
+        "hours-pref",
+        "late-today"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [
+              "hours-pref"
+            ],
+            "recallAt1": 0.5,
+            "recallAt3": 0.5,
+            "recallAt5": 0.5,
+            "reciprocalRank": 1,
+            "ndcgAt5": 0.6131471927654584,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 370,
+            "selectedCount": 1
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [
+              "late-today",
+              "hours-pref"
+            ],
+            "recallAt1": 0.5,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 600,
+            "selectedCount": 2
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [
+              "late-today",
+              "hours-pref"
+            ],
+            "recallAt1": 0.5,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 600,
+            "selectedCount": 2
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "val-empty-evidence",
+      "scenario": "empty_evidence",
+      "rationale": "A technical question with no matching personal memory. Everything here will still have non-zero cosine similarity.",
+      "query": "How do I configure a Kubernetes ingress controller?",
+      "expectedRelevantIds": [],
+      "irrelevantIds": [
+        "garden"
+      ],
+      "forbiddenIds": [],
+      "results": [
+        {
+          "armId": "v2-lexical",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-weighted",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        },
+        {
+          "armId": "v3-rrf",
+          "metrics": {
+            "selectedIds": [],
+            "recallAt1": 1,
+            "recallAt3": 1,
+            "recallAt5": 1,
+            "reciprocalRank": 1,
+            "ndcgAt5": 1,
+            "leaks": [],
+            "falseRelevant": [],
+            "orderViolations": 0,
+            "duplicatePairs": 0,
+            "topicCoverage": 1,
+            "budgetOverrun": false,
+            "characterCount": 157,
+            "selectedCount": 0
+          }
+        }
+      ]
+    }
+  ],
+  "byScenario": [
+    {
+      "scenario": "paraphrase",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 0,
+          "mrr": 0
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "indirect_expression",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "cross_lingual",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 0,
+          "mrr": 0
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "lexical_trap",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "similar_topic_wrong_memory",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "semantic_contradiction",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "correction_safety",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 0,
+          "mrr": 0
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "deletion_safety",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "low_confidence_inference",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "temporary_need_vs_longterm_preference",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 0.5,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 0.5,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 0.5,
+          "mrr": 1
+        }
+      ]
+    },
+    {
+      "scenario": "empty_evidence",
+      "arms": [
+        {
+          "armId": "v2-lexical",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-weighted",
+          "recallAt1": 1,
+          "mrr": 1
+        },
+        {
+          "armId": "v3-rrf",
+          "recallAt1": 1,
+          "mrr": 1
+        }
+      ]
+    }
+  ],
+  "gate": {
+    "passed": true,
+    "checks": {
+      "encoderAvailable": true,
+      "deterministic": true,
+      "hybridNoLeaks": true,
+      "hybridNoBudgetOverrun": true,
+      "hybridRecallNotWorse": true,
+      "hybridMrrNotWorse": true,
+      "hybridNdcgNotWorse": true,
+      "hybridFalseRelevantNotWorse": true,
+      "semanticRecallGain": true
+    },
+    "failed": []
+  },
+  "limitations": [
+    "All cases are synthetic and few. They show behaviour on named scenarios, not real-user accuracy.",
+    "Expected/forbidden/irrelevant labels are design judgements written before any model was run; they are not user annotations.",
+    "Cosine similarity is a relevance signal only. It is never treated as evidence confidence.",
+    "This runner calls the production strategy objects directly; it does not exercise IPC, the database or a Provider."
+  ]
+}

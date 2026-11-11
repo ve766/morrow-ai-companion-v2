@@ -19,14 +19,40 @@ import {
 } from './memory-domain'
 
 import type { AssembledMemoryContext, Sensitivity } from '../shared/companion'
-import { MemoryContextAssembler } from './memory-context-assembler'
 import type { MorrowEvent } from '../persistence/event-log'
+import { RETRIEVAL_ALGORITHM_V3_HYBRID, resolveRetrievalConfig, type RetrievalConfigOverrides } from './retrieval/retrieval-config'
+import { selectRetrievalStrategy } from './retrieval/retrieval-registry'
+import type { SupersededStatement } from './retrieval/retrieval-supersession'
+import { retrievalDecisionEventPayload, type RetrievalDecision } from './retrieval/retrieval-trace'
+import { buildSemanticSignals, type SemanticEncoder, type SemanticSignals } from './retrieval/retrieval-semantic'
 
 // Minimal event sink so the memory module never depends on the persistence
 // module's concrete service; tests inject nothing.
 export interface MemoryEventSink {
   tryRecord(event: Omit<MorrowEvent, 'schemaVersion' | 'occurredAt' | 'id'>): MorrowEvent | null
 }
+
+/**
+ * Upper bound on superseded statements loaded per retrieval call.
+ *
+ * The chain is read as one ordered window rather than per candidate because the
+ * superseding memory need not be a candidate itself. If the window is ever
+ * exhausted the decision records `correctionChain.truncated`, so a weakened
+ * correction chain is visible instead of silent.
+ */
+const MAX_SUPERSEDED_STATEMENTS = 2000
+
+export interface AssembleContextOptions {
+  /** Fixed evaluation instant; defaults to the injected clock. */
+  now?: string
+  /** Per-call algorithm/parameter overrides. Validated before use. */
+  config?: RetrievalConfigOverrides
+  /** Precomputed semantic signals for this query; absent means lexical only. */
+  semantic?: SemanticSignals
+}
+
+/** Budget for one encoder round-trip. Exceeding it degrades to lexical. */
+const SEMANTIC_TIMEOUT_MS = 1500
 
 export interface MemoryCreateOptions {
   sourceCategory?: MemorySourceCategory
@@ -63,8 +89,6 @@ function significantTerms(text: string): Set<string> {
 }
 
 export class MemoryService {
-  private readonly contextAssembler = new MemoryContextAssembler()
-
   constructor(
     private readonly repository: MemoryRepository,
     private readonly clock: () => string = () => new Date().toISOString(),
@@ -151,9 +175,119 @@ export class MemoryService {
     return this.repository.search(query.trim())
   }
 
-  assembleContext(query: string, maximumSensitivity: Sensitivity): AssembledMemoryContext {
+  assembleContext(query: string, maximumSensitivity: Sensitivity, options: AssembleContextOptions = {}): AssembledMemoryContext {
+    return this.runRetrieval(query, maximumSensitivity, options).context
+  }
+
+  /**
+   * Retrieval that may use semantic signals.
+   *
+   * The encoder is optional and failure-tolerant by construction: a missing
+   * model, a timeout or a thrown error all degrade to the lexical path, and the
+   * decision trace records that semantic signals were not applied. It never
+   * falls back to "zero similarity for everything", which would silently
+   * reorder results.
+   */
+  async assembleContextWithSemantic(
+    query: string,
+    maximumSensitivity: Sensitivity,
+    options: AssembleContextOptions = {},
+    encoder?: SemanticEncoder
+  ): Promise<AssembledMemoryContext> {
+    if (!encoder) return this.assembleContext(query, maximumSensitivity, options)
     if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
-    return this.contextAssembler.assemble(query, this.repository.listActiveForContext(1000), maximumSensitivity)
+    // Having a real encoder is what selects the hybrid algorithm. An explicit
+    // caller choice still wins, so a caller can pin v2 even with an encoder.
+    const overrides: RetrievalConfigOverrides = { algorithm: RETRIEVAL_ALGORITHM_V3_HYBRID, ...options.config }
+    const config = resolveRetrievalConfig(overrides)
+    if (!config.semantic.enabled) return this.assembleContext(query, maximumSensitivity, options)
+
+    const records = this.repository.listActiveForContext(1000)
+    const semantic = await this.withTimeout(
+      buildSemanticSignals(encoder, query, records.map((record) => record.currentText)),
+      SEMANTIC_TIMEOUT_MS
+    )
+    if (!semantic) return this.assembleContext(query, maximumSensitivity, options)
+    return this.runRetrieval(query, maximumSensitivity, { ...options, config: overrides, semantic }, records).context
+  }
+
+  private async withTimeout<T>(work: Promise<T | null>, timeoutMs: number): Promise<T | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        work,
+        new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), timeoutMs) })
+      ])
+    } catch {
+      return null
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  private runRetrieval(
+    query: string,
+    maximumSensitivity: Sensitivity,
+    options: AssembleContextOptions,
+    preloaded?: MemoryRecord[]
+  ): { context: AssembledMemoryContext; decision: RetrievalDecision } {
+    if (typeof query !== 'string' || query.length > 20_000) throw new ApplicationError('INVALID_INPUT')
+    const config = resolveRetrievalConfig(options.config)
+    // The evaluation instant comes from the injected clock rather than the wall
+    // clock, so the same data and query replay to the same ranking.
+    const now = options.now ?? this.timestamp()
+    const records = preloaded ?? this.repository.listActiveForContext(1000)
+    const chain = this.supersededStatements()
+    const result = selectRetrievalStrategy(config.algorithm).retrieve({
+      query,
+      records,
+      supersededStatements: chain.statements,
+      supersededTruncated: chain.truncated,
+      ...(options.semantic ? { semantic: options.semantic } : {}),
+      maximumSensitivity,
+      now,
+      config
+    })
+    this.recordRetrievalDecision(result.decision)
+    return result
+  }
+
+  /**
+   * Retrieval with its decision trace. Used by the benchmark and available to
+   * diagnostics; the chat path only needs {@link assembleContext}.
+   */
+  retrieveWithDecision(query: string, maximumSensitivity: Sensitivity, options: AssembleContextOptions = {}): {
+    context: AssembledMemoryContext
+    decision: RetrievalDecision
+  } {
+    return this.runRetrieval(query, maximumSensitivity, options)
+  }
+
+  private supersededStatements(): { statements: SupersededStatement[]; truncated: boolean } {
+    try {
+      // Ask for one more than the cap so truncation is observable rather than
+      // inferred from a full page.
+      const rows = this.repository.listSupersededStatements(MAX_SUPERSEDED_STATEMENTS + 1)
+      return { statements: rows.slice(0, MAX_SUPERSEDED_STATEMENTS), truncated: rows.length > MAX_SUPERSEDED_STATEMENTS }
+    } catch {
+      // A degraded correction chain must not break chat; retrieval simply loses
+      // one signal and the decision trace records that it had none.
+      return { statements: [], truncated: false }
+    }
+  }
+
+  private recordRetrievalDecision(decision: RetrievalDecision): void {
+    this.events?.tryRecord({
+      sourceModule: 'memory',
+      eventType: 'retrieval.decision',
+      actor: 'system',
+      // Deliberately not 'memory': the journal's memory trail is the record of
+      // user-driven lifecycle changes, and retrieval is not one.
+      subjectType: 'memory_retrieval',
+      subjectId: null,
+      correlationId: null,
+      payload: retrievalDecisionEventPayload(decision)
+    })
   }
 
   history(id: string): MemoryRevisionRecord[] {

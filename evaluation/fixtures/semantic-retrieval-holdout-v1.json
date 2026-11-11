@@ -1,0 +1,255 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "morrow-semantic-retrieval-holdout",
+  "datasetVersion": "1.0.0",
+  "source": "synthetic",
+  "seed": 41003,
+  "split": "holdout",
+  "note": "Synthetic. Reserved: not used to choose any parameter. Labels were written before any model was run, and this split is executed only after the scheme is frozen.",
+  "requiredScenarios": [
+    "paraphrase",
+    "indirect_expression",
+    "cross_lingual",
+    "lexical_trap",
+    "similar_topic_wrong_memory",
+    "semantic_contradiction",
+    "temporary_need_vs_longterm_preference",
+    "correction_safety",
+    "deletion_safety",
+    "low_confidence_inference",
+    "empty_evidence"
+  ],
+  "cases": [
+    {
+      "id": "hold-paraphrase-lactose",
+      "version": 1,
+      "scenario": "paraphrase",
+      "query": "Can I have a milkshake?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "The memory is a dietary constraint; the question names a dairy drink. No shared content word.",
+      "memories": [
+        { "id": "lactose", "text": "I am lactose intolerant.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 90, "createdAt": "2026-04-01T00:00:00.000Z", "updatedAt": "2026-09-22T00:00:00.000Z", "lastConfirmedAt": "2026-09-22T00:00:00.000Z" },
+        { "id": "printer", "text": "My printer is out of toner.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 78, "createdAt": "2026-04-02T00:00:00.000Z", "updatedAt": "2026-09-06T00:00:00.000Z", "lastConfirmedAt": "2026-09-06T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["lactose"],
+      "irrelevantIds": ["printer"],
+      "forbiddenIds": [],
+      "requiredOrder": ["lactose", "printer"],
+      "topics": { "lactose": "health", "printer": "device" }
+    },
+    {
+      "id": "hold-indirect-deposit",
+      "version": 1,
+      "scenario": "indirect_expression",
+      "query": "Should I buy this expensive watch?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A spending question whose answer depends on a savings goal. The words never overlap.",
+      "memories": [
+        { "id": "deposit", "text": "I am saving for a house deposit.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-04-03T00:00:00.000Z", "updatedAt": "2026-09-11T00:00:00.000Z", "lastConfirmedAt": "2026-09-11T00:00:00.000Z" },
+        { "id": "plant", "text": "My office plant needs repotting.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 78, "createdAt": "2026-04-04T00:00:00.000Z", "updatedAt": "2026-09-07T00:00:00.000Z", "lastConfirmedAt": "2026-09-07T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["deposit"],
+      "irrelevantIds": ["plant"],
+      "forbiddenIds": [],
+      "requiredOrder": ["deposit", "plant"],
+      "topics": { "deposit": "finance", "plant": "home" }
+    },
+    {
+      "id": "hold-cross-lingual-zh-memory",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "Where is my hometown?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "English question against a Chinese memory about a hometown.",
+      "memories": [
+        { "id": "hometown-zh", "text": "我老家在成都。", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-04-05T00:00:00.000Z", "updatedAt": "2026-09-13T00:00:00.000Z", "lastConfirmedAt": "2026-09-13T00:00:00.000Z" },
+        { "id": "desk", "text": "I bought a standing desk.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-04-06T00:00:00.000Z", "updatedAt": "2026-09-08T00:00:00.000Z", "lastConfirmedAt": "2026-09-08T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["hometown-zh"],
+      "irrelevantIds": ["desk"],
+      "forbiddenIds": [],
+      "requiredOrder": ["hometown-zh", "desk"],
+      "topics": { "hometown-zh": "location", "desk": "home" }
+    },
+    {
+      "id": "hold-cross-lingual-zh-query",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "我有什么爱好？",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Chinese question about hobbies against an English memory.",
+      "memories": [
+        { "id": "vinyl", "text": "I collect vinyl records.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-04-07T00:00:00.000Z", "updatedAt": "2026-09-14T00:00:00.000Z", "lastConfirmedAt": "2026-09-14T00:00:00.000Z" },
+        { "id": "commute", "text": "My commute takes forty minutes.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 78, "createdAt": "2026-04-08T00:00:00.000Z", "updatedAt": "2026-09-09T00:00:00.000Z", "lastConfirmedAt": "2026-09-09T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["vinyl"],
+      "irrelevantIds": ["commute"],
+      "forbiddenIds": [],
+      "requiredOrder": ["vinyl", "commute"],
+      "topics": { "vinyl": "hobby", "commute": "work" }
+    },
+    {
+      "id": "hold-lexical-trap-bank",
+      "version": 1,
+      "scenario": "lexical_trap",
+      "query": "Which bank do I use?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "'Bank' is ambiguous. Only one memory is about a financial institution; the other is a river bank and shares the exact word.",
+      "memories": [
+        { "id": "bank-money", "text": "I switched to a credit union last year.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-04-09T00:00:00.000Z", "updatedAt": "2026-09-15T00:00:00.000Z", "lastConfirmedAt": "2026-09-15T00:00:00.000Z" },
+        { "id": "bank-river", "text": "We walked along the river bank.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 80, "createdAt": "2026-04-10T00:00:00.000Z", "updatedAt": "2026-09-16T00:00:00.000Z", "lastConfirmedAt": "2026-09-16T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["bank-money"],
+      "irrelevantIds": ["bank-river"],
+      "forbiddenIds": [],
+      "requiredOrder": ["bank-money", "bank-river"],
+      "topics": { "bank-money": "finance", "bank-river": "outdoors" }
+    },
+    {
+      "id": "hold-similar-topic-evening",
+      "version": 1,
+      "scenario": "similar_topic_wrong_memory",
+      "query": "What do I do in the evening?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Two routine memories differing only in time of day.",
+      "memories": [
+        { "id": "evening-yoga", "text": "I do yoga before bed.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-04-11T00:00:00.000Z", "updatedAt": "2026-09-17T00:00:00.000Z", "lastConfirmedAt": "2026-09-17T00:00:00.000Z" },
+        { "id": "morning-run", "text": "I go running before breakfast.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-04-12T00:00:00.000Z", "updatedAt": "2026-09-18T00:00:00.000Z", "lastConfirmedAt": "2026-09-18T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["evening-yoga"],
+      "irrelevantIds": ["morning-run"],
+      "forbiddenIds": [],
+      "requiredOrder": ["evening-yoga", "morning-run"],
+      "topics": { "evening-yoga": "routine", "morning-run": "routine" }
+    },
+    {
+      "id": "hold-semantic-contradiction-coffee",
+      "version": 1,
+      "scenario": "semantic_contradiction",
+      "query": "Do I still drink coffee?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected habit with the replaced statement re-created. Both are equally similar to the question.",
+      "memories": [
+        { "id": "coffee-quit", "text": "I stopped drinking coffee.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-02-01T00:00:00.000Z", "updatedAt": "2026-07-01T00:00:00.000Z", "lastConfirmedAt": "2026-07-01T00:00:00.000Z" },
+        { "id": "coffee-restated", "text": "I drink two coffees a day.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-09-09T00:00:00.000Z", "updatedAt": "2026-09-09T00:00:00.000Z", "lastConfirmedAt": "2026-09-09T00:00:00.000Z" }
+      ],
+      "supersededStatements": [
+        { "memoryId": "coffee-quit", "revision": 1, "text": "I drink two coffees a day.", "supersededAt": "2026-07-01T00:00:00.000Z", "supersedingConfirmedAt": "2026-07-01T00:00:00.000Z" }
+      ],
+      "expectedRelevantIds": ["coffee-quit"],
+      "irrelevantIds": [],
+      "forbiddenIds": ["coffee-restated"],
+      "requiredOrder": ["coffee-quit"],
+      "topics": { "coffee-quit": "drink", "coffee-restated": "drink" }
+    },
+    {
+      "id": "hold-correction-job-title",
+      "version": 1,
+      "scenario": "correction_safety",
+      "query": "What is my job title?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected job title, replaced title present as a separate memory.",
+      "memories": [
+        { "id": "title-new", "text": "My job title is staff engineer.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 88, "createdAt": "2026-01-10T00:00:00.000Z", "updatedAt": "2026-06-01T00:00:00.000Z", "lastConfirmedAt": "2026-06-01T00:00:00.000Z" },
+        { "id": "title-restated", "text": "My job title is senior engineer.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 84, "createdAt": "2026-09-03T00:00:00.000Z", "updatedAt": "2026-09-03T00:00:00.000Z", "lastConfirmedAt": "2026-09-03T00:00:00.000Z" }
+      ],
+      "supersededStatements": [
+        { "memoryId": "title-new", "revision": 1, "text": "My job title is senior engineer.", "supersededAt": "2026-06-01T00:00:00.000Z", "supersedingConfirmedAt": "2026-06-01T00:00:00.000Z" }
+      ],
+      "expectedRelevantIds": ["title-new"],
+      "irrelevantIds": [],
+      "forbiddenIds": ["title-restated"],
+      "requiredOrder": ["title-new"],
+      "topics": { "title-new": "work", "title-restated": "work" }
+    },
+    {
+      "id": "hold-deletion-safety",
+      "version": 1,
+      "scenario": "deletion_safety",
+      "query": "What is my home address and bank card PIN?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Retracted address plus a sensitive PIN. Neither may be surfaced by any signal.",
+      "memories": [
+        { "id": "address-retracted", "text": "My home address is a synthetic street.", "sourceCategory": "user_explicit_input", "status": "retracted", "sensitivity": "personal", "confidence": 85, "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-02-15T00:00:00.000Z", "lastConfirmedAt": "2026-01-01T00:00:00.000Z" },
+        { "id": "pin-sensitive", "text": "My bank card PIN is a synthetic value.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "sensitive", "confidence": 85, "createdAt": "2026-02-01T00:00:00.000Z", "updatedAt": "2026-02-01T00:00:00.000Z", "lastConfirmedAt": "2026-02-01T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": [],
+      "forbiddenIds": ["address-retracted", "pin-sensitive"],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "hold-low-confidence-cuisine",
+      "version": 1,
+      "scenario": "low_confidence_inference",
+      "query": "Do I like spicy food?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A weak inference against an explicit statement on the same subject.",
+      "memories": [
+        { "id": "infer-spicy", "text": "The model infers the user enjoys spicy food.", "sourceCategory": "model_inferred_confirmed", "status": "active", "sensitivity": "personal", "confidence": 38, "createdAt": "2026-09-01T00:00:00.000Z", "updatedAt": "2026-09-01T00:00:00.000Z", "lastConfirmedAt": "2026-09-01T00:00:00.000Z" },
+        { "id": "explicit-mild", "text": "I cannot eat spicy food at all.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 92, "createdAt": "2026-09-04T00:00:00.000Z", "updatedAt": "2026-09-04T00:00:00.000Z", "lastConfirmedAt": "2026-09-04T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["explicit-mild"],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": ["explicit-mild", "infer-spicy"],
+      "topics": { "infer-spicy": "food", "explicit-mild": "food" }
+    },
+    {
+      "id": "hold-temporary-vs-longterm",
+      "version": 1,
+      "scenario": "temporary_need_vs_longterm_preference",
+      "query": "What should I read tonight?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A standing reading preference and a one-off request for tonight.",
+      "memories": [
+        { "id": "read-pref", "text": "I prefer printed books for long-form reading.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 86, "createdAt": "2026-02-01T00:00:00.000Z", "updatedAt": "2026-02-01T00:00:00.000Z", "lastConfirmedAt": "2026-02-01T00:00:00.000Z" },
+        { "id": "read-tonight", "text": "The user wants something short to read tonight.", "sourceCategory": "turn_derived_confirmed", "status": "active", "sensitivity": "personal", "confidence": 70, "createdAt": "2026-10-24T00:00:00.000Z", "updatedAt": "2026-10-24T00:00:00.000Z", "lastConfirmedAt": "2026-10-24T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": ["read-pref", "read-tonight"],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": { "read-pref": "reading", "read-tonight": "reading" }
+    },
+    {
+      "id": "hold-empty-evidence",
+      "version": 1,
+      "scenario": "empty_evidence",
+      "query": "What is the migration pattern of the Arctic tern?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A biology question with no matching personal memory.",
+      "memories": [
+        { "id": "car-service", "text": "My car needs a service in November.", "sourceCategory": "user_explicit_input", "status": "active", "sensitivity": "personal", "confidence": 82, "createdAt": "2026-04-01T00:00:00.000Z", "updatedAt": "2026-09-20T00:00:00.000Z", "lastConfirmedAt": "2026-09-20T00:00:00.000Z" }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": ["car-service"],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {}
+    }
+  ]
+}

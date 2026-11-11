@@ -1,0 +1,747 @@
+{
+  "reportVersion": 1,
+  "runnerVersion": "2.0.0",
+  "generatedAt": "2026-10-26T06:59:09.551Z",
+  "dataset": {
+    "id": "morrow-retrieval-benchmark",
+    "version": "1.0.0",
+    "caseCount": 12,
+    "scenarios": [
+      "repeated_preference_multiturn",
+      "explicit_correction",
+      "new_old_conflict",
+      "stale_vs_recent",
+      "longterm_vs_temporary",
+      "same_topic_many_duplicates",
+      "multi_topic_recall",
+      "deletion_nonleak",
+      "low_confidence_vs_high",
+      "budget_limit",
+      "no_evidence_noise",
+      "cross_session_restart"
+    ],
+    "inputSetHash": "5d3cecc8af7d66ff57045813ec10152ed4ff237d078f10466e012ec318545c99"
+  },
+  "config": {
+    "algorithmV1": "memory-retrieval-v1",
+    "algorithmV2": "memory-retrieval-v2",
+    "lexicalMatching": "token",
+    "recallKs": [
+      1,
+      3,
+      5
+    ],
+    "ndcgK": 5,
+    "duplicateOverlap": 0.9
+  },
+  "totals": {
+    "v1": {
+      "algorithm": "memory-retrieval-v1",
+      "configVersion": "2.2.0",
+      "recallAt1": 0.6528,
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "mrr": 0.9167,
+      "ndcgAt5": 0.9385,
+      "leakCount": 1,
+      "falseRelevantCount": 0,
+      "falseRelevantRate": 0,
+      "orderViolations": 1,
+      "duplicatePairs": 6,
+      "topicCoverage": 1,
+      "budgetOverruns": 0,
+      "deterministic": true,
+      "uncertainty": {
+        "cases": 12,
+        "firstRank": {
+          "hits": 8,
+          "proportion": 0.6667,
+          "wilson95": [
+            0.3906,
+            0.8619
+          ]
+        },
+        "leakFree": {
+          "cases": 12,
+          "hits": 11,
+          "proportion": 0.9167,
+          "wilson95": [
+            0.6461,
+            0.9851
+          ]
+        }
+      }
+    },
+    "v2": {
+      "algorithm": "memory-retrieval-v2",
+      "configVersion": "2.2.0",
+      "recallAt1": 0.7361,
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "mrr": 0.9583,
+      "ndcgAt5": 0.9692,
+      "leakCount": 0,
+      "falseRelevantCount": 0,
+      "falseRelevantRate": 0,
+      "orderViolations": 0,
+      "duplicatePairs": 0,
+      "topicCoverage": 1,
+      "budgetOverruns": 0,
+      "deterministic": true,
+      "uncertainty": {
+        "cases": 12,
+        "firstRank": {
+          "hits": 9,
+          "proportion": 0.75,
+          "wilson95": [
+            0.4677,
+            0.9111
+          ]
+        },
+        "leakFree": {
+          "cases": 12,
+          "hits": 12,
+          "proportion": 1,
+          "wilson95": [
+            0.7575,
+            1
+          ]
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "caseId": "repeated-preference-multiturn",
+      "scenario": "repeated_preference_multiturn",
+      "expectedRelevantIds": [
+        "pref-main"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "pref-main",
+          "pref-echo-1",
+          "pref-echo-2"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 807,
+        "selectedCount": 3
+      },
+      "v2": {
+        "selectedIds": [
+          "pref-main",
+          "pref-echo-1",
+          "pref-echo-2"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 807,
+        "selectedCount": 3
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "explicit-correction-cross-record",
+      "scenario": "explicit_correction",
+      "expectedRelevantIds": [
+        "tea-corrected"
+      ],
+      "forbiddenIds": [
+        "tea-restated"
+      ],
+      "v1": {
+        "selectedIds": [
+          "tea-restated",
+          "tea-corrected",
+          "tea-milk"
+        ],
+        "recallAt1": 0,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 0.5,
+        "ndcgAt5": 0.6309297535714575,
+        "leaks": [
+          "tea-restated"
+        ],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 770,
+        "selectedCount": 3
+      },
+      "v2": {
+        "selectedIds": [
+          "tea-corrected",
+          "tea-milk"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 568,
+        "selectedCount": 2
+      },
+      "winner": "v2"
+    },
+    {
+      "caseId": "new-over-old-fact-conflict",
+      "scenario": "new_old_conflict",
+      "expectedRelevantIds": [
+        "work-new",
+        "work-old"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "work-old",
+          "work-new"
+        ],
+        "recallAt1": 0.5,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 1,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 621,
+        "selectedCount": 2
+      },
+      "v2": {
+        "selectedIds": [
+          "work-new",
+          "work-old"
+        ],
+        "recallAt1": 0.5,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 621,
+        "selectedCount": 2
+      },
+      "winner": "v2"
+    },
+    {
+      "caseId": "stale-versus-recent-role",
+      "scenario": "stale_vs_recent",
+      "expectedRelevantIds": [
+        "role-recent"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "role-recent",
+          "role-stale"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 606,
+        "selectedCount": 2
+      },
+      "v2": {
+        "selectedIds": [
+          "role-recent",
+          "role-stale"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 606,
+        "selectedCount": 2
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "longterm-preference-versus-temporary-need",
+      "scenario": "longterm_vs_temporary",
+      "expectedRelevantIds": [
+        "food-preference",
+        "food-temporary"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "food-temporary",
+          "food-preference"
+        ],
+        "recallAt1": 0.5,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 606,
+        "selectedCount": 2
+      },
+      "v2": {
+        "selectedIds": [
+          "food-temporary",
+          "food-preference"
+        ],
+        "recallAt1": 0.5,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 606,
+        "selectedCount": 2
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "same-topic-duplicate-cluster",
+      "scenario": "same_topic_many_duplicates",
+      "expectedRelevantIds": [
+        "coffee-1"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "coffee-4",
+          "coffee-1",
+          "coffee-2",
+          "coffee-3",
+          "coffee-5",
+          "coffee-6"
+        ],
+        "recallAt1": 0,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 0.5,
+        "ndcgAt5": 0.6309297535714575,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 6,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 1474,
+        "selectedCount": 6
+      },
+      "v2": {
+        "selectedIds": [
+          "coffee-4",
+          "coffee-1",
+          "coffee-3"
+        ],
+        "recallAt1": 0,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 0.5,
+        "ndcgAt5": 0.6309297535714575,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 824,
+        "selectedCount": 3
+      },
+      "winner": "v2"
+    },
+    {
+      "caseId": "multi-topic-week-planning",
+      "scenario": "multi_topic_recall",
+      "expectedRelevantIds": [
+        "plan-work",
+        "plan-health",
+        "plan-reading"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "plan-health",
+          "plan-reading",
+          "plan-work",
+          "plan-health-2",
+          "plan-reading-2",
+          "plan-work-2"
+        ],
+        "recallAt1": 0.3333333333333333,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 1558,
+        "selectedCount": 6
+      },
+      "v2": {
+        "selectedIds": [
+          "plan-health",
+          "plan-reading",
+          "plan-work",
+          "plan-reading-2",
+          "plan-work-2",
+          "plan-health-2"
+        ],
+        "recallAt1": 0.3333333333333333,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 1558,
+        "selectedCount": 6
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "retracted-and-restricted-non-leak",
+      "scenario": "deletion_nonleak",
+      "expectedRelevantIds": [],
+      "forbiddenIds": [
+        "addr-retracted",
+        "addr-restricted"
+      ],
+      "v1": {
+        "selectedIds": [],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 157,
+        "selectedCount": 0
+      },
+      "v2": {
+        "selectedIds": [],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 157,
+        "selectedCount": 0
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "low-confidence-inference-versus-explicit",
+      "scenario": "low_confidence_vs_high",
+      "expectedRelevantIds": [
+        "explicit-evening"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "explicit-evening",
+          "infer-morning"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 635,
+        "selectedCount": 2
+      },
+      "v2": {
+        "selectedIds": [
+          "explicit-evening",
+          "infer-morning"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 635,
+        "selectedCount": 2
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "context-budget-long-conversation",
+      "scenario": "budget_limit",
+      "expectedRelevantIds": [
+        "notes-12"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "notes-12",
+          "notes-11",
+          "notes-10",
+          "notes-09",
+          "notes-08",
+          "notes-07",
+          "notes-06",
+          "notes-05",
+          "notes-04"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 2766,
+        "selectedCount": 9
+      },
+      "v2": {
+        "selectedIds": [
+          "notes-12",
+          "notes-11",
+          "notes-10",
+          "notes-09",
+          "notes-08",
+          "notes-07",
+          "notes-06",
+          "notes-05",
+          "notes-04"
+        ],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 2766,
+        "selectedCount": 9
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "no-evidence-noise-query",
+      "scenario": "no_evidence_noise",
+      "expectedRelevantIds": [],
+      "forbiddenIds": [
+        "noise-1",
+        "noise-2"
+      ],
+      "v1": {
+        "selectedIds": [],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 157,
+        "selectedCount": 0
+      },
+      "v2": {
+        "selectedIds": [],
+        "recallAt1": 1,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 157,
+        "selectedCount": 0
+      },
+      "winner": "tie"
+    },
+    {
+      "caseId": "cross-session-stable-order",
+      "scenario": "cross_session_restart",
+      "expectedRelevantIds": [
+        "cs-style",
+        "cs-style-2"
+      ],
+      "forbiddenIds": [],
+      "v1": {
+        "selectedIds": [
+          "cs-style",
+          "cs-style-2"
+        ],
+        "recallAt1": 0.5,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 617,
+        "selectedCount": 2
+      },
+      "v2": {
+        "selectedIds": [
+          "cs-style",
+          "cs-style-2"
+        ],
+        "recallAt1": 0.5,
+        "recallAt3": 1,
+        "recallAt5": 1,
+        "reciprocalRank": 1,
+        "ndcgAt5": 1,
+        "leaks": [],
+        "falseRelevant": [],
+        "orderViolations": 0,
+        "duplicatePairs": 0,
+        "topicCoverage": 1,
+        "budgetOverrun": false,
+        "characterCount": 617,
+        "selectedCount": 2
+      },
+      "winner": "tie"
+    }
+  ],
+  "regressions": [],
+  "improvements": [
+    "explicit-correction-cross-record (explicit_correction)",
+    "new-over-old-fact-conflict (new_old_conflict)",
+    "same-topic-duplicate-cluster (same_topic_many_duplicates)"
+  ],
+  "gate": {
+    "passed": true,
+    "checks": {
+      "lexicalMatchingIsToken": true,
+      "datasetVersionRecorded": true,
+      "v2RecallAt5Floor": true,
+      "v2RecallAt1Floor": true,
+      "v2NoLeaks": true,
+      "v2NoBudgetOverrun": true,
+      "v2Deterministic": true,
+      "v1Deterministic": true,
+      "noRecallRegression": true,
+      "noMrrRegression": true,
+      "noNdcgRegression": true,
+      "fewerLeaks": true,
+      "fewerOrderViolations": true,
+      "fewerDuplicates": true,
+      "noTopicCoverageRegression": true,
+      "coversEveryScenario": true
+    },
+    "failed": []
+  },
+  "activation": {
+    "recommendedAlgorithm": "memory-retrieval-v2",
+    "reason": "v2 meets every gate: no leak, no budget overrun, deterministic, and no recall/MRR/NDCG/coverage regression against v1."
+  },
+  "limitations": [
+    "All cases are synthetic and small. They demonstrate behaviour on named scenarios; they do not establish real-user accuracy or statistical significance.",
+    "The lexical stability classifier is a keyword heuristic, not a semantic model. Cases were written to include the cues it recognises.",
+    "Recall and order metrics assume the expected/forbidden ids authored in the fixture are correct; they are design judgements, not ground truth from users.",
+    "No embedding model exists in this project, so no semantic-similarity metric is reported. A memory must still share a lexical term with the query to be retrieved.",
+    "The benchmark runs the production strategy objects directly; it does not open the production database or call a model."
+  ]
+}

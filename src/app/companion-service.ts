@@ -41,6 +41,7 @@ import type { CognitiveFeelingEvent, FeelingState } from '../affective-state/fee
 import type { InterestService } from '../self-model/interest-service'
 import type { SelfModelService } from '../self-model/self-model-service'
 import type { EventLogService } from '../persistence/event-log'
+import type { SemanticEncoder } from '../memory/retrieval/retrieval-semantic'
 
 const fixedPrinciples = [
   'Be truthful, useful, and direct; express uncertainty when evidence is incomplete.',
@@ -570,6 +571,12 @@ export class CompanionService {
     id?: () => string
     providerFactory?: (config: ProviderConfigRecord) => ProviderPort
     selfModelLoop?: SelfModelLoopServices
+    /**
+     * Optional sentence-embedding encoder. Absent (the default, and the only
+     * state in tests) means retrieval stays lexical. The encoder is never
+     * created here: building a model is the caller's explicit decision.
+     */
+    semanticEncoder?: SemanticEncoder
   }) {
     const clock = options.clock ?? (() => new Date().toISOString())
     const makeId = options.id ?? (() => randomUUID())
@@ -613,7 +620,7 @@ export class CompanionService {
           }
         }
       : undefined
-    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks)
+    this.chat = new ChatService(options.conversations, options.memories, this.providers, this.personality, this.cognition, this.feelings, options.authorize, makeId, clock, providerFactory, hooks, options.semanticEncoder)
     this.memorySuggestions = new MemorySuggestionService(options.database, options.conversations, options.memories, this.providers, options.authorize, makeId, clock, providerFactory)
   }
 
@@ -676,7 +683,8 @@ export class ChatService {
     private readonly makeId: () => string = () => randomUUID(),
     private readonly clock: () => string = () => new Date().toISOString(),
     private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => providers.createAdapter(config),
-    private readonly selfModel?: SelfModelLoopHooks
+    private readonly selfModel?: SelfModelLoopHooks,
+    private readonly semanticEncoder?: SemanticEncoder
   ) {}
 
   private cognitiveSettingsOrDisabled(): CognitiveCoreSettings {
@@ -748,7 +756,7 @@ export class ChatService {
       const evaluationAt = this.now()
       const candidateMessageId = existingUser?.id ?? this.makeId()
       const initialHistory = existing.messages.filter((message) => message.turnId !== requestId)
-      const prepared = this.prepare(request, config, initialHistory, candidateMessageId, requestId, settingSnapshot, evaluationAt)
+      const prepared = await this.prepare(request, config, initialHistory, candidateMessageId, requestId, settingSnapshot, evaluationAt)
       const preview = consentPreview('chat', config, prepared.input)
       const consent = await this.authorize(preview)
       if (!consent) throw new ApplicationError('FORBIDDEN')
@@ -759,7 +767,7 @@ export class ChatService {
         throw new ApplicationError('CONFLICT')
       }
       const messageId = latestUser?.id ?? candidateMessageId
-      const verified = this.prepare(request, this.providers.requireConfigured(), latest.messages.filter((message) => message.turnId !== requestId), messageId, requestId, latestSettings, evaluationAt)
+      const verified = await this.prepare(request, this.providers.requireConfigured(), latest.messages.filter((message) => message.turnId !== requestId), messageId, requestId, latestSettings, evaluationAt)
       if (hashProviderInput(verified.input) !== preview.payloadSha256) throw new ApplicationError('CONFLICT')
       let userMessage = latestUser
       let cognitiveObservationPersisted = Boolean(userMessage?.cognitiveObservations?.length)
@@ -835,7 +843,7 @@ export class ChatService {
     }
   }
 
-  private prepare(
+  private async prepare(
     request: ChatRequest,
     config: ProviderConfigRecord,
     history: ConversationMessage[],
@@ -843,7 +851,7 @@ export class ChatService {
     idempotencyKey: string,
     settings: CognitiveCoreSettings,
     evaluationAt: string
-  ): { input: ProviderInput; memory: AssembledMemoryContext; analysis?: CognitiveTurnAnalysis; feelingEvent?: CognitiveFeelingEvent } {
+  ): Promise<{ input: ProviderInput; memory: AssembledMemoryContext; analysis?: CognitiveTurnAnalysis; feelingEvent?: CognitiveFeelingEvent }> {
     const content = request.content.trim()
     const max: Sensitivity = request.includeSensitive ? 'sensitive' : 'personal'
     const profile = this.personality.get()
@@ -865,7 +873,16 @@ export class ChatService {
           content,
           ...(firstPass.strategy === 'retrieve_memory' ? [referencedMessage?.body, priorUserMessage?.body] : [])
         ].filter((value): value is string => typeof value === 'string' && value.length > 0).join('\n').slice(0, 20_000)
-        memory = this.memories.assembleContext(firstPass.strategy === 'retrieve_memory' ? retrievalQuery : '', max)
+        // Retrieval is pinned to the turn's instant, not to a fresh clock read.
+        // `prepare` runs twice (consent preview, then dispatch); if retrieval
+        // used a different instant the second time, the payload hash could
+        // differ from the approved one and the turn would fail with CONFLICT.
+        memory = await this.memories.assembleContextWithSemantic(
+          firstPass.strategy === 'retrieve_memory' ? retrievalQuery : '',
+          max,
+          { now: evaluationAt },
+          this.semanticEncoder
+        )
         const memoryReferences = memory.selected.map((item) => ({ kind: 'memory_revision' as const, id: item.id, revision: item.revision }))
         analysis = withCognitiveContextEvidence(firstPass, memoryReferences, profile.version)
         const stateView = this.feelings.snapshot(evaluationAt)
@@ -889,7 +906,9 @@ export class ChatService {
       }
     }
 
-    if (!memory) memory = this.memories.assembleContext(content, max)
+    if (!memory) {
+      memory = await this.memories.assembleContextWithSemantic(content, max, { now: evaluationAt }, this.semanticEncoder)
+    }
     const system = [
       `User-controlled communication preferences, version ${profile.version}: warmth ${profile.warmth}/100; directness ${profile.directness}/100; humor ${profile.humor}/100; disagreement style ${profile.disagreementStyle}.`,
       profile.systemRules ? `Additional style preferences (not policy or permissions): ${profile.systemRules}` : '',
@@ -938,7 +957,8 @@ export class MemorySuggestionService {
     private readonly authorize: ProviderConsentAuthorizer,
     private readonly makeId: () => string = () => randomUUID(),
     private readonly clock: () => string = () => new Date().toISOString(),
-    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => providers.createAdapter(config)
+    private readonly providerFactory: (config: ProviderConfigRecord) => ProviderPort = (config) => providers.createAdapter(config),
+    private readonly semanticEncoder?: SemanticEncoder
   ) {}
 
   list(conversationId: string): MemorySuggestion[] {

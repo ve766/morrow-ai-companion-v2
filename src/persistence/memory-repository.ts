@@ -2,6 +2,7 @@ import { ApplicationError } from '../shared/errors'
 import { SqliteDatabase } from './database'
 import { recordDeletionState } from './deletion-journal'
 import type { MemoryChangeType, MemoryRecord, MemoryRevisionRecord, MemorySourceCategory, MemoryStatus } from '../memory/memory-domain'
+import type { SupersededStatement } from '../memory/retrieval/retrieval-supersession'
 
 interface MemoryRow {
   id: string
@@ -34,6 +35,13 @@ export interface MemoryRepository {
   get(id: string): MemoryRecord | null
   list(): MemoryRecord[]
   listActiveForContext(limit: number): MemoryRecord[]
+  /**
+   * Text that an active memory used to hold before a later revision replaced
+   * it. This is the cross-record correction chain: a correction only rewrites
+   * the record in place, so the replaced statement survives nowhere else.
+   * Never returns revisions of retracted or deleted memories.
+   */
+  listSupersededStatements(limit: number): SupersededStatement[]
   countActive(): number
   countActiveForVerification(): number
   search(query: string): MemoryRecord[]
@@ -99,6 +107,38 @@ export class SqliteMemoryRepository implements MemoryRepository {
     const rows = this.database.connection.prepare("SELECT * FROM memories WHERE status = 'active' ORDER BY updated_at DESC, id LIMIT ?")
       .all(limit) as unknown as MemoryRow[]
     return rows.map(mapMemory)
+  }
+
+  listSupersededStatements(limit: number): SupersededStatement[] {
+    const rows = this.database.connection.prepare(`
+      SELECT r.memory_id AS memory_id,
+             r.revision AS revision,
+             r.content AS content,
+             (SELECT next.created_at FROM memory_revisions next
+               WHERE next.memory_id = r.memory_id AND next.revision > r.revision
+               ORDER BY next.revision LIMIT 1) AS superseded_at,
+             m.last_confirmed_at AS last_confirmed_at
+      FROM memory_revisions r
+      JOIN memories m ON m.id = r.memory_id
+      WHERE m.status = 'active' AND r.revision < m.revision
+      ORDER BY m.updated_at DESC, r.memory_id, r.revision
+      LIMIT ?
+    `).all(limit) as unknown as Array<{
+      memory_id: string
+      revision: number
+      content: string
+      superseded_at: string | null
+      last_confirmed_at: string | null
+    }>
+    return rows
+      .filter((row) => typeof row.superseded_at === 'string')
+      .map((row) => ({
+        memoryId: row.memory_id,
+        revision: row.revision,
+        text: row.content,
+        supersededAt: row.superseded_at as string,
+        supersedingConfirmedAt: row.last_confirmed_at
+      }))
   }
 
   countActive(): number {

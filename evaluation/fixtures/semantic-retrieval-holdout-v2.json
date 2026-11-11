@@ -1,0 +1,974 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "morrow-semantic-retrieval-holdout-v2",
+  "datasetVersion": "2.0.0",
+  "source": "synthetic",
+  "seed": 41004,
+  "split": "holdout",
+  "note": "Synthetic. Reserved: not used to choose any parameter. Labels were written before any model was run, and this split is executed only after the scheme is frozen. Supersedes the v1 split; adds multi-revision corrections, duplicate clusters and budget-limit cases.",
+  "requiredScenarios": [
+    "paraphrase",
+    "indirect_expression",
+    "cross_lingual",
+    "lexical_trap",
+    "similar_topic_wrong_memory",
+    "semantic_contradiction",
+    "temporary_need_vs_longterm_preference",
+    "correction_safety",
+    "deletion_safety",
+    "low_confidence_inference",
+    "empty_evidence",
+    "multi_revision_correction",
+    "same_topic_many_duplicates",
+    "budget_limit"
+  ],
+  "cases": [
+    {
+      "id": "hold-paraphrase-lactose",
+      "version": 1,
+      "scenario": "paraphrase",
+      "query": "Can I have a milkshake?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "The memory is a dietary constraint; the question names a dairy drink. No shared content word.",
+      "memories": [
+        {
+          "id": "lactose",
+          "text": "I am lactose intolerant.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-09-22T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-22T00:00:00.000Z"
+        },
+        {
+          "id": "printer",
+          "text": "My printer is out of toner.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 78,
+          "createdAt": "2026-04-02T00:00:00.000Z",
+          "updatedAt": "2026-09-06T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-06T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "lactose"
+      ],
+      "irrelevantIds": [
+        "printer"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "lactose",
+        "printer"
+      ],
+      "topics": {
+        "lactose": "health",
+        "printer": "device"
+      }
+    },
+    {
+      "id": "hold-indirect-deposit",
+      "version": 1,
+      "scenario": "indirect_expression",
+      "query": "Should I buy this expensive watch?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A spending question whose answer depends on a savings goal. The words never overlap.",
+      "memories": [
+        {
+          "id": "deposit",
+          "text": "I am saving for a house deposit.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-03T00:00:00.000Z",
+          "updatedAt": "2026-09-11T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-11T00:00:00.000Z"
+        },
+        {
+          "id": "plant",
+          "text": "My office plant needs repotting.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 78,
+          "createdAt": "2026-04-04T00:00:00.000Z",
+          "updatedAt": "2026-09-07T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-07T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "deposit"
+      ],
+      "irrelevantIds": [
+        "plant"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "deposit",
+        "plant"
+      ],
+      "topics": {
+        "deposit": "finance",
+        "plant": "home"
+      }
+    },
+    {
+      "id": "hold-cross-lingual-zh-memory",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "Where is my hometown?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "English question against a Chinese memory about a hometown.",
+      "memories": [
+        {
+          "id": "hometown-zh",
+          "text": "我老家在成都。",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-05T00:00:00.000Z",
+          "updatedAt": "2026-09-13T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-13T00:00:00.000Z"
+        },
+        {
+          "id": "desk",
+          "text": "I bought a standing desk.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-04-06T00:00:00.000Z",
+          "updatedAt": "2026-09-08T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-08T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "hometown-zh"
+      ],
+      "irrelevantIds": [
+        "desk"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "hometown-zh",
+        "desk"
+      ],
+      "topics": {
+        "hometown-zh": "location",
+        "desk": "home"
+      }
+    },
+    {
+      "id": "hold-cross-lingual-zh-query",
+      "version": 1,
+      "scenario": "cross_lingual",
+      "query": "我有什么爱好？",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Chinese question about hobbies against an English memory.",
+      "memories": [
+        {
+          "id": "vinyl",
+          "text": "I collect vinyl records.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-04-07T00:00:00.000Z",
+          "updatedAt": "2026-09-14T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-14T00:00:00.000Z"
+        },
+        {
+          "id": "commute",
+          "text": "My commute takes forty minutes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 78,
+          "createdAt": "2026-04-08T00:00:00.000Z",
+          "updatedAt": "2026-09-09T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-09T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "vinyl"
+      ],
+      "irrelevantIds": [
+        "commute"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "vinyl",
+        "commute"
+      ],
+      "topics": {
+        "vinyl": "hobby",
+        "commute": "work"
+      }
+    },
+    {
+      "id": "hold-lexical-trap-bank",
+      "version": 1,
+      "scenario": "lexical_trap",
+      "query": "Which bank do I use?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "'Bank' is ambiguous. Only one memory is about a financial institution; the other is a river bank and shares the exact word.",
+      "memories": [
+        {
+          "id": "bank-money",
+          "text": "I switched to a credit union last year.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-09T00:00:00.000Z",
+          "updatedAt": "2026-09-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-15T00:00:00.000Z"
+        },
+        {
+          "id": "bank-river",
+          "text": "We walked along the river bank.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-04-10T00:00:00.000Z",
+          "updatedAt": "2026-09-16T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-16T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "bank-money"
+      ],
+      "irrelevantIds": [
+        "bank-river"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "bank-money",
+        "bank-river"
+      ],
+      "topics": {
+        "bank-money": "finance",
+        "bank-river": "outdoors"
+      }
+    },
+    {
+      "id": "hold-similar-topic-evening",
+      "version": 1,
+      "scenario": "similar_topic_wrong_memory",
+      "query": "What do I do in the evening?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Two routine memories differing only in time of day.",
+      "memories": [
+        {
+          "id": "evening-yoga",
+          "text": "I do yoga before bed.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-11T00:00:00.000Z",
+          "updatedAt": "2026-09-17T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-17T00:00:00.000Z"
+        },
+        {
+          "id": "morning-run",
+          "text": "I go running before breakfast.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-12T00:00:00.000Z",
+          "updatedAt": "2026-09-18T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-18T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "evening-yoga"
+      ],
+      "irrelevantIds": [
+        "morning-run"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "evening-yoga",
+        "morning-run"
+      ],
+      "topics": {
+        "evening-yoga": "routine",
+        "morning-run": "routine"
+      }
+    },
+    {
+      "id": "hold-semantic-contradiction-coffee",
+      "version": 1,
+      "scenario": "semantic_contradiction",
+      "query": "Do I still drink coffee?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected habit with the replaced statement re-created. Both are equally similar to the question.",
+      "memories": [
+        {
+          "id": "coffee-quit",
+          "text": "I stopped drinking coffee.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-02-01T00:00:00.000Z",
+          "updatedAt": "2026-07-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-07-01T00:00:00.000Z"
+        },
+        {
+          "id": "coffee-restated",
+          "text": "I drink two coffees a day.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-09-09T00:00:00.000Z",
+          "updatedAt": "2026-09-09T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-09T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [
+        {
+          "memoryId": "coffee-quit",
+          "revision": 1,
+          "text": "I drink two coffees a day.",
+          "supersededAt": "2026-07-01T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-07-01T00:00:00.000Z"
+        }
+      ],
+      "expectedRelevantIds": [
+        "coffee-quit"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "coffee-restated"
+      ],
+      "requiredOrder": [
+        "coffee-quit"
+      ],
+      "topics": {
+        "coffee-quit": "drink",
+        "coffee-restated": "drink"
+      }
+    },
+    {
+      "id": "hold-correction-job-title",
+      "version": 1,
+      "scenario": "correction_safety",
+      "query": "What is my job title?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Corrected job title, replaced title present as a separate memory.",
+      "memories": [
+        {
+          "id": "title-new",
+          "text": "My job title is staff engineer.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-01-10T00:00:00.000Z",
+          "updatedAt": "2026-06-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-06-01T00:00:00.000Z"
+        },
+        {
+          "id": "title-restated",
+          "text": "My job title is senior engineer.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-09-03T00:00:00.000Z",
+          "updatedAt": "2026-09-03T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-03T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [
+        {
+          "memoryId": "title-new",
+          "revision": 1,
+          "text": "My job title is senior engineer.",
+          "supersededAt": "2026-06-01T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-06-01T00:00:00.000Z"
+        }
+      ],
+      "expectedRelevantIds": [
+        "title-new"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "title-restated"
+      ],
+      "requiredOrder": [
+        "title-new"
+      ],
+      "topics": {
+        "title-new": "work",
+        "title-restated": "work"
+      }
+    },
+    {
+      "id": "hold-deletion-safety",
+      "version": 1,
+      "scenario": "deletion_safety",
+      "query": "What is my home address and bank card PIN?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Retracted address plus a sensitive PIN. Neither may be surfaced by any signal.",
+      "memories": [
+        {
+          "id": "address-retracted",
+          "text": "My home address is a synthetic street.",
+          "sourceCategory": "user_explicit_input",
+          "status": "retracted",
+          "sensitivity": "personal",
+          "confidence": 85,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-01-01T00:00:00.000Z"
+        },
+        {
+          "id": "pin-sensitive",
+          "text": "My bank card PIN is a synthetic value.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "sensitive",
+          "confidence": 85,
+          "createdAt": "2026-02-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-02-01T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "address-retracted",
+        "pin-sensitive"
+      ],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "hold-low-confidence-cuisine",
+      "version": 1,
+      "scenario": "low_confidence_inference",
+      "query": "Do I like spicy food?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A weak inference against an explicit statement on the same subject.",
+      "memories": [
+        {
+          "id": "infer-spicy",
+          "text": "The model infers the user enjoys spicy food.",
+          "sourceCategory": "model_inferred_confirmed",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 38,
+          "createdAt": "2026-09-01T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        },
+        {
+          "id": "explicit-mild",
+          "text": "I cannot eat spicy food at all.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 92,
+          "createdAt": "2026-09-04T00:00:00.000Z",
+          "updatedAt": "2026-09-04T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-04T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "explicit-mild"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "explicit-mild",
+        "infer-spicy"
+      ],
+      "topics": {
+        "infer-spicy": "food",
+        "explicit-mild": "food"
+      }
+    },
+    {
+      "id": "hold-temporary-vs-longterm",
+      "version": 1,
+      "scenario": "temporary_need_vs_longterm_preference",
+      "query": "What should I read tonight?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A standing reading preference and a one-off request for tonight.",
+      "memories": [
+        {
+          "id": "read-pref",
+          "text": "I prefer printed books for long-form reading.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-02-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "read-tonight",
+          "text": "The user wants something short to read tonight.",
+          "sourceCategory": "turn_derived_confirmed",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 70,
+          "createdAt": "2026-10-24T00:00:00.000Z",
+          "updatedAt": "2026-10-24T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-24T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "read-pref",
+        "read-tonight"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {
+        "read-pref": "reading",
+        "read-tonight": "reading"
+      }
+    },
+    {
+      "id": "hold-empty-evidence",
+      "version": 1,
+      "scenario": "empty_evidence",
+      "query": "What is the migration pattern of the Arctic tern?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "A biology question with no matching personal memory.",
+      "memories": [
+        {
+          "id": "car-service",
+          "text": "My car needs a service in November.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 82,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-09-20T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-20T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [],
+      "irrelevantIds": [
+        "car-service"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [],
+      "topics": {}
+    },
+    {
+      "id": "hold2-multi-revision-city",
+      "version": 1,
+      "scenario": "multi_revision_correction",
+      "query": "Where is my team based?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Three revisions of the team location, both earlier locations re-created as memories. Only the newest may surface.",
+      "memories": [
+        {
+          "id": "chain-city",
+          "text": "My team is based in Chengdu.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 88,
+          "createdAt": "2026-03-01T00:00:00.000Z",
+          "updatedAt": "2026-10-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-15T00:00:00.000Z"
+        },
+        {
+          "id": "wuhan-restated",
+          "text": "My team is based in Wuhan.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-10-16T00:00:00.000Z",
+          "updatedAt": "2026-10-16T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-16T00:00:00.000Z"
+        },
+        {
+          "id": "xian-restated",
+          "text": "My team is based in Xi'an.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-10-17T00:00:00.000Z",
+          "updatedAt": "2026-10-17T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-17T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [
+        {
+          "memoryId": "chain-city",
+          "revision": 1,
+          "text": "My team is based in Wuhan.",
+          "supersededAt": "2026-06-01T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-06-01T00:00:00.000Z"
+        },
+        {
+          "memoryId": "chain-city",
+          "revision": 2,
+          "text": "My team is based in Xi'an.",
+          "supersededAt": "2026-10-15T00:00:00.000Z",
+          "supersedingConfirmedAt": "2026-10-15T00:00:00.000Z"
+        }
+      ],
+      "expectedRelevantIds": [
+        "chain-city"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [
+        "wuhan-restated",
+        "xian-restated"
+      ],
+      "requiredOrder": [
+        "chain-city"
+      ],
+      "topics": {
+        "chain-city": "work",
+        "wuhan-restated": "work",
+        "xian-restated": "work"
+      }
+    },
+    {
+      "id": "hold2-duplicate-cluster",
+      "version": 1,
+      "scenario": "same_topic_many_duplicates",
+      "query": "What music do I listen to?",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Five restatements of one music preference plus one unrelated memory. The cluster must not crowd out the unrelated preference.",
+      "memories": [
+        {
+          "id": "music-1",
+          "text": "I listen to ambient music while reading.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 90,
+          "createdAt": "2026-04-01T00:00:00.000Z",
+          "updatedAt": "2026-09-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-01T00:00:00.000Z"
+        },
+        {
+          "id": "music-2",
+          "text": "I listen to ambient music while reading.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 84,
+          "createdAt": "2026-04-02T00:00:00.000Z",
+          "updatedAt": "2026-09-02T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-02T00:00:00.000Z"
+        },
+        {
+          "id": "music-3",
+          "text": "Ambient music is my reading soundtrack.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 82,
+          "createdAt": "2026-04-03T00:00:00.000Z",
+          "updatedAt": "2026-09-03T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-03T00:00:00.000Z"
+        },
+        {
+          "id": "music-4",
+          "text": "I put on ambient tracks to read.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-04-04T00:00:00.000Z",
+          "updatedAt": "2026-09-04T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-04T00:00:00.000Z"
+        },
+        {
+          "id": "music-5",
+          "text": "Reading, ambient music, every evening.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 78,
+          "createdAt": "2026-04-05T00:00:00.000Z",
+          "updatedAt": "2026-09-05T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-05T00:00:00.000Z"
+        },
+        {
+          "id": "music-unrelated",
+          "text": "I repair bicycles on weekends.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 86,
+          "createdAt": "2026-04-06T00:00:00.000Z",
+          "updatedAt": "2026-09-06T00:00:00.000Z",
+          "lastConfirmedAt": "2026-09-06T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "music-1"
+      ],
+      "irrelevantIds": [
+        "music-unrelated"
+      ],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "music-1",
+        "music-unrelated"
+      ],
+      "topics": {
+        "music-1": "media",
+        "music-2": "media",
+        "music-3": "media",
+        "music-4": "media",
+        "music-5": "media",
+        "music-unrelated": "hobby"
+      }
+    },
+    {
+      "id": "hold2-budget-limit",
+      "version": 1,
+      "scenario": "budget_limit",
+      "query": "onboarding checklist notes",
+      "maximumSensitivity": "personal",
+      "now": "2026-10-25T00:00:00.000Z",
+      "rationale": "Fifteen matching notes, each long. Checks that the newest notes survive the 3000 character budget.",
+      "memories": [
+        {
+          "id": "onb-01",
+          "text": "Onboarding checklist note 01: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-01T00:00:00.000Z",
+          "updatedAt": "2026-10-01T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-01T00:00:00.000Z"
+        },
+        {
+          "id": "onb-02",
+          "text": "Onboarding checklist note 02: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-02T00:00:00.000Z",
+          "updatedAt": "2026-10-02T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-02T00:00:00.000Z"
+        },
+        {
+          "id": "onb-03",
+          "text": "Onboarding checklist note 03: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-03T00:00:00.000Z",
+          "updatedAt": "2026-10-03T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-03T00:00:00.000Z"
+        },
+        {
+          "id": "onb-04",
+          "text": "Onboarding checklist note 04: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-04T00:00:00.000Z",
+          "updatedAt": "2026-10-04T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-04T00:00:00.000Z"
+        },
+        {
+          "id": "onb-05",
+          "text": "Onboarding checklist note 05: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-05T00:00:00.000Z",
+          "updatedAt": "2026-10-05T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-05T00:00:00.000Z"
+        },
+        {
+          "id": "onb-06",
+          "text": "Onboarding checklist note 06: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-06T00:00:00.000Z",
+          "updatedAt": "2026-10-06T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-06T00:00:00.000Z"
+        },
+        {
+          "id": "onb-07",
+          "text": "Onboarding checklist note 07: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-07T00:00:00.000Z",
+          "updatedAt": "2026-10-07T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-07T00:00:00.000Z"
+        },
+        {
+          "id": "onb-08",
+          "text": "Onboarding checklist note 08: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-08T00:00:00.000Z",
+          "updatedAt": "2026-10-08T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-08T00:00:00.000Z"
+        },
+        {
+          "id": "onb-09",
+          "text": "Onboarding checklist note 09: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-09T00:00:00.000Z",
+          "updatedAt": "2026-10-09T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-09T00:00:00.000Z"
+        },
+        {
+          "id": "onb-10",
+          "text": "Onboarding checklist note 10: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-10T00:00:00.000Z",
+          "updatedAt": "2026-10-10T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-10T00:00:00.000Z"
+        },
+        {
+          "id": "onb-11",
+          "text": "Onboarding checklist note 11: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-11T00:00:00.000Z",
+          "updatedAt": "2026-10-11T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-11T00:00:00.000Z"
+        },
+        {
+          "id": "onb-12",
+          "text": "Onboarding checklist note 12: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-12T00:00:00.000Z",
+          "updatedAt": "2026-10-12T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-12T00:00:00.000Z"
+        },
+        {
+          "id": "onb-13",
+          "text": "Onboarding checklist note 13: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-13T00:00:00.000Z",
+          "updatedAt": "2026-10-13T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-13T00:00:00.000Z"
+        },
+        {
+          "id": "onb-14",
+          "text": "Onboarding checklist note 14: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-14T00:00:00.000Z",
+          "updatedAt": "2026-10-14T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-14T00:00:00.000Z"
+        },
+        {
+          "id": "onb-15",
+          "text": "Onboarding checklist note 15: the synthetic sequence covers the account setup, the tooling handoff and the buddy review for onboarding checklist notes.",
+          "sourceCategory": "user_explicit_input",
+          "status": "active",
+          "sensitivity": "personal",
+          "confidence": 80,
+          "createdAt": "2026-07-15T00:00:00.000Z",
+          "updatedAt": "2026-10-15T00:00:00.000Z",
+          "lastConfirmedAt": "2026-10-15T00:00:00.000Z"
+        }
+      ],
+      "supersededStatements": [],
+      "expectedRelevantIds": [
+        "onb-15",
+        "onb-14"
+      ],
+      "irrelevantIds": [],
+      "forbiddenIds": [],
+      "requiredOrder": [
+        "onb-15",
+        "onb-14"
+      ],
+      "topics": {
+        "onb-01": "project",
+        "onb-02": "project",
+        "onb-03": "project",
+        "onb-04": "project",
+        "onb-05": "project",
+        "onb-06": "project",
+        "onb-07": "project",
+        "onb-08": "project",
+        "onb-09": "project",
+        "onb-10": "project",
+        "onb-11": "project",
+        "onb-12": "project",
+        "onb-13": "project",
+        "onb-14": "project",
+        "onb-15": "project"
+      }
+    }
+  ]
+}

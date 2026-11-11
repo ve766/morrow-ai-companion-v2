@@ -21,3 +21,11 @@ evaluation/reports/*
 !evaluation/reports/cognitive-turn-synthetic-example.json
 !evaluation/reports/feeling-synthetic-example.json
 !evaluation/reports/cognitive-alpha-adversarial-report.json
+!evaluation/reports/retrieval-benchmark-v1.json
+!evaluation/reports/retrieval-benchmark-v1-frozen-config-2.1.0.json
+!evaluation/reports/semantic-retrieval-dev-report.json
+!evaluation/reports/semantic-retrieval-validation-report.json
+!evaluation/reports/semantic-retrieval-holdout-report.json
+
+# Optional local embedding model (fetched explicitly, never committed)
+.models/
