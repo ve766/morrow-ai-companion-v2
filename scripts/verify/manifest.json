@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "description": "Layered product verification manifest. Every entry keeps its own exit code; failures are never swallowed.",
+  "tiers": {
+    "fast": {
+      "description": "Typecheck plus the suites most likely to break on renderer/service changes.",
+      "steps": [
+        {
+          "id": "typecheck",
+          "command": "npm run typecheck",
+          "kind": "deterministic"
+        },
+        {
+          "id": "unit-core",
+          "command": "npx vitest run src/app/turn-trace.integration.test.ts tests/ui-control-contract.test.ts tests/ci-guard-policy.test.ts src/app/window-lifecycle.test.ts src/app/window-bounds.test.ts",
+          "kind": "deterministic"
+        }
+      ]
+    },
+    "full": {
+      "description": "Full deterministic test suite, evaluations, build and base smoke.",
+      "steps": [
+        {
+          "id": "typecheck",
+          "command": "npm run typecheck",
+          "kind": "deterministic"
+        },
+        {
+          "id": "test",
+          "command": "npm test",
+          "kind": "deterministic",
+          "env": {
+            "TMP": "<repo>/.tmp/esbuild-tmp",
+            "TEMP": "<repo>/.tmp/esbuild-tmp"
+          }
+        },
+        {
+          "id": "evaluate",
+          "command": "npm run evaluate",
+          "kind": "deterministic",
+          "env": {
+            "TMP": "<repo>/.tmp/esbuild-tmp",
+            "TEMP": "<repo>/.tmp/esbuild-tmp"
+          }
+        },
+        {
+          "id": "evaluate:cognition",
+          "command": "npm run evaluate:cognition",
+          "kind": "deterministic",
+          "env": {
+            "TMP": "<repo>/.tmp/esbuild-tmp",
+            "TEMP": "<repo>/.tmp/esbuild-tmp"
+          }
+        },
+        {
+          "id": "build",
+          "command": "npm run build",
+          "kind": "deterministic"
+        },
+        {
+          "id": "smoke",
+          "command": "npm run smoke",
+          "kind": "deterministic",
+          "env": {
+            "TMP": "<repo>/.tmp/esbuild-tmp",
+            "TEMP": "<repo>/.tmp/esbuild-tmp",
+            "MORROW_SMOKE_DISABLE_SANDBOX": "1",
+            "MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX": "1"
+          }
+        }
+      ]
+    },
+    "product": {
+      "description": "Real packaged-product path smoke (renderer loads, IPC answers, DB migrates).",
+      "steps": [
+        {
+          "id": "smoke:product-path",
+          "command": "npm run smoke:product-path",
+          "kind": "deterministic",
+          "env": {
+            "TMP": "<repo>/.tmp/esbuild-tmp",
+            "TEMP": "<repo>/.tmp/esbuild-tmp",
+            "MORROW_SMOKE_DISABLE_SANDBOX": "1",
+            "MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX": "1"
+          }
+        }
+      ]
+    },
+    "stages": {
+      "description": "Stage evaluations this product branch declares applicable. Live entries require credentials and are skipped, never faked.",
+      "steps": [
+        {
+          "id": "eval:stage2",
+          "command": "npm run eval:stage2",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:stage3",
+          "command": "npm run eval:stage3",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:stage3:restart",
+          "command": "npm run eval:stage3:restart",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:stage4a",
+          "command": "npm run eval:stage4a",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:stage5",
+          "command": "npm run eval:stage5",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:provider-multi-source",
+          "command": "npm run eval:provider-multi-source",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:final-closure",
+          "command": "npm run eval:final-closure",
+          "kind": "deterministic"
+        },
+        {
+          "id": "eval:stage3:live",
+          "command": "npm run eval:stage3:live",
+          "kind": "live",
+          "requiresCredentials": true
+        },
+        {
+          "id": "eval:final-closure:live",
+          "command": "npm run eval:final-closure:live",
+          "kind": "live",
+          "requiresCredentials": true
+        }
+      ]
+    },
+    "release": {
+      "description": "All gates in order; produces the machine-readable summary.",
+      "steps": [
+        {
+          "id": "tier:full",
+          "command": "npm run verify:full",
+          "kind": "deterministic"
+        },
+        {
+          "id": "tier:product",
+          "command": "npm run verify:product",
+          "kind": "deterministic"
+        },
+        {
+          "id": "tier:stages",
+          "command": "npm run verify:stages",
+          "kind": "deterministic"
+        }
+      ]
+    }
+  }
+}

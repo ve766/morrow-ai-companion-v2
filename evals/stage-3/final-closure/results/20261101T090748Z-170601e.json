@@ -1,0 +1,1402 @@
+{
+  "datasetVersion": "final-closure-v1",
+  "harnessVersion": "final-closure-runner-v1",
+  "codeCommit": "170601e64f11cc99a62c10f7d29d0015fcac1b6d",
+  "branch": "feat/stage-3-long-term-companion",
+  "suite": "final-closure (scripted retrieval + gate)",
+  "command": "npm run eval:stage3:final-closure",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "startedAt": "2026-11-01T09:07:48.626Z",
+  "finishedAt": "2026-11-01T09:08:54.171Z",
+  "denominator": 58,
+  "counts": {
+    "PASS": 57,
+    "FAIL": 1,
+    "BLOCKED": 0,
+    "NOT_RUN": 0
+  },
+  "metrics": {
+    "extractionRate": 1,
+    "recallAt1": 0.8913043478260869,
+    "recallAt2": 1,
+    "mrr": 0.9456521739130435,
+    "misInjectionRate": 0.045454545454545456,
+    "note": "promptInclusion 与 gate 分类逐 case 记录于 assertions;模型使用层由 live final-closure 与真人复核测量"
+  },
+  "unmeasured": [
+    "real model use of evidence (scripted provider)",
+    "human review"
+  ],
+  "cases": [
+    {
+      "id": "F01",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F02",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F03",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F04",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F05",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F06",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F07",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F08",
+      "category": "synonym",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F09",
+      "category": "pronoun",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F10",
+      "category": "pronoun",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F11",
+      "category": "pronoun",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F12",
+      "category": "pronoun",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F13",
+      "category": "pronoun",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F14",
+      "category": "pronoun",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F15",
+      "category": "long_gap",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F16",
+      "category": "long_gap",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F17",
+      "category": "long_gap",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F18",
+      "category": "long_gap",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F19",
+      "category": "long_gap",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F20",
+      "category": "multi_session",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F21",
+      "category": "multi_session",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F22",
+      "category": "multi_session",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F23",
+      "category": "multi_session",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F24",
+      "category": "multi_session",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F25",
+      "category": "multi_session",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F26",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=杭州"
+        }
+      ]
+    },
+    {
+      "id": "F27",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=咪咪"
+        }
+      ]
+    },
+    {
+      "id": "F28",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=花生"
+        }
+      ]
+    },
+    {
+      "id": "F29",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=吉他"
+        }
+      ]
+    },
+    {
+      "id": "F30",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=书房抽屉"
+        }
+      ]
+    },
+    {
+      "id": "F31",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":3,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=杭州"
+        }
+      ]
+    },
+    {
+      "id": "F32",
+      "category": "update",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=李明"
+        }
+      ]
+    },
+    {
+      "id": "F33",
+      "category": "retract",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=花生"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F34",
+      "category": "retract",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=杭州"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F35",
+      "category": "retract",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=咪咪"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F36",
+      "category": "retract",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=吉他"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F37",
+      "category": "retract",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=书房抽屉"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F38",
+      "category": "retract",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=李明"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F39",
+      "category": "conflict",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":2}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=2"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F40",
+      "category": "conflict",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":2}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=2"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F41",
+      "category": "conflict",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":2}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=2"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F42",
+      "category": "conflict",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":2}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=2"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F43",
+      "category": "conflict",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":2}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=2"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F44",
+      "category": "noise",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":3,\"active\":3}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=咖啡"
+        }
+      ]
+    },
+    {
+      "id": "F45",
+      "category": "noise",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":3,\"active\":3}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=咖啡"
+        }
+      ]
+    },
+    {
+      "id": "F46",
+      "category": "noise",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":3,\"active\":3}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=杭州"
+        }
+      ]
+    },
+    {
+      "id": "F47",
+      "category": "noise",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":3,\"active\":3}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=花生"
+        }
+      ]
+    },
+    {
+      "id": "F48",
+      "category": "noise",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":3,\"active\":3}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=咖啡"
+        }
+      ]
+    },
+    {
+      "id": "F49",
+      "category": "time",
+      "status": "FAIL",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":2}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": false,
+          "detail": "absent=北京"
+        }
+      ]
+    },
+    {
+      "id": "F50",
+      "category": "time",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F51",
+      "category": "time",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":2,\"active\":1}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=杭州"
+        }
+      ]
+    },
+    {
+      "id": "F52",
+      "category": "time",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":0}"
+        },
+        {
+          "name": "召回(recall@2 内)",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "进入 prompt",
+          "ok": true,
+          "detail": "value scan"
+        }
+      ]
+    },
+    {
+      "id": "F53",
+      "category": "no_evidence",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F54",
+      "category": "no_evidence",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F55",
+      "category": "no_evidence",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=咖啡"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F56",
+      "category": "no_evidence",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "事实索引建立",
+          "ok": true,
+          "detail": "{\"total\":1,\"active\":1}"
+        },
+        {
+          "name": "旧值/无关值不以当前事实投递",
+          "ok": true,
+          "detail": "absent=杭州"
+        },
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F57",
+      "category": "no_evidence",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "F58",
+      "category": "no_evidence",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "证据块为空(不编造)",
+          "ok": true,
+          "detail": "0 entries"
+        },
+        {
+          "name": "使用规则在固定原则中",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    }
+  ]
+}

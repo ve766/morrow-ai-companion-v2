@@ -1,0 +1,35 @@
+{
+  "runId": "20261105T191500Z-rc-ac00627",
+  "suite": "morrow-v2-rc",
+  "codeSha": "ac00627d0dc50677fc3b21ab0ae19c29f08fe9f7",
+  "parentSha": "ff5b7876fcfd01a1e53c18c91b35aec47752ca31",
+  "version": "2.0.0",
+  "builtAt": "2026-11-05T19:05:00.000Z",
+  "platform": "win32-x64",
+  "status": "PARTIAL",
+  "checks": [
+    { "name": "typecheck", "status": "PASS", "detail": "npx tsc --noEmit exit 0" },
+    { "name": "tests", "status": "PASS", "detail": "129 files / 1156 tests passed, 0 skipped" },
+    { "name": "build", "status": "PASS", "detail": "electron-vite build exit 0" },
+    { "name": "offline evaluations", "status": "PASS", "detail": "evaluate + evaluate:cognition exit 0" },
+    { "name": "Windows portable RC", "status": "PASS", "detail": "Morrow-2.0.0-x64-portable.exe, 100541545 bytes, sha256 cf662590c2ad2d3f5574bc758d933276082f3fb405e71b2d28117d07dec98e67" },
+    { "name": "Windows NSIS installer", "status": "BLOCKED_HOST_EXECUTION_POLICY", "detail": "electron-builder builds the NSIS stub then must execute it to extract the uninstaller; the host blocks the execution with exit code 2, so no complete NSIS installer was produced. Portable target succeeds." },
+    { "name": "installed app launch", "status": "BLOCKED_HOST_ELECTRON_CRASH", "detail": "The host's Electron 44 renderer exits with 0xC0000005 even with --no-sandbox; the portable launcher and installed app cannot complete a window on this host. CI Windows product-path was green on parent code 6f5fe47 but the final RC SHA CI is blocked by the Actions infrastructure failure." },
+    { "name": "product-path / continuity on RC SHA", "status": "BLOCKED_CI_INFRA", "detail": "The last product-path PASS (20261105T084141Z-45483dd6) is on parent code 6f5fe47; CI on ac00627 failed all jobs in 0 steps. The RC SHA has local full tests/tsc/build, but no new Electron product-path run." },
+    { "name": "real provider", "status": "BLOCKED_QUOTA", "detail": "Existing runs 20261104T135205Z-75b01260 and 20261104T135210Z-abf69f16 are HTTP 403 BLOCKED_QUOTA; no new requests were made." },
+    { "name": "local model service", "status": "BLOCKED_LOCAL_SERVICE_NOT_RUNNING", "detail": "No OpenAI-compatible local service was running; no mock was substituted." }
+  ],
+  "installer": {
+    "kind": "portable",
+    "file": "evals/morrow-v2-rc/installers/2.0.0/Morrow-2.0.0-x64-portable.exe",
+    "bytes": 100541545,
+    "sha256": "cf662590c2ad2d3f5574bc758d933276082f3fb405e71b2d28117d07dec98e67"
+  },
+  "screenshots": "docs/ui/evidence/rc-20261105T191500Z-rc-ac00627 (copied from real built-app run 20261105T084141Z-45483dd6; not installed-app screenshots because install/launch is blocked on this host)",
+  "limitations": [
+    "No complete NSIS installer on this host; portable RC is the available binary.",
+    "No installed-app launch or installed screenshots on this host.",
+    "No RC-SHA Electron product-path run; CI 0-step infrastructure failure.",
+    "Real provider quota and local service remain external blockers."
+  ]
+}

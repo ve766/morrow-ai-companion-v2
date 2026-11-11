@@ -1,0 +1,97 @@
+{
+  "issue": 78,
+  "branch": "fix/audit-driven-companion-remediation-20261109",
+  "startCommit": "1b7ba085fba4c46086028b611be615dc871d6c66",
+  "sourceCommit": "6cbfaac587d4ea0a9024b625a6886b65f928fde4",
+  "testedCommit": "6cbfaac587d4ea0a9024b625a6886b65f928fde4",
+  "finalHead": "6cbfaac587d4ea0a9024b625a6886b65f928fde4",
+  "overall": "PARTIAL",
+  "criteria": [
+    {
+      "id": "P0-A-provenance-fail-closed",
+      "status": "PARTIAL",
+      "evidence": "gate resolves event/memory source owner; unresolved/forged rejected; same-root 100 findings 1 root; recursive DAG/retraction not complete",
+      "command": "npx vitest run src/self-model/reflection-state-gate.test.ts",
+      "exitCode": 0
+    },
+    {
+      "id": "P0-B-no-synthetic-provenance",
+      "status": "PASS",
+      "evidence": "synthetic thought refs use synthetic:true/empty IDs, excluded from independence/reward; Shared/User interest excluded",
+      "command": "npx vitest run src/self-model/inner-cognition.test.ts",
+      "exitCode": 0
+    },
+    {
+      "id": "P0-C-conversation-deletion",
+      "status": "PARTIAL",
+      "evidence": "inner thoughts deleted/states retracted on conversation delete; reflection findings/mood per-source rebuild missing",
+      "command": "npx vitest run src/self-model/inner-cognition.test.ts",
+      "exitCode": 0
+    },
+    {
+      "id": "P0-D-inner-cognition-outbox",
+      "status": "PARTIAL",
+      "evidence": "observeTurn still post-commit; no durable inner_cognition outbox effect",
+      "command": null,
+      "exitCode": null
+    },
+    {
+      "id": "P1-A-mood-time",
+      "status": "PASS",
+      "evidence": "pause settles decay; paused events suppressed; persisted timestamps monotonic; rollback/repeated pause/restart tests",
+      "command": "npx vitest run src/affective-state/mood-service.test.ts",
+      "exitCode": 0
+    },
+    {
+      "id": "P1-B-G1-G2-separation",
+      "status": "PARTIAL",
+      "evidence": "user style still double-written to personality_growth_signals; not fixed",
+      "command": null,
+      "exitCode": null
+    },
+    {
+      "id": "P1-C-exploration-lifecycle",
+      "status": "PARTIAL",
+      "evidence": "X1 shared excluded; full investigation state machine/goal stall not implemented",
+      "command": "npx vitest run src/self-model/exploration-policy.test.ts",
+      "exitCode": 0
+    },
+    {
+      "id": "P1-D-memory-benchmark",
+      "status": "NOT_RUN",
+      "evidence": "no 100/500/1000/5000 benchmark",
+      "command": null,
+      "exitCode": null
+    },
+    {
+      "id": "P1-E-ui-provider-windows",
+      "status": "PARTIAL",
+      "evidence": "chat UI/portable smoke PASS; custom NSIS built but install exit 2; real cloud NOT_RUN",
+      "command": "npm run smoke:chat-ui",
+      "exitCode": 0
+    },
+    {
+      "id": "full-tests",
+      "status": "PASS",
+      "command": "npm test",
+      "exitCode": 0,
+      "files": 149,
+      "tests": 1259
+    },
+    {
+      "id": "real-cloud-provider",
+      "status": "NOT_RUN",
+      "command": null,
+      "exitCode": null
+    }
+  ],
+  "remaining": [
+    "P0-A recursive lineage",
+    "P0-C reflection/mood rebuild",
+    "P0-D durable outbox",
+    "P1-B G1/G2 separation",
+    "P1-C investigation lifecycle",
+    "P1-D benchmark",
+    "P1-E installer install verification"
+  ]
+}

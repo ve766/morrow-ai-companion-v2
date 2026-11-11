@@ -1,0 +1,65 @@
+{
+  "results": [
+    {
+      "effect": "none",
+      "status": "原生深色",
+      "bg": "radial-gradient(900px 520px at 88% -18%, rgba(217, 119, 87, 0.08), rgba(0, 0, 0, 0) 60%), radial-gra",
+      "panelShadow": "none"
+    },
+    {
+      "effect": "perspective",
+      "status": "3D 透视",
+      "bg": "radial-gradient(900px 520px at 88% -18%, rgba(217, 119, 87, 0.08), rgba(0, 0, 0, 0) 60%), radial-gra",
+      "panelShadow": "none"
+    },
+    {
+      "effect": "holo",
+      "status": "全息边框",
+      "bg": "radial-gradient(900px 520px at 88% -18%, rgba(217, 119, 87, 0.08), rgba(0, 0, 0, 0) 60%), radial-gra",
+      "panelShadow": "none"
+    },
+    {
+      "effect": "brutal",
+      "status": "粗野主义",
+      "bg": "radial-gradient(900px 520px at 88% -18%, rgba(217, 119, 87, 0.08), rgba(0, 0, 0, 0) 60%), radial-gra",
+      "panelShadow": "none"
+    },
+    {
+      "effect": "collage",
+      "status": "纸片拼贴",
+      "bg": "radial-gradient(900px 520px at 88% -18%, rgba(217, 119, 87, 0.08), rgba(0, 0, 0, 0) 60%), radial-gra",
+      "panelShadow": "none"
+    },
+    {
+      "effect": "plasma",
+      "status": "等离子",
+      "bg": "radial-gradient(circle at 15% 20%, rgba(217, 119, 87, 0.18), rgba(0, 0, 0, 0) 35%), radial-gradient(",
+      "panelShadow": "none"
+    }
+  ],
+  "lab": {
+    "cards": [
+      {
+        "e": "perspective",
+        "text": "3D 透视\n鼠标跟随的轻微空间倾斜，面板像在工作台上被拿起。"
+      },
+      {
+        "e": "holo",
+        "text": "全息边框\n低饱和虹彩描边沿卡片边缘缓慢流动。"
+      },
+      {
+        "e": "brutal",
+        "text": "粗野主义\n硬边、粗线、偏移阴影；信息优先于装饰。"
+      },
+      {
+        "e": "collage",
+        "text": "纸片拼贴\n层叠纸片、撕边和轻微错位，保留手作温度。"
+      },
+      {
+        "e": "plasma",
+        "text": "等离子\n缓慢呼吸的等离子光场，作为低对比度背景氛围。"
+      }
+    ],
+    "status": "等离子"
+  }
+}

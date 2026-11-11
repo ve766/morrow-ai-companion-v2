@@ -1,0 +1,98 @@
+{
+  "runId": "20261107T122549Z-56142fb1",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-07T12:25:49.449Z",
+  "finishedAt": "2026-11-07T12:26:05.025Z",
+  "status": "FAILED",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": true,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory 75cdfbc6-f16d-42dd-b6c3-6706b0307f83, goal 3ea8b1d8-a000-4774-8b51-32a146094559, conversation 6ec3ce4c-2626-4970-81f0-44569149a45c"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "UI evidence screenshots captured",
+      "ok": true,
+      "detail": "9 screenshots at 1440×900 / 1280×800 / 390×844"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    },
+    {
+      "name": "profiles and OS secrets survive restart",
+      "ok": true,
+      "detail": "both profiles read back configured after restart"
+    },
+    {
+      "name": "continuity unchanged across restart",
+      "ok": true,
+      "detail": "baseline={\"interests\":2,\"memories\":1,\"goals\":1} after={\"interests\":2,\"memories\":1,\"goals\":1}"
+    },
+    {
+      "name": "endpoint change clears the old secret and disables the remote profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。"
+    },
+    {
+      "name": "only the changed profile secret was removed",
+      "ok": true,
+      "detail": "B ciphertext unchanged"
+    },
+    {
+      "name": "SQLite continuity rows preserved across restart",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across restart",
+      "ok": false,
+      "detail": "removed=[] changed=[{\"table\":\"goal_tasks\",\"key\":\"60cbf223-b5d7-4083-8abc-a0ae1d1196c5\",\"field\":\"status\"}] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"goal_tasks\",\"key\":\"60cbf223-b5d7-4083-8abc-a0ae1d1196c5\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"relationship_threads\",\"key\":\"99710d83-3243-4ef0-9395-c08aa4ce9522\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"99710d83-3243-4ef0-9395-c08aa4ce9522\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"99710d83-3243-4ef0-9395-c08aa4ce9522\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":[{\"key\":\"25574ca2-8408-445a-a17f-5c1d0f363b88\",\"reason\":\"startup_interest_reconciliation\"}],\"interest_evidence\":[{\"key\":\"2\",\"reason\":\"startup_interest_evidence\"}],\"goal_audit\":[{\"key\":\"2\",\"reason\":\"goal_audit_append\"}],\"reflection_findings\":[{\"key\":\"67337367-6aa2-4b7f-9986-12cebab84618\",\"reason\":\"startup_reflection_finding\"}],\"reflection_finding_routes\":[{\"key\":\"1\",\"reason\":\"startup_reflection_route\"}],\"reflection_runs\":[{\"key\":\"7b891714-09b5-4c60-ae67-4758ef444c3e\",\"reason\":\"startup_reflection_run\"},{\"key\":\"6b4cebf4-b397-41f0-b7c8-1de5502226d6\",\"reason\":\"startup_reflection_run\"}],\"event_journal\":[{\"key\":\"2f2e0364-4ff5-4312-92bb-ef1554ae6742\",\"reason\":\"append_only_journal\"},{\"key\":\"dfe7808e-6702-5848-ba65-1c2227fb6d38\",\"reason\":\"append_only_journal\"},{\"key\":\"a7ff3b32-a82e-40ae-8a31-db859c24faa0\",\"reason\":\"append_only_journal\"},{\"key\":\"dbd0259d-0890-40fe-8f02-70a077acdd8b\",\"reason\":\"append_only_journal\"},{\"key\":\"7f46d7da-5be4-51a0-8115-42f5fbdbdd53\",\"reason\":\"append_only_journal\"},{\"key\":\"216f0eb6-7b7e-5e68-b21e-ceda16eec9df\",\"reason\":\"append_only_journal\"},{\"key\":\"48d16d87-c80f-5ce5-97a2-9f119044d8d3\",\"reason\":\"append_only_journal\"},{\"key\":\"5a4a9724-1e91-4a5f-ae34-07a4ce558b3e\",\"reason\":\"append_only_journal\"},{\"key\":\"424e3be3-ea20-4cba-bf57-9ef586a4e876\",\"reason\":\"append_only_journal\"},{\"key\":\"4d1cecc0-5b00-54f6-a06c-a334e715ff2d\",\"reason\":\"append_only_journal\"},{\"key\":\"41a37645-5d57-53c6-a448-c75553e5af88\",\"reason\":\"append_only_journal\"},{\"key\":\"d90647ad-8f53-5310-8f73-49ea46a24f93\",\"reason\":\"append_only_journal\"},{\"key\":\"99f1bab8-d6f9-4738-bd4c-749808a65c64\",\"reason\":\"append_only_journal\"}]}"
+    }
+  ],
+  "continuity": {},
+  "secrets": {},
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. The Electron path switches Provider A → B → A; the controlled Provider B request is covered by the service-level provider integration test, not claimed as an Electron request.",
+  "controlledRequest": {
+    "mode": "service-level",
+    "status": "COVERED_BY_INTEGRATION_TEST",
+    "detail": "Provider B is switched in Electron; the controlled request is executed by the provider service test at the same SHA because the native consent dialog cannot be automated."
+  },
+  "uiEvidence": [
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\chat-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\chat-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\chat-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\memory-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\memory-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\memory-390x844.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\settings-1440x900.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\settings-1280x800.png",
+    "E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\docs\\ui\\evidence\\20261107T122549Z-56142fb1\\settings-390x844.png"
+  ],
+  "continuityFixture": {
+    "firstMessage": "93680c15-64fe-4cf9-b3c3-913a20d7877e",
+    "secondMessage": "18f53962-6a4c-401a-99e6-212404bf04a3",
+    "selfModel": "0dc18ba7-f071-4ab6-937d-9bc0a9803502",
+    "interest": "f8300610-ab61-425d-a07a-7df8d9f05dfc",
+    "thread": "99710d83-3243-4ef0-9395-c08aa4ce9522",
+    "goalTask": "60cbf223-b5d7-4083-8abc-a0ae1d1196c5",
+    "companionGoal": "8387a21f-01c7-4fcb-9c12-6c71a43112ae",
+    "progress": "5ddb8dcb-dd9d-41d6-b548-a86ffda2e053"
+  },
+  "error": "full-field continuity across restart: removed=[] changed=[{\"table\":\"goal_tasks\",\"key\":\"60cbf223-b5d7-4083-8abc-a0ae1d1196c5\",\"field\":\"status\"}] unexpectedAdded={} allowedChanges=[{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"status\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"strength\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"confidence\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"interests\",\"key\":\"f8300610-ab61-425d-a07a-7df8d9f05dfc\",\"field\":\"profile_json\",\"reason\":\"deterministic_interest_reconciliation\"},{\"table\":\"goal_tasks\",\"key\":\"60cbf223-b5d7-4083-8abc-a0ae1d1196c5\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"},{\"table\":\"relationship_threads\",\"key\":\"99710d83-3243-4ef0-9395-c08aa4ce9522\",\"field\":\"strength\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"99710d83-3243-4ef0-9395-c08aa4ce9522\",\"field\":\"confidence\",\"reason\":\"deterministic_evidence_recompute\"},{\"table\":\"relationship_threads\",\"key\":\"99710d83-3243-4ef0-9395-c08aa4ce9522\",\"field\":\"updated_at\",\"reason\":\"normal_maintenance_timestamp\"}] allowedAdditions={\"interests\":[{\"key\":\"25574ca2-8408-445a-a17f-5c1d0f363b88\",\"reason\":\"startup_interest_reconciliation\"}],\"interest_evidence\":[{\"key\":\"2\",\"reason\":\"startup_interest_evidence\"}],\"goal_audit\":[{\"key\":\"2\",\"reason\":\"goal_audit_append\"}],\"reflection_findings\":[{\"key\":\"67337367-6aa2-4b7f-9986-12cebab84618\",\"reason\":\"startup_reflection_finding\"}],\"reflection_finding_routes\":[{\"key\":\"1\",\"reason\":\"startup_reflection_route\"}],\"reflection_runs\":[{\"key\":\"7b891714-09b5-4c60-ae67-4758ef444c3e\",\"reason\":\"startup_reflection_run\"},{\"key\":\"6b4cebf4-b397-41f0-b7c8-1de5502226d6\",\"reason\":\"startup_reflection_run\"}],\"event_journal\":[{\"key\":\"2f2e0364-4ff5-4312-92bb-ef1554ae6742\",\"reason\":\"append_only_journal\"},{\"key\":\"dfe7808e-6702-5848-ba65-1c2227fb6d38\",\"reason\":\"append_only_journal\"},{\"key\":\"a7ff3b32-a82e-40ae-8a31-db859c24faa0\",\"reason\":\"append_only_journal\"},{\"key\":\"dbd0259d-0890-40fe-8f02-70a077acdd8b\",\"reason\":\"append_only_journal\"},{\"key\":\"7f46d7da-5be4-51a0-8115-42f5fbdbdd53\",\"reason\":\"append_only_journal\"},{\"key\":\"216f0eb6-7b7e-5e68-b21e-ceda16eec9df\",\"reason\":\"append_only_journal\"},{\"key\":\"48d16d87-c80f-5ce5-97a2-9f119044d8d3\",\"reason\":\"append_only_journal\"},{\"key\":\"5a4a9724-1e91-4a5f-ae34-07a4ce558b3e\",\"reason\":\"append_only_journal\"},{\"key\":\"424e3be3-ea20-4cba-bf57-9ef586a4e876\",\"reason\":\"append_only_journal\"},{\"key\":\"4d1cecc0-5b00-54f6-a06c-a334e715ff2d\",\"reason\":\"append_only_journal\"},{\"key\":\"41a37645-5d57-53c6-a448-c75553e5af88\",\"reason\":\"append_only_journal\"},{\"key\":\"d90647ad-8f53-5310-8f73-49ea46a24f93\",\"reason\":\"append_only_journal\"},{\"key\":\"99f1bab8-d6f9-4738-bd4c-749808a65c64\",\"reason\":\"append_only_journal\"}]}"
+}

@@ -1,0 +1,5 @@
+
+> morrow-ai-companion-v2@2.0.0 smoke:chat-ui
+> node scripts/chat-ui-smoke.mjs
+
+{"status":"PASS","checks":["renderer input -> submit -> streamed assistant reply -> persisted conversation"],"requests":1,"messages":["user","assistant"]}

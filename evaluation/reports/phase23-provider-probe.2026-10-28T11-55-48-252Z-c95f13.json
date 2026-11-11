@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-10-28T11-55-48-252Z-c95f13",
+  "generatedAt": "2026-10-28T11:55:48.252Z",
+  "provider": {
+    "id": "spark",
+    "endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v1",
+    "protocol": "OpenAI Chat Completions"
+  },
+  "credential": {
+    "provided": true,
+    "source": "environment",
+    "length": 35,
+    "storedInRepo": false
+  },
+  "provenance": {
+    "baseSha": "29ca3eba295320d3ec3fa55124160288a3b64c9f",
+    "headSha": "29ca3eba295320d3ec3fa55124160288a3b64c9f",
+    "codeSha": "29ca3eba295320d3ec3fa55124160288a3b64c9f",
+    "codeShaSource": "git",
+    "workingTreeDirty": false,
+    "workingTreeDiffHash": null,
+    "workingTreeFiles": [],
+    "reproducible": true,
+    "reproducibleReason": null,
+    "capturedAt": "2026-10-28T11:55:47.184Z"
+  },
+  "probes": [
+    {
+      "model": "xdeepseekv3",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_QUOTA",
+      "reportedModel": null,
+      "latencyMs": 230
+    },
+    {
+      "model": "xdeepseekr1",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_QUOTA",
+      "reportedModel": null,
+      "latencyMs": 151
+    },
+    {
+      "model": "xop3qwen235b",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_QUOTA",
+      "reportedModel": null,
+      "latencyMs": 63
+    },
+    {
+      "model": "x1",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_MODEL",
+      "reportedModel": null,
+      "latencyMs": 195
+    },
+    {
+      "model": "generalv3.5",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_MODEL",
+      "reportedModel": null,
+      "latencyMs": 169
+    }
+  ],
+  "summary": {
+    "attempted": 5,
+    "connected": 0,
+    "errorCodes": {
+      "PROVIDER_QUOTA": 3,
+      "PROVIDER_MODEL": 2
+    }
+  }
+}

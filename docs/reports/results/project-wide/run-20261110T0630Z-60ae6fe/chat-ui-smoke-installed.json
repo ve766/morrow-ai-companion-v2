@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "checks": [
+    "renderer input -> submit -> streamed assistant reply -> persisted conversation"
+  ],
+  "stderrTail": "\r\nDevTools listening on ws://127.0.0.1:49769/devtools/browser/b9e3413c-13c3-4f74-9cbb-59b591624492\r\n{\"ts\":\"2026-11-10T06:26:12.854Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"window state\",\"fields\":{\"event\":\"ready\",\"state\":\"READY\"}}\n{\"ts\":\"2026-11-10T06:26:12.896Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"window state\",\"fields\":{\"event\":\"show\",\"state\":\"VISIBLE\"}}\n{\"ts\":\"2026-11-10T06:26:15.106Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"provider consent requested\",\"fields\":{\"action\":\"chat\",\"sensitivity\":\"personal\",\"auto\":false}}\n{\"ts\":\"2026-11-10T06:26:15.107Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"provider consent scope\",\"fields\":{\"action\":\"chat\",\"sensitivity\":\"personal\",\"scope\":\"238653fc570b\",\"grant\":false}}\n{\"ts\":\"2026-11-10T06:26:21.221Z\",\"level\":\"info\",\"source\":\"app\",\"msg\":\"provider consent decision\",\"fields\":{\"action\":\"chat\",\"sensitivity\":\"personal\",\"remember\":true}}\n",
+  "requests": 1,
+  "messages": [
+    "user",
+    "assistant"
+  ]
+}

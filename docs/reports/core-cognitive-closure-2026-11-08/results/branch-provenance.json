@@ -1,0 +1,16 @@
+{
+  "issue": 67,
+  "status": "PARTIAL",
+  "checkedAt": "2026-11-07T15:45:00Z",
+  "branches": [
+    { "branch": "origin/feature/algorithm-v2-phase-a", "head": "a6f9e0be683b9a40af028952d625a5643cbf3553", "decision": "NOT_MERGED", "reason": "optional ONNX runtime + 113MB local model absent; semantic ablation BLOCKED; current four-channel RRF retained" },
+    { "branch": "origin/fix/memory-reliability-v0.1", "head": "dca6486af4d14edd2002b78e263f957d8b791352", "decision": "NOT_RESTORED", "reason": "timestamp-trust not in current branch; safe schema integration not proven in 24h" },
+    { "branch": "origin/fix/phase-2.2.10-memory-trust-hardening", "head": "60a88b854646223238f45d8d2b28161c19f84f48", "decision": "NOT_RESTORED", "reason": "same timestamp-trust/correction-binding gap; documented risk" },
+    { "branch": "origin/feat/cognitive-loop-v1-phase2-3-reliability", "decision": "REUSE_CURRENT", "reason": "current outbox/recovery equivalents exist and are tested" },
+    { "branch": "origin/feat/cognitive-loop-v1-phase2-4-continuity", "decision": "REUSE_CURRENT", "reason": "current turn context/finalization repositories exist" },
+    { "branch": "origin/feat/stage-3-long-term-companion", "decision": "REUSE_CURRENT", "reason": "interest/reflection/exploration services exist" },
+    { "branch": "origin/feat/stage-6-appraisal-engine", "head": "b4d3bd408de9693de6e5fa43ddb05878870e3824", "decision": "REUSE_CURRENT", "reason": "current affective-state/appraisal services exist; no reimplementation" },
+    { "branch": "PR #64 feat/ai-life-core-upgrade-20261107", "head": "b63c99836100eb5a4cede50d8e55007c89c793a1", "decision": "SELECTIVE_REIMPLEMENTATION", "reason": "not merged; new inner-cognition/self-state loop implemented separately" }
+  ],
+  "limitations": ["No line-by-line diff audit of every historical branch in 24h", "No restoration of semantic encoder or timestamp-trust"]
+}

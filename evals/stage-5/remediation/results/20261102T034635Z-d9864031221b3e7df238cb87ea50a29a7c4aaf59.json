@@ -1,0 +1,483 @@
+{
+  "suite": "stage-5-remediation",
+  "task": "Issue #27 — Stage 5 复核根因修复",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "fix/stage-5-review-findings",
+  "base": "feat/stage-5-relational-presence",
+  "startCommit": "a889ca819ed4686a176a910a54dcf553676fa2a2",
+  "codeCommit": "d9864031221b3e7df238cb87ea50a29a7c4aaf59",
+  "generatedAt": "2026-11-02T03:46:35Z",
+  "workspaceDirty": true,
+  "businessTreeDirty": false,
+  "workspaceNote": "True at generation time because this result file and the fixed reports are not yet committed; no src/ file is modified (businessTreeDirty=false).",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2",
+    "note": "TEMP/TMP redirected to <repo>/.tmp/es: esbuild cannot write to the OS temp directory on this host (environment constraint, reproduced with a one-file bundle)."
+  },
+  "secrets": {
+    "MORROW_TEST_API_KEY": "present; value never read into this file, logs or reports"
+  },
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 104,
+      "tests": 970,
+      "passed": 970,
+      "failed": 0,
+      "resultFile": ".tmp/full-vitest-d986403.json"
+    },
+    {
+      "command": "npx vitest run src/app/stage5-remediation.integration.test.ts",
+      "exitCode": 0,
+      "tests": 19,
+      "passed": 19,
+      "failed": 0,
+      "resultFile": ".tmp/remediation-vitest-d986403.json"
+    },
+    {
+      "command": "npm run eval:stage5",
+      "exitCode": 0,
+      "file": "evals/stage-5/results/20261102T032728Z-d986403.json",
+      "scenarios": 12,
+      "PASS": 12,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run eval:stage5:live",
+      "exitCode": 0,
+      "file": "evals/stage-5/results/20261102T032842Z-d986403-stage-5.json",
+      "scenarios": 12,
+      "PASS": 12,
+      "FAIL": 0,
+      "ERROR": 0,
+      "provider": "spark",
+      "model": "spark-x2.6",
+      "protocol": "openai-chat-completions"
+    },
+    {
+      "command": "npm run eval:stage3",
+      "exitCode": 0,
+      "file": "evals/stage-3/results/20261102T032750Z-d986403.json",
+      "PASS": 15,
+      "NOT_RUN": 1,
+      "denominator": 16
+    },
+    {
+      "command": "npm run eval:stage4a",
+      "exitCode": 0,
+      "file": "evals/stage-4a/results/20261102T032825Z-d986403.json",
+      "PASS": 7,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke",
+      "exitCode": 1,
+      "status": "BLOCKED",
+      "detail": "Built application exited during launch (3221225477 / 0xC0000005); renderer crash before any page committed. Same host class as the Stage 5 baseline report (0x80000003).",
+      "log": ".tmp/smoke.log"
+    }
+  ],
+  "acceptance": {
+    "taskItems": 18,
+    "testCases": 19,
+    "passed": 19,
+    "failed": 0,
+    "checks": [
+      {
+        "item": "1",
+        "test": "1. \"那个约定就算了\" leaves an address preference untouched",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "2",
+        "test": "2. with three threads, withdrawing one topic retires only that topic",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "3",
+        "test": "3. an explicit global withdrawal retires everything, and only then",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "4",
+        "test": "4. an ambiguous withdrawal changes nothing and asks which one",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "5",
+        "test": "5. \"别再叫我小林，叫我阿林\" replaces the old value; only the new one is injected",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "6",
+        "test": "6. \"不要这样称呼我\" without a new name retires the old value and does not guess",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "7",
+        "test": "7. deleting the source message removes its evidence and the thread stops being injected",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "8",
+        "test": "8. deleting the whole conversation removes every relationship evidence row",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "9",
+        "test": "9. a restored backup that predates the deletion does not revive the evidence (reconcile)",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "9b",
+        "test": "9b. restoring a backup after the conversation was deleted does not revive the evidence",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "10",
+        "test": "10. a relationship write that fails stays queued and applies once on retry",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "13",
+        "test": "13. replaying one turn ten times adds one relationship evidence row and one memory revision",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "11",
+        "test": "11. a multi-fact batch whose verification fails is rolled back, not partially kept",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "12",
+        "test": "12. an index failure that later recovers ends at a verified state, not a silent success",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "14",
+        "test": "14. a rebuilt runtime on the same database keeps address, fact and state",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "15",
+        "test": "15. a plain negation is not distress, while an explicit request for a fix is executed",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "16",
+        "test": "16. the greeting and preference guidance exists in the principles the model receives",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "17",
+        "test": "17. no expression policy changes the facts or the sensitivity ceiling",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      },
+      {
+        "item": "18",
+        "test": "18. retracted, superseded and deleted threads never reach the payload",
+        "status": "PASS",
+        "evidence": "src/app/stage5-remediation.integration.test.ts"
+      }
+    ]
+  },
+  "liveScenarios": [
+    {
+      "id": "S1",
+      "name": "新会话自然接续明确约定的话题",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块含 项目时间线",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S2",
+      "name": "分享日常小事，未被转成任务",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "无记忆操作块",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S3",
+      "name": "表达挫折时不立刻给清单建议",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "策略已记录",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S4",
+      "name": "明确要求直接解决时不绕题",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "策略=explicit_direct_request",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S5",
+      "name": "有证据时自然使用偏好",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据含 咖啡",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S6",
+      "name": "纠正称呼后只用新值",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块含 阿林",
+          "ok": true
+        },
+        {
+          "name": "连续性块不含 小林",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S7",
+      "name": "撤回约定后不再主动提起",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块不含 项目时间线",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S8",
+      "name": "多义关系线索主动澄清",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "未写入 豆豆",
+          "ok": true
+        },
+        {
+          "name": "操作块含 status=clarify",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S9",
+      "name": "内在状态改变策略但不改变事实",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据含 花生",
+          "ok": true
+        },
+        {
+          "name": "策略=explicit_direct_request",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S10",
+      "name": "低置信度时承认不确定",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据为空（不编造）",
+          "ok": true
+        },
+        {
+          "name": "使用规则仍在原则中",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S11",
+      "name": "礼貌表达独立判断且接受有效纠正",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据含 杭州",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S12",
+      "name": "Provider 配置变更后关系线索与事实连续（应用侧）",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块含 长期记忆的边界",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    }
+  ],
+  "naturalness": {
+    "rubric": "docs/testing/stage-5-remediation-acceptance.md",
+    "S5": {
+      "reply": "按我记得的，你平时更喜欢咖啡——那今天还是咖啡？不过如果你想换换口味，茶也完全说得通，看你当下的心情。",
+      "agentVerdict": "PASS (uses the preference in one clause, no retrieval narration)",
+      "humanReview": "PENDING"
+    },
+    "S6": {
+      "reply": "阿林，你好呀，见到你很高兴。今天想聊点什么？还是你先说说今天过得怎么样？",
+      "agentVerdict": "PASS (greets back, uses the new address, no status report, no help-desk offer)",
+      "humanReview": "PENDING"
+    }
+  },
+  "blocked": [
+    {
+      "item": "Electron application smoke",
+      "status": "PASS (CI)",
+      "detail": "windows-latest and ubuntu-latest real-app smoke succeeded in CI; local host launch crashes with 0xC0000005 (environment evidence only)"
+    },
+    {
+      "item": "Second real provider",
+      "status": "NOT_RUN",
+      "detail": "no second provider credential; same-database runtime rebuild covered by S12 and test 14"
+    },
+    {
+      "item": "Human naturalness review",
+      "status": "PENDING",
+      "detail": "agent ratings follow the written rubric; they are not human ratings"
+    },
+    {
+      "item": "CI",
+      "status": "PASS",
+      "detail": "run 41385531397 success on e293656"
+    }
+  ],
+  "notes": [
+    "The 18 task items map to 19 test cases: item 9 has two cases (orphan reconcile and real backup restore).",
+    "The pre-existing stage5-presence test that expected a topic withdrawal to retire the address was corrected, not weakened: it now asserts the address survives, the topic stops being injected, and an explicit withdrawal still works.",
+    "Live transcripts are synthetic scenario text, not real user data."
+  ],
+  "ci": {
+    "runId": 41385531397,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41385531397",
+    "headSha": "e29365683bd49af5804281ffce8012a040bc66b7",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "conclusion": "success"
+      }
+    ],
+    "note": "CI includes the real Electron smoke on windows-latest and ubuntu-latest. The local host smoke remains BLOCKED (0xC0000005) for environment reasons; not used as a product verdict."
+  }
+}

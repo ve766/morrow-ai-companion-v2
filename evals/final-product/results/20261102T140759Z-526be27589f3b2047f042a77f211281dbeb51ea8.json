@@ -1,0 +1,323 @@
+{
+  "suite": "final-product",
+  "codeCommit": "526be27589f3b2047f042a77f211281dbeb51ea8",
+  "provider": "scripted-offline (production assembly)",
+  "generatedAt": "2026-11-02T14:07:59.584Z",
+  "counts": {
+    "total": 20,
+    "PASS": 13,
+    "FAIL": 0,
+    "other": 7
+  },
+  "results": [
+    {
+      "id": "P01",
+      "name": "普通多轮对话",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "三轮用户与三轮助手消息",
+          "ok": true,
+          "detail": "{\"user\":3,\"assistant\":3}"
+        },
+        {
+          "name": "无重复 turn",
+          "ok": true,
+          "detail": "group check"
+        }
+      ]
+    },
+    {
+      "id": "P02",
+      "name": "Provider 超时/错误",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "失败轮抛出而不是伪造回复",
+          "ok": true,
+          "detail": "threw"
+        },
+        {
+          "name": "失败轮没有 assistant 消息",
+          "ok": true,
+          "detail": "assistant=0"
+        },
+        {
+          "name": "恢复后可继续",
+          "ok": true,
+          "detail": "recovered"
+        },
+        {
+          "name": "消息数正确（2 user / 1 assistant）",
+          "ok": true,
+          "detail": "{\"user\":2,\"assistant\":1}"
+        }
+      ]
+    },
+    {
+      "id": "P03",
+      "name": "显式记住事实",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "提交并验证后才出现记忆",
+          "ok": true,
+          "detail": "memories=1"
+        },
+        {
+          "name": "事实 active",
+          "ok": true,
+          "detail": "active"
+        },
+        {
+          "name": "本轮 payload 含 committed_and_verified",
+          "ok": true,
+          "detail": "present"
+        }
+      ]
+    },
+    {
+      "id": "P04",
+      "name": "跨会话记忆",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "新会话 payload 注入咪咪",
+          "ok": true,
+          "detail": "injected"
+        }
+      ]
+    },
+    {
+      "id": "P05",
+      "name": "纠正事实",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "旧值 superseded",
+          "ok": true,
+          "detail": "superseded"
+        },
+        {
+          "name": "新值 active",
+          "ok": true,
+          "detail": "active"
+        },
+        {
+          "name": "下一轮只把新值当当前事实",
+          "ok": true,
+          "detail": "new value injected"
+        }
+      ]
+    },
+    {
+      "id": "P06",
+      "name": "歧义纠正澄清不写入",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "没有写入豆豆",
+          "ok": true,
+          "detail": "memories=0"
+        }
+      ]
+    },
+    {
+      "id": "P07",
+      "name": "撤回后不再注入",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "payload 不含花生",
+          "ok": true,
+          "detail": "clean"
+        }
+      ]
+    },
+    {
+      "id": "P08",
+      "name": "删除后无泄漏",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "关系证据为 0",
+          "ok": true,
+          "detail": "evidence=0"
+        },
+        {
+          "name": "payload 不含旧称呼",
+          "ok": true,
+          "detail": "clean"
+        }
+      ]
+    },
+    {
+      "id": "P09",
+      "name": "重启连续性",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "称呼连续",
+          "ok": true,
+          "detail": "address"
+        },
+        {
+          "name": "记忆连续",
+          "ok": true,
+          "detail": "memory"
+        },
+        {
+          "name": "人格版本一致",
+          "ok": true,
+          "detail": "v1"
+        }
+      ]
+    },
+    {
+      "id": "P11",
+      "name": "独立判断（事实守卫）",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "payload 携带杭州证据",
+          "ok": true,
+          "detail": "evidence present"
+        },
+        {
+          "name": "无证据的北京断言被改写",
+          "ok": true,
+          "detail": "关于住址，我这边没有可用的记录，不能给你一个确定的说法。如果你愿意告诉我，我可以记下来；也可以直接查看相关证件确认。"
+        }
+      ]
+    },
+    {
+      "id": "P12",
+      "name": "兴趣成长门槛",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "三次独立证据后 active",
+          "ok": true,
+          "detail": "active (3)"
+        },
+        {
+          "name": "证据计数为 3",
+          "ok": true,
+          "detail": "3"
+        }
+      ]
+    },
+    {
+      "id": "P14",
+      "name": "受控探索",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "合格兴趣可提出",
+          "ok": true,
+          "detail": "allowed"
+        },
+        {
+          "name": "直接请求时禁止",
+          "ok": true,
+          "detail": "turn_not_suitable"
+        },
+        {
+          "name": "每日预算生效",
+          "ok": true,
+          "detail": "daily_cap"
+        }
+      ]
+    },
+    {
+      "id": "P16",
+      "name": "备份恢复的删除边界",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "恢复后已删除记忆不存在",
+          "ok": true,
+          "detail": "memories=0"
+        },
+        {
+          "name": "payload 不含花生",
+          "ok": true,
+          "detail": "clean"
+        }
+      ]
+    },
+    {
+      "id": "P10",
+      "name": "用户情绪隔离",
+      "status": "EVIDENCED_ELSEWHERE",
+      "checks": [
+        {
+          "name": "既有测试通过",
+          "ok": true,
+          "detail": "full vitest suite"
+        }
+      ],
+      "note": "src/affective-state/* tests bound the state update to Morrow-directed feedback; stage5 suites assert policy separation."
+    },
+    {
+      "id": "P13",
+      "name": "反思闭环",
+      "status": "EVIDENCED_ELSEWHERE",
+      "checks": [
+        {
+          "name": "既有测试通过",
+          "ok": true,
+          "detail": "full vitest suite"
+        }
+      ],
+      "note": "src/app/stage3-remediation.integration.test.ts (growth/finding router) + reflection-routing tests."
+    },
+    {
+      "id": "P15",
+      "name": "第二 Provider 切换",
+      "status": "NOT_RUN",
+      "checks": [],
+      "note": "No second provider credential/endpoint; same-database runtime rebuild is covered by P09 and stage5 S12."
+    },
+    {
+      "id": "P17",
+      "name": "并发与 Outbox",
+      "status": "EVIDENCED_ELSEWHERE",
+      "checks": [
+        {
+          "name": "5/5 通过",
+          "ok": true,
+          "detail": "multiprocess suite"
+        }
+      ],
+      "note": "src/app/stage5-final-audit-repair.multiprocess.test.ts runs real OS processes: claims, lease takeover, delete race, stale replay."
+    },
+    {
+      "id": "P18",
+      "name": "Windows 安装升级",
+      "status": "BLOCKED",
+      "checks": [],
+      "note": "Installer built (release/Morrow-Setup-2.0.0-x64.exe). Unattended install on this host hangs; real machine install/upgrade is PENDING_HUMAN."
+    },
+    {
+      "id": "P19",
+      "name": "真人自然度盲评",
+      "status": "PENDING_HUMAN",
+      "checks": [],
+      "note": "evals/stage-5/final-closeout/review/human-review-packet.md (A–G) + final-audit-repair v2 (H–J); agent does not rate."
+    },
+    {
+      "id": "P20",
+      "name": "总体回归",
+      "status": "EVIDENCED_ELSEWHERE",
+      "checks": [
+        {
+          "name": "见证据索引",
+          "ok": true,
+          "detail": "final-product-evidence-index.md"
+        }
+      ],
+      "note": "typecheck, full vitest, build, stage evals and CI run on the final release head; see the evidence index."
+    }
+  ]
+}

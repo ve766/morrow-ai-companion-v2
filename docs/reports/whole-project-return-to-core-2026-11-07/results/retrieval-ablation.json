@@ -1,0 +1,9 @@
+{
+  "issue": 65,
+  "status": "BLOCKED",
+  "reason": "No neural embedding runtime is installed and no labelled paraphrase fixture with frozen thresholds exists. The existing four-channel RRF was audited but a lexical/semantic/hybrid ablation cannot be honestly executed.",
+  "existing": { "channels": ["fact-index", "lexical", "fact-slot", "value"], "fusion": "RRF k=60", "code": "src/memory/memory-context-assembler.ts" },
+  "missingArms": ["lexical-only", "semantic-only embedding", "hybrid lexical+semantic"],
+  "requiredMetrics": ["recall@k", "precision@k", "MRR/nDCG", "missed critical facts", "conflict false merge", "token cost"],
+  "next": "Install a local embedding provider or build a labelled synonym/paraphrase fixture; freeze thresholds before running the three arms."
+}

@@ -1,0 +1,344 @@
+/**
+ * P1-6: long-term goal lifecycle.
+ *
+ * Three defects this pins down:
+ *
+ *   1. the horizon was detected and then thrown away — goals were created with
+ *      `dueAt: null`, so the date the user said never reached the prompt;
+ *   2. the title was a regex slice of the whole clause, so the deadline was
+ *      pasted into the goal name;
+ *   3. accepting a candidate was a read-then-write with no transaction and no
+ *      idempotency key, so a retry or a concurrent accept could create two
+ *      goals — and a deleted source message left an acceptable orphan.
+ */
+import { randomUUID } from 'node:crypto'
+import { afterEach, describe, expect, it } from 'vitest'
+import { SqliteDatabase } from '../persistence/database'
+import { CompanionGoalService, readGoalUtterance, type GoalAuditSink } from './companion-goal'
+import { EventLogService } from '../persistence/event-log'
+import { resolveDueAt } from './goal-time'
+
+let databases: SqliteDatabase[] = []
+afterEach(() => {
+  for (const database of databases) {
+    try { database.close() } catch { /* already closed */ }
+  }
+  databases = []
+})
+
+const NOW = '2026-10-31T09:00:00.000Z'
+const clock = (): string => NOW
+
+function open(): SqliteDatabase {
+  const database = SqliteDatabase.open(':memory:')
+  databases.push(database)
+  return database
+}
+
+function seedMessage(database: SqliteDatabase): { conversationId: string; messageId: string } {
+  const conversationId = randomUUID()
+  const messageId = randomUUID()
+  database.connection.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+    .run(conversationId, 'test', NOW, NOW)
+  const sequence = Number((database.connection.prepare(
+    'SELECT COALESCE(MAX(sequence), 0) + 1 AS next FROM messages WHERE conversation_id = ?'
+  ).get(conversationId) as { next: number }).next)
+  database.connection.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(messageId, conversationId, 'user', '我打算在明年三月之前完成 Morrow 的第一阶段。', NOW, sequence, randomUUID())
+  return { conversationId, messageId }
+}
+
+describe('goal time resolution', () => {
+  // The boundary word decides the deadline. "三月之前" and "三月底前" are one
+  // month apart, and resolving both to the end of March moved a real user's
+  // commitment by a month.
+  const cases: Array<[string, string, string]> = [
+    ['我打算在明年三月之前完成 Morrow 的第一阶段。', '2027-02-28T15:59:59.000Z', 'before'],
+    ['我打算在明年三月底前完成。', '2027-03-31T15:59:59.000Z', 'end'],
+    ['我打算在明年三月内完成。', '2027-03-31T15:59:59.000Z', 'end'],
+    ['我打算在明年三月开始时动手。', '2027-02-28T16:00:00.000Z', 'start'],
+    ['我打算明年三月以后再说。', '2027-02-28T16:00:00.000Z', 'after'],
+    ['我打算明年三月推进这件事。', '2027-03-31T15:59:59.000Z', 'end'],
+    ['我打算三月前完成。', '2027-02-28T15:59:59.000Z', 'before'],
+    ['我计划在2027年1月15日之前交付。', '2027-01-14T15:59:59.000Z', 'before'],
+    ['我计划在2027年1月15日交付。', '2027-01-15T15:59:59.000Z', 'end'],
+    ['我打算3天后把草稿写完。', '2026-11-03T15:59:59.000Z', 'end'],
+    ['我打算下个月之前完成。', '2026-10-31T15:59:59.000Z', 'before']
+  ]
+  for (const [text, expected, boundary] of cases) {
+    it(`resolves ${text} to ${expected}`, () => {
+      const due = resolveDueAt(text, NOW)
+      expect(due.unresolved).toBe(false)
+      expect(due.dueAt).toBe(expected)
+      expect(due.boundary).toBe(boundary)
+    })
+  }
+
+  it('keeps the boundary word in the expression so the clarification can quote it', () => {
+    expect(resolveDueAt('我打算在明年三月之前完成。', NOW).expression).toBe('明年三月之前')
+  })
+
+  it('handles a leap-year February boundary', () => {
+    expect(resolveDueAt('我打算在2028年三月之前完成。', NOW).dueAt).toBe('2028-02-29T15:59:59.000Z')
+  })
+
+  it('keeps an unresolvable horizon as a question instead of inventing a date', () => {
+    const due = resolveDueAt('我打算以后多读点书。', NOW)
+    expect(due.dueAt).toBeNull()
+    expect(due.unresolved).toBe(true)
+    expect(due.expression).toBe('以后')
+  })
+})
+
+describe('goal candidate reading', () => {
+  it('keeps the deadline out of the title', () => {
+    const reading = readGoalUtterance({ text: '我打算在明年三月之前完成 Morrow 的第一阶段。', now: NOW })
+    expect(reading.intent).toBe('commitment')
+    expect(reading.content).toBe('完成 Morrow 的第一阶段')
+    // "之前" ends when March starts, not at the end of March.
+    expect(reading.dueAt).toBe('2027-02-28T15:59:59.000Z')
+    expect(reading.needsConfirmation).toBe(false)
+    expect(reading.owner).toBe('user')
+  })
+
+  it('marks a joint plan as shared rather than the user\'s private goal', () => {
+    const reading = readGoalUtterance({ text: '我们打算下个月之前一起把原型做出来。', now: NOW })
+    expect(reading.owner).toBe('shared')
+    // Same rule for a month horizon: "下个月之前" ends when next month starts.
+    expect(reading.dueAt).toBe('2026-10-31T15:59:59.000Z')
+  })
+
+  it('refuses a suggestion addressed to Morrow instead of reassigning it to her', () => {
+    const reading = readGoalUtterance({ text: '你可以研究一下蛋白质折叠，说不定会有用。', now: NOW })
+    expect(reading.intent).toBe('none')
+    expect(reading.gate).toBe('delegated')
+  })
+
+  it('refuses questions, negations, quotes, hypotheticals and role-play', () => {
+    const cases: Array<[string, string]> = [
+      ['我打算明年三月之前完成这个吗？', 'question'],
+      ['我不打算明年三月之前完成了。', 'negated'],
+      ['他说「我打算明年三月之前完成」。', 'quoted'],
+      ['如果我打算明年三月之前完成，你会怎么想？', 'hypothetical'],
+      ['假设你是项目经理，我打算明年三月之前完成。', 'role_play']
+    ]
+    for (const [text, gate] of cases) {
+      expect({ text, gate: readGoalUtterance({ text, now: NOW }).gate }).toEqual({ text, gate })
+    }
+  })
+
+  it('creates a candidate with the raw horizon when the date cannot be resolved', () => {
+    const database = open()
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    expect(result.goalId).toBeNull()
+    expect(result.candidateId).not.toBeNull()
+    const candidate = goals.listCandidates().find((item) => item.id === result.candidateId)!
+    expect(candidate.dueAt).toBeNull()
+    expect(candidate.dueExpression).toBe('以后')
+    expect(goals.list()).toHaveLength(0)
+  })
+})
+
+describe('goal creation and lifecycle', () => {
+  it('writes the resolved deadline onto the created goal', () => {
+    const database = open()
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
+    expect(result.goalId).not.toBeNull()
+    const goal = goals.get(result.goalId!)!
+    expect(goal.dueAt).toBe('2027-02-28T15:59:59.000Z')
+    expect(goal.title).toBe('完成 Morrow 的第一阶段')
+    expect(goal.owner).toBe('user')
+    expect(goal.sourceMessageId).toBe(messageId)
+  })
+
+  it('is idempotent on the source message: a replay creates one goal', () => {
+    const database = open()
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const text = '我打算在明年三月之前完成 Morrow 的第一阶段。'
+    const first = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text })
+    const second = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text })
+    expect(second.goalId).toBe(first.goalId)
+    expect(goals.list()).toHaveLength(1)
+  })
+
+  it('accepts a candidate atomically and exposes it to the next prompt with its deadline', () => {
+    const database = open()
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    const candidate = goals.listCandidates()[0]!
+
+    const goal = goals.acceptCandidate(candidate.id)
+    expect(goals.get(goal.id)?.status).toBe('active')
+    expect(goals.listCandidates()).toHaveLength(0)
+    const context = goals.activeForContext(5)
+    expect(context.some((item) => item.id === goal.id)).toBe(true)
+  })
+
+  it('cancels the goal and expires the candidate when the source message is deleted', () => {
+    const database = open()
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const created = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
+    goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+
+    database.connection.prepare('DELETE FROM messages WHERE id = ?').run(messageId)
+
+    expect(goals.get(created.goalId!)?.status).toBe('cancelled')
+    expect(goals.activeForContext(5)).toHaveLength(0)
+    expect(goals.listCandidates()).toHaveLength(0)
+  })
+
+  it('drops a completed or expired goal from the next prompt', () => {
+    const database = open()
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const created = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算在明年三月之前完成 Morrow 的第一阶段。' })
+    expect(goals.activeForContext(5)).toHaveLength(1)
+
+    goals.complete(created.goalId!)
+    expect(goals.activeForContext(5)).toHaveLength(0)
+
+    const second = goals.create({ title: '第二个目标', dueAt: '2026-10-01T00:00:00.000Z' })
+    expect(goals.activeForContext(5).some((item) => item.id === second.id)).toBe(false)
+    expect(goals.get(second.id)?.status).toBe('expired')
+  })
+})
+
+describe('goal candidate confirmation closure (BL-02 / goal UI contract)', () => {
+  function withCandidate(database: SqliteDatabase): { goals: CompanionGoalService; candidateId: string; events: EventLogService } {
+    const events = new EventLogService(database, clock)
+    const goals = new CompanionGoalService(database, events, clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    expect(result.candidateId).not.toBeNull()
+    return { goals, candidateId: result.candidateId!, events }
+  }
+
+  it('reject is durable, audited, idempotent and conflicts with accept', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'rejected', replayed: false })
+    expect(goals.listCandidates()).toHaveLength(0)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'rejected', replayed: true })
+    expect(goals.decideCandidate(candidateId, 'accept')).toMatchObject({ status: 'conflict', current: 'rejected' })
+    const event = database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'goal.candidate_decision' ORDER BY rowid DESC LIMIT 1").get() as { payload_json: string }
+    expect(event.payload_json).toContain('rejected')
+    expect(event.payload_json).not.toContain('多读点书')
+  })
+
+  it('accept then reject is a conflict, and a repeated accept returns the same goal', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    const first = goals.decideCandidate(candidateId, 'accept')
+    expect(first.status).toBe('accepted')
+    if (first.status !== 'accepted') throw new Error('expected accepted')
+    const replay = goals.acceptCandidate(candidateId)
+    expect(replay.id).toBe(first.goal.id)
+    expect(goals.rejectCandidate(candidateId)).toMatchObject({ status: 'conflict', current: 'accepted' })
+    expect(goals.list()).toHaveLength(1)
+  })
+
+  it('a disappeared source persists expired instead of rolling back the marker', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    database.connection.prepare("UPDATE goal_candidates SET source_state = 'source_deleted' WHERE id = ?").run(candidateId)
+    expect(() => goals.acceptCandidate(candidateId)).toThrow(/source is no longer available/)
+    const row = database.connection.prepare('SELECT status, source_state FROM goal_candidates WHERE id = ?').get(candidateId) as { status: string; source_state: string }
+    expect(row).toMatchObject({ status: 'expired', source_state: 'source_deleted' })
+    expect(goals.list()).toHaveLength(0)
+  })
+
+  it('accept vs reject leaves exactly one terminal state', () => {
+    const database = open()
+    const { goals, candidateId } = withCandidate(database)
+    const accept = goals.decideCandidate(candidateId, 'accept')
+    const reject = goals.rejectCandidate(candidateId)
+    expect(accept.status).toBe('accepted')
+    expect(reject).toMatchObject({ status: 'conflict', current: 'accepted' })
+    const row = database.connection.prepare('SELECT status FROM goal_candidates WHERE id = ?').get(candidateId) as { status: string }
+    expect(row.status).toBe('accepted')
+  })
+})
+
+describe('goal candidate audit is a required dependency', () => {
+  function auditFailure(database: SqliteDatabase): GoalAuditSink {
+    return {
+      recordDeterministic: () => {
+        throw new Error('audit down')
+      }
+    }
+  }
+
+  function auditMissing(database: SqliteDatabase): GoalAuditSink {
+    return {
+      recordDeterministic: () => ({ event: { id: '99999999-9999-4999-8999-999999999999' }, inserted: false })
+    }
+  }
+
+  function seed(database: SqliteDatabase): { goals: CompanionGoalService; candidateId: string } {
+    const goals = new CompanionGoalService(database, new EventLogService(database), clock)
+    const { conversationId, messageId } = seedMessage(database)
+    const result = goals.detectFromTurn({ conversationId, sourceMessageId: messageId, text: '我打算以后多读点书。' })
+    return { goals, candidateId: result.candidateId! }
+  }
+
+  it('rolls accept back when the audit write throws', () => {
+    const database = open()
+    const { goals, candidateId } = seed(database)
+    const broken = new CompanionGoalService(database, auditFailure(database), clock)
+    expect(() => broken.acceptCandidate(candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    expect(goals.listCandidates()).toHaveLength(1)
+    expect(goals.list()).toHaveLength(0)
+    const keys = database.connection.prepare('SELECT COUNT(*) AS n FROM goal_creation_keys').get() as { n: number }
+    expect(keys.n).toBe(0)
+  })
+
+  it('rolls reject and source-unavailable back when the audit write throws', () => {
+    const database = open()
+    const first = seed(database)
+    const broken = new CompanionGoalService(database, auditFailure(database), clock)
+    expect(() => broken.rejectCandidate(first.candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    expect(first.goals.listCandidates()).toHaveLength(1)
+
+    const second = seed(database)
+    database.connection.prepare("UPDATE goal_candidates SET source_state = 'source_deleted' WHERE id = ?").run(second.candidateId)
+    expect(() => broken.acceptCandidate(second.candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    const row = database.connection.prepare('SELECT status FROM goal_candidates WHERE id = ?').get(second.candidateId) as { status: string }
+    expect(row.status).toBe('pending')
+  })
+
+  it('treats a duplicate audit result as written only when the event exists', () => {
+    const database = open()
+    const { goals, candidateId } = seed(database)
+    const broken = new CompanionGoalService(database, auditMissing(database), clock)
+    expect(() => broken.acceptCandidate(candidateId)).toThrow(/GOAL_CANDIDATE_AUDIT_FAILED/)
+    expect(goals.listCandidates()).toHaveLength(1)
+    expect(goals.list()).toHaveLength(0)
+  })
+
+  it('writes exactly one audit event per terminal decision, not one per replay', () => {
+    const database = open()
+    const { goals, candidateId } = seed(database)
+    const accepted = goals.acceptCandidate(candidateId)
+    goals.acceptCandidate(candidateId)
+    expect(goals.get(accepted.id)).not.toBeNull()
+    const events = database.connection.prepare(
+      "SELECT COUNT(*) AS n FROM event_journal WHERE event_type = 'goal.candidate_decision' AND subject_id = ?"
+    ).get(candidateId) as { n: number }
+    expect(events.n).toBe(1)
+  })
+
+  it('cannot be constructed without the audit sink (compile-time contract)', () => {
+    function contract(database: SqliteDatabase, clockFn: () => string) {
+      // @ts-expect-error the goal audit dependency is required
+      return new CompanionGoalService(database, clockFn)
+    }
+    void contract
+  })
+})

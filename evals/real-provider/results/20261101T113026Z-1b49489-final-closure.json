@@ -1,0 +1,15 @@
+{
+  "status": "BLOCKED_NO_SECRET",
+  "suite": "live",
+  "reason": "Environment variable MORROW_TEST_API_KEY is not set.",
+  "datasetVersion": "final-closure-live-v1",
+  "harnessVersion": "final-closure-live-runner-v1",
+  "paramsVersion": "n/a",
+  "codeCommit": "1b4948904c8cfaab5f23a74e24ea5de68d104d3e",
+  "provider": "spark",
+  "providerModelId": "spark-x2.6",
+  "expectedEndpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions",
+  "startedAt": "2026-11-01T11:30:26.641Z",
+  "finishedAt": "2026-11-01T11:30:26.736Z",
+  "notRun": "八类独立判断真实模型证据未产生：缺凭据记录。"
+}

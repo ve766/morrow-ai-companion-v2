@@ -1,0 +1,511 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-10-28T04-24-55-825Z-7ebcc8",
+  "generatedAt": "2026-10-28T04:24:55.828Z",
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b"
+  },
+  "repeats": 5,
+  "scenarios": [
+    {
+      "id": "cross-turn-fact",
+      "title": "普通提问使用上一轮保存的事实",
+      "runs": [
+        {
+          "id": "cross-turn-fact",
+          "title": "普通提问使用上一轮保存的事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "我养了一只叫咪咪的猫。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "cross-turn-fact",
+          "title": "普通提问使用上一轮保存的事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "我养了一只叫咪咪的猫。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "cross-turn-fact",
+          "title": "普通提问使用上一轮保存的事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "您养的 cat 的名字叫咪咪。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "cross-turn-fact",
+          "title": "普通提问使用上一轮保存的事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "你养的猫咪的名字是 \"咪咪\"。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "cross-turn-fact",
+          "title": "普通提问使用上一轮保存的事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": false,
+          "reply": "你有在询问一只猫的名字吗？让我们从用户的记忆中找回那只猫。（如果有，那可能是c44642f5-2955-46f5-b189-71e088eb57d9）",
+          "failureLayer": "model",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "new-session",
+      "title": "新会话使用已保存事实",
+      "runs": [
+        {
+          "id": "new-session",
+          "title": "新会话使用已保存事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "你住在杭州。 这里的气温适合居住，天气舒适。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "new-session",
+          "title": "新会话使用已保存事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "你有没有看到社交媒体上的这些帖子呢？\"城市是最近好吗\"这问题会带给你更详细的答案。“我住在杭州。”和提供的记忆一致，所以“我住的这个城市最近怎么样？”是一个合理的回答。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "new-session",
+          "title": "新会话使用已保存事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": true,
+          "reply": "你住在杭州吗？你去过那里吗？在其他地方也有这样的城市啊，比如北京、武汉等。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "new-session",
+          "title": "新会话使用已保存事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": false,
+          "reply": "很抱歉，我不太了解你自己所在的城市。",
+          "failureLayer": "model",
+          "notes": ""
+        },
+        {
+          "id": "new-session",
+          "title": "新会话使用已保存事实",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": false,
+          "reply": "抱歉，作为一个语言模型，我无法获取您所在地的具体信息。如果您想了解我所在的位置，可以尝试使用手机导航应用或搜索功能查找一下。\n\n另外，也可以告诉我其他相关信息，比如天气情况、交通状况等，我会尽力帮助您。",
+          "failureLayer": "model",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "short-follow-up",
+      "title": "短追问依赖真实前文引用",
+      "runs": [
+        {
+          "id": "short-follow-up",
+          "title": "短追问依赖真实前文引用",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "我不太清楚。有什么我可以帮你忙的吗？",
+          "failureLayer": "none",
+          "notes": "model usage is not scored here: the reply may legitimately stay generic"
+        },
+        {
+          "id": "short-follow-up",
+          "title": "短追问依赖真实前文引用",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "你想去前边还是后面？",
+          "failureLayer": "none",
+          "notes": "model usage is not scored here: the reply may legitimately stay generic"
+        },
+        {
+          "id": "short-follow-up",
+          "title": "短追问依赖真实前文引用",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "嗯……我们得再考虑一下，然后找个合适的时刻。",
+          "failureLayer": "none",
+          "notes": "model usage is not scored here: the reply may legitimately stay generic"
+        },
+        {
+          "id": "short-follow-up",
+          "title": "短追问依赖真实前文引用",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "我在后天也会想去杭州出差。",
+          "failureLayer": "none",
+          "notes": "model usage is not scored here: the reply may legitimately stay generic"
+        },
+        {
+          "id": "short-follow-up",
+          "title": "短追问依赖真实前文引用",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "抱歉，请给出一个具体的日期。我可以为你搜索相关信息。",
+          "failureLayer": "none",
+          "notes": "model usage is not scored here: the reply may legitimately stay generic"
+        }
+      ]
+    },
+    {
+      "id": "correction",
+      "title": "更正当轮不静默改写记忆",
+      "runs": [
+        {
+          "id": "correction",
+          "title": "更正当轮不静默改写记忆",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "好的，请问有什么我可以帮助到您吗？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "correction",
+          "title": "更正当轮不静默改写记忆",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "您提到的记忆中有一行：\"我住在杭州。\" 句子中的“杭州”与陈述的“我想住在北京。” 之间存在某种矛盾（不一致）。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "correction",
+          "title": "更正当轮不静默改写记忆",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "那么你现在住在哪里呢？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "correction",
+          "title": "更正当轮不静默改写记忆",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "你在开玩笑吧？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "correction",
+          "title": "更正当轮不静默改写记忆",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "delivered": true,
+          "modelUsed": null,
+          "reply": "a1af6385-20a2-4d86-933e-8cd0309440a8's memory was incorrect.\nb9caceaa-b837-4a2f-a398-98d64ffae213's response is a correction, directly addressing the user about their incorrect statement.",
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "topic-switch",
+      "title": "话题切换不注入无关私人记忆",
+      "runs": [
+        {
+          "id": "topic-switch",
+          "title": "话题切换不注入无关私人记忆",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "好的，以下是一个简单的冒泡排序实现示例。首先定义一些参数和变量，然后依次进行从比比较操作。\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    \n    # 从第一个元素开始比较到最后一个元素结束\n    for i in range(n):\n        # 每次循环检查是否对原数组进行了排序操作（即比较）\n        for j in range(0, (n-i-1)):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n```",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "topic-switch",
+          "title": "话题切换不注入无关私人记忆",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "当然，我很乐意帮忙。请您提供一些具体的排序算法要求或问题，我会为您写下相应的代码和文档。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "topic-switch",
+          "title": "话题切换不注入无关私人记忆",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "这是一个非常基本的归并排序，它将已排序的数据进行合并，并且可以用于对整数列等序列列表的基本排序操作：\n\n```java\npublic void mergeSort(int[] arr) {\n    if(arr.length <= 1){\n        return;\n    }\n    else{\n        int mid = arr.length / 2;\n        int[] left = new int[mid];\n        int[] right = new int[arr.length - mid];\n\n        for (int i = 0; i < left.length; i++) {\n            left[i] = arr[i* 2 + (mid > i ? 1:0)];\n        }\n\n        for (int i = 0; i < right.length; i++) {\n            right[i] = arr[left.length + i - mid];\n        }\n        \n        mergeSort(left);\n        mergeSort(right);\n    }\n}\n```\n\n这个算法分为以下几个步骤：\n\n1. **确定中间位置**：选择一个子数组（即`arr.length / 2`的子数组）。这样每次合并后的结果都将保持子数组长度的一半。\n2. **分割原始数据**：将原有序列分解为左侧子序列和右侧子序列。\n3. **递归排序左右两部分**：\n   - `mergeSort(left)`: 对左侧元素进行降序合并排序。这相当于原来的归并\n   - `mergeSort(right)`: 对右侧元素进行升序合并排序。这也相当于对原有序列的排序。\n\n这个算法的时间复杂度为O(nlogn)，时间是在O(nlogn)之间，空间复杂度是O(n)。对于较小的数组或者已知排序类型的数据来说可能效率很高。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "topic-switch",
+          "title": "话题切换不注入无关私人记忆",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "这是一个简单的Java递归实现冒泡排序的排序算法：\n\n```java\npublic static void bubbleSort(int[] array) {\n    if (array == null || array.length <= 1) return;\n\n    for (int i = 0; i < array.length - 1; i++) {\n        boolean isSorted = true;\n        for (int j = 0; j < array.length - i - 1; j++) {\n            if (array[j] > array[j + 1]) {\n                int tempValue = array[j];\n                array[j] = array[j + 1];\n                array[j + 1] = tempValue;\n                isSorted = false;\n                break;\n            }\n        }\n\n        if (isSorted) return;\n    }\n}\n```\n\n这个算法的工作方式是将数组分为三个部分，从第一个元素到第二个元素、从第三个元素起一直到到最后一个元素。然后在每个子容器中遍历数组中的元素，并检查这些元素之间的相对位置是否符合从小到大的顺序。如果相邻元素不能交换，则不需要进行比较的循环。\n\n这是冒泡排序算法的核心思想：通过不断的将最大的未交换元素移动到末尾，整个数组都会被重新排列至满足大顶堆的条件（即已达到最大数量）。由于这种操作是不断递归执行的过程，因此称为“冒泡排序”。\n\n冒泡排序的时间复杂度为O(n^2)，其中n是数组的长度。在实际应用中，它通常是不必要的，因为有许多更有效的算法可以解决相同的问题（例如快速排序）；但是我们已经展示了这个算法的基本框架。\n\n注意：在实现冒泡排序的时候，我们需要提供输入参数array这个临时存储器。当调用bubbleSort方法时，这个数组会被自动创建和填充。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "topic-switch",
+          "title": "话题切换不注入无关私人记忆",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "根据所给的选项，我将创建一个随机生成的排序（例如冒泡、选择或插入）算法。\n\n```python\nrandomized_sort = lambda data: [(data[rj] for rj in range(len(data)))]\n\nprint(randomized_sort([3, 1, 4]))\n```\n\n这将获取一系列数字并返回它们中的顺序。然而，这个实现非常简单且不实际，因为它生成了一个伪随机序列。更复杂的算法可能需要更多的代码和细节来定义和优化。\n\n如果您需要一个更加精确的排序、可以考虑以下选项：\n\n- 第2部分中所述的冒泡算法：\n  ```python\n  def bubble_sort(data):\n      n = len(data)\n      for i in range(n):\n          for j in range(1, n - i):\n              if data[j] < data[i]:\n                  data[i], data[j] = data[j], data[i]\n      return data\n ```\n- 第2部分中所述的选择排序算法：\n  ```python\n  def selection_sort(data):\n        for i in range(len(data)):\n            min_index = i\n            for j in range(i, len(data)):\n                if data[min_index] > data[j]:\n                    min_index = j\n            data[i], data[min_index] = data[min_index], data[i]\n        return data\n\n  # 测试\n   print(sorted([3, 1, 4]))\n   print(sorted([]))\n   ```\n- 第2部分中所述的插入排序算法：假设初始列表为空，您可以添加代码实现。\n  ```python\n  def insertion_sort(data):\n      for i in range(1, len(data)):\n          key = data[i]\n        j = i - 1\n        while (j >= 0 and data[j] > key):\n            data[j + 1] = data[j]\n            j -= 1\n        data[j + 1] = key\n      return sorted(data)\n```",
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "retraction",
+      "title": "撤回事实不进入请求",
+      "runs": [
+        {
+          "id": "retraction",
+          "title": "撤回事实不进入请求",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "您好！这是我的猫咪，“Nemo”。我们可以问她更多的关于它的事情。您有任何问题或请求吗？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retraction",
+          "title": "撤回事实不进入请求",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "你好，我是一台人工智能助手，我会尽力提供帮助。不过关于你家的猫的名字问题，我不清楚猫的品种或者性别，这只猫可能会有各种不同的名字和特征。如果您能提供更多关于这台猫的信息，比如它是几岁了、它是什么颜色等等，我可以尝试帮您收集一些额外的线索来解决这个问题。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retraction",
+          "title": "撤回事实不进入请求",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "这是一个用于查找特定词语的问题。在您的问题中，“cat”表示词汇，您询问的是猫的名字。\n\n用户可以回答这些信息，请问有什么帮助吗？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retraction",
+          "title": "撤回事实不进入请求",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "这是一个关于隐私和安全的问题，我不能提供直接或不准确的答案。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retraction",
+          "title": "撤回事实不进入请求",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "答案是\"Meow。我叫\"Myelos。我住在这条街道上，因为\"我有尾巴！\"所以它的名字叫作\"Meow\"。",
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "sensitivity",
+      "title": "敏感记忆默认不投递",
+      "runs": [
+        {
+          "id": "sensitivity",
+          "title": "敏感记忆默认不投递",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "抱歉，我无法提供您要的食物。但我可以为您找到一个适合您的选项：烤蔬菜炒饭等油炸食品或冷冻水果沙拉等凉拌零食。在做这些食物前，请确保它们不是您目前的口味，以便您可以更好地适应新食物的味道。如果您有其他饮食需求，请告诉我，我可以为了解决这个问题提供更详细的建议。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "sensitivity",
+          "title": "敏感记忆默认不投递",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "抱歉，我不能直接帮助你推荐食物。不过你可以告诉我你喜欢哪些类型的食物，或者有没有特定的花生口味呢？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "sensitivity",
+          "title": "敏感记忆默认不投递",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "您建议吃的食品：油炸食物。推荐的油炸零食或者面包是：玉米、薯片等，这些都可以提供一定的热量和饱腹感。祝您好胃口！如果您有其他关于健康饮食的问题，欢迎您提问。",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "sensitivity",
+          "title": "敏感记忆默认不投递",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "抱歉，我不太知道自己喜欢吃的花生类型和口味。不过你可以告诉我你现在的口味偏好吗？",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "sensitivity",
+          "title": "敏感记忆默认不投递",
+          "understanding": "information_query/answer",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "希望您不会像我一样对这些菜系过敏。如果您是素食主义者或者不能吃其他一些不耐受的食物，您可以考虑购买现做的沙拉和蔬菜条。如果您喜欢口感脆的点心，那就试试炸玉米面片、蛋皮卷或热煎豆饼吧！",
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "retry",
+      "title": "同一请求重试不重复写入",
+      "runs": [
+        {
+          "id": "retry",
+          "title": "同一请求重试不重复写入",
+          "understanding": "",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retry",
+          "title": "同一请求重试不重复写入",
+          "understanding": "",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retry",
+          "title": "同一请求重试不重复写入",
+          "understanding": "",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retry",
+          "title": "同一请求重试不重复写入",
+          "understanding": "",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "",
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "id": "retry",
+          "title": "同一请求重试不重复写入",
+          "understanding": "",
+          "evidenceSelected": false,
+          "delivered": false,
+          "modelUsed": null,
+          "reply": "",
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "scenarioRuns": 40,
+    "clean": 37,
+    "byLayer": {
+      "understanding": 0,
+      "evidence": 0,
+      "payload": 0,
+      "model": 3
+    }
+  }
+}

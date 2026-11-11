@@ -1,6 +1,9 @@
 node_modules/
 out/
 release/
+release-ci*/
+release-local/
+release-product/
 dist/
 *.log
 *.tsbuildinfo
@@ -21,3 +24,15 @@ evaluation/reports/*
 !evaluation/reports/cognitive-turn-synthetic-example.json
 !evaluation/reports/feeling-synthetic-example.json
 !evaluation/reports/cognitive-alpha-adversarial-report.json
+!evaluation/reports/intent-decision-synthetic-example.json
+!evaluation/reports/cognitive-phase2-benchmark.2026-10-28T07-52-21-021Z-8f3d5f.json
+!evaluation/reports/cognitive-phase2-benchmark.2026-10-28T07-54-10-616Z-00c5c8.json
+!evaluation/reports/phase21-*.json
+!evaluation/reports/phase211-*.json
+!evaluation/reports/phase22-*.json
+!evaluation/reports/phase23-*.json
+
+# R8: local run/cache artifacts never belong in the product branch
+.tmp-run/
+.tmp/
+*.cjs.tmp

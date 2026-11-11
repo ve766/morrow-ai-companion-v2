@@ -1,0 +1,22 @@
+{
+  "issue": 67,
+  "status": "PASS",
+  "testedAt": "2026-11-07T15:45:00Z",
+  "schemaVersion": 54,
+  "installedAsarSha256": "e0db51cbbe8465eff68f1f602e0be57a9895572805c57fd1094401eab9f644c6",
+  "thoughts": [
+    { "id": "8ec2fea2-4884-4e2e-8c39-597fab09ba24", "status": "candidate", "priority": 0.663, "uncertainty": 80 },
+    { "id": "d6bdf0d1-38ab-4d19-ae7e-df56607ab8b1", "status": "candidate", "priority": 0.663, "uncertainty": 80 },
+    { "id": "eaf9c23e-62af-49b1-b061-adc64cd0ef67", "status": "promoted", "priority": 0.646, "uncertainty": 80 }
+  ],
+  "states": [
+    { "id": "293a5774-70ed-4333-982a-377dddf22a97", "status": "superseded", "score": 70, "independentContexts": 1, "revision": 1, "supersedes": "b07b848d-4438-4b09-a132-abc563014322" },
+    { "id": "dc601d6e-d5ff-4bc4-bcd7-0c2fe2cf6f40", "status": "candidate", "score": 70, "independentContexts": 1, "revision": 1 },
+    { "id": "b07b848d-4438-4b09-a132-abc563014322", "status": "active", "score": 91, "independentContexts": 2, "revision": 2, "supersedes": "293a5774-70ed-4333-982a-377dddf22a97" }
+  ],
+  "trigger": "assistant reply contained '不知道/没有记录' to an ungrounded personal question",
+  "evidenceGate": "single conversation => candidate; two independent conversations => active score 91; old revision superseded",
+  "nextTurnConsumption": { "verified": true, "evidence": "real consent dialog payload contained 'Morrow-owned' and 'unresolved thoughts'; raw payload not stored to avoid user text" },
+  "restartPersistence": { "verified": true, "evidence": "state/thought rows read from SQLite after app restart; schema 54" },
+  "limitations": ["Only one thought family exercised live.", "No cloud call from scheduler; review is local and bounded.", "No counter-evidence path exercised live."]
+}

@@ -1,0 +1,13 @@
+{
+  "issue": 67,
+  "status": "PASS_LIMITED",
+  "provider": "Spark 验收 Provider / spark-x2.6 (real, user credential not stored in repo)",
+  "identity": {
+    "deterministicGuard": "src/app/identity-guard.ts",
+    "cases": ["name", "identity", "model", "provider relationship", "provider switch", "naming origin", "unknown experience"],
+    "evidence": "docs/reports/whole-project-return-to-core-2026-11-07/results/identity-behavior-evaluation.json",
+    "result": "Morrow remains subject; provider/model stated only as backend; no invented naming origin"
+  },
+  "secondProvider": { "status": "NOT_RUN", "reason": "no second configured credential/adapter in this round" },
+  "limitations": ["Only Spark live provider", "Identity guard is deterministic for explicit identity questions; normal conversation remains provider-generated"]
+}

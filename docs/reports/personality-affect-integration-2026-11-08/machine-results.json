@@ -1,0 +1,36 @@
+{
+  "issue": 72,
+  "branch": "feat/personality-affect-integration-20261108",
+  "base": { "branch": "fix/chat-consent-latency-20261108", "sha": "b9988861e49f87ab235847792ac32e21c74e3ca0" },
+  "head": "0af0a29355b450dd5b9d37320eb0b4ff69d2ef90",
+  "environment": { "os": "win32 10.0.26200 x64", "node": "v22.23.2", "electron": "44.9.3", "sqlite": "node:sqlite DatabaseSync" },
+  "migration": { "version": 55, "name": "personality-affect-integration", "previous": 54, "tables": ["emotion_events", "emotion_states", "emotion_revisions", "emotion_regulations", "morrow_trait_observations", "morrow_trait_revisions", "morrow_trait_events", "reward_signals"] },
+  "commands": [
+    { "command": "npm run typecheck", "exitCode": 0, "log": ".tmp/issue72-typecheck-final.log" },
+    { "command": "npm test", "exitCode": 0, "files": 147, "tests": 1244, "log": ".tmp/issue72-tests4.log" },
+    { "command": "npm run build", "exitCode": 0, "log": ".tmp/issue72-build-final.log" },
+    { "command": "npm run eval:affect", "exitCode": 0, "log": ".tmp/issue72-benchmark.log" }
+  ],
+  "benchmark": {
+    "source": "benchmark-raw.json",
+    "appraisal": { "count": 500, "p50Ms": 0.015, "p95Ms": 0.06, "maxMs": 3.208 },
+    "emotionProjection": { "count": 300, "p50Ms": 0.053, "p95Ms": 0.183, "maxMs": 13.726 },
+    "traitFold": { "count": 100, "p50Ms": 0.173, "p95Ms": 0.733, "maxMs": 1.789 },
+    "traitWrite": { "count": 200, "p50Ms": 6.923, "p95Ms": 14.016, "maxMs": 199.177 }
+  },
+  "behavior": {
+    "A": "PARTIAL", "B": "PARTIAL", "C": "PARTIAL", "D": "PARTIAL", "E": "PARTIAL",
+    "F": "PASS", "G": "PASS", "H": "PARTIAL", "I": "PASS", "J": "PASS", "K": "PASS",
+    "realCloudProvider": "NOT_RUN",
+    "overall": "PARTIAL"
+  },
+  "artifacts": {
+    "integrationTest": "src/app/personality-affect.integration.test.ts",
+    "emotionServiceTest": "src/affective-state/emotion-service.test.ts",
+    "appraisalTest": "src/affective-state/appraisal-engine.test.ts",
+    "traitTest": "src/self-model/morrow-trait-service.test.ts",
+    "rewardTest": "src/self-model/intrinsic-reward.test.ts",
+    "attentionTest": "src/self-model/affect-attention.test.ts",
+    "benchmark": "evals/affect-integration/run.ts"
+  }
+}

@@ -1,36 +1,67 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, screen } from 'electron'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC_CHANNELS, type AppInfo, type BackupExportOutcome, type BackupPreviewOutcome, type BackupRestoreOutcome } from '../shared/contracts'
 import type { ApprovalChallenge } from '../motivation/goals'
 import type { ProviderConsent, ProviderConsentPreview } from '../providers/provider-policy'
+import { presentProviderConsent } from '../providers/consent-presentation'
+import { ConsentGrantService, SqliteConsentGrantRepository, consentScopeForPreview, consentScopeFingerprint } from '../providers/consent-grants'
 import { CompanionService } from './companion-service'
 import { ConversationService } from '../conversation/conversation-service'
-import { MemoryService } from '../memory/memory-service'
+import { ARCHIVE_THRESHOLD } from '../memory/memory-importance'
+import { MemoryMaintenanceScheduler } from '../memory/memory-maintenance'
+import { RelationshipThreadService } from '../relationship/relationship-threads'
 import { SafeStorageSecretStore } from '../security/secrets'
 import { GoalService } from '../motivation/goal-service'
 import { ElectronReminderNotificationPort } from '../motivation/reminder-notification'
 import { ReminderService } from '../motivation/reminder-service'
 import { BackupService, RESTORE_BOUNDARY_NOTICE } from '../persistence/backup-service'
+import { readLatestDeletionStates } from '../persistence/deletion-journal'
 import { EventLogService } from '../persistence/event-log'
 import { SqliteGoalRepository } from '../persistence/goal-repository'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteConversationRepository } from '../persistence/conversation-repository'
-import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { SqliteReminderRepository } from '../persistence/reminder-repository'
 import { createLogger } from '../observability/logger'
-import { SqliteInterestRepository, InterestService } from '../self-model/interest-service'
-import { SqliteSelfModelRepository, SelfModelService } from '../self-model/self-model-service'
-import { SqliteReflectionRepository, ReflectionService } from '../self-model/reflection-service'
+import { PersonalizationService } from '../personalization/personalization-service'
+import { PersonalityGrowthService } from '../personalization/personality-growth'
+import { AffectLoopService } from '../affective-state/affect-loop'
+import { composeStartupReflectionServices, runStartupReflection } from './startup-composition'
+import { PersonalityService } from './companion-service'
+import { ExplorationService } from '../self-model/exploration-policy'
+import { InvestigationService } from '../self-model/investigation'
+import { CognitionConsistencyGate } from './cognition-consistency'
+import { reconcileCognitionConsistency as runCognitionReconciliation } from './cognition-reconciliation'
+import { CompanionGoalService } from '../motivation/companion-goal'
+import { UserInteractionProfileService } from '../personalization/interaction-profile'
+import { PendingSchemaUnavailableError, runBounded } from '../cognition/pending-items'
+import { SqliteTurnContextRepository, SqliteTurnFinalizationRepository } from '../persistence/cognitive-context-repository'
+import { SqliteTurnStateRepository } from '../persistence/turn-state-repository'
+import { IntentReadingRepository } from '../persistence/intent-reading-repository'
+import { ApplicationError } from '../shared/errors'
 import { registerIpcHandlers } from './register-ipc'
 import { observeRendererLoad, reportStartupFailure } from './startup-error'
 import { createSecureWindowOptions, isTrustedRendererUrl, resolveTrustedRendererUrl } from '../security/security'
+import { resolveAcceptanceUserData } from './acceptance-data-path'
+import { WindowLifecycle, type WindowLifecycleEvent } from './window-lifecycle'
+import { normalizeWindowBounds } from './window-bounds'
+
+const acceptanceUserData = resolveAcceptanceUserData(process.env.MORROW_LOCAL_ACCEPTANCE_USER_DATA)
+if (acceptanceUserData) {
+  app.setPath('userData', acceptanceUserData)
+  app.setPath('sessionData', acceptanceUserData)
+}
 
 const logger = createLogger({ minimumLevel: 'info' })
 
+let consentGrants: ConsentGrantService | undefined
 let mainWindow: BrowserWindow | undefined
+let windowLifecycle = new WindowLifecycle()
 let unregisterIpc: (() => void) | undefined
+let innerCognitionTimer: ReturnType<typeof setInterval> | undefined
 let database: SqliteDatabase | undefined
+let memoryMaintenance: MemoryMaintenanceScheduler | undefined
 let reminderService: ReminderService | undefined
 let companionService: CompanionService | undefined
 let eventLog: EventLogService | undefined
@@ -50,11 +81,25 @@ async function chooseDirectory(title: string, buttonLabel: string): Promise<stri
   return result.canceled || !result.filePaths[0] ? null : result.filePaths[0]
 }
 
-app.enableSandbox()
+if (process.env.MORROW_LOCAL_ACCEPTANCE_DISABLE_SANDBOX === '1') {
+  // Acceptance-only switch for the Windows 26200 sandbox startup crash.
+  // The default build keeps app.enableSandbox() and ships sandboxed.
+  app.commandLine.appendSwitch('no-sandbox')
+} else {
+  app.enableSandbox()
+}
 app.setAppUserModelId('com.morrow.ai-companion')
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) app.quit()
+
+app.on('second-instance', () => {
+  const trusted = resolveTrustedRendererUrl(
+    process.env.ELECTRON_RENDERER_URL,
+    pathToFileURL(join(__dirname, '../renderer/index.html')).href
+  )
+  focusMainWindow(trusted)
+})
 
 function getAppInfo(): AppInfo {
   return {
@@ -62,18 +107,30 @@ function getAppInfo(): AppInfo {
     version: app.getVersion(),
     platform: process.platform,
     electronVersion: process.versions.electron ?? 'unknown',
-    dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+    dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
   }
 }
 
 async function requestProviderConsent(preview: ProviderConsentPreview): Promise<ProviderConsent | undefined> {
   const window = mainWindow
   if (!window || window.isDestroyed()) return undefined
-  const actionLabel = preview.action === 'chat'
-    ? '发送对话'
-    : preview.action === 'connection-test'
-      ? '测试连接'
-      : '生成记忆候选'
+  logger.info('app', 'provider consent requested', { action: preview.action, sensitivity: preview.maximumSensitivity, auto: process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' })
+  // Acceptance-only bypass for the automated UI smoke. It is never enabled by
+  // the product; sensitive payloads still use the real dialog.
+  if (!app.isPackaged && process.env.MORROW_ACCEPTANCE_AUTO_CONSENT === '1' && preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive') {
+    const approvedAt = new Date().toISOString()
+    return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Date.now() + 120_000).toISOString(), includeSensitive: false }
+  }
+  const scope = consentScopeForPreview(preview)
+  if (preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive' && consentGrants) {
+    const grant = consentGrants.find(scope)
+    logger.info('app', 'provider consent scope', { action: preview.action, sensitivity: preview.maximumSensitivity, scope: consentScopeFingerprint(scope).slice(0, 12), grant: Boolean(grant) })
+    if (grant) {
+      const approvedAt = new Date().toISOString()
+      return { providerId: preview.providerId, payloadSha256: preview.payloadSha256, approvedAt, expiresAt: new Date(Math.min(Date.parse(grant.expiresAt), Date.now() + 120_000)).toISOString(), includeSensitive: false }
+    }
+  }
+  const presentation = presentProviderConsent(preview)
   const sensitivityLabel = preview.maximumSensitivity === 'sensitive'
     ? '敏感（仅在本次明确确认后发送）'
     : preview.maximumSensitivity === 'personal'
@@ -82,41 +139,41 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   const memories = preview.includedMemories.length === 0
     ? '本次不包含已保存记忆。'
     : preview.includedMemories.map((memory, index) => `${index + 1}. [${memory.sensitivity}] ${memory.excerpt}`).join('\n')
-  const isLocal = preview.providerId === 'local-openai'
-  const egressLines = isLocal
-    ? [
-        '目标端点为本机回环地址（127.0.0.1 / localhost）。请求不会离开本机，也不会产生 API 费用。',
-        '本地服务若设置了访问口令，将仅以 HTTPS Authorization Bearer 标头发送，不进入请求正文或 SQLite。'
-      ]
-    : [
-        '费用：DeepSeek API 按 token 计费，本次请求或连接测试可能产生费用；价格会随模型、缓存与时段变化，请以 https://api-docs.deepseek.com/quick_start/pricing 为准。',
-        'API 密钥仅在 Windows 安全存储中加密保存；请求时通过 HTTPS Authorization Bearer 标头发送，不进入请求正文或 SQLite。'
-      ]
   const detail = [
-    `操作：${actionLabel}`,
-    `目标：${preview.endpoint}`,
-    `模型：${preview.model}`,
+    `操作：${presentation.actionLabel}`,
+    `目标：${presentation.providerKindLabel}`,
+    `端点：${presentation.target}`,
+    `模型：${presentation.model}`,
     `数据敏感度：${sensitivityLabel}`,
     `请求大小：${preview.payloadBytes} 字节`,
     `请求摘要：${preview.payloadSha256}`,
-    ...egressLines,
+    presentation.egress,
+    `计费：${presentation.pricing}`,
+    ...(presentation.warning ? [`注意：${presentation.warning}`] : []),
+    'API 密钥仅在 Windows 安全存储中加密保存；请求时通过 Authorization Bearer 标头发送（远程 HTTPS；本机回环可为 HTTP），不进入请求正文或 SQLite。',
     `已选记忆：\n${memories}`,
     `精确请求正文：\n${preview.exactPayload}`
   ].join('\n\n')
+  const canRemember = preview.action === 'chat' && preview.maximumSensitivity !== 'sensitive'
+  const buttons = canRemember ? ['取消', '仅本次', '记住 30 天'] : ['取消', '允许本次发送']
   const result = await dialog.showMessageBox(window, {
-    type: preview.maximumSensitivity === 'sensitive' ? 'warning' : 'question',
-    title: isLocal ? '确认发送数据到本地模型' : '确认向 DeepSeek 发送数据',
-    message: isLocal
-      ? '以下内容将发送到你配置的本地模型服务（本机回环地址）。每次请求都需要单独确认。'
-      : '以下内容将离开本机并发送到 DeepSeek。每次请求都需要单独确认。',
-    detail,
-    buttons: ['取消', '允许并发送'],
-    defaultId: 0,
+    type: preview.maximumSensitivity === 'sensitive' || presentation.warning ? 'warning' : 'question',
+    title: presentation.title,
+    message: presentation.message,
+    detail: canRemember
+      ? `${detail}
+
+“仅本次”只批准当前请求；“记住 30 天”只记住当前 Provider/端点/模型/敏感级别范围，不保存正文或密钥。`
+      : detail,
+    buttons,
+    defaultId: canRemember ? 1 : 0,
     cancelId: 0,
     noLink: true
   })
-  if (result.response !== 1) return undefined
+  if (result.response <= 0) return undefined
   const approvedAt = new Date().toISOString()
+  if (canRemember && result.response === 2) consentGrants?.grant(scope)
+  logger.info('app', 'provider consent decision', { action: preview.action, sensitivity: preview.maximumSensitivity, remember: canRemember && result.response === 2 })
   return {
     providerId: preview.providerId,
     payloadSha256: preview.payloadSha256,
@@ -126,16 +183,87 @@ async function requestProviderConsent(preview: ProviderConsentPreview): Promise<
   }
 }
 
+function transitionWindow(event: WindowLifecycleEvent): void {
+  try {
+    const state = windowLifecycle.apply(event)
+    logger.info('app', 'window state', { event, state })
+  } catch (error) {
+    logger.warn('app', 'window transition rejected', { event, error: error instanceof Error ? error.name : 'unknown' })
+  }
+}
+
+function windowStatePath(): string {
+  return join(app.getPath('userData'), 'window-state.json')
+}
+
+function readSavedWindowBounds(): unknown {
+  try {
+    return existsSync(windowStatePath()) ? JSON.parse(readFileSync(windowStatePath(), 'utf8')) : null
+  } catch {
+    return null
+  }
+}
+
+function saveWindowBounds(window: BrowserWindow): void {
+  if (window.isDestroyed()) return
+  try {
+    const bounds = window.getNormalBounds()
+    writeFileSync(windowStatePath(), JSON.stringify(bounds), 'utf8')
+  } catch {
+    // Bounds persistence is best effort; a read-only profile must still run.
+  }
+}
+
 function createMainWindow(trustedRendererUrl: string): void {
-  const window = new BrowserWindow(
-    createSecureWindowOptions(join(__dirname, '../preload/index.js'))
+  const primaryWorkArea = screen.getPrimaryDisplay().workArea
+  const bounds = normalizeWindowBounds(
+    readSavedWindowBounds(),
+    screen.getAllDisplays().map((display) => display.workArea),
+    primaryWorkArea
   )
+  const window = new BrowserWindow({
+    ...createSecureWindowOptions(join(__dirname, '../preload/index.js')),
+    ...bounds
+  })
 
   mainWindow = window
-  window.once('ready-to-show', () => window.show())
+  windowLifecycle = new WindowLifecycle()
+  let rendererRecoveryAttempts = 0
+  let boundsTimer: ReturnType<typeof setTimeout> | undefined
+  const scheduleBoundsSave = (): void => {
+    if (boundsTimer) clearTimeout(boundsTimer)
+    boundsTimer = setTimeout(() => saveWindowBounds(window), 300)
+  }
+  window.once('ready-to-show', () => {
+    transitionWindow('ready')
+    window.show()
+    transitionWindow('show')
+  })
+  window.on('minimize', () => transitionWindow('minimize'))
+  window.on('restore', () => transitionWindow('restore'))
+  window.on('hide', () => transitionWindow('hide'))
+  window.on('moved', scheduleBoundsSave)
+  window.on('resized', scheduleBoundsSave)
+  window.on('close', () => {
+    saveWindowBounds(window)
+    transitionWindow('close')
+  })
   window.on('closed', () => {
+    if (boundsTimer) clearTimeout(boundsTimer)
+    transitionWindow('closed')
     if (mainWindow === window) mainWindow = undefined
   })
+  window.webContents.on('render-process-gone', (_event, details) => {
+    logger.error('app', 'renderer process gone', { reason: details.reason, exitCode: details.exitCode })
+    if (details.reason !== 'clean-exit' && rendererRecoveryAttempts < 1) {
+      rendererRecoveryAttempts += 1
+      setTimeout(() => {
+        if (!window.isDestroyed()) window.reload()
+      }, 250)
+    }
+  })
+  window.on('unresponsive', () => logger.warn('app', 'window unresponsive'))
+  window.on('responsive', () => logger.info('app', 'window responsive again'))
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => {
@@ -166,7 +294,8 @@ function focusMainWindow(trustedRendererUrl: string): void {
     return
   }
   if (window.isMinimized()) window.restore()
-  window.show()
+  if (!window.isVisible()) window.show()
+  if (windowLifecycle.can('show')) transitionWindow('show')
   window.focus()
 }
 
@@ -178,26 +307,222 @@ if (hasSingleInstanceLock) {
     )
     const databasePath = join(app.getPath('userData'), 'morrow.sqlite3')
     database = SqliteDatabase.open(databasePath)
+    consentGrants = new ConsentGrantService(new SqliteConsentGrantRepository(database))
     eventLog = new EventLogService(database)
+    // Issue #72: one affect authority owns emotion events, Morrow traits and
+    // verified intrinsic reward signals. It is created before the chat service
+    // so the same instance is used by the turn path and the review scheduler.
+    const affect = new AffectLoopService(database, () => new Date().toISOString(), () => globalThis.crypto.randomUUID(), eventLog)
+    // Issue #81 F5: durable investigation lifecycle. It is local and bounded;
+    // the scheduler below opens one record per synthesized thought and closes
+    // it from the same review that produces a Morrow self-state.
+    const investigations = new InvestigationService(database, eventLog)
+    const cognitionConsistency = new CognitionConsistencyGate()
+    // Trait revisions are a cache over observations. Rebuild them at startup so
+    // a message deletion that cascaded observations cannot leave a stale trait.
+    try { affect.traits.recomputeAll() } catch { logger.warn('cognition', 'trait projection rebuild failed; chat is unaffected') }
     eventLog.tryRecord({ sourceModule: 'app', eventType: 'app.started', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: { version: app.getVersion() } })
-    const memories = new MemoryService(new SqliteMemoryRepository(database), undefined, undefined, eventLog)
+    // Issue #43: the reflection dependency graph is composed by the same
+    // production function the startup integration test calls. This is the real
+    // bootstrap boundary, not a test-only copy.
+    const startup = composeStartupReflectionServices(database, eventLog)
+    const { memoryImportance, factMemory, memories, interests, selfModel, innerCognition, reflection, pendingItems, findingRouter } = startup
+    // P0-A: the addressable fact layer, rebuilt from the memories at start
+    // (idempotent) and kept current by the MemoryService lifecycle hooks.
+    try {
+      factMemory.reindexAll()
+    } catch {
+      logger.warn('memory', 'fact index catch-up failed; attribute lookups degrade until the next pass')
+    }
+    // D-12: a lifecycle-controlled scheduler replaces the startup-only pass.
+    // It catches up now (the old behaviour), then runs on an interval decided
+    // by absolute time — a long-running process keeps its importance scores
+    // fresh, and no tick can double-apply decay.
+    memoryMaintenance = new MemoryMaintenanceScheduler({
+      database,
+      importance: memoryImportance,
+      archiveThreshold: ARCHIVE_THRESHOLD,
+      archiveOlderThanDays: 180,
+      onPass: (outcome) => {
+        logger.debug('memory', 'maintenance pass', { groups: outcome.groups, archived: outcome.archived, status: outcome.status })
+      }
+    })
+    memoryMaintenance.start()
     const conversations = new ConversationService(new SqliteConversationRepository(database))
-    const interests = new InterestService(new SqliteInterestRepository(database), eventLog)
-    const selfModel = new SelfModelService(new SqliteSelfModelRepository(database), eventLog)
-    const reflection = new ReflectionService(
-      new SqliteReflectionRepository(database),
-      { memories, interests, selfModel, events: eventLog },
-      eventLog
+    const personalization = new PersonalizationService(database)
+    // Stage 3: bounded personality drift and constrained self-initiated topics.
+    // Both are evidence-led and reversible; neither can write the baseline the
+    // user edited, and neither can contact the user outside a turn.
+    const growth = new PersonalityGrowthService(database)
+    const exploration = new ExplorationService(database)
+    // How this user asked Morrow to speak, kept apart from her identity: the
+    // baseline comes from the profile the user edited, and only presentation
+    // dimensions move.
+    const interactionDatabase = database
+    const interaction = new UserInteractionProfileService(
+      interactionDatabase,
+      () => {
+        const profile = new PersonalityService(interactionDatabase).get()
+        return { warmth: profile.warmth, directness: profile.directness, humor: profile.humor }
+      }
     )
+    // §2D: companionship goals live beside the task-execution GoalService, not
+    // inside it; see the migration comment for why the two are not merged.
+    const companionGoals = new CompanionGoalService(database, eventLog)
+    // Phase 2.4: the turn context and the open internal items are persisted
+    // beside the conversation, so continuity survives a restart.
+    const turnContexts = new SqliteTurnContextRepository(database)
+    const finalizations = new SqliteTurnFinalizationRepository(database)
+    // Stage 5: relationship continuity threads (user-stated continuity notes).
+    const relationships = new RelationshipThreadService({ database, events: eventLog })
+    // F1: migrations have run and no conversational reader exists yet. Erase
+    // evidence and thread content whose source message is gone, then let the
+    // chat service start. This is fail-closed on purpose: if privacy cleanup
+    // cannot complete, the app must not serve a prompt built from uncleaned
+    // relationship data. Backup restore replays the deletion journal and then
+    // relaunches, so this is also the post-restore boundary.
+    //
+    // A degraded database below v46 lacks tombstoned_at; reconcile cannot run
+    // there. Skipping it keeps core chat usable while the migration remains
+    // the only path to full relationship cleanup.
+    if (database.schemaVersion >= 46) {
+      const reconciledOrphans = relationships.reconcile()
+      if (reconciledOrphans > 0) {
+        console.warn(`Relationship reconcile removed ${reconciledOrphans} orphan evidence row(s) before startup.`)
+      }
+    } else {
+      console.warn(`Relationship reconcile skipped: schema v${database.schemaVersion} is below v46.`)
+    }
+    const { sourceValidity } = startup
+    // Issue #83 P0-A: these steps are a hard gate, not best-effort cleanup.
+    // A failure leaves the app open for diagnosis and export but locks every
+    // memory/reflection/mood/personality/thought Provider payload. Re-running
+    // this function is the recovery entry; no database reset is required.
+    const reconcileCognitionConsistency = () => runCognitionReconciliation({
+      database: database!,
+      gate: cognitionConsistency,
+      sourceValidity,
+      revalidate: () => startup.reflectionStateGate.revalidate(),
+      recoverInvestigations: () => investigations.recover(),
+      replayConversation: (conversationId) => {
+        affect.deleteConversation(conversationId)
+        innerCognition.deleteConversation(conversationId)
+      },
+      events: eventLog
+    })
+    reconcileCognitionConsistency()
     const companion = new CompanionService({
       database,
       memories,
       conversations,
       secrets: new SafeStorageSecretStore(app.getPath('userData')),
       authorize: requestProviderConsent,
-      selfModelLoop: { events: eventLog, interests, selfModel }
+      consentGrants,
+      selfModelLoop: { events: eventLog, interests, selfModel, innerCognition, reflection, personalization, growth, exploration, interaction, goals: companionGoals, memories, findingRouter, relationships, affect },
+      sourceValidity,
+      cognitionConsistency,
+      continuity: {
+        contexts: turnContexts,
+        pending: pendingItems,
+        finalizations,
+        states: new SqliteTurnStateRepository(database),
+        readings: new IntentReadingRepository(database, eventLog)
+      }
     })
+    // Settle any turn that was interrupted between its finalization intent and
+    // the assistant-message commit. Safe to run on every start.
+    try {
+      const recovered = companion.recoverInterruptedTurns()
+      if (recovered.completed > 0 || recovered.interrupted > 0) {
+        eventLog.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'turn.recovered',
+          actor: 'system',
+          subjectType: 'application',
+          subjectId: null,
+          correlationId: null,
+          payload: recovered
+        })
+      }
+    } catch {
+      console.warn('Interrupted turns could not be recovered at startup; the conversation data is unaffected.')
+    }
+    // Post-turn cognition that was committed but never applied (a crash between
+    // the assistant-message commit and the projections). Idempotent, and it runs
+    // after the interrupted-turn recovery so the same turn is not processed by
+    // two paths at once.
+    try {
+      const drained = companion.drainCognition()
+      if (drained.done > 0 || drained.failed > 0) {
+        eventLog.tryRecord({
+          sourceModule: 'cognition',
+          eventType: 'cognition.outbox_replayed',
+          actor: 'system',
+          subjectType: 'application',
+          subjectId: null,
+          correlationId: null,
+          payload: drained
+        })
+      }
+    } catch {
+      console.warn('Queued post-turn cognition could not be replayed; it stays queued for the next start.')
+    }
     companionService = companion
+    innerCognitionTimer = setInterval(() => {
+      try {
+        // A locked consistency gate means source validity is unknown; do not
+        // create new thoughts or close investigations from stale projections.
+        if (cognitionConsistency.locked) return
+        const now = new Date().toISOString()
+        const latestReflection = reflection.listRuns(1)[0]
+        const reflectionFindings = latestReflection
+          ? reflection.findings(latestReflection.id).map((finding) => ({ statement: finding.statement, kind: finding.kind, runId: latestReflection.id, createdAt: finding.createdAt }))
+          : []
+        const moodView = affect.mood.snapshot(now)
+        // Goal stall comes from the real companionship ledger: days since the
+        // last recorded progress (or the goal's own update). No fabricated list.
+        const goalStalls = companionGoals.list({ status: 'active' }).map((goal) => {
+          const last = companionGoals.progress(goal.id, 1)[0]?.createdAt ?? goal.updatedAt
+          return { title: goal.title, days: Math.max(0, (Date.parse(now) - Date.parse(last)) / 86_400_000) }
+        }).filter((goal) => Number.isFinite(goal.days) && goal.days >= 2)
+        let priorityComponents: Parameters<InvestigationService['begin']>[0]['components'] | null = null
+        const thought = innerCognition.synthesizeFromContext({
+          at: now,
+          interests: interests.activeForContext(6).map((interest) => ({ label: interest.label, origin: interest.origin, strength: interest.strength, status: interest.status })),
+          reflectionFindings,
+          goalStalls,
+          resourceAvailability: Math.max(0, 1 - investigations.openCount() / 10),
+          ...(moodView.available ? { mood: { valence: moodView.state.valence, arousal: moodView.state.arousal } } : {}),
+          onPriority: (components) => { priorityComponents = components }
+        })
+        if (thought && priorityComponents) {
+          try {
+            investigations.begin({ thought, components: priorityComponents, at: now })
+          } catch {
+            logger.warn('cognition', 'investigation record could not be opened; the thought still exists')
+          }
+        }
+        const reviewLimit = moodView.available && moodView.state.arousal < 0.2 ? 1 : 3
+        const reviewed = innerCognition.reviewDue(now, reviewLimit)
+        for (const state of reviewed) {
+          try {
+            investigations.reviewFromState(state, now)
+          } catch {
+            logger.warn('cognition', 'investigation could not be closed from a reviewed thought')
+          }
+        }
+        try {
+          investigations.recover(now)
+        } catch {
+          logger.warn('cognition', 'investigation deadline recovery failed')
+        }
+        // A promoted thought is verified Morrow-owned progress. The reward
+        // ledger records it; user praise never reaches this path.
+        affect.observeThoughtReviews(reviewed)
+      } catch {
+        logger.warn('cognition', 'inner cognition review failed; normal chat is unaffected')
+      }
+    }, 5 * 60 * 1000)
     const goalRepository = new SqliteGoalRepository(database)
     const reminders = new ReminderService(
       new SqliteReminderRepository(database),
@@ -244,8 +569,16 @@ if (hasSingleInstanceLock) {
     reminders.startScheduler()
     // Bounded startup reflection: rate-limited inside the service, findings
     // only, never auto-executed actions.
-    const startupReflection = reflection.run('startup')
-    if ('skipped' in startupReflection) logger.debug('self-model', 'startup reflection skipped', { reason: startupReflection.skipped })
+    // The production startup function (also used by the composition test)
+    // runs reflection and routes findings through the durable ingestion path.
+    const startupReflection = runStartupReflection({ reflection, findingRouter, logger })
+    if (startupReflection.status !== 'ran') {
+      logger.warn('self-model', 'startup reflection did not complete cleanly', {
+        status: startupReflection.status,
+        reason: startupReflection.reason ?? null,
+        recovered: startupReflection.recovered ?? 0
+      })
+    }
     const backup = new BackupService(database, databasePath)
     const backupActions = {
       exportBackup: async (): Promise<BackupExportOutcome> => {
@@ -303,16 +636,55 @@ if (hasSingleInstanceLock) {
     unregisterIpc = registerIpcHandlers({ getAppInfo }, trustedRendererUrl, {
       memories,
       goals,
+      companionGoals,
       reminders,
       companion,
+      cognitionConsistency: {
+        status: () => cognitionConsistency.snapshot(),
+        reconcile: () => {
+          const outcome = reconcileCognitionConsistency()
+          return { ...cognitionConsistency.snapshot(), reconciled: outcome.state === 'ready' }
+        }
+      },
       backup: backupActions,
+      // Phase 2.4: the shell can read what the subject is holding open and what
+      // each turn actually read. Marking an item done is the only mutation.
+      continuity: {
+        listPendingItems: () => pendingItems.listOpen(),
+        decidePendingItem: (request) => pendingItems.decide(request.itemId, request.decision),
+        readTurnContext: (request) => turnContexts.get(request.turnId)
+      },
       selfModel: {
         listInterests: () => interests.list(),
         setInterestStatus: (request) => interests.setUserStatus(request.interestId, request.status),
         listEntries: (request) => selfModel.list(request ?? {}),
         correctEntry: (request) => selfModel.correct(request.entryId, request.statement),
         retractEntry: (request) => selfModel.retract(request.entryId),
-        runReflection: () => reflection.run('manual'),
+        // A reflection run is bounded: the service rate-limits runs per hour,
+        // caps the events it examines and the findings it emits, and the
+        // wrapper refuses to start a pass when its own budget is already gone.
+        // The pass itself is synchronous, so it cannot be interrupted
+        // mid-flight — that limitation is stated, not hidden behind a signal.
+        // Its findings become open internal items, deduplicated by concern so
+        // repeated runs do not pile up duplicates.
+        runReflection: async () => {
+          const outcome = await runBounded(() => {
+            const summary = reflection.run('manual')
+            if (!('skipped' in summary)) {
+              findingRouter.ingestRun(summary.id, reflection.findings(summary.id))
+            }
+            const recovered = findingRouter.recoverUnrouted()
+            if (recovered.failed > 0) throw new Error('REFLECTION_RECOVERY_INCOMPLETE')
+            return summary
+          }, { budgetMs: 2_000 })
+          if (outcome.status === 'completed' && outcome.value) return outcome.value
+          // The pass never started, so reporting it as completed would be a lie.
+          if (outcome.status === 'skipped') return { skipped: 'budget_exhausted' as const }
+          if (outcome.status === 'failed' && outcome.error instanceof PendingSchemaUnavailableError) {
+            throw new ApplicationError('SCHEMA_UPGRADE_REQUIRED')
+          }
+          throw new ApplicationError('STORAGE_ERROR')
+        },
         listReflectionRuns: () => reflection.listRuns(),
         listReflectionFindings: (request) => reflection.findings(request.runId)
       }
@@ -323,7 +695,7 @@ if (hasSingleInstanceLock) {
       if (BrowserWindow.getAllWindows().length === 0) createMainWindow(trustedRendererUrl)
     })
   }).catch((error: unknown) => {
-    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown' })
+    logger.error('app', 'startup failed', { error: error instanceof Error ? error.name : 'unknown', ...(error instanceof ApplicationError ? { code: error.code } : {}), ...(process.env.MORROW_STARTUP_DIAGNOSTIC === '1' && error instanceof Error ? { stack: (error.stack ?? '').slice(0, 3000) } : {}) })
     reportStartupFailure('application', {
       report: (code) => logger.error('app', 'startup failure reported', { code }),
       showError: (title, message) => {
@@ -337,7 +709,10 @@ if (hasSingleInstanceLock) {
 }
 
 app.on('before-quit', () => {
+  if (innerCognitionTimer) { clearInterval(innerCognitionTimer); innerCognitionTimer = undefined }
   eventLog?.tryRecord({ sourceModule: 'app', eventType: 'app.closing', actor: 'system', subjectType: 'application', subjectId: null, correlationId: null, payload: {} })
+  memoryMaintenance?.stop()
+  memoryMaintenance = undefined
   reminderService?.shutdown()
   reminderService = undefined
   companionService?.shutdown()

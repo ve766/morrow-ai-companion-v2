@@ -1,0 +1,7 @@
+
+> morrow-ai-companion-v2@2.0.0 smoke:product-path
+> node scripts/product-path-smoke.mjs
+
+(node:18780) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"runId":"20261108T101020Z-64686c86","status":"PASS","file":"E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\evals\\morrow-v2-final\\results\\20261108T101020Z-64686c86.json"}

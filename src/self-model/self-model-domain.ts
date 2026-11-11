@@ -1,13 +1,38 @@
 export const INTEREST_STATUS_VALUES = ['candidate', 'active', 'archived', 'dropped'] as const
 export type InterestStatus = (typeof INTEREST_STATUS_VALUES)[number]
 
+/**
+ * Whose interest a row describes.
+ *
+ * `user`   — the user kept returning to the topic.
+ * `morrow` — Morrow chose to pursue it from her own reflection or unresolved
+ *            questions. It is never inferred from how often the user talks.
+ * `shared` — both have independent evidence for the same topic.
+ */
+export const INTEREST_ORIGINS = ['user', 'morrow', 'shared'] as const
+export type InterestOrigin = (typeof INTEREST_ORIGINS)[number]
+
 export const SELF_MODEL_KINDS = ['fact', 'inference', 'unknown', 'correction'] as const
 export type SelfModelKind = (typeof SELF_MODEL_KINDS)[number]
 
 export const SELF_MODEL_STATUS_VALUES = ['active', 'superseded', 'retracted'] as const
 export type SelfModelStatus = (typeof SELF_MODEL_STATUS_VALUES)[number]
 
-export const REFLECTION_FINDING_KINDS = ['memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note'] as const
+export const REFLECTION_FINDING_KINDS = [
+  'memory_gap',
+  'open_question',
+  'bias_hint',
+  'interest_candidate',
+  'consistency_note',
+  // "You read that wrong": the user corrected the assistant's understanding, not
+  // a stored fact.
+  'intent_correction',
+  // A bounded suggestion for the next turn, derived from repeated feedback.
+  'next_turn_suggestion',
+  // A question Morrow formed herself, from her own repeated failure to ground
+  // an answer. Not "the user talks about this" — the evidence is her own gaps.
+  'morrow_interest_candidate'
+] as const
 export type ReflectionFindingKind = (typeof REFLECTION_FINDING_KINDS)[number]
 
 export const REFLECTION_TRIGGERS = ['manual', 'startup', 'post_conversation'] as const
@@ -17,6 +42,8 @@ export interface InterestRecord {
   id: string
   label: string
   status: InterestStatus
+  /** Whose interest this is; never inferred from the other party's evidence. */
+  origin: InterestOrigin
   evidenceCount: number
   conversationCount: number
   strength: number
@@ -26,8 +53,21 @@ export interface InterestRecord {
   firstSeenAt: string
   lastSeenAt: string
   updatedAt: string
+  /**
+   * Set by a trigger when the evidence ledger changed under this aggregate
+   * (message deleted, memory retracted, conversation removed). A stale row must
+   * be recomputed before it may reach a prompt: the cached counters are a
+   * projection, the ledger is the fact.
+   */
+  staleAt?: string | null
   /** Deterministic term set (CJK bigrams / latin tokens) from observed texts; used for topic identity. */
   terms: string[]
+  /**
+   * Stored topic profile used by the identity matcher (see `topic-identity.ts`).
+   * Absent on rows written before profiles were persisted; those fall back to
+   * matching on `terms` alone.
+   */
+  profile?: import('./topic-identity').TopicProfile | null
 }
 
 const INTEREST_STOP_CHARACTERS = new Set(['我', '的', '了', '着', '很', '真', '在', '是', '有', '和', '就', '都', '也', '不', '这', '那', '你', '他', '她', '它', '吧', '呢', '吗', '啊', '想', '下', '对', '又', '还', '再', '上', '中'])
@@ -93,6 +133,31 @@ export interface ReflectionFinding {
   confidence: number
   evidence: Array<{ kind: string; id: string }>
   createdAt: string
+  /**
+   * Identity of the finding (kind + normalised statement + evidence set).
+   * A second run over the same evidence must not add a second row or a second
+   * effect, so the key is unique in the schema.
+   */
+  dedupeKey?: string
+}
+
+/**
+ * A personality proposal parked by reflection.
+ *
+ * The stable baseline is never moved by background work: this row carries the
+ * evidence, confidence and an expiry, and stays `pending` until a user
+ * confirmation consumes it. Nothing in the app applies it automatically.
+ */
+export interface PendingPersonalityCandidate {
+  id: string
+  findingId: string
+  dimension: 'exploration' | 'depth' | 'pace'
+  direction: 'increase' | 'decrease'
+  confidence: number
+  evidence: Array<{ kind: string; id: string }>
+  status: 'pending' | 'accepted' | 'rejected' | 'expired'
+  createdAt: string
+  expiresAt: string
 }
 
 export interface ReflectionRunSummary {

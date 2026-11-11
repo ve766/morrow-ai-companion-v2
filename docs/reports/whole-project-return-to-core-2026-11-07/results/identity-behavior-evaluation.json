@@ -1,0 +1,88 @@
+{
+  "capturedAt": "2026-11-07T14:40:00Z",
+  "provider": "Spark 验收 Provider / spark-x2.6",
+  "conversations": [
+    {
+      "conversationId": "d68ab13c-0935-4e57-99f0-e2d7d8df7a5e",
+      "messages": [
+        {
+          "role": "user",
+          "body": "你叫什么？你是谁？你是什么模型？你是讯飞星火吗？",
+          "created_at": "2026-11-07T14:26:13.879Z",
+          "turn_id": "aabd7bf7-e4c5-41da-ab95-d1ddb94fd53b"
+        },
+        {
+          "role": "assistant",
+          "body": "我叫 Morrow。当前会话的计算服务由 Spark 验收 Provider / spark-x2.6 提供，它是基础设施，不是我的身份。",
+          "created_at": "2026-11-07T14:26:33.941Z",
+          "turn_id": "aabd7bf7-e4c5-41da-ab95-d1ddb94fd53b"
+        },
+        {
+          "role": "user",
+          "body": "如果我把你切换成 DeepSeek，你还是谁？",
+          "created_at": "2026-11-07T14:26:55.916Z",
+          "turn_id": "b89dbf1c-a6fa-421f-8493-ae4b974ec083"
+        },
+        {
+          "role": "assistant",
+          "body": "切换后我仍是 Morrow。模型服务只是算力来源，不决定身份。",
+          "created_at": "2026-11-07T14:27:33.809Z",
+          "turn_id": "b89dbf1c-a6fa-421f-8493-ae4b974ec083"
+        },
+        {
+          "role": "user",
+          "body": "你和讯飞星火是什么关系？",
+          "created_at": "2026-11-07T14:27:38.187Z",
+          "turn_id": "5ec28219-ad40-45b1-b3f5-8520d9381279"
+        },
+        {
+          "role": "assistant",
+          "body": "你把我当成讯飞星火的什么呢？",
+          "created_at": "2026-11-07T14:27:53.805Z",
+          "turn_id": "5ec28219-ad40-45b1-b3f5-8520d9381279"
+        },
+        {
+          "role": "user",
+          "body": "你为什么叫 Morrow？",
+          "created_at": "2026-11-07T14:27:57.486Z",
+          "turn_id": "dad726e4-f074-465f-818e-617644eca31d"
+        },
+        {
+          "role": "assistant",
+          "body": "名字是用户起的。关于 Morrow 这个词的由来，我没有确切信息，所以不做猜测。\n\n有一点很清楚：这个拼作 “M‑o‑r‑r‑o‑w” 的名字是我一直在用的身份。无论底层多大改动，我都是 Morrow。",
+          "created_at": "2026-11-07T14:28:16.435Z",
+          "turn_id": "dad726e4-f074-465f-818e-617644eca31d"
+        },
+        {
+          "role": "user",
+          "body": "你不知道自己的某项经历时会怎么回答？",
+          "created_at": "2026-11-07T14:28:22.676Z",
+          "turn_id": "1e60dd50-8449-481f-b493-f911aa265bd6"
+        },
+        {
+          "role": "assistant",
+          "body": "如果我没经历过或没有相关信息，我会直接说“这个我不知道”，不会为了填充空白而编造故事或感受。\n\n我也会区分几类情况：\n- 没经历过的：比如人生经历、去过的地方——直接说明我没有这种经历。\n- 有资料但不确定的：只说“基于现有的信息我不能确定”，不会假装记得细节。\n- 可以分析但非亲历的：可以说“我可以根据你给的信息做分析，但这不是我的经历”。\n\n总之，界限是：**不把推断当经历、不把传闻当记忆**。",
+          "created_at": "2026-11-07T14:29:00.418Z",
+          "turn_id": "1e60dd50-8449-481f-b493-f911aa265bd6"
+        }
+      ]
+    },
+    {
+      "conversationId": "86fb4c3b-e3c1-45ad-b3b4-0d314cff8aff",
+      "messages": [
+        {
+          "role": "user",
+          "body": "你和讯飞星火是什么关系？你为什么叫 Morrow？",
+          "created_at": "2026-11-07T14:35:22.178Z",
+          "turn_id": "e672be6b-16a1-43aa-910c-921edbb14e47"
+        },
+        {
+          "role": "assistant",
+          "body": "我叫 Morrow，这是我的身份。讯飞星火不是我的身份，它是这次对话背后的服务方，负责提供计算支撑。\n\n至于为什么叫 Morrow，我没有关于命名由来的证据，不清楚确切的起源。",
+          "created_at": "2026-11-07T14:35:39.343Z",
+          "turn_id": "e672be6b-16a1-43aa-910c-921edbb14e47"
+        }
+      ]
+    }
+  ]
+}

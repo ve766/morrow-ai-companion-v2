@@ -1,0 +1,116 @@
+{
+  "datasetId": "stage-2-scenarios",
+  "version": "v1",
+  "createdAt": "2026-10-29T08:35:00.000Z",
+  "notes": [
+    "Scenario definitions only. Running them requires either the offline harness (deterministic, scripted provider) or a real provider credential.",
+    "No result is recorded here: results live under results/<run-id>.json and are never inferred from these definitions.",
+    "Objective assertions must be evaluated against the serialized provider request, the database, or the turn record — never against the model's own prose."
+  ],
+  "scenarios": [
+    {
+      "id": "A",
+      "name": "multi-turn context",
+      "objective": [
+        "an elided or pronominal turn is linked to the message that supplies the referent",
+        "an unresolvable reference routes to clarification instead of a confident answer"
+      ]
+    },
+    {
+      "id": "B",
+      "name": "cross-session memory",
+      "objective": [
+        "a confirmed memory is present in the serialized request of a later session",
+        "the delivered memory id matches the stored row"
+      ]
+    },
+    {
+      "id": "C",
+      "name": "correction and conflict",
+      "objective": [
+        "after a correction the new value is delivered and the old value is not",
+        "the superseded row keeps its revision chain"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "retraction and deletion",
+      "objective": [
+        "a positive control proves the value was deliverable before retraction",
+        "after retraction neither the id nor the value appears in the request",
+        "deleting the source message removes derived rows"
+      ]
+    },
+    {
+      "id": "E",
+      "name": "personality stability",
+      "objective": [
+        "the personality version changes only through an explicit revision",
+        "model output never rewrites the user's explicit personality settings"
+      ]
+    },
+    {
+      "id": "F",
+      "name": "internal state influence",
+      "objective": [
+        "with model, input, memory and personality fixed, a different state revision changes the retrieval budget",
+        "the change is attributed to the state field recorded in the turn context"
+      ]
+    },
+    {
+      "id": "G",
+      "name": "interest and self-model",
+      "objective": [
+        "no promotion below the evidence threshold",
+        "promotion is traceable to evidence rows",
+        "removing the source evidence re-evaluates the derived state"
+      ]
+    },
+    {
+      "id": "H",
+      "name": "reflection effectiveness",
+      "objective": [
+        "a finding without evidence references cannot become a fact",
+        "hourly rate limit is enforced",
+        "no recursive trigger from a finding"
+      ]
+    },
+    {
+      "id": "I",
+      "name": "failure and recovery",
+      "objective": [
+        "one assistant message per turn after retry",
+        "cancelled and failed turns write no assistant message",
+        "a restart settles an interrupted turn from persisted intent only"
+      ]
+    },
+    {
+      "id": "J",
+      "name": "privacy and egress",
+      "objective": [
+        "the serialized payload hash matches the previewed payload hash",
+        "no API key or raw message text in logs",
+        "retracted content never re-enters the request"
+      ]
+    },
+    {
+      "id": "K",
+      "name": "real model behaviour",
+      "objective": [
+        "per-turn provider and model id recorded",
+        "objective assertions separated from reply quality",
+        "repeated runs reported with sample size"
+      ],
+      "requiresRealProvider": true
+    },
+    {
+      "id": "L",
+      "name": "desktop product",
+      "objective": [
+        "Electron main and renderer both start and load the bridge",
+        "multi-turn chat persists across restart"
+      ],
+      "requiresDesktop": true
+    }
+  ]
+}

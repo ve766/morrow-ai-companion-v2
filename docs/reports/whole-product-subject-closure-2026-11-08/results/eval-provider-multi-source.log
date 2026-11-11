@@ -1,0 +1,8 @@
+
+> morrow-ai-companion-v2@2.0.0 eval:provider-multi-source
+> node node_modules/esbuild/bin/esbuild evals/provider-multi-source/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/provider-multi-source.cjs --log-level=warning && node node_modules/.cache/provider-multi-source.cjs
+
+{"runId":"20261108T101450Z-6b53d2c7","status":"BLOCKED_NO_SECRET","file":"E:\\Hasee\\Documents\\morrow v2\\zcode\\stage3-audit\\repo\\evals\\provider-multi-source\\results\\20261108T101450Z-6b53d2c7.json"}
+(node:8596) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PROVIDER_EVAL=0

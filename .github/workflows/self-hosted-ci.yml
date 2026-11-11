@@ -1,0 +1,115 @@
+name: Self-hosted Windows CI
+
+# Manual-only by design. The GitHub-hosted workflow is also manual-only after
+# the included Actions minutes were exhausted. This workflow never falls back
+# to a GitHub-hosted runner and never uploads artifacts by default.
+on:
+  workflow_dispatch:
+  # Fallback until this workflow is present on the default branch: push a tag
+  # named ci-self-hosted-<full SHA> at the exact commit to verify.
+  push:
+    tags:
+      - 'ci-self-hosted-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morrow-self-hosted-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Guard trusted trigger
+    # The guard job itself runs no repository code. If the repository, ref or
+    # actor is not trusted, this job is skipped and the verify job never runs.
+    if: >-
+      github.repository == 've766/morrow-ai-companion-v2' &&
+      github.actor == 've766' &&
+      github.triggering_actor == 've766' &&
+      ((github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/feat/morrow-v2-final-closure' ||
+         github.ref == 'refs/heads/feat/morrow-v2-product-complete-20261106' ||
+         github.ref == 'refs/heads/feat/morrow-v2-product-closure-20261107')) ||
+       (github.event_name == 'push' &&
+        startsWith(github.ref, 'refs/tags/ci-self-hosted-')))
+    runs-on: [self-hosted, Windows, X64, morrow-ci]
+    continue-on-error: false
+    timeout-minutes: 10
+    steps:
+      - name: Record trigger identity (no repository checkout)
+        shell: powershell
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/ci-self-hosted-*') {
+            $expectedTag = 'ci-self-hosted-' + $env:GITHUB_SHA
+            if ($env:GITHUB_REF_NAME -ne $expectedTag) { throw "Tag must equal $expectedTag" }
+          }
+          Write-Host "repo=${{ github.repository }}"
+          Write-Host "ref=${{ github.ref }}"
+          Write-Host "sha=${{ github.sha }}"
+          Write-Host "actor=${{ github.actor }}"
+          Write-Host "event=${{ github.event_name }}"
+          Write-Host "runner=$env:RUNNER_NAME os=$env:RUNNER_OS arch=$env:RUNNER_ARCH"
+
+  verify:
+    name: Windows full verification and local archive
+    needs: guard
+    if: needs.guard.result == 'success'
+    runs-on: [self-hosted, Windows, X64, morrow-ci]
+    continue-on-error: false
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact triggered SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify checkout identity
+        shell: powershell
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne "${{ github.sha }}") {
+            throw "Checkout SHA mismatch: expected ${{ github.sha }}, got $actual"
+          }
+          Write-Host "checkout=$actual"
+          Write-Host "node=$(node --version)"
+          Write-Host "npm=$(npm --version)"
+          Write-Host "os=$env:RUNNER_OS arch=$env:RUNNER_ARCH runner=$env:RUNNER_NAME"
+
+      - name: Run full local verification and archive evidence
+        shell: powershell
+        env:
+          MORROW_CI_EXPECTED_SHA: ${{ github.sha }}
+          MORROW_CI_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci/run-self-hosted-ci.ps1 -ExpectedSha $env:MORROW_CI_EXPECTED_SHA
+
+      - name: Print local archive location
+        if: always()
+        shell: powershell
+        run: |
+          $root = Join-Path $env:LOCALAPPDATA 'Morrow\CI'
+          if (Test-Path $root) {
+            Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 |
+              ForEach-Object { Write-Host "archive=$($_.FullName)" }
+          }
+
+  guard-outcome:
+    name: Fail closed when guard or verify did not succeed
+    needs: [guard, verify]
+    if: always()
+    runs-on: [self-hosted, Windows, X64, morrow-ci]
+    continue-on-error: false
+    timeout-minutes: 5
+    steps:
+      - name: Reject skipped or failed verification
+        shell: powershell
+        run: |
+          $guard = '${{ needs.guard.result }}'
+          $verify = '${{ needs.verify.result }}'
+          Write-Host "guard=$guard verify=$verify"
+          if ($guard -ne 'success' -or $verify -ne 'success') {
+            throw "Self-hosted verification is not successful (guard=$guard verify=$verify); a skipped guard must never look green."
+          }

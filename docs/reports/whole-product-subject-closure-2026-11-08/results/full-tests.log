@@ -1,0 +1,1091 @@
+
+> morrow-ai-companion-v2@2.0.0 test
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.5 [39m[90mE:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo[39m
+
+(node:22636) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1800) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24556) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21760) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24204) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19224) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21744) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21184) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23660) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23544) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23760) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the model was asked but never raised the topic
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the model was asked but never raised the topic
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the model was asked but never raised the topic
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the gap evidence never reached two independent conversations
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mfails when the gap evidence never reached two independent conversations
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+ [32m✓[39m src/cognition/reflection-routing.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 56345[2mms[22m[39m
+   [32m✓[39m reflection finding routing (D-10) [2m(20)[22m
+     [33m[2m✓[22m[39m routes kinds to their registry entries and creates a pending item only for pending-user kinds[33m 1461[2mms[22m[39m
+     [33m[2m✓[22m[39m injects at most two hints, marks them, and expires stale ones by kind TTL[33m 2787[2mms[22m[39m
+     [33m[2m✓[22m[39m a rejected pending concern keeps its dropped status and never resurfaces[33m 1681[2mms[22m[39m
+     [33m[2m✓[22m[39m records unroutable kinds instead of guessing a route[33m 1621[2mms[22m[39m
+     [33m[2m✓[22m[39m registers open_question as a pending-user route and links the item to the finding[33m 5993[2mms[22m[39m
+     [33m[2m✓[22m[39m accepted, rejected and dismissed converge the item and route, with replay and conflict rules[33m 2943[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls the item back when the route terminal write fails[33m 1637[2mms[22m[39m
+     [33m[2m✓[22m[39m writes a sanitized audit event for the decision[33m 1662[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls the route back when the pending item cannot be written[33m 7621[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses to decide a new item whose reflection route is missing[33m 1589[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the documented compatibility path for legacy items without a finding link[33m 1589[2mms[22m[39m
+     [33m[2m✓[22m[39m converges a legacy item route by its stored concern digest[33m 5478[2mms[22m[39m
+     [33m[2m✓[22m[39m converges every route of a legacy concern adopted by a later observation[33m 3811[2mms[22m[39m
+     [33m[2m✓[22m[39m does not guess a legacy route when the concern cannot be proven[33m 1633[2mms[22m[39m
+     [33m[2m✓[22m[39m requires a durable audit sink for decisions[33m 4053[2mms[22m[39m
+     [33m[2m✓[22m[39m ingests a second finding for the same concern without PENDING_LINK_MISMATCH[33m 1712[2mms[22m[39m
+     [33m[2m✓[22m[39m routes later findings when one finding cannot be routed, and records the failure[33m 5229[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers a finding that was stored without a route, idempotently[33m 3831[2mms[22m[39m
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mrecords the claims it does not make instead of folding them into the pass
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+(node:9608) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mrecords the claims it does not make instead of folding them into the pass
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+ [32m✓[39m src/persistence/backup-service.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 58500[2mms[22m[39m
+   [32m✓[39m backup export [2m(3)[22m
+     [33m[2m✓[22m[39m creates a self-contained validated snapshot with a manifest[33m 1601[2mms[22m[39m
+     [33m[2m✓[22m[39m excludes credentials, logs and unrelated files by construction[33m 2731[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses to overwrite an existing backup directory[33m 1751[2mms[22m[39m
+   [32m✓[39m backup preview [2m(3)[22m
+     [33m[2m✓[22m[39m returns counts, schema version and a single-use token without touching live data[33m 1759[2mms[22m[39m
+     [33m[2m✓[22m[39m flags backups that predate the deletion journal[33m 8200[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects tampered, truncated, unknown-version and path-escaping backups[33m 2737[2mms[22m[39m
+   [32m✓[39m backup restore [2m(9)[22m
+     [33m[2m✓[22m[39m replaces live data and re-applies deletions recorded after the backup[33m 6278[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the visible memory timeline consistent with the deletion boundary after restore[33m 3761[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps explicitly un-retracted memories active after restoring an older backup[33m 2087[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps memories deleted after the backup out of the model context after restore[33m 5900[2mms[22m[39m
+     [33m[2m✓[22m[39m restores a pre-journal backup only with explicit acknowledgement and keeps current boundaries[33m 8823[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses restore without confirmation, with an unknown token, or with a consumed token[33m 2006[2mms[22m[39m
+     [33m[2m✓[22m[39m expires unused preview tokens[33m 5308[2mms[22m[39m
+     [33m[2m✓[22m[39m leaves the original database intact and reopenable when the swap fails[33m 3828[2mms[22m[39m
+     [33m[2m✓[22m[39m restores only from the exact previewed backup and re-validates before swap[33m 1725[2mms[22m[39m
+[90mstderr[2m | tests/eval-assertions.test.ts[2m > [22m[2mL5 cannot pass on a permission alone[2m > [22m[2mrecords the claims it does not make instead of folding them into the pass
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+(node:23100) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | src/app/cognitive-continuity-phase24.integration.test.ts[2m > [22m[2mG. unknown facts and conflict isolation[2m > [22m[2mrewrites an unsupported personal fact and records the gap without the value
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+ [32m✓[39m src/app/stage5-final-closeout.integration.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 73852[2mms[22m[39m
+   [32m✓[39m F1 — deletion erases relationship content [2m(8)[22m
+     [33m[2m✓[22m[39m deleting the source message tombstones the thread and no value survives[33m 5416[2mms[22m[39m
+     [33m[2m✓[22m[39m deleting the conversation tombstones every thread it owned[33m 11088[2mms[22m[39m
+     [33m[2m✓[22m[39m reconcile erases a thread whose evidence is an orphan and is idempotent[33m 2947[2mms[22m[39m
+     [33m[2m✓[22m[39m the v46 migration backfills historical orphan evidence and erases content[33m 15309[2mms[22m[39m
+     [33m[2m✓[22m[39m an obligation with no source message is refused, not projected from cached text[33m 1664[2mms[22m[39m
+     [33m[2m✓[22m[39m a stale obligation whose message was deleted cannot revive it[33m 5093[2mms[22m[39m
+     [33m[2m✓[22m[39m a database error while reading the source fails closed and writes nothing[33m 4154[2mms[22m[39m
+     [33m[2m✓[22m[39m a source from another conversation is refused[33m 1700[2mms[22m[39m
+   [32m✓[39m F2 — the obligation is committed with the user message [2m(5)[22m
+     [33m[2m✓[22m[39m a provider failure keeps the relationship obligation pending and it applies once later[33m 5798[2mms[22m[39m
+     [33m[2m✓[22m[39m a restart projects the pending obligation exactly once[33m 4668[2mms[22m[39m
+     [33m[2m✓[22m[39m deleting the conversation while the obligation is pending cancels it and projects nothing[33m 4538[2mms[22m[39m
+     [33m[2m✓[22m[39m replaying the same turn adds one obligation and one evidence row[33m 4055[2mms[22m[39m
+     [33m[2m✓[22m[39m a delayed older observation cannot compete with a newer address decision[33m 7417[2mms[22m[39m
+(node:22188) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/provider-multi-source.integration.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 74958[2mms[22m[39m
+   [32m✓[39m multi-source provider profiles [2m(8)[22m
+     [33m[2m✓[22m[39m migrates the legacy provider table without losing profiles or their meaning[33m 6443[2mms[22m[39m
+     [33m[2m✓[22m[39m creates two isolated profiles, switches the default and deletes only one[33m 1620[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects unsafe or unsupported profiles[33m 6040[2mms[22m[39m
+     [33m[2m✓[22m[39m tests a custom profile through the product adapter and records sanitized health[33m 2890[2mms[22m[39m
+     [33m[2m✓[22m[39m discovers models without making discovery mandatory[33m 1673[2mms[22m[39m
+     [33m[2m✓[22m[39m requires consent before model discovery[33m 5780[2mms[22m[39m
+     [33m[2m✓[22m[39m binds consent to the profile endpoint and payload[33m 3276[2mms[22m[39m
+     [33m[2m✓[22m[39m blocks a custom endpoint whose request-time DNS answer is private[33m 1520[2mms[22m[39m
+   [32m✓[39m provider health classification [2m(1)[22m
+     [33m[2m✓[22m[39m records auth and model failures without storing the response body[33m 2096[2mms[22m[39m
+   [32m✓[39m provider schema identity [2m(2)[22m
+     [33m[2m✓[22m[39m fails closed when a v48 database has another implementation line identity[33m 10433[2mms[22m[39m
+     [33m[2m✓[22m[39m fails closed when a known v48 name does not match the table structure[33m 10920[2mms[22m[39m
+   [32m✓[39m provider profile change semantics [2m(4)[22m
+     [33m[2m✓[22m[39m invalidates health and verified capabilities for each connection-semantic change[33m 4060[2mms[22m[39m
+     [33m[2m✓[22m[39m sends the connection test to the exact chat URL for every supported shape[33m 1821[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects official profile overrides at the service layer[33m 4015[2mms[22m[39m
+     [33m[2m✓[22m[39m restores the previous secret when the replacement write fails[33m 1519[2mms[22m[39m
+   [32m✓[39m model discovery hardening [2m(4)[22m
+     [33m[2m✓[22m[39m uses a dedicated discovery consent action[33m 2930[2mms[22m[39m
+     [33m[2m✓[22m[39m blocks before consent and fetch when the endpoint policy rejects[33m 1553[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses an oversized discovery body without trusting Content-Length[33m 1494[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses an oversized discovery body[33m 4871[2mms[22m[39m
+(node:23192) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m tests/eval-assertions.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 85048[2mms[22m[39m
+   [32m✓[39m L5 cannot pass on a permission alone [2m(3)[22m
+     [33m[2m✓[22m[39m fails when the model was asked but never raised the topic[33m 24831[2mms[22m[39m
+     [33m[2m✓[22m[39m fails when the gap evidence never reached two independent conversations[33m 22539[2mms[22m[39m
+     [33m[2m✓[22m[39m records the claims it does not make instead of folding them into the pass[33m 26244[2mms[22m[39m
+   [32m✓[39m L12 cannot pass on an empty evidence set [2m(2)[22m
+     [33m[2m✓[22m[39m fails when the turn produced no derived evidence at all[33m 4941[2mms[22m[39m
+     [33m[2m✓[22m[39m passes only when the evidence existed and was actually removed[33m 6489[2mms[22m[39m
+(node:20348) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | src/app/conflict-handling.integration.test.ts[2m > [22m[2mphase 2.1 C: unresolved conflict evidence[2m > [22m[2m1. marks two same-time single-valued statements as a conflict and tells the model both values
+[22m[39mFact guard replaced an unsupported personal claim (conflicting_evidence, 1 claim(s)).
+
+ [32m✓[39m src/app/cognitive-continuity-phase24.integration.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 90294[2mms[22m[39m
+   [32m✓[39m bounded reflection lifecycle [2m(1)[22m
+     [33m[2m✓[22m[39m runs reflection only after a successfully persisted assistant turn[33m 2404[2mms[22m[39m
+   [32m✓[39m A. memory continuity through the real save path [2m(2)[22m
+     [33m[2m✓[22m[39m uses a preference saved on turn 1 when turn 2 does not repeat it[33m 4126[2mms[22m[39m
+     [33m[2m✓[22m[39m does not turn a single statement into a confirmed fact on its own[33m 6672[2mms[22m[39m
+   [32m✓[39m B. correction and retraction [2m(1)[22m
+     [33m[2m✓[22m[39m keeps the stored value until the user changes it, then stops delivering it[33m 5217[2mms[22m[39m
+   [32m✓[39m C. personality and state survive a model switch [2m(1)[22m
+     [33m[2m✓[22m[39m changes the provider id without resetting personality, memory or state[33m 9906[2mms[22m[39m
+   [32m✓[39m D. internal state changes the next turn [2m(2)[22m
+     [33m[2m✓[22m[39m lets exploration attention widen retrieval on a later turn[33m 12000[2mms[22m[39m
+     [33m[2m✓[22m[39m never lets the state widen a turn that should recall nothing[33m 11285[2mms[22m[39m
+   [32m✓[39m E. failure, retry and cancellation [2m(2)[22m
+     [33m[2m✓[22m[39m records a failed turn, then completes the same turn once on retry[33m 4624[2mms[22m[39m
+     [33m[2m✓[22m[39m records a cancelled turn and delivers nothing[33m 2441[2mms[22m[39m
+   [32m✓[39m F. restart recovery [2m(1)[22m
+     [33m[2m✓[22m[39m continues from persisted state after the process is replaced[33m 8624[2mms[22m[39m
+   [32m✓[39m G. unknown facts and conflict isolation [2m(2)[22m
+     [33m[2m✓[22m[39m rewrites an unsupported personal fact and records the gap without the value[33m 2306[2mms[22m[39m
+     [33m[2m✓[22m[39m discloses only the conflict that the question is about[33m 5721[2mms[22m[39m
+   [32m✓[39m H. crash recovery between the message commit and the turn record [2m(3)[22m
+     [33m[2m✓[22m[39m delivers the answer, then completes the turn from its persisted intent[33m 4556[2mms[22m[39m
+     [33m[2m✓[22m[39m records an interrupted turn as failed when no answer was committed[33m 5949[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the original turn record intact when an interrupted turn is settled[33m 4459[2mms[22m[39m
+(node:16188) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage4a-continuity.integration.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 91047[2mms[22m[39m
+   [32m✓[39m Stage 4-A: cat-name continuity through the production chain [2m(12)[22m
+     [33m[2m✓[22m[39m 1. a saved memory cites the real source message id[33m 4038[2mms[22m[39m
+     [33m[2m✓[22m[39m 2. a new session recalls the active cat name from the ledger, not from history[33m 4221[2mms[22m[39m
+     [33m[2m✓[22m[39m 3. a correction supersedes the old value and activates the new one; history keeps the old revision[33m 9967[2mms[22m[39m
+     [33m[2m✓[22m[39m 4. after a full runtime restart the new value is still current[33m 11707[2mms[22m[39m
+     [33m[2m✓[22m[39m 5. a historical query may read the superseded value while a current query may not[33m 10385[2mms[22m[39m
+     [33m[2m✓[22m[39m 6. a retracted memory stops being injected as current[33m 6891[2mms[22m[39m
+     [33m[2m✓[22m[39m 7. the personality baseline is identical across sessions, restarts and provider switches[33m 8890[2mms[22m[39m
+     [33m[2m✓[22m[39m 8. two corrections of one single-valued fact never leave two current values[33m 7764[2mms[22m[39m
+     [33m[2m✓[22m[39m 9. a degraded index falls back to a bounded scan instead of reporting no facts[33m 5435[2mms[22m[39m
+     [33m[2m✓[22m[39m 10. a budget-truncated context reports the omission in the turn evaluation[33m 8979[2mms[22m[39m
+     [33m[2m✓[22m[39m 11. provider-independent state: the fact ledger and baseline live in SQLite, not in a provider context[33m 7772[2mms[22m[39m
+     [33m[2m✓[22m[39m 12. the legacy memory text still answers when the fact index has no candidate[33m 4992[2mms[22m[39m
+(node:15640) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | src/app/stage5-remediation.integration.test.ts[2m > [22m[2mStage 5 remediation — transaction boundaries and recovery (P1-D/P1-E)[2m > [22m[2m10. a relationship write that fails stays queued and applies once on retry
+[22m[39mSome post-turn cognition could not be applied; it stays queued and will be retried.
+
+ [32m✓[39m src/app/stage5-presence.integration.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 53089[2mms[22m[39m
+   [32m✓[39m Stage 5: relationship continuity reaches the next real turn [2m(3)[22m
+     [33m[2m✓[22m[39m stores an agreed topic and injects it in a later turn[33m 9230[2mms[22m[39m
+     [33m[2m✓[22m[39m a withdrawn agreement does not touch the address preference (P0-A)[33m 21475[2mms[22m[39m
+     [33m[2m✓[22m[39m a corrected address replaces the old one in later turns[33m 8554[2mms[22m[39m
+   [32m✓[39m Stage 5: the internal state becomes a structured strategy, not adjectives [2m(6)[22m
+     [33m[2m✓[22m[39m the strategy reaches the payload and the turn record without exposing state values[33m 5582[2mms[22m[39m
+     [33m[2m✓[22m[39m the strategy never rewrites the facts in the same payload[33m 8242[2mms[22m[39m
+(node:21160) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage3-remediation.integration.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 55798[2mms[22m[39m
+   [32m✓[39m D-1: the growth ledger is live in the production chain [2m(4)[22m
+     [33m[2m✓[22m[39m writes G1 evidence through the outbox and puts the folded offset into the prompt numbers[33m 10393[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps two turns below the evidence gate: recorded, reported, not applied[33m 7446[2mms[22m[39m
+     [33m[2m✓[22m[39m recomputes the offset when the source message is deleted[33m 11210[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the growth ledger continuous across a full runtime restart[33m 10749[2mms[22m[39m
+   [32m✓[39m D-10: reflection findings reach their consumers in the production chain [2m(2)[22m
+     [33m[2m✓[22m[39m routes auto-run findings, creates the pending item, and caps prompt hints at two[33m 7460[2mms[22m[39m
+     [33m[2m✓[22m[39m never injects more than two hint lines into one prompt[33m 8537[2mms[22m[39m
+(node:2164) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/companion-service.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 44572[2mms[22m[39m
+   [32m✓[39m DeepSeek companion vertical slice [2m(12)[22m
+     [33m[2m✓[22m[39m keeps chat offline without a configured provider and sends nothing when consent is denied[33m 5343[2mms[22m[39m
+     [33m[2m✓[22m[39m sends only eligible reviewed context after exact consent, streams deltas, and persists both turns[33m 1786[2mms[22m[39m
+     [33m[2m✓[22m[39m retries an interrupted turn without duplicating its user message or completed answer[33m 5192[2mms[22m[39m
+     [33m[2m✓[22m[39m versions user-editable personality and restores history as a new revision[33m 3690[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps generated memory suggestions pending until review and stores the user-approved edit with sensitivity[33m 1750[2mms[22m[39m
+     [33m[2m✓[22m[39m uses the current approved memory in later turns and removes corrected or deleted text from provider context[33m 4938[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps feeling computation opt-in and carries evidence-backed state into later approved replies[33m 4635[2mms[22m[39m
+     [33m[2m✓[22m[39m sends the opt-in local state as part of the approved payload without copying user distress into system state[33m 1611[2mms[22m[39m
+     [33m[2m✓[22m[39m carries recent correction pressure into a later request and stops writing when disabled[33m 5649[2mms[22m[39m
+     [33m[2m✓[22m[39m uses recent exploration attention only for a later explicit exploration request[33m 3139[2mms[22m[39m
+     [33m[2m✓[22m[39m uses prior exploration attention only for a later explicit exploration request[33m 1833[2mms[22m[39m
+     [33m[2m✓[22m[39m cancels a partial provider stream without persisting a fabricated assistant message[33m 5004[2mms[22m[39m
+(node:10592) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/persistence/derived-deletion-boundary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 44672[2mms[22m[39m
+   [32m✓[39m A2 derived cognition follows its source data [2m(4)[22m
+     [33m[2m✓[22m[39m keeps every existing row when upgrading v18 to the current schema[33m 11285[2mms[22m[39m
+     [33m[2m✓[22m[39m treats a second migration run as a no-op[33m 10802[2mms[22m[39m
+     [33m[2m✓[22m[39m removes derived cognition when its source message is deleted[33m 13759[2mms[22m[39m
+     [33m[2m✓[22m[39m removes conversation-scoped cognition when the conversation is deleted[33m 8824[2mms[22m[39m
+(node:12456) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | src/app/conflict-handling.integration.test.ts[2m > [22m[2mphase 2.1 C: unresolved conflict evidence[2m > [22m[2m15. keeps an unrelated conflict out of the disclosure
+[22m[39mFact guard replaced an unsupported personal claim (conflicting_evidence, 1 claim(s)).
+
+[90mstderr[2m | src/app/conflict-handling.integration.test.ts[2m > [22m[2mphase 2.1 C: unresolved conflict evidence[2m > [22m[2m4. does not deliver a one-sided answer when the evidence conflicts
+[22m[39mFact guard replaced an unsupported personal claim (conflicting_evidence, 1 claim(s)).
+
+ [32m✓[39m src/app/conflict-handling.integration.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 43381[2mms[22m[39m
+   [32m✓[39m phase 2.1 C: unresolved conflict evidence [2m(12)[22m
+     [33m[2m✓[22m[39m 1. marks two same-time single-valued statements as a conflict and tells the model both values[33m 3976[2mms[22m[39m
+     [33m[2m✓[22m[39m 2. does not call a past and a present state a conflict[33m 1853[2mms[22m[39m
+     [33m[2m✓[22m[39m 3. does not treat two coexisting preferences as a conflict[33m 4907[2mms[22m[39m
+     [33m[2m✓[22m[39m 5. accepts a reply that names both sides and asks which is current[33m 1842[2mms[22m[39m
+     [33m[2m✓[22m[39m 6. keeps a user correction from rewriting the stored fact before any authorized update[33m 4512[2mms[22m[39m
+     [33m[2m✓[22m[39m 7. never lets a retracted entry join a conflict[33m 5643[2mms[22m[39m
+     [33m[2m✓[22m[39m 8. does not raise a conflict notice for an unrelated question[33m 3141[2mms[22m[39m
+     [33m[2m✓[22m[39m 12. never lets a sensitive entry create a conflict at a lower sensitivity ceiling[33m 1808[2mms[22m[39m
+     [33m[2m✓[22m[39m 13. keeps the corrected fact as evidence without rewriting it or inventing a conflict[33m 5090[2mms[22m[39m
+     [33m[2m✓[22m[39m 14. never repeats a retracted value in the disclosure[33m 1809[2mms[22m[39m
+     [33m[2m✓[22m[39m 15. keeps an unrelated conflict out of the disclosure[33m 4845[2mms[22m[39m
+     [33m[2m✓[22m[39m 4. does not deliver a one-sided answer when the evidence conflicts[33m 3948[2mms[22m[39m
+(node:21476) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | tests/correction-round.test.ts[2m > [22m[2mP0-4 knowledge gap durability[2m > [22m[2mrolls the assistant message back when the gap cannot be recorded, instead of losing it silently
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+The completed assistant response could not be stored; the turn will be recovered as interrupted. Error: journal unavailable
+    at ExplodingJournal.recordDeterministic (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/tests/correction-round.test.ts:335:13)
+    at Object.recordKnowledgeGap (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/companion-service.ts:1648:51)
+    at afterPersist (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/companion-service.ts:2555:40)
+    at E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/persistence/conversation-repository.ts:132:7
+    at SqliteDatabase.transaction (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/persistence/database.ts:150:21)
+    at SqliteConversationRepository.append (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/persistence/conversation-repository.ts:105:26)
+    at ConversationService.appendMessage (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/conversation/conversation-service.ts:84:28)
+    at ChatService.send (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/companion-service.ts:2560:47)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at send (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/tests/correction-round.test.ts:343:3)
+
+ [32m✓[39m src/app/turn-trace.integration.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 39298[2mms[22m[39m
+   [32m✓[39m runtime turn trace [2m(8)[22m
+     [33m[2m✓[22m[39m records the real stage sequence with started, skipped and completed semantics[33m 5204[2mms[22m[39m
+     [33m[2m✓[22m[39m records provider_delta as started and completed when the provider streams[33m 2088[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the chat working and marks the trace incomplete when trace storage fails[33m 4460[2mms[22m[39m
+     [33m[2m✓[22m[39m settles a denied consent as failed instead of leaving a crash-shaped turn[33m 5654[2mms[22m[39m
+     [33m[2m✓[22m[39m retries a cancelled turn without duplicating the user message and settles it[33m 3633[2mms[22m[39m
+     [33m[2m✓[22m[39m deletes trace events with their conversation[33m 2147[2mms[22m[39m
+     [33m[2m✓[22m[39m cascades trace deletion when the conversations table row is removed[33m 4984[2mms[22m[39m
+     [33m[2m✓[22m[39m caps one turn at 200 persisted events even if a caller loops[33m 11122[2mms[22m[39m
+(node:21312) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/self-model/exploration-policy.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 41947[2mms[22m[39m
+   [32m✓[39m ExplorationService [2m(12)[22m
+     [33m[2m✓[22m[39m records permission but does not count it as a raise[33m 4758[2mms[22m[39m
+     [33m[2m✓[22m[39m counts a raise only after a persisted reply mentions the topic[33m 1649[2mms[22m[39m
+     [33m[2m✓[22m[39m does not count a reply that never mentions the topic[33m 4451[2mms[22m[39m
+     [33m[2m✓[22m[39m distinguishes a reply that clearly ignores the topic[33m 5526[2mms[22m[39m
+     [33m[2m✓[22m[39m never counts a failed or cancelled turn as a raise[33m 2974[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent: settling the same turn twice counts once[33m 1702[2mms[22m[39m
+     [33m[2m✓[22m[39m re-deciding the same turn is stable (the preview and the verified payload agree)[33m 1756[2mms[22m[39m
+     [33m[2m✓[22m[39m reserves atomically and refuses the third raise of the day[33m 5007[2mms[22m[39m
+     [33m[2m✓[22m[39m releases the slot when the reply never mentions the topic[33m 4687[2mms[22m[39m
+     [33m[2m✓[22m[39m releases the slot when the provider fails[33m 1693[2mms[22m[39m
+     [33m[2m✓[22m[39m starts a fresh budget on the next day[33m 4048[2mms[22m[39m
+     [33m[2m✓[22m[39m records nothing when no topic was even eligible[33m 3682[2mms[22m[39m
+[90mstderr[2m | tests/correction-round.test.ts[2m > [22m[2mP0-4 knowledge gap durability[2m > [22m[2mrolls the assistant message back when the gap cannot be recorded, instead of losing it silently
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+(node:20008) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/cognitive-continuity.integration.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 136031[2mms[22m[39m
+   [32m✓[39m slice 1: an ordinary turn keeps continuity [2m(5)[22m
+     [33m[2m✓[22m[39m retrieves a saved fact when the current question shares its topic, without an explicit recall request[33m 2446[2mms[22m[39m
+     [33m[2m✓[22m[39m does not inject an unrelated private memory into a topic switch[33m 3284[2mms[22m[39m
+     [33m[2m✓[22m[39m resolves a short follow-up against the message it actually refers to[33m 7315[2mms[22m[39m
+     [33m[2m✓[22m[39m reaches a saved fact from a brand-new conversation[33m 4177[2mms[22m[39m
+     [33m[2m✓[22m[39m retrieves the fact when the user rewords it instead of repeating the stored sentence[33m 2331[2mms[22m[39m
+   [32m✓[39m slice 1: corrections, conflicts and boundaries [2m(4)[22m
+     [33m[2m✓[22m[39m lets the current turn carry a correction without silently rewriting the stored fact[33m 8298[2mms[22m[39m
+     [33m[2m✓[22m[39m delivers both sides of a contradiction and tells the model not to pick one silently[33m 2382[2mms[22m[39m
+     [33m[2m✓[22m[39m never delivers a retracted fact through the ordinary retrieval path[33m 6138[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a sensitive fact out unless the turn raises the ceiling[33m 5123[2mms[22m[39m
+   [32m✓[39m slice 1: cognitive hints stay hints [2m(3)[22m
+     [33m[2m✓[22m[39m does not turn quoted or third-person statements into user facts[33m 5389[2mms[22m[39m
+     [33m[2m✓[22m[39m carries personality, self-model context and local state into the same request[33m 5876[2mms[22m[39m
+     [33m[2m✓[22m[39m does not duplicate messages or accumulate the same turn twice on a retry[33m 4534[2mms[22m[39m
+   [32m✓[39m slice 1: lexical overlap alone must not inject a private memory [2m(5)[22m
+     [33m[2m✓[22m[39m keeps "我不喜欢吃香菜。" out of "我不喜欢这个方案，换个思路。" (shared dislike frame, different object)[33m 4705[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps "我最近在学做饭。" out of "我最近在学吉他。" (shared study frame, different topic)[33m 2276[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps "我明天要去医院复查。" out of "明天要交报告。" (shared time word, different event)[33m 3631[2mms[22m[39m
+     [33m[2m✓[22m[39m still retrieves the memory when the overlap is a real object, not just a frame[33m 2292[2mms[22m[39m
+     [33m[2m✓[22m[39m still resolves a short follow-up after the precision change[33m 8340[2mms[22m[39m
+   [32m✓[39m slice 2: time facts, conflicts and no-evidence at the payload [2m(5)[22m
+     [33m[2m✓[22m[39m retrieves a dated fact when the question is about that event[33m 2348[2mms[22m[39m
+     [33m[2m✓[22m[39m does not admit a record that shares only a time word[33m 5949[2mms[22m[39m
+     [33m[2m✓[22m[39m marks two values of the same fact as unresolved instead of choosing one[33m 4428[2mms[22m[39m
+     [33m[2m✓[22m[39m does not treat a rewording of the same value as a conflict[33m 5426[2mms[22m[39m
+     [33m[2m✓[22m[39m sends no memory block entry when there is no evidence at all[33m 4992[2mms[22m[39m
+   [32m✓[39m slice 2.1: time compatibility and tri-state comparison [2m(4)[22m
+     [33m[2m✓[22m[39m recalls a next-week arrangement and keeps tomorrow out of it[33m 6277[2mms[22m[39m
+     [33m[2m✓[22m[39m does not inject a dated record when only the time word is shared[33m 3600[2mms[22m[39m
+     [33m[2m✓[22m[39m does not mark a substring value as a conflict or as agreement[33m 2410[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the age and health values usable for a slot question[33m 5537[2mms[22m[39m
+   [32m✓[39m slice 2.2: mood, polarity and time state at the payload [2m(4)[22m
+     [33m[2m✓[22m[39m does not turn a question into a confirmed fact[33m 5306[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a negated health statement as a contradiction, not as agreement[33m 4491[2mms[22m[39m
+     [33m[2m✓[22m[39m does not merge a mixed-time health statement into a current fact[33m 4407[2mms[22m[39m
+     [33m[2m✓[22m[39m still keeps retracted and above-ceiling memories out of the payload[33m 2319[2mms[22m[39m
+[90mstderr[2m | tests/correction-round.test.ts[2m > [22m[2mP0-4 knowledge gap durability[2m > [22m[2mwrites one gap per turn, not one per retry
+[22m[39mFact guard replaced an unsupported personal claim (unsupported_personal_fact, 1 claim(s)).
+
+(node:24292) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m tests/acceptance/scenarios.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 33912[2mms[22m[39m
+   [32m✓[39m scenario A: continuous multi-turn conversation with isolated context [2m(1)[22m
+     [33m[2m✓[22m[39m keeps history and saved facts inside one conversation and never mixes another conversation in[33m 6878[2mms[22m[39m
+   [32m✓[39m scenario B: memory correction takes precedence over the superseded claim [2m(1)[22m
+     [33m[2m✓[22m[39m retrieves the corrected fact, drops retracted ones and keeps the audit trail[33m 4743[2mms[22m[39m
+   [32m✓[39m scenario C: affective state updates are reproducible, idempotent and restart-stable [2m(1)[22m
+     [33m[2m✓[22m[39m applies an event once per idempotency key, decays deterministically and rebuilds after reopen[33m 1570[2mms[22m[39m
+   [32m✓[39m scenario E: full continuity across restart [2m(1)[22m
+     [33m[2m✓[22m[39m restores conversations, memories, personality, feeling settings and journal without duplicates[33m 3856[2mms[22m[39m
+   [32m✓[39m scenario F: security and authorization boundaries [2m(1)[22m
+     [33m[2m✓[22m[39m fails closed on remote endpoints for the local class and maps auth failures without leaking keys[33m 3870[2mms[22m[39m
+   [32m✓[39m scenario G: affective and long-term state shape the actual request [2m(1)[22m
+     [33m[2m✓[22m[39m adds feeling guidance and the interest block to the payload only when the state warrants it[33m 8176[2mms[22m[39m
+   [32m✓[39m scenario H: corrections to long-term judgements survive restart [2m(1)[22m
+     [33m[2m✓[22m[39m keeps corrected memory and superseded self-model entries authoritative after reopen[33m 4814[2mms[22m[39m
+(node:22048) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m tests/c1-mainchain.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 147510[2mms[22m[39m
+   [32m✓[39m C1 main chain: reading reaches the payload [2m(4)[22m
+     [33m[2m✓[22m[39m serializes the speech act and the response mode into the system prompt[33m 5359[2mms[22m[39m
+     [33m[2m✓[22m[39m asks exactly one clarifying question when the object is missing[33m 2901[2mms[22m[39m
+     [33m[2m✓[22m[39m does not let a quoted command become the user request[33m 8503[2mms[22m[39m
+     [33m[2m✓[22m[39m uses the assistant offer to decide what "继续" continues[33m 14095[2mms[22m[39m
+   [32m✓[39m C1 main chain: persistence and revision [2m(4)[22m
+     [33m[2m✓[22m[39m stores one reading per user message[33m 10075[2mms[22m[39m
+     [33m[2m✓[22m[39m retracts the earlier reading when the user corrects it[33m 6687[2mms[22m[39m
+     [33m[2m✓[22m[39m retracts the old intent and closes open questions when the user withdraws[33m 9973[2mms[22m[39m
+     [33m[2m✓[22m[39m removes the reading with the message it describes[33m 5300[2mms[22m[39m
+   [32m✓[39m C1 main chain: survives a restart [2m(1)[22m
+     [33m[2m✓[22m[39m reads the same active reading after the process is rebuilt[33m 5263[2mms[22m[39m
+   [32m✓[39m C1 main chain: the prior turn decides whether the reference resolves [2m(3)[22m
+     [33m[2m✓[22m[39m answers a deictic instead of asking about it when the noun is in the prior turn[33m 12303[2mms[22m[39m
+     [33m[2m✓[22m[39m binds a one-character object ("图") instead of rejecting it as too short[33m 15844[2mms[22m[39m
+     [33m[2m✓[22m[39m cuts the head noun before the verb so "把这段代码删掉" can bind[33m 16196[2mms[22m[39m
+   [32m✓[39m C1 main chain: the speech act decides what may be executed [2m(3)[22m
+     [33m[2m✓[22m[39m marks a hypothetical as not the user own and forbids acting on it[33m 6291[2mms[22m[39m
+     [33m[2m✓[22m[39m tells the model that a withdrawal ends the earlier request[33m 7070[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a quotation from authorising the quoted action[33m 7254[2mms[22m[39m
+   [32m✓[39m C1 main chain: the reading keeps its provenance and stays out of the prompt [2m(2)[22m
+     [33m[2m✓[22m[39m records which message the inherited topic came from[33m 4066[2mms[22m[39m
+     [33m[2m✓[22m[39m sends guidance, never the reading itself[33m 10326[2mms[22m[39m
+ [32m✓[39m tests/b4-child-crash.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 35252[2mms[22m[39m
+   [32m✓[39m B4 process-level crash recovery [2m(5)[22m
+     [33m[2m✓[22m[39m invents nothing when the process dies before the provider is called[33m 5694[2mms[22m[39m
+     [33m[2m✓[22m[39m settles a turn whose provider call was in flight, without re-sending it[33m 2346[2mms[22m[39m
+     [33m[2m✓[22m[39m fails a turn that died after the provider answered but before the answer was stored[33m 5335[2mms[22m[39m
+     [33m[2m✓[22m[39m completes a turn whose cleanup failed after the answer was stored[33m 7444[2mms[22m[39m
+     [33m[2m✓[22m[39m does nothing on a second recovery pass in every window[33m 14130[2mms[22m[39m
+(node:21708) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21100) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage5-remediation.integration.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 151273[2mms[22m[39m
+   [32m✓[39m Stage 5 remediation — targeted retraction (P0-A) [2m(4)[22m
+     [33m[2m✓[22m[39m 1. "那个约定就算了" leaves an address preference untouched[33m 5383[2mms[22m[39m
+     [33m[2m✓[22m[39m 2. with three threads, withdrawing one topic retires only that topic[33m 13505[2mms[22m[39m
+     [33m[2m✓[22m[39m 3. an explicit global withdrawal retires everything, and only then[33m 11456[2mms[22m[39m
+     [33m[2m✓[22m[39m 4. an ambiguous withdrawal changes nothing and asks which one[33m 11376[2mms[22m[39m
+   [32m✓[39m Stage 5 remediation — address corrections (P1-C) [2m(2)[22m
+     [33m[2m✓[22m[39m 5. "别再叫我小林，叫我阿林" replaces the old value; only the new one is injected[33m 11407[2mms[22m[39m
+     [33m[2m✓[22m[39m 6. "不要这样称呼我" without a new name retires the old value and does not guess[33m 10013[2mms[22m[39m
+   [32m✓[39m Stage 5 remediation — deletion propagation (P0-B) [2m(4)[22m
+     [33m[2m✓[22m[39m 7. deleting the source message removes its evidence and the thread stops being injected[33m 5268[2mms[22m[39m
+     [33m[2m✓[22m[39m 8. deleting the whole conversation removes every relationship evidence row[33m 9488[2mms[22m[39m
+     [33m[2m✓[22m[39m 9. a restored backup that predates the deletion does not revive the evidence (reconcile)[33m 2891[2mms[22m[39m
+     [33m[2m✓[22m[39m 9b. restoring a backup after the conversation was deleted does not revive the evidence[33m 9184[2mms[22m[39m
+   [32m✓[39m Stage 5 remediation — transaction boundaries and recovery (P1-D/P1-E) [2m(5)[22m
+     [33m[2m✓[22m[39m 10. a relationship write that fails stays queued and applies once on retry[33m 6064[2mms[22m[39m
+     [33m[2m✓[22m[39m 13. replaying one turn ten times adds one relationship evidence row and one memory revision[33m 5694[2mms[22m[39m
+     [33m[2m✓[22m[39m 11. a multi-fact batch whose verification fails is rolled back, not partially kept[33m 6807[2mms[22m[39m
+     [33m[2m✓[22m[39m 12. an index failure that later recovers ends at a verified state, not a silent success[33m 4177[2mms[22m[39m
+     [33m[2m✓[22m[39m 14. a rebuilt runtime on the same database keeps address, fact and state[33m 7789[2mms[22m[39m
+   [32m✓[39m Stage 5 remediation — expression policy signals (P1-F) [2m(4)[22m
+     [33m[2m✓[22m[39m 15. a plain negation is not distress, while an explicit request for a fix is executed[33m 9278[2mms[22m[39m
+     [33m[2m✓[22m[39m 16. the greeting and preference guidance exists in the principles the model receives[33m 4901[2mms[22m[39m
+     [33m[2m✓[22m[39m 17. no expression policy changes the facts or the sensitivity ceiling[33m 6213[2mms[22m[39m
+     [33m[2m✓[22m[39m 18. retracted, superseded and deleted threads never reach the payload[33m 10374[2mms[22m[39m
+(node:22396) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m tests/correction-round.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 32755[2mms[22m[39m
+   [32m✓[39m P0-3 outbox effect ledger [2m(6)[22m
+     [33m[2m✓[22m[39m resumes an interrupted effect after a real process restart[33m 4874[2mms[22m[39m
+   [32m✓[39m P0-4 knowledge gap durability [2m(2)[22m
+     [33m[2m✓[22m[39m rolls the assistant message back when the gap cannot be recorded, instead of losing it silently[33m 7850[2mms[22m[39m
+     [33m[2m✓[22m[39m writes one gap per turn, not one per retry[33m 2806[2mms[22m[39m
+   [32m✓[39m P0-1 effect claim is atomic across connections [2m(3)[22m
+     [33m[2m✓[22m[39m lets exactly one of two connections claim the same effect[33m 4762[2mms[22m[39m
+     [33m[2m✓[22m[39m lets a second connection take over an expired lease, and blocks the old owner[33m 1615[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses to steal a lease that is still live[33m 4593[2mms[22m[39m
+   [32m✓[39m P0-4 the prompt separates "not retrieved" from "never told" [2m(1)[22m
+     [33m[2m✓[22m[39m tells the model that a missing memory was not retrieved, not never saved[33m 4810[2mms[22m[39m
+ [32m✓[39m src/app/provider-manual-chat.integration.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 31928[2mms[22m[39m
+   [32m✓[39m offline manual Provider configuration and chat path [2m(8)[22m
+     [33m[2m✓[22m[39m stores only the credential-presence flag in SQLite and completes a user-approved chat through a mocked OpenAI-compatible stream[33m 4828[2mms[22m[39m
+     [33m[2m✓[22m[39m does not dispatch a chat when the native approval boundary denies the exact payload[33m 3823[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the connection test separate from chat and sends only its fixed prompt through a mock[33m 3788[2mms[22m[39m
+     [33m[2m✓[22m[39m fails closed when enabled without a key or when key storage fails, leaving no enabled SQLite profile[33m 3127[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back provider settings if a newly written credential cannot be read back[33m 2364[2mms[22m[39m
+     [33m[2m✓[22m[39m does not report successful credential deletion when secure storage deletion fails[33m 8765[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps corrupt credentials distinct from missing, refuses replacement, and blocks chat before egress[33m 1613[2mms[22m[39m
+     [33m[2m✓[22m[39m rechecks credentials after user consent and blocks egress if ciphertext becomes unreadable[33m 3617[2mms[22m[39m
+(node:4412) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15316) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/personalization/personalization-service.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 28423[2mms[22m[39m
+   [32m✓[39m personalization persistence [2m(3)[22m
+     [33m[2m✓[22m[39m is idempotent per turn and exposes the evidence count[33m 3778[2mms[22m[39m
+     [33m[2m✓[22m[39m recomputes the value when the turn that produced it is withdrawn[33m 1588[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects an unparsable turn id instead of writing an untraceable row[33m 1582[2mms[22m[39m
+   [32m✓[39m personalization reaches the next request [2m(1)[22m
+     [33m[2m✓[22m[39m writes on one turn and is serialized into the next turn payload[33m 6249[2mms[22m[39m
+   [32m✓[39m P1 fixes: normalization, atomicity, deletion consistency [2m(5)[22m
+     [33m[2m✓[22m[39m stores the normalized signal and weight so the CHECK constraints agree with the arithmetic[33m 4570[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects a non-finite signal or an invalid timestamp instead of writing a row[33m 3576[2mms[22m[39m
+     [33m[2m✓[22m[39m recomputes from evidence when the source message is deleted, so no stale value survives[33m 1647[2mms[22m[39m
+     [33m[2m✓[22m[39m converges after a crash that left a signal without a state row[33m 1598[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the cached row identical to a fold over evidence[33m 3826[2mms[22m[39m
+(node:21464) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/affective-state/cognitive-feeling-service.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 28463[2mms[22m[39m
+   [32m✓[39m persisted cognitive feeling state [2m(9)[22m
+     [33m[2m✓[22m[39m rejects a conflicting replay with the same idempotency key without changing state[33m 3735[2mms[22m[39m
+     [33m[2m✓[22m[39m stores a completed event once and restores the same bounded state after database reopen[33m 1651[2mms[22m[39m
+     [33m[2m✓[22m[39m commits an assistant answer and its feeling revision in one SQLite transaction[33m 1615[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back the answer if its cognitive event cannot be validated, allowing the chat layer to fall back safely[33m 4885[2mms[22m[39m
+     [33m[2m✓[22m[39m replays same-timestamp events in committed order, independent of their random event IDs[33m 5535[2mms[22m[39m
+     [33m[2m✓[22m[39m rebuilds missing projection revisions from the durable event log[33m 3643[2mms[22m[39m
+     [33m[2m✓[22m[39m rebuilds state after conversation deletion so removed evidence cannot reappear[33m 1750[2mms[22m[39m
+     [33m[2m✓[22m[39m clears only cognitive observations and state, preserving conversations and their messages[33m 3954[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back a failed cognitive clear, returns a safe storage error, and remains idempotent[33m 1692[2mms[22m[39m
+(node:24444) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/persistence/migrations.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 160020[2mms[22m[39m
+   [32m✓[39m versioned local SQLite storage [2m(9)[22m
+     [33m[2m✓[22m[39m initializes an empty data directory and records the current schema version[33m 1353[2mms[22m[39m
+     [33m[2m✓[22m[39m migrates a v1 database without losing its records or falsely changing their source[33m 6445[2mms[22m[39m
+     [33m[2m✓[22m[39m upgrades v8 data without rewriting it and removes the recovery copy after a valid startup[33m 8016[2mms[22m[39m
+     [33m[2m✓[22m[39m upgrades v9 cognitive observations and settings without rewriting them, and initializes baseline feeling state[33m 2679[2mms[22m[39m
+     [33m[2m✓[22m[39m retains a verified recovery snapshot when an existing migration cannot be applied[33m 1078[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the app in the v9 core-chat fallback if the feeling migration fails[33m 5543[2mms[22m[39m
+     [33m[2m✓[22m[39m upgrades an existing v3 goal database without changing goal data and keeps reminder consent empty[33m 3663[2mms[22m[39m
+   [32m✓[39m v18 reflection-summary privacy rewrite [2m(2)[22m
+     [33m[2m✓[22m[39m rewrites a legacy reflection summary without deleting the row or its state[33m 11375[2mms[22m[39m
+     [33m[2m✓[22m[39m leaves non-reflection items untouched[33m 7916[2mms[22m[39m
+   [32m✓[39m derived-data deletion boundaries [2m(1)[22m
+     [33m[2m✓[22m[39m deletes source-linked self-model and interest rows plus conversation-scoped continuity records[33m 5263[2mms[22m[39m
+   [32m✓[39m foreign implementation-line databases [2m(1)[22m
+     [33m[2m✓[22m[39m fails closed without writing when migration names do not match this application[33m 2782[2mms[22m[39m
+   [32m✓[39m v25 memory-backed interest evidence [2m(1)[22m
+     [33m[2m✓[22m[39m upgrades a v24 ledger without losing rows and invalidates on retract afterwards[33m 8147[2mms[22m[39m
+   [32m✓[39m v26 reflection finding kinds [2m(1)[22m
+     [33m[2m✓[22m[39m keeps existing findings when the kind constraint is widened[33m 9955[2mms[22m[39m
+   [32m✓[39m v39 exploration states and finding routing [2m(1)[22m
+     [33m[2m✓[22m[39m drops the unreachable user_rejected state, keeps rows, and adds the routing tables[33m 7455[2mms[22m[39m
+   [32m✓[39m v48 pending decision terminal state [2m(1)[22m
+     [33m[2m✓[22m[39m upgrades a v47 database with pending items and keeps them decidable[33m 14589[2mms[22m[39m
+   [32m✓[39m v49 provider multi-source profiles final [2m(6)[22m
+     [33m[2m✓[22m[39m upgrades a release v47 database and preserves every built-in profile[33m 12111[2mms[22m[39m
+     [33m[2m✓[22m[39m upgrades a Stage 4 v48 database without losing pending or provider data[33m 10257[2mms[22m[39m
+     [33m[2m✓[22m[39m upgrades a standalone Provider v48 database through the integration bridge[33m 11227[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent across repeated startups and bridge retries[33m 11405[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back a failed v49 rebuild and can retry after the conflict is removed[33m 11301[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects a provider id longer than the secret store limit at the database boundary[33m 7451[2mms[22m[39m
+(node:23408) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage5-final-audit-repair.multiprocess.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 29690[2mms[22m[39m
+   [32m✓[39m F6 — cross-process outbox invariants [2m(5)[22m
+     [33m[2m✓[22m[39m two processes contend: one claims, the other is busy, the write happens once[33m 3010[2mms[22m[39m
+     [33m[2m✓[22m[39m a crashed claim is taken over after the lease expires, exactly once[33m 9024[2mms[22m[39m
+     [33m[2m✓[22m[39m an old worker whose lease was stolen cannot mark the obligation done[33m 4731[2mms[22m[39m
+     [33m[2m✓[22m[39m deleting the message while a process holds the claim prevents projection[33m 2506[2mms[22m[39m
+     [33m[2m✓[22m[39m an older obligation cannot override a newer correction across processes[33m 10262[2mms[22m[39m
+(node:18148) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage4-startup-composition.integration.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 29030[2mms[22m[39m
+   [32m✓[39m real startup composition [2m(8)[22m
+     [33m[2m✓[22m[39m runs the production startup reflection and routes its finding to SQLite[33m 4911[2mms[22m[39m
+     [33m[2m✓[22m[39m does not create a pending item when startup produces no finding[33m 1560[2mms[22m[39m
+     [33m[2m✓[22m[39m leaves no route/pending/audit partial state when startup ingestion fails[33m 4811[2mms[22m[39m
+     [33m[2m✓[22m[39m a second startup gap for the same label keeps the run successful[33m 3786[2mms[22m[39m
+     [33m[2m✓[22m[39m returns skipped when the service rate-limits the run and never throws[33m 1654[2mms[22m[39m
+     [33m[2m✓[22m[39m reports producer failure without throwing and records the failed stage[33m 3723[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps startup running when the lifecycle audit itself fails[33m 1604[2mms[22m[39m
+     [33m[2m✓[22m[39m repeated startup does not duplicate findings, routes or pending items[33m 5280[2mms[22m[39m
+   [32m✓[39m startup composition repetition with findings [2m(1)[22m
+     [33m[2m✓[22m[39m does not duplicate a finding, route or item across repeated startups[33m 1697[2mms[22m[39m
+(node:22028) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/motivation/companion-goal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 23547[2mms[22m[39m
+   [32m✓[39m companion goals [2m(10)[22m
+     [33m[2m✓[22m[39m defaults to a user goal with neutral priority[33m 3623[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects a goal without a title or with an out-of-range priority[33m 1612[2mms[22m[39m
+     [33m[2m✓[22m[39m orders the prompt candidates by priority[33m 3731[2mms[22m[39m
+     [33m[2m✓[22m[39m expires an overdue goal and stops offering it[33m 1614[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a due-today goal active until the deadline passes[33m 5215[2mms[22m[39m
+     [33m[2m✓[22m[39m resumes an expired goal but never a cancelled one[33m 1686[2mms[22m[39m
+     [33m[2m✓[22m[39m drops a completed goal out of the context[33m 4187[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps progress append-only and removes it with the goal[33m 1875[2mms[22m[39m
+(node:23748) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/self-model/morrow-trait-service.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 25039[2mms[22m[39m
+   [32m✓[39m Morrow trait evidence gate [2m(10)[22m
+     [33m[2m✓[22m[39m keeps a single observation as a candidate and never promotes it[33m 3596[2mms[22m[39m
+     [33m[2m✓[22m[39m promotes only after independent conversations, two contexts and a 24h window[33m 1832[2mms[22m[39m
+     [33m[2m✓[22m[39m does not double count a repeated observation from the same turn and context[33m 3807[2mms[22m[39m
+     [33m[2m✓[22m[39m restores the same active trait after a database reopen[33m 1728[2mms[22m[39m
+     [33m[2m✓[22m[39m recomputes immediately when its observation evidence disappears[33m 5433[2mms[22m[39m
+     [33m[2m✓[22m[39m weakens an active trait when counter-evidence arrives[33m 4438[2mms[22m[39m
+     [33m[2m✓[22m[39m does not turn an explicit user style request into a Morrow trait[33m 1539[2mms[22m[39m
+     [33m[2m✓[22m[39m filters the prompt block by topic and clears all evidence[33m 2660[2mms[22m[39m
+(node:14100) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | src/app/b4-recovery.integration.test.ts[2m > [22m[2mB4 recovery loop[2m > [22m[2mrepairs a turn whose assistant message never landed, without calling the provider again
+[22m[39mThe completed assistant response could not be stored; the turn will be recovered as interrupted. Error: injected commit failure
+    at BreakingConversations.appendMessage (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/b4-recovery.integration.test.ts:60:13)
+    at ChatService.send (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/companion-service.ts:2560:47)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/b4-recovery.integration.test.ts:146:5
+    at [90mfile:///E:/Hasee/Documents/morrow%20v2/zcode/stage3-audit/repo/[39mnode_modules/[4mvitest[24m/dist/chunks/run.BPv-BBRv.js:2801:20
+
+ [32m✓[39m src/relationship/relationship-threads.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 22635[2mms[22m[39m
+   [32m✓[39m relationship continuity (Stage 5 A) [2m(9)[22m
+     [33m[2m✓[22m[39m needs two independent messages before a shared topic is injected; one stays a candidate[33m 1707[2mms[22m[39m
+     [33m[2m✓[22m[39m an address preference is active from one explicit statement and a retry adds no weight[33m 3849[2mms[22m[39m
+     [33m[2m✓[22m[39m a later different address supersedes the earlier one[33m 1705[2mms[22m[39m
+     [33m[2m✓[22m[39m a withdrawal stops injection immediately[33m 5371[2mms[22m[39m
+     [33m[2m✓[22m[39m decays with the half-life and expires after the TTL instead of pretending to be current[33m 4315[2mms[22m[39m
+     [33m[2m✓[22m[39m a deleted evidence message never inflates the score twice[33m 1591[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses a source that does not exist, with a reason code and no write[33m 2529[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses a source from another conversation[33m 1557[2mms[22m[39m
+(node:23352) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/cognitive-outbox.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 22117[2mms[22m[39m
+   [32m✓[39m CognitionOutbox [2m(7)[22m
+     [33m[2m✓[22m[39m writes one pending row per module and nothing more on a replay[33m 3983[2mms[22m[39m
+     [33m[2m✓[22m[39m isolates a failing module so the others still run[33m 1953[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent: draining ten times applies each module once[33m 5461[2mms[22m[39m
+     [33m[2m✓[22m[39m parks a permanently failing row instead of retrying forever[33m 4517[2mms[22m[39m
+     [33m[2m✓[22m[39m replays what a crash left behind, reading the source text at projection time[33m 1744[2mms[22m[39m
+     [33m[2m✓[22m[39m cancels pending cognition when the turn is deleted[33m 2719[2mms[22m[39m
+     [33m[2m✓[22m[39m never stores the user text, only references[33m 1735[2mms[22m[39m
+ [32m✓[39m src/app/b1-strategy-payload.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 21967[2mms[22m[39m
+   [32m✓[39m B1 strategy reaches the serialized request [2m(3)[22m
+     [33m[2m✓[22m[39m asks for one clarifying question when the reference cannot be resolved[33m 4870[2mms[22m[39m
+     [33m[2m✓[22m[39m answers instead of asking once the same turn has resolvable context[33m 7318[2mms[22m[39m
+     [33m[2m✓[22m[39m routes a clear personal question to memory regardless of unrelated history[33m 9774[2mms[22m[39m
+ [32m✓[39m src/app/cognitive-phase2.integration.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 27565[2mms[22m[39m
+   [32m✓[39m phase 2 D: the evidence payload is traceable [2m(3)[22m
+     [33m[2m✓[22m[39m carries id, source, time, revision, sensitivity and predicate for every entry[33m 4343[2mms[22m[39m
+     [33m[2m✓[22m[39m marks two conflicting entries and never lets the model pick silently[33m 2389[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a retracted fact out of the payload and out of the ledger selection[33m 4542[2mms[22m[39m
+   [32m✓[39m phase 2 E: feedback is recorded, never applied [2m(4)[22m
+     [33m[2m✓[22m[39m writes one journal entry per turn that links intent to the answer outcome[33m 5970[2mms[22m[39m
+     [33m[2m✓[22m[39m records a provider failure as a failed call instead of dropping it[33m 4239[2mms[22m[39m
+     [33m[2m✓[22m[39m does not turn one preference or emotion expression into a personality or memory change[33m 3810[2mms[22m[39m
+     [33m[2m✓[22m[39m returns the ledger record to the caller with the payload digest that was approved[33m 2266[2mms[22m[39m
+(node:17328) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8728) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16336) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/personality-affect.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 18006[2mms[22m[39m
+   [32m✓[39m affect and trait production path [2m(2)[22m
+     [33m[2m✓[22m[39m puts a real emotion projection into the provider payload and persists it with the turn[33m 6766[2mms[22m[39m
+     [33m[2m✓[22m[39m promotes a responsibility trait from repeated independent corrections and reads it next turn[33m 11237[2mms[22m[39m
+(node:17976) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/memory/memory-importance.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 23196[2mms[22m[39m
+   [32m✓[39m importance service [2m(7)[22m
+     [33m[2m✓[22m[39m records a score whenever a memory changes[33m 5306[2mms[22m[39m
+     [33m[2m✓[22m[39m archives only low-importance memories that are old enough[33m 4529[2mms[22m[39m
+     [33m[2m✓[22m[39m restores an archived memory without touching its content[33m 1679[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps archived memories out of the retrieval competition[33m 2697[2mms[22m[39m
+     [33m[2m✓[22m[39m consolidates two statements of the same fact by reference, not by copy[33m 1715[2mms[22m[39m
+     [33m[2m✓[22m[39m drops a consolidation member once the memory is retracted[33m 5618[2mms[22m[39m
+     [33m[2m✓[22m[39m stamps the parameter version on every cached score[33m 1643[2mms[22m[39m
+(node:17536) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/persistence/deletion-journal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 20186[2mms[22m[39m
+   [32m✓[39m deletion boundary journal [2m(7)[22m
+     [33m[2m✓[22m[39m is created by migration v11 and remains present in the current schema[33m 4247[2mms[22m[39m
+     [33m[2m✓[22m[39m records hard-deleted memories as deleted and keeps the state after restart[33m 1627[2mms[22m[39m
+     [33m[2m✓[22m[39m records retraction and un-retraction so a later backup restore cannot resurrect the wrong state[33m 2596[2mms[22m[39m
+     [33m[2m✓[22m[39m does not journal corrections or creations[33m 1535[2mms[22m[39m
+     [33m[2m✓[22m[39m records hard-deleted conversations so restores cannot resurrect them[33m 1652[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps journal entries inside the same transaction as the deletion[33m 5459[2mms[22m[39m
+     [33m[2m✓[22m[39m ignores malformed journal rows and unknown identifiers when reading[33m 3067[2mms[22m[39m
+[90mstderr[2m | src/app/b4-recovery.integration.test.ts[2m > [22m[2mB4 recovery loop[2m > [22m[2mdoes not resurrect a conversation that was deleted before recovery
+[22m[39mThe completed assistant response could not be stored; the turn will be recovered as interrupted. Error: injected commit failure
+    at BreakingConversations.appendMessage (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/b4-recovery.integration.test.ts:60:13)
+    at ChatService.send (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/companion-service.ts:2560:47)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/b4-recovery.integration.test.ts:198:5
+    at [90mfile:///E:/Hasee/Documents/morrow%20v2/zcode/stage3-audit/repo/[39mnode_modules/[4mvitest[24m/dist/chunks/run.BPv-BBRv.js:2801:20
+
+ [32m✓[39m src/memory/fact-memory.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 24511[2mms[22m[39m
+   [32m✓[39m fact ledger (final closure R1/R2) [2m(9)[22m
+     [33m[2m✓[22m[39m indexes every fact of one memory with the right source revision[33m 5303[2mms[22m[39m
+     [33m[2m✓[22m[39m R2: a retracted memory with an empty ledger never resurrects facts on reindexAll[33m 4290[2mms[22m[39m
+     [33m[2m✓[22m[39m R2: retracting closes facts instead of re-creating them[33m 2611[2mms[22m[39m
+     [33m[2m✓[22m[39m correct supersedes the old value and cites the new revision[33m 1646[2mms[22m[39m
+     [33m[2m✓[22m[39m replays are idempotent: ten reindexes leave one row per fact[33m 1809[2mms[22m[39m
+     [33m[2m✓[22m[39m deleting the memory leaves no orphan facts[33m 5548[2mms[22m[39m
+     [33m[2m✓[22m[39m different memories with different values stay conflict candidates, not auto-superseded[33m 3293[2mms[22m[39m
+(node:17104) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21960) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/turn-context-fidelity.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 19363[2mms[22m[39m
+   [32m✓[39m persisted turn context [2m(3)[22m
+     [33m[2m✓[22m[39m records whether the turn depended on the previous one[33m 8819[2mms[22m[39m
+     [33m[2m✓[22m[39m records the committed state when a state event lands[33m 6456[2mms[22m[39m
+     [33m[2m✓[22m[39m does not claim a state change when no event was detected[33m 4085[2mms[22m[39m
+(node:14392) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[90mstderr[2m | src/app/b4-recovery.integration.test.ts[2m > [22m[2mB4 recovery loop[2m > [22m[2msurvives a restart between the interruption and the recovery
+[22m[39mThe completed assistant response could not be stored; the turn will be recovered as interrupted. Error: injected commit failure
+    at BreakingConversations.appendMessage (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/b4-recovery.integration.test.ts:60:13)
+    at ChatService.send (E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/companion-service.ts:2560:47)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at E:/Hasee/Documents/morrow v2/zcode/stage3-audit/repo/src/app/b4-recovery.integration.test.ts:219:5
+    at [90mfile:///E:/Hasee/Documents/morrow%20v2/zcode/stage3-audit/repo/[39mnode_modules/[4mvitest[24m/dist/chunks/run.BPv-BBRv.js:2801:20
+
+ [32m✓[39m src/app/b4-recovery.integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 14837[2mms[22m[39m
+   [32m✓[39m B4 recovery loop [2m(4)[22m
+     [33m[2m✓[22m[39m repairs a turn whose assistant message never landed, without calling the provider again[33m 2462[2mms[22m[39m
+     [33m[2m✓[22m[39m completes a turn whose message landed but whose intent was left behind, with no second answer[33m 6616[2mms[22m[39m
+     [33m[2m✓[22m[39m does not resurrect a conversation that was deleted before recovery[33m 3546[2mms[22m[39m
+     [33m[2m✓[22m[39m survives a restart between the interruption and the recovery[33m 2211[2mms[22m[39m
+(node:21496) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/personalization/interaction-profile.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 18051[2mms[22m[39m
+   [32m✓[39m UserInteractionProfileService [2m(6)[22m
+     [33m[2m✓[22m[39m starts neutral and seeds from the identity baseline[33m 1690[2mms[22m[39m
+     [33m[2m✓[22m[39m does not move below the evidence gate[33m 1605[2mms[22m[39m
+     [33m[2m✓[22m[39m moves after three independent turns and stays bounded[33m 5738[2mms[22m[39m
+     [33m[2m✓[22m[39m counts a replayed turn once[33m 3278[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back without touching the identity baseline[33m 1767[2mms[22m[39m
+     [33m[2m✓[22m[39m describes only dimensions that actually moved[33m 3969[2mms[22m[39m
+(node:19092) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/cognition/turn-context.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 15392[2mms[22m[39m
+   [32m✓[39m turn context store [2m(5)[22m
+     [33m[2m✓[22m[39m round-trips a record[33m 5337[2mms[22m[39m
+     [33m[2m✓[22m[39m reads a stored schema 1 payload back through the repository[33m 3169[2mms[22m[39m
+     [33m[2m✓[22m[39m replaces a failed record with a successful one for the same turn[33m 1578[2mms[22m[39m
+     [33m[2m✓[22m[39m never downgrades a successful record[33m 3737[2mms[22m[39m
+     [33m[2m✓[22m[39m treats an unreadable payload as absent rather than partially trusted[33m 1558[2mms[22m[39m
+ [32m✓[39m src/memory/memory-service.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 17198[2mms[22m[39m
+   [32m✓[39m traceable local memory lifecycle [2m(6)[22m
+     [33m[2m✓[22m[39m stores only explicit text with a fixed source category and inspectable creation history[33m 5443[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves original text and a complete linear correction lineage[33m 2870[2mms[22m[39m
+     [33m[2m✓[22m[39m hides retracted records from search and restores them only by explicit transition[33m 1887[2mms[22m[39m
+     [33m[2m✓[22m[39m hard-deletes the primary record and every revision across database reopen[33m 1581[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back state changes when revision insertion fails[33m 3743[2mms[22m[39m
+     [33m[2m✓[22m[39m uses status-filtered parameterized search and rejects empty or oversized queries[33m 1672[2mms[22m[39m
+(node:22816) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/affective-state/emotion-service.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 17773[2mms[22m[39m
+   [32m✓[39m durable emotion model [2m(7)[22m
+     [33m[2m✓[22m[39m persists a positive appraisal and restores the same revision after reopen[33m 1693[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent per turn and rejects a conflicting replay[33m 5596[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps coexisting emotions and decays by family half-life[33m 3213[2mms[22m[39m
+     [33m[2m✓[22m[39m regulates and rebuilds without resurrecting a retracted emotion[33m 1692[2mms[22m[39m
+     [33m[2m✓[22m[39m deletes emotion evidence with its conversation and clears all history[33m 3902[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps user emotion out of Morrow sadness and filters unrelated emotion from a query[33m 1673[2mms[22m[39m
+ [32m✓[39m src/cognition/pending-items.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 18600[2mms[22m[39m
+   [32m✓[39m pending item store [2m(6)[22m
+     [33m[2m✓[22m[39m dedupes by concern, keeps the first id, and raises priority[33m 1586[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a decided item closed when the same concern is observed again[33m 5527[2mms[22m[39m
+     [33m[2m✓[22m[39m replays the same decision idempotently and reports an unknown id[33m 3135[2mms[22m[39m
+     [33m[2m✓[22m[39m absorbs the same reflection findings once, however many runs report them[33m 1518[2mms[22m[39m
+     [33m[2m✓[22m[39m never persists the text of a reflection finding, even when it quotes the user[33m 1500[2mms[22m[39m
+     [33m[2m✓[22m[39m survives being reopened from disk[33m 3721[2mms[22m[39m
+   [32m✓[39m pending decision boundary [2m(2)[22m
+     [33m[2m✓[22m[39m has no public write path that changes status without a decision[33m 1571[2mms[22m[39m
+(node:17640) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/interest-payload-invalidation.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 17614[2mms[22m[39m
+   [32m✓[39m an invalidated interest stops reaching the request payload [2m(2)[22m
+     [33m[2m✓[22m[39m drops the interest from the payload when its memory evidence is retracted[33m 10502[2mms[22m[39m
+     [33m[2m✓[22m[39m drops the interest from the payload when the user reverses, and restores it on a newer support[33m 7109[2mms[22m[39m
+(node:22240) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/persistence/persistence.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 10981[2mms[22m[39m
+   [32m✓[39m SQLite schema and migrations [2m(3)[22m
+     [33m[2m✓[22m[39m initializes an empty profile, upgrades a legacy schema and retains records[33m 3110[2mms[22m[39m
+   [32m✓[39m durable memory lifecycle [2m(4)[22m
+     [33m[2m✓[22m[39m stores only explicit user input and preserves the original plus every correction revision[33m 1601[2mms[22m[39m
+     [33m[2m✓[22m[39m excludes retracted memories from search until the user explicitly restores them[33m 3732[2mms[22m[39m
+     [33m[2m✓[22m[39m hard-deletes the memory and its revision lineage across database reopen[33m 1579[2mms[22m[39m
+   [32m✓[39m nested transactions [2m(2)[22m
+     [33m[2m✓[22m[39m rolls back only the inner work when the inner call fails[33m 306[2mms[22m[39m
+(node:9056) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:22516) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20408) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/self-model/intrinsic-reward.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 13195[2mms[22m[39m
+   [32m✓[39m intrinsic reward contract [2m(6)[22m
+     [33m[2m✓[22m[39m records a verified progress signal once and reads it back[33m 1516[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects user praise, retention, dependency and self-praise as reward sources[33m 1515[2mms[22m[39m
+     [33m[2m✓[22m[39m requires verifiable evidence and a bounded magnitude[33m 3717[2mms[22m[39m
+     [33m[2m✓[22m[39m bridges a promoted thought review into a verified reward row[33m 1886[2mms[22m[39m
+     [33m[2m✓[22m[39m clears the reward ledger without touching anything else[33m 4556[2mms[22m[39m
+ [32m✓[39m src/memory/memory-extensions.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 13367[2mms[22m[39m
+   [32m✓[39m memory provenance, dedup and conflict extension [2m(6)[22m
+     [33m[2m✓[22m[39m merges re-entered duplicates into a confirmation instead of forking a record[33m 1616[2mms[22m[39m
+     [33m[2m✓[22m[39m distinguishes model-inferred confirmed memories from directly typed input[33m 3782[2mms[22m[39m
+     [33m[2m✓[22m[39m flags same-subject conflicts and records the advisory event without blocking[33m 1558[2mms[22m[39m
+     [33m[2m✓[22m[39m records a full audit trail with correlation ids and supports rollback-free confirm transitions[33m 4761[2mms[22m[39m
+     [33m[2m✓[22m[39m persists memory events into the unified event journal and keeps them across reopen[33m 1646[2mms[22m[39m
+(node:12144) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20884) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/personalization/personality-growth.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 13274[2mms[22m[39m
+   [32m✓[39m PersonalityGrowthService [2m(5)[22m
+     [33m[2m✓[22m[39m withholds, then applies once the evidence gate is reached[33m 1577[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent for a replayed turn[33m 3717[2mms[22m[39m
+     [33m[2m✓[22m[39m drops a deleted turn back out of the fold[33m 1682[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls back to zero and records the rollback[33m 4711[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects malformed evidence instead of storing it[33m 1547[2mms[22m[39m
+(node:24032) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/cognitive-loop.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 13511[2mms[22m[39m
+   [32m✓[39m cognitive closed loop over a real loopback provider [2m(2)[22m
+     [33m[2m✓[22m[39m feeds interests and self-knowledge from completed turns into the next request context[33m 10425[2mms[22m[39m
+     [33m[2m✓[22m[39m restores interests, self-model and journal across restart without duplicating evidence[33m 3083[2mms[22m[39m
+(node:20540) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/persistence/pending-schema-gate.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 8581[2mms[22m[39m
+   [32m✓[39m pending store schema capability [2m(1)[22m
+     [33m[2m✓[22m[39m fails closed with SCHEMA_UPGRADE_REQUIRED when v48 could not be applied[33m 8578[2mms[22m[39m
+ [32m✓[39m src/app/stage4-reflection-producer.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 8926[2mms[22m[39m
+   [32m✓[39m production reflection producer chain [2m(3)[22m
+     [33m[2m✓[22m[39m turns a single-conversation grounding gap into a linked open_question pending item[33m 4058[2mms[22m[39m
+     [33m[2m✓[22m[39m the startup trigger feeds the same producer and ingestion path[33m 2882[2mms[22m[39m
+     [33m[2m✓[22m[39m a second correction event does not fail manual ingestion[33m 1981[2mms[22m[39m
+ [32m✓[39m src/app/local-provider.integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 11543[2mms[22m[39m
+   [32m✓[39m local loopback provider (real HTTP over 127.0.0.1) [2m(4)[22m
+     [33m[2m✓[22m[39m rejects a non-loopback endpoint before anything is stored[33m 4817[2mms[22m[39m
+     [33m[2m✓[22m[39m completes a real multi-turn chat against a loopback OpenAI-compatible server without any credential[33m 1918[2mms[22m[39m
+     [33m[2m✓[22m[39m sends the stored credential as a bearer header when one is configured[33m 2879[2mms[22m[39m
+     [33m[2m✓[22m[39m prefers the enabled local provider for chat while a configured DeepSeek stays secondary[33m 1925[2mms[22m[39m
+ [32m✓[39m src/app/stage4-outbox-reflection.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 9334[2mms[22m[39m
+   [32m✓[39m reflection outbox under a rate-limited run [2m(2)[22m
+     [33m[2m✓[22m[39m does not mark the row done while recovery still has failed findings[33m 4269[2mms[22m[39m
+     [33m[2m✓[22m[39m does not mark the row done when the schema cannot route findings[33m 2922[2mms[22m[39m
+   [32m✓[39m real-router outbox retry [2m(1)[22m
+     [33m[2m✓[22m[39m recovers a finding stranded by a transient pending write on a non-rate-limited retry[33m 2141[2mms[22m[39m
+(node:7592) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/provider-continuity.integration.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 9964[2mms[22m[39m
+   [32m✓[39m provider switching keeps Morrow state [2m(1)[22m
+     [33m[2m✓[22m[39m does not reset personality, memory, goals or history across A → reopen → B → A[33m 9961[2mms[22m[39m
+(node:19840) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/memory/fact-index-faults.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 11181[2mms[22m[39m
+   [32m✓[39m fact index failure handling (A) [2m(4)[22m
+     [33m[2m✓[22m[39m a throwing reindex emits a sanitized degradation event and still finds the fact via the fallback scan[33m 4772[2mms[22m[39m
+     [33m[2m✓[22m[39m a degraded job is retried after its backoff and recovers the index[33m 1961[2mms[22m[39m
+     [33m[2m✓[22m[39m a degraded job inside its backoff window is not hot-retried[33m 2782[2mms[22m[39m
+     [33m[2m✓[22m[39m B end-to-end: provenance flows from create through the revision into the fact ledger[33m 1662[2mms[22m[39m
+ [32m✓[39m src/memory/memory-maintenance.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 10802[2mms[22m[39m
+   [32m✓[39m memory maintenance scheduler (D-12) [2m(4)[22m
+     [33m[2m✓[22m[39m catches up on start, then honours the absolute-time gate[33m 4732[2mms[22m[39m
+     [33m[2m✓[22m[39m never double-applies a pass for repeated ticks inside the interval[33m 2772[2mms[22m[39m
+     [33m[2m✓[22m[39m records a failed pass and lets the next tick retry[33m 1848[2mms[22m[39m
+     [33m[2m✓[22m[39m start is idempotent and stop releases the timer[33m 1446[2mms[22m[39m
+(node:3708) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20184) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:18104) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21968) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23308) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/ipc.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 3699[2mms[22m[39m
+   [32m✓[39m main-frame IPC authorization and error boundary [2m(13)[22m
+     [33m[2m✓[22m[39m returns runtime info for the trusted main frame[33m 386[2mms[22m[39m
+     [33m[2m✓[22m[39m requires explicit reminder consent, schedules only active goals, and pauses immediately[33m 364[2mms[22m[39m
+(node:14560) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/cognition/turn-state-machine.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 9276[2mms[22m[39m
+   [32m✓[39m turn state persistence [2m(3)[22m
+     [33m[2m✓[22m[39m records a full lifecycle and refuses an illegal move[33m 2924[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the first state when the same state is re-entered[33m 1850[2mms[22m[39m
+     [33m[2m✓[22m[39m drops the lifecycle when its conversation is deleted[33m 4495[2mms[22m[39m
+ [32m✓[39m src/app/turn-reliability.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 9592[2mms[22m[39m
+   [32m✓[39m phase 2.3 B/D: one turn, one answer, one ledger entry [2m(3)[22m
+     [33m[2m✓[22m[39m delivers a single answer after a transient failure[33m 3143[2mms[22m[39m
+     [33m[2m✓[22m[39m does not retry a permanent server failure past the ceiling, and the next turn still works[33m 1882[2mms[22m[39m
+     [33m[2m✓[22m[39m does not write a memory or a suggestion as a side effect of a retried turn[33m 4563[2mms[22m[39m
+(node:15532) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/turn-state-sequence.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 7285[2mms[22m[39m
+   [32m✓[39m turn state sequence [2m(3)[22m
+     [33m[2m✓[22m[39m walks received → analyzed → context_ready → awaiting_consent → requesting → response_received → committed[33m 2543[2mms[22m[39m
+     [33m[2m✓[22m[39m records a provider failure after requesting, and never claims a delivery[33m 4732[2mms[22m[39m
+(node:14168) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/motivation/reminder-service.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 9750[2mms[22m[39m
+   [32m✓[39m M4 local, consented and bounded goal reminders [2m(16)[22m
+     [33m[2m✓[22m[39m suppresses muted, quiet-hour, and stale startup reminders without showing them[33m 655[2mms[22m[39m
+     [33m[2m✓[22m[39m honors both per-pass count and elapsed-time dispatch budgets[33m 392[2mms[22m[39m
+     [33m[2m✓[22m[39m replays one overdue persisted schedule after restart when the notification was never shown[33m 1660[2mms[22m[39m
+     [33m[2m✓[22m[39m recovers a notification interrupted while showing without replaying it twice[33m 4706[2mms[22m[39m
+(node:19324) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14944) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage4-restart-consistency.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 6279[2mms[22m[39m
+   [32m✓[39m stage 4 restart consistency [2m(2)[22m
+     [33m[2m✓[22m[39m keeps an open pending item decidable after a real close/reopen[33m 4760[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a decided pending item and its route terminal after close/reopen[33m 1515[2mms[22m[39m
+ [32m✓[39m src/motivation/goal-service.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 3440[2mms[22m[39m
+   [32m✓[39m M2 bounded goal, authorization, execution and recovery [2m(12)[22m
+     [33m[2m✓[22m[39m does not execute altered parameters, tool IDs, resource scopes or approval records[33m 810[2mms[22m[39m
+     [33m[2m✓[22m[39m does not mark a mismatch or malformed tool response as success[33m 439[2mms[22m[39m
+(node:18588) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/self-model/self-model.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 1911[2mms[22m[39m
+ [32m✓[39m src/evaluation/offline-evaluation.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2523[2mms[22m[39m
+   [32m✓[39m M3 offline replay and shadow evaluation [2m(6)[22m
+     [33m[2m✓[22m[39m enforces M2 approval/recovery safety and scores the isolated candidate against M1[33m 334[2mms[22m[39m
+     [33m[2m✓[22m[39m clears only a named report under evaluation/reports[33m 1631[2mms[22m[39m
+(node:8028) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/stage4-goal-candidate-e2e.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8041[2mms[22m[39m
+   [32m✓[39m goal candidate IPC end-to-end [2m(2)[22m
+     [33m[2m✓[22m[39m lists a real candidate, accepts it through IPC, and exposes the goal in the formal list[33m 4763[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects through IPC without creating a goal[33m 3273[2mms[22m[39m
+ [32m✓[39m src/app/provider-multi-source-ipc.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8019[2mms[22m[39m
+   [32m✓[39m provider profile IPC [2m(2)[22m
+     [33m[2m✓[22m[39m saves, lists and tests a custom profile through the typed bridge[33m 4649[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects an untrusted frame and an unsafe endpoint before the service[33m 3366[2mms[22m[39m
+ [32m✓[39m src/persistence/intent-reading-pending-closure.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 7972[2mms[22m[39m
+   [32m✓[39m intent withdrawal closes open questions as a decision [2m(1)[22m
+     [33m[2m✓[22m[39m writes dismissed state, converges the route and audits the system decision[33m 4634[2mms[22m[39m
+   [32m✓[39m intent withdrawal closure failure handling [2m(1)[22m
+     [33m[2m✓[22m[39m keeps the item open and records the failure when the decision write fails, then retries[33m 3331[2mms[22m[39m
+(node:23092) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/memory/memory-importance-ranking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8180[2mms[22m[39m
+   [32m✓[39m importance in retrieval ranking [2m(2)[22m
+     [33m[2m✓[22m[39m changes the order of two equally relevant memories[33m 4950[2mms[22m[39m
+     [33m[2m✓[22m[39m cannot rescue a memory that is not relevant to the query[33m 3226[2mms[22m[39m
+[90mstderr[2m | src/app/b5-reflection-safety.integration.test.ts[2m > [22m[2mB5 reflection cannot block a turn[2m > [22m[2mdelivers the answer even when reflection throws
+[22m[39mSome post-turn cognition could not be applied; it stays queued and will be retried.
+
+(node:18356) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/app/b5-reflection-safety.integration.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4040[2mms[22m[39m
+   [32m✓[39m B5 reflection cannot block a turn [2m(1)[22m
+     [33m[2m✓[22m[39m delivers the answer even when reflection throws[33m 4036[2mms[22m[39m
+ [32m✓[39m src/self-model/self-fact-statement.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1439[2mms[22m[39m
+   [32m✓[39m migration 20 stops historical copies [2m(1)[22m
+     [33m[2m✓[22m[39m retracts rows that were a literal copy of their source message and leaves other rows alone[33m 1423[2mms[22m[39m
+ [32m✓[39m src/providers/openai-compatible.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2607[2mms[22m[39m
+   [32m✓[39m DeepSeek V4.1 Flash adapter [2m(7)[22m
+     [33m[2m✓[22m[39m maps authentication and rate-limit responses to safe actionable error codes[33m 1207[2mms[22m[39m
+     [33m[2m✓[22m[39m separates caller cancellation from the request timeout[33m 1309[2mms[22m[39m
+(node:23040) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2276) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/self-model/interest-evidence.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 5392[2mms[22m[39m
+   [32m✓[39m topic aggregation across sessions (B5 root fix) [2m(7)[22m
+     [33m[2m✓[22m[39m merges phrasing variants of one topic and promotes only at the documented threshold[33m 320[2mms[22m[39m
+   [32m✓[39m evidence ledger lifecycle [2m(4)[22m
+     [33m[2m✓[22m[39m recovers the ledger and the promotion result after a restart[33m 2756[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the cached counters equal to a fold over the ledger[33m 319[2mms[22m[39m
+(node:8756) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24140) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/self-model/interest-invalidation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 10740[2mms[22m[39m
+   [32m✓[39m memory-backed interest evidence is invalidated with the memory [2m(4)[22m
+     [33m[2m✓[22m[39m drops the evidence when the memory is retracted, and the interest with it[33m 319[2mms[22m[39m
+     [33m[2m✓[22m[39m drops the evidence when the memory row is deleted outright[33m 333[2mms[22m[39m
+     [33m[2m✓[22m[39m ages out evidence from an older revision but keeps evidence from the current one[33m 308[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the invalidation after a restart[33m 4779[2mms[22m[39m
+   [32m✓[39m a backup of a demoted interest does not resurrect it [2m(1)[22m
+     [33m[2m✓[22m[39m carries the invalidation into the snapshot[33m 3634[2mms[22m[39m
+   [32m✓[39m reversal changes the interest state, not just the ledger [2m(4)[22m
+     [33m[2m✓[22m[39m suspends an active interest as soon as the user reverses[33m 370[2mms[22m[39m
+     [33m[2m✓[22m[39m lets a newer support clear an older reversal instead of being vetoed forever[33m 350[2mms[22m[39m
+     [33m[2m✓[22m[39m recomputes from the remaining evidence when the counter source is deleted[33m 329[2mms[22m[39m
+     [33m[2m✓[22m[39m does not double count a replayed reversal[33m 301[2mms[22m[39m
+(node:4440) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ [32m✓[39m src/memory/memory-evidence.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 2439[2mms[22m[39m
+   [32m✓[39m memory evidence production [2m(7)[22m
+     [33m[2m✓[22m[39m counts a repeated turn once, however often it is projected[33m 467[2mms[22m[39m
+     [33m[2m✓[22m[39m counts three turns in one conversation as one independent group[33m 355[2mms[22m[39m
+     [33m[2m✓[22m[39m records a confirmation for confirm() without treating it as a repetition[33m 317[2mms[22m[39m
+     [33m[2m✓[22m[39m suppresses the repetition contribution after a retraction[33m 301[2mms[22m[39m
+     [33m[2m✓[22m[39m changes the retrieval ranking once the fact has been restated[33m 396[2mms[22m[39m
+ [32m✓[39m src/evaluation/cognitive-alpha-evaluation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 293[2mms[22m[39m
+ [32m✓[39m src/persistence/reminder-repository.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1374[2mms[22m[39m
+   [32m✓[39m SQLite reminder storage [2m(4)[22m
+     [33m[2m✓[22m[39m persists opt-out defaults and consented settings without exposing reminder content[33m 399[2mms[22m[39m
+     [33m[2m✓[22m[39m writes a reminder decision atomically, rejects stale transitions, and cascades on goal deletion[33m 308[2mms[22m[39m
+     [33m[2m✓[22m[39m cancels pending reminders transactionally and retains only recent decisions for active items when clearing history[33m 363[2mms[22m[39m
+ [32m✓[39m src/self-model/inner-cognition.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2386[2mms[22m[39m
+   [32m✓[39m inner cognition workspace [2m(4)[22m
+     [33m[2m✓[22m[39m creates a Morrow-owned thought only from an uncertain reply, not from a user preference[33m 408[2mms[22m[39m
+     [33m[2m✓[22m[39m persists candidate, then activates only after two independent conversations[33m 350[2mms[22m[39m
+     [33m[2m✓[22m[39m survives a service restart and keeps the state readable[33m 311[2mms[22m[39m
+     [33m[2m✓[22m[39m does not activate a thought with counter-evidence[33m 347[2mms[22m[39m
+   [32m✓[39m inner cognition evidence and relevance [2m(3)[22m
+     [33m[2m✓[22m[39m creates a thought from prediction error even without an "I do not know" phrase[33m 326[2mms[22m[39m
+     [33m[2m✓[22m[39m filters unrelated self-state out of the next-turn context[33m 325[2mms[22m[39m
+     [33m[2m✓[22m[39m lets counter-evidence weaken an active state and keeps the revision[33m 308[2mms[22m[39m
+ [32m✓[39m src/persistence/turn-trace-repository.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 718[2mms[22m[39m
+   [32m✓[39m turn trace repository [2m(2)[22m
+     [33m[2m✓[22m[39m stores ordered, bounded trace events for a conversation[33m 348[2mms[22m[39m
+     [33m[2m✓[22m[39m caps a conversation read at 200 events[33m 361[2mms[22m[39m
+ [32m✓[39m src/providers/provider-retry.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 307[2mms[22m[39m
+ [32m✓[39m src/providers/consent-grants.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1310[2mms[22m[39m
+   [32m✓[39m chat consent grants [2m(4)[22m
+     [33m[2m✓[22m[39m reuses a normal/personal grant for the exact provider scope[33m 363[2mms[22m[39m
+     [33m[2m✓[22m[39m never gives a 30-day grant to sensitive scope[33m 309[2mms[22m[39m
+     [33m[2m✓[22m[39m honours expiry and revocation[33m 319[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the fingerprint free of keys and message payloads[33m 311[2mms[22m[39m
+ [32m✓[39m tests/provider-profiles-ui.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 332[2mms[22m[39m
+ [32m✓[39m src/persistence/event-log.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1288[2mms[22m[39m
+   [32m✓[39m unified event log [2m(4)[22m
+     [33m[2m✓[22m[39m records and lists events with filtering by subject, type and correlation[33m 369[2mms[22m[39m
+     [33m[2m✓[22m[39m rejects invalid events instead of writing untraceable records[33m 303[2mms[22m[39m
+     [33m[2m✓[22m[39m tryRecord swallows failures so observability cannot break the loop[33m 324[2mms[22m[39m
+ [32m✓[39m src/affective-state/cognitive-feeling-engine.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 223[2mms[22m[39m
+ [32m✓[39m src/self-model/morrow-attribution.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2069[2mms[22m[39m
+   [32m✓[39m P0-1 Morrow interest attribution [2m(6)[22m
+     [33m[2m✓[22m[39m promotes a Morrow-only topic from independent gap evidence in two conversations[33m 403[2mms[22m[39m
+     [33m[2m✓[22m[39m never promotes a Morrow topic from a single conversation, however many gaps it produced[33m 318[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps a user-only topic on the user side even when Morrow also failed on it[33m 345[2mms[22m[39m
+     [33m[2m✓[22m[39m does not let user evidence promote a Morrow-origin topic on its own[33m 331[2mms[22m[39m
+     [33m[2m✓[22m[39m retracts Morrow evidence when the source turn is deleted[33m 346[2mms[22m[39m
+     [33m[2m✓[22m[39m records the counter-evidence polarity so a reversal lowers the aggregate[33m 319[2mms[22m[39m
+ [32m✓[39m src/cognition/cognitive-turn-analyzer.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 186[2mms[22m[39m
+ [32m✓[39m src/cognition/intent-reading.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 168[2mms[22m[39m
+ [32m✓[39m src/evaluation/feeling-evaluation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 201[2mms[22m[39m
+ [32m✓[39m src/providers/bounded-body.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 122[2mms[22m[39m
+ [32m✓[39m src/affective-state/appraisal-engine.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 182[2mms[22m[39m
+ [32m✓[39m tests/goal-candidates-ui.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 237[2mms[22m[39m
+ [32m✓[39m tests/pending-ui.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 117[2mms[22m[39m
+ [32m✓[39m src/evaluation/cognitive-evaluation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 158[2mms[22m[39m
+ [32m✓[39m src/cognition/answer-evidence-evaluation.test.ts [2m([22m[2m36 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+ [32m✓[39m src/evaluation/reminder-policy-evaluation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 142[2mms[22m[39m
+ [32m✓[39m src/self-model/affect-attention.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/motivation/reminders.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m src/cognition/intent-decision.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/evaluation/slice2-retrieval.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/shared/validation.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m src/evaluation/intent-decision-evaluation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/security/secrets-storage.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 85[2mms[22m[39m
+ [32m✓[39m src/cognition/turn-evaluation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 93[2mms[22m[39m
+ [32m✓[39m src/evaluation/phase23-report-check.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+ [32m✓[39m src/memory/memory-context-assembler.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 92[2mms[22m[39m
+ [32m✓[39m src/memory/fact-slot.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m src/cognition/intent-confidence.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/cognition/answer-fact-guard.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/providers/provider-policy.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/motivation/goal-lifecycle.test.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 4849[2mms[22m[39m
+   [32m✓[39m goal candidate reading [2m(5)[22m
+     [33m[2m✓[22m[39m creates a candidate with the raw horizon when the date cannot be resolved[33m 464[2mms[22m[39m
+   [32m✓[39m goal creation and lifecycle [2m(5)[22m
+     [33m[2m✓[22m[39m writes the resolved deadline onto the created goal[33m 321[2mms[22m[39m
+     [33m[2m✓[22m[39m is idempotent on the source message: a replay creates one goal[33m 342[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts a candidate atomically and exposes it to the next prompt with its deadline[33m 347[2mms[22m[39m
+     [33m[2m✓[22m[39m cancels the goal and expires the candidate when the source message is deleted[33m 334[2mms[22m[39m
+     [33m[2m✓[22m[39m drops a completed or expired goal from the next prompt[33m 331[2mms[22m[39m
+   [32m✓[39m goal candidate confirmation closure (BL-02 / goal UI contract) [2m(4)[22m
+     [33m[2m✓[22m[39m reject is durable, audited, idempotent and conflicts with accept[33m 346[2mms[22m[39m
+     [33m[2m✓[22m[39m accept then reject is a conflict, and a repeated accept returns the same goal[33m 335[2mms[22m[39m
+     [33m[2m✓[22m[39m a disappeared source persists expired instead of rolling back the marker[33m 341[2mms[22m[39m
+     [33m[2m✓[22m[39m accept vs reject leaves exactly one terminal state[33m 303[2mms[22m[39m
+   [32m✓[39m goal candidate audit is a required dependency [2m(5)[22m
+     [33m[2m✓[22m[39m rolls accept back when the audit write throws[33m 327[2mms[22m[39m
+     [33m[2m✓[22m[39m rolls reject and source-unavailable back when the audit write throws[33m 313[2mms[22m[39m
+     [33m[2m✓[22m[39m treats a duplicate audit result as written only when the event exists[33m 330[2mms[22m[39m
+     [33m[2m✓[22m[39m writes exactly one audit event per terminal decision, not one per replay[33m 342[2mms[22m[39m
+ [32m✓[39m src/cognition/context-window.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/providers/endpoint-security.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/memory/retrieval-policy.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/evaluation/request-ledger.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/self-model/topic-identity.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/affective-state/distress-evidence.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/motivation/goal-evidence.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/app/backup-ipc.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+ [32m✓[39m src/app/identity-guard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/evaluation/code-provenance.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/self-model/reflection-mapping.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/evaluation/report-integrity.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/memory/memory-timeline.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/evaluation/git-metadata.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/memory/memory-domain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/cognition/retrieval-attention.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/self-model/reflection-concern.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/providers/endpoint-resolver.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/observability/logger.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/security/security.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/providers/consent-presentation.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/app/startup-error.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m tests/verify-manifest.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m tests/ui-control-contract.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/app/retrieval-query.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/providers/provider-registry.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m tests/ci-guard-policy.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/cognition/context-utility.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/app/window-bounds.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/security/request-guard.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m tests/shell-ui.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/provider-readiness.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m tests/acceptance-data-path.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/app/window-lifecycle.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/design-tokens.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/security/secrets.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/app/identity-contract.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m147 passed[39m[22m[90m (147)[39m
+[2m      Tests [22m [1m[32m1246 passed[39m[22m[90m (1246)[39m
+[2m   Start at [22m 18:04:13
+[2m   Duration [22m 221.57s[2m (tests 99%, import 1%)[22m
+
+EXIT=0

@@ -1,5 +1,8 @@
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
+import type { PendingDecisionResult } from '../cognition/pending-items'
+export type { PendingDecisionResult }
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
@@ -18,16 +21,25 @@ import type {
   PersonalityRevision,
   ProviderConfigInput,
   ProviderConfigRecord,
-  ProviderId,
   ProviderConnectionRequest,
-  ProviderConnectionResult
+  ProviderConnectionResult,
+  ProviderModelsRequest,
+  ProviderModelsResult,
+  ProviderProfileIdRequest,
+  ProviderProfileSaveInput
 } from './companion'
+export type { ProviderModelsRequest, ProviderModelsResult, ProviderProfileIdRequest, ProviderProfileSaveInput } from './companion'
 
 export const IPC_CHANNELS = {
   appInfo: 'morrow:app:info',
   memoryCreate: 'morrow:memory:create',
   providerGet: 'morrow:provider:get',
   providerSave: 'morrow:provider:save',
+  providerProfilesList: 'morrow:provider:profiles:list',
+  providerProfileSave: 'morrow:provider:profiles:save',
+  providerProfileDelete: 'morrow:provider:profiles:delete',
+  providerProfileSetDefault: 'morrow:provider:profiles:set-default',
+  providerProfileDiscoverModels: 'morrow:provider:profiles:discover-models',
   providerClearCredential: 'morrow:provider:clear-credential',
   providerTestConnection: 'morrow:provider:test-connection',
   conversationsCreate: 'morrow:conversations:create',
@@ -38,9 +50,12 @@ export const IPC_CHANNELS = {
   personalitySave: 'morrow:personality:save',
   personalityHistory: 'morrow:personality:history',
   personalityRestore: 'morrow:personality:restore',
+  personalityGrowthGet: 'morrow:personality:growth:get',
+  personalityGrowthRollback: 'morrow:personality:growth:rollback',
   chatSend: 'morrow:chat:send',
   chatCancel: 'morrow:chat:cancel',
   chatDelta: 'morrow:chat:delta',
+  chatTurnTrace: 'morrow:chat:turn-trace',
   memorySuggestionsList: 'morrow:memory-suggestions:list',
   memorySuggestionsPreview: 'morrow:memory-suggestions:preview',
   memorySuggestionsPropose: 'morrow:memory-suggestions:propose',
@@ -61,6 +76,10 @@ export const IPC_CHANNELS = {
   goalsCancelTask: 'morrow:goals:cancel-task',
   goalsStop: 'morrow:goals:stop',
   goalsDelete: 'morrow:goals:delete',
+  companionGoalsList: 'morrow:companion-goals:list',
+  companionGoalCandidatesList: 'morrow:companion-goals:candidates:list',
+  companionGoalCandidateAccept: 'morrow:companion-goals:candidates:accept',
+  companionGoalCandidateReject: 'morrow:companion-goals:candidates:reject',
   remindersSnapshot: 'morrow:reminders:snapshot',
   remindersSaveSettings: 'morrow:reminders:save-settings',
   remindersPause: 'morrow:reminders:pause',
@@ -79,6 +98,15 @@ export const IPC_CHANNELS = {
   cognitiveSettingsSave: 'morrow:cognitive:settings:save',
   cognitiveFeelingSnapshot: 'morrow:cognitive:feeling:snapshot',
   cognitiveClearHistory: 'morrow:cognitive:history:clear',
+  affectStateGet: 'morrow:affect:state:get',
+  affectRegulate: 'morrow:affect:regulate',
+  affectClear: 'morrow:affect:clear',
+  affectMoodPause: 'morrow:affect:mood:pause',
+  affectMoodResume: 'morrow:affect:mood:resume',
+  consentGrantsList: 'morrow:provider:consent:list',
+  cognitionConsistencyStatus: 'morrow:cognition:consistency:status',
+  cognitionConsistencyReconcile: 'morrow:cognition:consistency:reconcile',
+  consentGrantRevoke: 'morrow:provider:consent:revoke',
   interestsList: 'morrow:selfmodel:interests:list',
   interestSetStatus: 'morrow:selfmodel:interests:set-status',
   selfModelList: 'morrow:selfmodel:entries:list',
@@ -86,7 +114,10 @@ export const IPC_CHANNELS = {
   selfModelRetract: 'morrow:selfmodel:entries:retract',
   reflectionRun: 'morrow:selfmodel:reflection:run',
   reflectionListRuns: 'morrow:selfmodel:reflection:runs',
-  reflectionFindings: 'morrow:selfmodel:reflection:findings'
+  reflectionFindings: 'morrow:selfmodel:reflection:findings',
+  pendingItemsList: 'morrow:continuity:pending:list',
+  pendingItemsDecide: 'morrow:continuity:pending:decide',
+  turnContextRead: 'morrow:continuity:turn:read'
 } as const
 
 export type IpcErrorCode =
@@ -96,6 +127,8 @@ export type IpcErrorCode =
   | 'CONFLICT'
   | 'STORAGE_ERROR'
   | 'BACKUP_INVALID'
+  | 'SCHEMA_UPGRADE_REQUIRED'
+  | 'COGNITION_LOCKED'
   | 'INTERNAL_ERROR'
   | 'PROVIDER_STORAGE_UNAVAILABLE'
   | 'PROVIDER_CREDENTIAL_STORE_ERROR'
@@ -103,22 +136,33 @@ export type IpcErrorCode =
   | 'PROVIDER_PAYLOAD_TOO_LARGE'
   | 'PROVIDER_RESPONSE'
   | 'PROVIDER_AUTH'
+  | 'PROVIDER_QUOTA'
   | 'PROVIDER_RATE_LIMIT'
   | 'PROVIDER_MODEL'
   | 'PROVIDER_TIMEOUT'
+  | 'PROVIDER_DEADLINE'
   | 'PROVIDER_NETWORK'
+  | 'PROVIDER_ENDPOINT_BLOCKED'
   | 'PROVIDER_CANCELLED'
 
 export type IpcResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: { code: IpcErrorCode; message: string } }
 
+export interface CognitionConsistencyStatus {
+  state: 'ready' | 'locked'
+  reasons: string[]
+  checkedAt: string
+  details: Record<string, number>
+  reconciled?: boolean
+}
+
 export interface AppInfo {
   name: string
   version: string
   platform: string
   electronVersion: string
-  dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+  dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
 }
 
 export interface MemoryCreateRequest {
@@ -163,8 +207,12 @@ export interface ConversationIdRequest {
   conversationId: string
 }
 
+export interface GoalCandidateIdRequest {
+  candidateId: string
+}
+
 export interface ProviderGetRequest {
-  providerId?: ProviderId
+  providerId?: string
 }
 
 export interface InterestIdRequest {
@@ -193,8 +241,23 @@ export interface ReflectionFindingsRequest {
   runId: string
 }
 
+export interface PendingItemDecisionRequest {
+  itemId: string
+  decision: 'accepted' | 'rejected' | 'dismissed'
+}
+
+/** Phase 2.4: read one turn's recorded cognitive context. */
+export interface TurnContextRequest {
+  turnId: string
+}
+
 export interface PersonalityRestoreRequest {
   version: number
+}
+
+/** D-1: diagnostic read / user-facing rollback of the G1 growth ledger. */
+export interface PersonalityGrowthRollbackRequest {
+  dimension: 'warmth' | 'directness' | 'humor'
 }
 
 export interface CognitiveSettingsRequest {
@@ -235,6 +298,67 @@ export type BackupRestoreOutcome =
   | { status: 'restored'; schemaVersion: number; reappliedDeletions: number; reappliedRetractions: number; reappliedUnretractions: number }
   | { status: 'cancelled' }
 
+export interface ConsentGrantView {
+  scopeFingerprint: string
+  providerId: string
+  action: string
+  endpoint: string
+  model: string
+  maximumSensitivity: 'normal' | 'personal' | 'sensitive'
+  createdAt: string
+  expiresAt: string
+  revokedAt: string | null
+}
+
+export interface ConsentGrantRevokeRequest { scopeFingerprint: string }
+
+export interface AffectEmotionView {
+  emotionId: string
+  family: string
+  intensity: number
+  regulationState: string
+  sourceKind: string
+  onsetAt: string
+  lastUpdatedAt: string
+  topicTags: string[]
+}
+
+export interface AffectTraitView {
+  traitKey: string
+  status: string
+  strength: number
+  evidenceCount: number
+  independentContexts: number
+  updatedAt: string
+}
+
+export interface AffectMoodView {
+  available: boolean
+  paused: boolean
+  lastAdvancedAt: string
+  valence: number
+  arousal: number
+  dominance: number
+  tension: number
+  revision: number
+  evaluatedAt: string
+}
+
+export interface AffectStateView {
+  available: boolean
+  revision: number
+  evaluatedAt: string
+  emotions: AffectEmotionView[]
+  traits: AffectTraitView[]
+  mood: AffectMoodView
+}
+
+export interface AffectRegulateRequest {
+  emotionId: string
+  kind: 'reappraised' | 'regulated' | 'retracted'
+  rationale: string
+}
+
 export interface MorrowBridge {
   getAppInfo(): Promise<IpcResult<AppInfo>>
   providers: {
@@ -242,6 +366,13 @@ export interface MorrowBridge {
     save(request: ProviderConfigInput): Promise<IpcResult<ProviderConfigRecord>>
     clearCredential(request?: ProviderGetRequest): Promise<IpcResult<ProviderConfigRecord | null>>
     testConnection(request: ProviderConnectionRequest): Promise<IpcResult<ProviderConnectionResult>>
+    listProfiles(): Promise<IpcResult<ProviderConfigRecord[]>>
+    saveProfile(request: ProviderProfileSaveInput): Promise<IpcResult<ProviderConfigRecord>>
+    deleteProfile(request: ProviderProfileIdRequest): Promise<IpcResult<void>>
+    setDefaultProfile(request: ProviderProfileIdRequest): Promise<IpcResult<ProviderConfigRecord>>
+    discoverModels(request: ProviderModelsRequest): Promise<IpcResult<ProviderModelsResult>>
+    listConsentGrants(): Promise<IpcResult<ConsentGrantView[]>>
+    revokeConsentGrant(request: ConsentGrantRevokeRequest): Promise<IpcResult<boolean>>
   }
   conversations: {
     create(): Promise<IpcResult<ConversationRecord>>
@@ -254,6 +385,8 @@ export interface MorrowBridge {
     save(request: PersonalityInput): Promise<IpcResult<PersonalityProfile>>
     history(): Promise<IpcResult<PersonalityRevision[]>>
     restore(request: PersonalityRestoreRequest): Promise<IpcResult<PersonalityProfile>>
+    growthGet(): Promise<IpcResult<import('../personalization/personality-growth').GrowthEntry[] | null>>
+    growthRollback(request: PersonalityGrowthRollbackRequest): Promise<IpcResult<boolean>>
   }
   selfModel: {
     listInterests(): Promise<IpcResult<import('../self-model/self-model-domain').InterestRecord[]>>
@@ -261,19 +394,36 @@ export interface MorrowBridge {
     listEntries(request?: SelfModelListRequest): Promise<IpcResult<import('../self-model/self-model-domain').SelfModelEntry[]>>
     correctEntry(request: SelfModelCorrectRequest): Promise<IpcResult<import('../self-model/self-model-domain').SelfModelEntry>>
     retractEntry(request: SelfModelIdRequest): Promise<IpcResult<void>>
-    runReflection(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' }>>
+    runReflection(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' | 'budget_exhausted' }>>
     listReflectionRuns(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary[]>>
     listReflectionFindings(request: ReflectionFindingsRequest): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionFinding[]>>
   }
   cognition: {
+    consistency(): Promise<IpcResult<CognitionConsistencyStatus>>
+    reconcile(): Promise<IpcResult<CognitionConsistencyStatus>>
     getSettings(): Promise<IpcResult<CognitiveCoreSettings>>
     saveSettings(request: CognitiveSettingsRequest): Promise<IpcResult<CognitiveCoreSettings>>
     getFeelingState(): Promise<IpcResult<FeelingStateView>>
     clearHistory(): Promise<IpcResult<FeelingStateView>>
+    getAffectState(): Promise<IpcResult<AffectStateView>>
+    regulateAffect(request: AffectRegulateRequest): Promise<IpcResult<AffectStateView>>
+    clearAffect(): Promise<IpcResult<AffectStateView>>
+    pauseAffectMood(): Promise<IpcResult<AffectStateView>>
+    resumeAffectMood(): Promise<IpcResult<AffectStateView>>
+  }
+  /**
+   * Phase 2.4 continuity. Read-only except `decidePendingItem`, the single
+   * authoritative decision path (item + reflection route + required audit).
+   */
+  continuity: {
+    listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
+    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<PendingDecisionResult>>
+    readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
   chat: {
     send(request: ChatRequest): Promise<IpcResult<ChatResult>>
     cancel(request: ConversationIdRequest): Promise<IpcResult<boolean>>
+    trace(request: ConversationIdRequest): Promise<IpcResult<import('../cognition/turn-state-machine').TurnTraceRecord[]>>
     onDelta(listener: (event: ChatStreamEvent) => void): () => void
   }
   memorySuggestions: {
@@ -302,6 +452,12 @@ export interface MorrowBridge {
     cancelTask(request: TaskIdRequest): Promise<IpcResult<TaskRecord>>
     stop(request: GoalIdRequest): Promise<IpcResult<GoalRecord>>
     delete(request: GoalIdRequest): Promise<IpcResult<void>>
+  }
+  companionGoals: {
+    listGoals(): Promise<IpcResult<CompanionGoal[]>>
+    listCandidates(): Promise<IpcResult<CompanionGoalCandidate[]>>
+    acceptCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
+    rejectCandidate(request: GoalCandidateIdRequest): Promise<IpcResult<GoalCandidateDecisionResult>>
   }
   reminders: {
     getSnapshot(): Promise<IpcResult<ReminderSnapshot>>

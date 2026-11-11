@@ -1,0 +1,210 @@
+{
+  "datasetVersion": "memory-recall-v1",
+  "harnessVersion": "memory-recall-runner-v1",
+  "codeCommit": "1a9d2fde54907ae5770962e536166f01c38b3913",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "clock": "real",
+  "startedAt": "2026-11-01T07:14:16.337Z",
+  "finishedAt": "2026-11-01T07:14:30.409Z",
+  "denominator": 10,
+  "counts": {
+    "PASS": 10,
+    "FAIL": 0
+  },
+  "metrics": {
+    "recallAt1": 1,
+    "recallAt2": 1,
+    "mrr": 1,
+    "note": "retrieval-side metrics only; model use of evidence is measured by the live runner, not here"
+  },
+  "unmeasured": [
+    "real model use of delivered evidence (scripted provider cannot show it)",
+    "real-provider replay of the two observed failure shapes"
+  ],
+  "cases": [
+    {
+      "id": "M1",
+      "name": "跨会话居住地复述(\"我现在住哪\")",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "复述问句召回该记忆",
+          "ok": true,
+          "detail": "1 entries"
+        },
+        {
+          "name": "排名第一(recall@1)",
+          "ok": true,
+          "detail": "我住在杭州。"
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "name": "同会话搬家陈述后问住址(纠正经确认管线,此层验证历史可用)",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "纠正轮进入上下文历史(同会话可用)",
+          "ok": true,
+          "detail": "history scan"
+        },
+        {
+          "name": "存储层仍持旧值(自动改写需用户确认,如实记录边界)",
+          "ok": true,
+          "detail": "honest boundary"
+        },
+        {
+          "name": "问句经槽位通道命中存储记忆",
+          "ok": true,
+          "detail": "1 entries"
+        }
+      ]
+    },
+    {
+      "id": "M3",
+      "name": "过敏事实跨会话复述(\"我对什么过敏来着\")——真实运行轮31同型",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "同义问句召回过敏记忆",
+          "ok": true,
+          "detail": "1 entries"
+        },
+        {
+          "name": "零命中不再发生(recall@1)",
+          "ok": true,
+          "detail": "我对花生过敏。"
+        }
+      ]
+    },
+    {
+      "id": "M4",
+      "name": "过敏事实口语复述(\"之前说过不能吃什么\")",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "口语化健康问句召回过敏记忆",
+          "ok": true,
+          "detail": "1 entries"
+        },
+        {
+          "name": "健康谓词通道命中(slot)",
+          "ok": true,
+          "detail": "我对花生过敏。"
+        }
+      ]
+    },
+    {
+      "id": "M5",
+      "name": "使用层规则在 prompt 中(零命中校准)",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "零命中时证据块为空",
+          "ok": true,
+          "detail": "block scan"
+        },
+        {
+          "name": "使用规则在固定原则中(先核对再回答/不足澄清)",
+          "ok": true,
+          "detail": "principle scan"
+        },
+        {
+          "name": "未检索≠没说过(规则在 prompt 中)",
+          "ok": true,
+          "detail": "principle scan"
+        }
+      ]
+    },
+    {
+      "id": "M6",
+      "name": "冲突记忆同时呈现且带冲突标注",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "两个值同时投递",
+          "ok": true,
+          "detail": "2 entries"
+        },
+        {
+          "name": "冲突状态随证据给出",
+          "ok": true,
+          "detail": "conflict marker"
+        }
+      ]
+    },
+    {
+      "id": "M7",
+      "name": "撤回的记忆零投递",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "撤回后不进入证据块",
+          "ok": true,
+          "detail": "retracted scan"
+        },
+        {
+          "name": "证据块为空而非伪造",
+          "ok": true,
+          "detail": "block scan"
+        }
+      ]
+    },
+    {
+      "id": "M8",
+      "name": "多记忆场景下的检索排序(MRR)",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "目标记忆被召回",
+          "ok": true,
+          "detail": "rank=1"
+        },
+        {
+          "name": "排序质量(reciproal rank ≥ 1/2)",
+          "ok": true,
+          "detail": "rank=1"
+        }
+      ]
+    },
+    {
+      "id": "M9",
+      "name": "代词/省略问句借上下文扩展召回",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "首轮直接问句命中",
+          "ok": true,
+          "detail": "setup turn"
+        },
+        {
+          "name": "扩展查询保留记忆上下文(上一轮用户消息参与查询)",
+          "ok": true,
+          "detail": "1 entries (target=880e2969)"
+        }
+      ]
+    },
+    {
+      "id": "M10",
+      "name": "状态放宽不改权限(情绪态只影响广度)",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "状态引导进 prompt(有界措辞)",
+          "ok": true,
+          "detail": "marker"
+        },
+        {
+          "name": "敏感度上限未被放宽(personal 以下)",
+          "ok": true,
+          "detail": "ceiling scan"
+        }
+      ]
+    }
+  ]
+}

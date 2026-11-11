@@ -15,6 +15,7 @@ import { MAX_CANDIDATE_INTERESTS_PER_RUN, MAX_RUNS_PER_HOUR, ReflectionService, 
 import { MemoryService } from '../memory/memory-service'
 import { SqliteMemoryRepository } from '../persistence/memory-repository'
 import { EventLogService } from '../persistence/event-log'
+import { PersonalizationService } from '../personalization/personalization-service'
 import { SqliteDatabase } from '../persistence/database'
 
 function openDatabase(): SqliteDatabase {
@@ -37,10 +38,13 @@ describe('interest formation (acceptance scenario D)', () => {
     const observed = interests.observe({ conversationId: '11111111-1111-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-25T10:00:00.000Z', topicText: '我对天文学特别着迷，尤其是系外行星。' })
     expect(observed).not.toBeNull()
     expect(observed?.status).toBe('candidate')
-    // repeat inside the SAME conversation never promotes
+    // Replaying the same turn must not add evidence at all: the message id is
+    // the idempotency key, so a retry of one turn cannot inflate a count.
     for (let index = 0; index < 10; index += 1) {
       interests.observe({ conversationId: '11111111-1111-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-25T10:0' + String(index) + ':00.000Z', topicText: '我对天文学着迷。' })
     }
+    expect(interests.list()).toHaveLength(1)
+    expect(interests.list()[0]?.evidenceCount).toBe(1)
     expect(interests.list()[0]?.status).toBe('candidate')
     expect(interestPromotionEligible({ status: 'candidate', conversationCount: 1, evidenceCount: 50 })).toBe(false)
   })
@@ -52,8 +56,10 @@ describe('interest formation (acceptance scenario D)', () => {
     const secondConversation = '33333333-3333-4111-8111-111111111111'
     interests.observe({ conversationId: firstConversation, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-20T10:00:00.000Z', topicText: '我对天文学着迷' })
     expect(interests.list()[0]?.status).toBe('candidate')
-    interests.observe({ conversationId: firstConversation, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-21T10:00:00.000Z', topicText: '最近又研究了下天文学' })
-    interests.observe({ conversationId: secondConversation, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-24T10:00:00.000Z', topicText: '天文学的进展真快' })
+    // Distinct turns carry distinct message ids; the replay case is covered
+    // separately below.
+    interests.observe({ conversationId: firstConversation, messageId: '22222222-2222-4111-8111-222222222222', occurredAt: '2026-10-21T10:00:00.000Z', topicText: '最近又研究了下天文学' })
+    interests.observe({ conversationId: secondConversation, messageId: '22222222-2222-4111-8111-333333333333', occurredAt: '2026-10-24T10:00:00.000Z', topicText: '天文学的进展真快' })
     const promoted = interests.list().find((record) => record.evidenceCount === 3)
     expect(promoted).toBeDefined()
     expect(promoted?.conversationCount).toBe(2)
@@ -72,7 +78,7 @@ describe('interest formation (acceptance scenario D)', () => {
     const revived = interests.setUserStatus(interests.list()[0]!.id, 'dropped')
     expect(revived.status).toBe('dropped')
     // a dropped interest stays dropped even when the topic returns
-    interests.observe({ conversationId: '33333333-3333-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-111111111111', occurredAt: '2026-10-25T11:00:00.000Z', topicText: '我又想聊天文学了' })
+    interests.observe({ conversationId: '33333333-3333-4111-8111-111111111111', messageId: '22222222-2222-4111-8111-444444444444', occurredAt: '2026-10-25T11:00:00.000Z', topicText: '我又想聊天文学了' })
     // the dropped record stays terminal; the returning topic starts as a fresh weak candidate
     const records = interests.list()
     expect(records.find((record) => record.status === 'dropped')).toBeDefined()
@@ -91,7 +97,9 @@ describe('interest formation (acceptance scenario D)', () => {
 
   it('derives labels and term sets for latin and CJK topics deterministically', () => {
     expect(deriveInterestLabel('I really love astronomy and exoplanets')).toBe('exoplanets')
-    expect(deriveInterestLabel('我对天文学着迷')).toBe('天文')
+    // The label is the most specific contiguous content phrase, not the first
+    // bigram: "天文学" rather than "天文" or a filler word like "最近".
+    expect(deriveInterestLabel('我对天文学着迷')).toBe('天文学')
     expect(deriveInterestLabel('！')).toBeNull()
     const terms = extractInterestTerms('我对天文学着迷')
     expect(terms).toContain('天文')
@@ -147,11 +155,26 @@ describe('bounded reflection', () => {
     expect(run.findingsCount).toBeGreaterThan(0)
     const findings = reflection.findings(run.id)
     expect(findings.some((finding) => finding.kind === 'memory_gap')).toBe(true)
+    // The structured schema distinguishes *why* the assistant was wrong: a
+    // corrected fact (`memory_gap`) is not the same as a corrected reading
+    // (`intent_correction`), and an unverified inference yields an action for the
+    // next turn (`next_turn_suggestion`) rather than only a note.
+    expect(findings.some((finding) => finding.kind === 'intent_correction')).toBe(true)
+    expect(findings.some((finding) => finding.kind === 'next_turn_suggestion')).toBe(true)
+    // Every kind the algorithm can emit must be one the schema accepts.
+    const allowed = new Set<string>(['memory_gap', 'open_question', 'bias_hint', 'interest_candidate', 'consistency_note', 'intent_correction', 'next_turn_suggestion'])
+    for (const finding of findings) expect(allowed.has(finding.kind)).toBe(true)
     for (const finding of findings) {
       expect(finding.evidence.length).toBeGreaterThan(0)
       expect(finding.confidence).toBeGreaterThanOrEqual(1)
       expect(finding.confidence).toBeLessThanOrEqual(100)
     }
+    // A finding references the entry or memory it is about instead of quoting
+    // it: the quoted text is user content and findings are read by the shell.
+    const serializedFindings = JSON.stringify(findings)
+    expect(serializedFindings).not.toContain('用户可能偏好简洁回答')
+    expect(serializedFindings).not.toContain('jasmin tea')
+    expect(serializedFindings).not.toContain('花生')
     // interest candidates stay bounded and candidate-level
     expect(MAX_CANDIDATE_INTERESTS_PER_RUN).toBe(1)
 
@@ -174,5 +197,107 @@ describe('bounded reflection', () => {
       expect('skipped' in result).toBe(false)
     }
     expect(reflection.run('startup')).toEqual({ skipped: 'rate_limited' })
+  })
+})
+
+describe('B5 reflection pipeline: mapping, evidence, idempotency', () => {
+  it('does not add a second finding or a second evidence row when re-run on the same evidence', () => {
+    const database = openDatabase()
+    let tick = 0
+    const clock = () => new Date(Date.parse('2026-10-25T10:00:00.000Z') + (tick++) * 60_000).toISOString()
+    const { events, memories, interests, reflection } = createServices(database, clock)
+    const first = memories.create('用户喜欢 jasmin tea', 'personal')
+    memories.correct(first.id, '用户纠正：更喜欢龙井茶', '44444444-4444-4111-8111-111111111111')
+    memories.correct(first.id, '用户再次纠正：其实喜欢白茶', '44444444-4444-4111-8111-111111111112')
+
+    const run1 = reflection.run('manual')
+    expect('skipped' in run1).toBe(false)
+    if ('skipped' in run1) return
+    const findings1 = reflection.findings(run1.id).length
+    const evidence1 = interests.evidenceLedger(interests.list()[0]?.id ?? 'none').length
+
+    // Same evidence, second run: the cursor has already consumed those events,
+    // so nothing is examined at all. Re-reading the first 200 rows forever is
+    // exactly the blindness this replaced.
+    const run2 = reflection.run('manual')
+    expect('skipped' in run2).toBe(false)
+    if ('skipped' in run2) return
+    expect(findings1).toBeGreaterThan(0)
+    expect(reflection.findings(run2.id)).toHaveLength(0)
+    expect(interests.evidenceLedger(interests.list()[0]?.id ?? 'none').length).toBe(evidence1)
+    // `events.list` returns newest first.
+    const second = events.list({ eventType: 'reflection.completed' })[0]!
+    expect(Number(second.payload.examinedMemoryEvents)).toBe(0)
+
+    // Rewinding the cursor — what a lost cursor or a version bump looks like —
+    // must not duplicate anything. The findings are deduped by key and their
+    // effects are already recorded in the ledger, so a full replay is a no-op.
+    database.connection.prepare('UPDATE reflection_cursors SET last_seq = 0').run()
+    const run3 = reflection.run('manual')
+    expect('skipped' in run3).toBe(false)
+    if ('skipped' in run3) return
+    expect(reflection.findings(run3.id)).toHaveLength(0)
+    expect(interests.evidenceLedger(interests.list()[0]?.id ?? 'none').length).toBe(evidence1)
+    const third = events.list({ eventType: 'reflection.completed' })[0]!
+    expect(Number(third.payload.duplicates)).toBeGreaterThan(0)
+    expect(Number(third.payload.stored)).toBe(0)
+  })
+
+  it('does not re-create interest evidence after the source memory is retracted', () => {
+    const database = openDatabase()
+    let tick = 0
+    const clock = () => new Date(Date.parse('2026-10-25T10:00:00.000Z') + (tick++) * 60_000).toISOString()
+    const { memories, interests, reflection } = createServices(database, clock)
+    const memory = memories.create('我在学咖啡拉花', 'personal')
+
+    const first = reflection.run('manual')
+    expect('skipped' in first).toBe(false)
+    if ('skipped' in first) return
+    const interestId = interests.list()[0]!.id
+    expect(interests.evidenceLedger(interestId).some((row) => row.ref === memory.id)).toBe(true)
+
+    // Retracting the memory removes the evidence through the ledger trigger…
+    memories.retract(memory.id)
+    expect(interests.evidenceLedger(interestId).some((row) => row.ref === memory.id)).toBe(false)
+
+    // …and a later run must not put it back: the memory is no longer a live source,
+    // so no new candidate finding is produced from it.
+    const second = reflection.run('manual')
+    expect('skipped' in second).toBe(false)
+    if ('skipped' in second) return
+    expect(reflection.findings(second.id).some((item) => item.kind === 'interest_candidate')).toBe(false)
+    expect(interests.evidenceLedger(interestId).some((row) => row.ref === memory.id)).toBe(false)
+  })
+
+  it('parks a personality proposal and leaves the baseline untouched', () => {
+    const database = openDatabase()
+    let tick = 0
+    const clock = () => new Date(Date.parse('2026-10-25T10:00:00.000Z') + (tick++) * 60_000).toISOString()
+    const { events, reflection } = createServices(database, clock)
+    for (let index = 0; index < 2; index += 1) {
+      events.tryRecord({
+        sourceModule: 'affective-state',
+        eventType: 'feeling.event_applied',
+        actor: 'system',
+        subjectType: 'turn',
+        subjectId: `turn-${index}`,
+        correlationId: null,
+        payload: { lastEventType: 'system_correction' }
+      })
+    }
+    const before = new PersonalizationService(database).list().map((entry) => `${entry.dimension}:${entry.value}`)
+
+    const run = reflection.run('manual')
+    expect('skipped' in run).toBe(false)
+    if ('skipped' in run) return
+
+    const pending = reflection.pendingPersonalityCandidates()
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toMatchObject({ dimension: 'depth', direction: 'increase', status: 'pending' })
+    expect(pending[0]!.expiresAt > pending[0]!.createdAt).toBe(true)
+    // The baseline is unchanged: a proposal is not an edit.
+    const after = new PersonalizationService(database).list().map((entry) => `${entry.dimension}:${entry.value}`)
+    expect(after).toEqual(before)
+    expect(events.list({ eventType: 'reflection.personality_candidate_pending' })).toHaveLength(1)
   })
 })

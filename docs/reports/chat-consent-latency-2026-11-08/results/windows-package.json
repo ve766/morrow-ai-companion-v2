@@ -1,0 +1,32 @@
+{
+  "issue": 69,
+  "platform": "win32-x64",
+  "electronVersion": "44.9.3",
+  "sourceCommit": "b18ea8a95423cdadd3f6cc23290df89736b94892",
+  "installedAcceptanceAsar": {
+    "path": "C:\Users\Hasee\AppData\Local\MorrowV2-LocalAcceptance\app\final-1793955356\resources\app.asar",
+    "sha256": "2fb59d5aef57fa0f696e95036024c83f147e45db8cbcfb723e39e0090397333b"
+  },
+  "builtAsar": {
+    "path": "release/win-unpacked/resources/app.asar",
+    "sha256": "2fb59d5aef57fa0f696e95036024c83f147e45db8cbcfb723e39e0090397333b",
+    "bytes": 1245068,
+    "note": "reproducible: byte-identical to the asar used in the real-provider acceptance run"
+  },
+  "portableZip": {
+    "path": "release/Morrow-2.0.0-x64-portable.zip",
+    "sha256": "33ceb60f744d4ff7c3d235506730737d7ecb0e329e94b275083050d7703067d2",
+    "bytes": 154630579,
+    "format": "7z zip (-mx=5) of release/win-unpacked",
+    "status": "PASS"
+  },
+  "nsisInstaller": {
+    "path": "release/Morrow-Setup-2.0.0-x64.exe",
+    "sha256": null,
+    "bytes": 189809,
+    "status": "BLOCKED",
+    "reason": "electron-builder 26.15.3 failed at the BUILD_UNINSTALLER step: executing the intermediate installer returned exit code null (ERR_ELECTRON_BUILDER_CANNOT_EXECUTE). The small exe is an incomplete stub, not a valid installer; it was not run/installed.",
+    "retries": 2,
+    "note": "Same failure with and without sandbox; not an artifact of the code change"
+  }
+}

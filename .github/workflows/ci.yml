@@ -1,9 +1,9 @@
 name: CI
 
+# Manual-only: GitHub-hosted Actions included minutes are exhausted.
+# Use self-hosted-ci.yml for the no-billing Windows path.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -59,6 +59,54 @@ jobs:
             npm run smoke
           fi
 
+      - name: Electron product-path acceptance (two profiles, OS secrets, restart continuity)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: npm run smoke:product-path
+
+      - name: Upload product-path evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: morrow-product-path-${{ matrix.os }}
+          path: |
+            evals/morrow-v2-final/
+            docs/ui/evidence/
+          if-no-files-found: warn
+
+  windows-package-smoke:
+    name: Windows package, install and installed-app smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies (includes Electron binary)
+        run: npm ci --no-audit --no-fund
+      - name: Build and package NSIS installer
+        run: npm run package:win
+      - name: Seed an isolated profile with the built app
+        shell: pwsh
+        run: |
+          $profile = Join-Path $env:RUNNER_TEMP 'morrow-installed-profile'
+          Remove-Item -Recurse -Force $profile -ErrorAction SilentlyContinue
+          $env:MORROW_SMOKE_PROFILE = $profile
+          npm run smoke
+      - name: Install silently and verify the installed executable starts on the same profile
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter '*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer was not produced.' }
+          Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem -Path $env:LOCALAPPDATA -Recurse -Filter 'Morrow.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'Installed Morrow executable was not found.' }
+          $env:MORROW_SMOKE_EXECUTABLE = $exe.FullName
+          $env:MORROW_SMOKE_PROFILE = Join-Path $env:RUNNER_TEMP 'morrow-installed-profile'
+          $env:MORROW_SMOKE_EXPECT_VERSION = '2.0.0'
+          node scripts/smoke.mjs --verify-upgrade
+
   windows-install-path:
     name: Windows upgrade path (schema migrations under the real app)
     runs-on: windows-latest
@@ -72,5 +120,5 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Rebuild better-sqlite3 for Node
         run: npm rebuild better-sqlite3
-      - name: Migration and persistence test pass (includes v1→v15 upgrade paths)
+      - name: Persistence and migration tests (up to the current schema, includes v47 feature paths)
         run: npx vitest run src/persistence

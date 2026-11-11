@@ -1,0 +1,250 @@
+import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  buildCognitiveTurnContext,
+  COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION,
+  isCognitiveTurnContext,
+  snapshotState,
+  type BuildTurnContextInput,
+  type CognitiveTurnContext
+} from './turn-context'
+import { SqliteTurnContextRepository } from '../persistence/cognitive-context-repository'
+import { SqliteDatabase } from '../persistence/database'
+
+const directories: string[] = []
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
+})
+
+const turnId = '44444444-4444-4444-8444-444444444444'
+const conversationId = '55555555-5555-4555-8555-555555555555'
+const userMessageId = '66666666-6666-4666-8666-666666666666'
+const assistantMessageId = '77777777-7777-4777-8777-777777777777'
+const memoryId = '88888888-8888-4888-8888-888888888888'
+
+function input(overrides: Partial<BuildTurnContextInput> = {}): BuildTurnContextInput {
+  return {
+    turnId,
+    conversationId,
+    userMessageId,
+    assistantMessageId,
+    recordedAt: '2026-01-01T00:00:00.000Z',
+    status: 'succeeded',
+    intent: { label: 'information_query', confidence: 80, confidenceLevel: 'high', strategy: 'retrieve_memory', reasons: ['question_marker'] },
+    retrieval: {
+      policyIntent: 'information_query',
+      baseMax: 25,
+      effectiveMax: 25,
+      adjustment: null,
+      selected: [{
+        id: memoryId,
+        status: 'active',
+        sourceCategory: 'user_explicit_input',
+        sensitivity: 'personal',
+        revision: 1,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        score: 0.5
+      }],
+      conflicts: [],
+      omitted: 0,
+      maximumSensitivity: 'personal'
+    },
+    personality: { version: 1, warmth: 55, directness: 65, humor: 20, disagreementStyle: 'balanced' },
+    feeling: { before: null, after: null, eventType: null, applied: false },
+    provider: { id: 'deepseek', model: 'deepseek-flash', outcome: 'succeeded', attempts: 1, errorKind: null },
+    ...overrides
+  }
+}
+
+describe('turn context shape', () => {
+  it('builds a record that passes its own validator', () => {
+    const context = buildCognitiveTurnContext(input())
+    expect(isCognitiveTurnContext(context)).toBe(true)
+    expect(context.turnId).toBe(turnId)
+    expect(context.retrieval.selected[0]!.id).toBe(memoryId)
+  })
+
+  it('rejects an id that is not a uuid', () => {
+    expect(() => buildCognitiveTurnContext(input({ conversationId: 'not-a-uuid' }))).toThrow(TypeError)
+  })
+
+  it('bounds the delivered memory list', () => {
+    const many = Array.from({ length: 40 }, () => ({
+      id: randomUUID(), status: 'active' as const, sourceCategory: 'user_explicit_input',
+      sensitivity: 'personal' as const, revision: 1, updatedAt: '2026-01-01T00:00:00.000Z', score: 0.1
+    }))
+    const context = buildCognitiveTurnContext(input({ retrieval: { ...input().retrieval, selected: many } }))
+    expect(context.retrieval.selected.length).toBe(25)
+  })
+
+  it('rejects a tampered record on the read path', () => {
+    const context = buildCognitiveTurnContext(input())
+    expect(context.schemaVersion).toBe(2)
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 1 })).toBe(true)
+    expect(isCognitiveTurnContext({ ...context, schemaVersion: 3 })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, status: 'unknown' })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, retrieval: { ...context.retrieval, selected: [{ id: 'x' }] } })).toBe(false)
+    expect(isCognitiveTurnContext({ ...context, provider: { ...context.provider, outcome: 'ok' } })).toBe(false)
+  })
+
+  it('carries no memory text and no reply text', () => {
+    const context = buildCognitiveTurnContext(input())
+    const serialized = JSON.stringify(context)
+    // The record only ever holds the id, the category and the verdict.
+    expect(serialized).toContain(memoryId)
+    expect(serialized).not.toMatch(/我住在|车牌|过敏|咪咪/u)
+  })
+
+  it('snapshots only the bounded state numbers', () => {
+    const snapshot = snapshotState({
+      revision: 3,
+      values: { valence: 0.123456, activation: 0, tension: -0 },
+      attention: { explorationPriority: 0.5 },
+      uncertainty: 'low'
+    })
+    expect(snapshot).toEqual({ revision: 3, valence: 0.1235, activation: 0, tension: 0, explorationPriority: 0.5, uncertainty: 'low' })
+  })
+})
+
+describe('turn context store', () => {
+  function openDatabase(): SqliteDatabase {
+    const directory = mkdtempSync(join(tmpdir(), 'morrow-turn-context-'))
+    directories.push(directory)
+    return SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+  }
+
+  it('round-trips a record', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      const context = buildCognitiveTurnContext(input())
+      repository.upsert(context)
+      expect(repository.get(turnId)).toEqual(context)
+      expect(repository.listByConversation(conversationId, 10)).toHaveLength(1)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('reads a stored schema 1 payload back through the repository', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      // A literal schema-1 payload: this is the field set the older writer
+      // actually produced (no stage 2 fields), not the current builder with a
+      // version number changed afterwards.
+      const legacy = {
+        schemaVersion: 1,
+        turnId,
+        conversationId,
+        userMessageId,
+        assistantMessageId,
+        recordedAt: '2026-01-01T00:00:00.000Z',
+        status: 'succeeded',
+        intent: {
+          label: 'information_query',
+          confidence: 80,
+          confidenceLevel: 'high',
+          strategy: 'retrieve_memory',
+          reasons: ['question_marker']
+        },
+        retrieval: {
+          policyIntent: 'information_query',
+          baseMax: 25,
+          effectiveMax: 25,
+          adjustment: null,
+          selected: [{
+            id: memoryId,
+            status: 'active',
+            sourceCategory: 'user_explicit_input',
+            sensitivity: 'personal',
+            revision: 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            score: 0.5
+          }],
+          conflicts: [],
+          omitted: 0,
+          maximumSensitivity: 'personal'
+        },
+        personality: { version: 1, warmth: 50, directness: 50, humor: 30, disagreementStyle: 'gentle' },
+        feeling: { before: null, after: null, eventType: null, applied: false },
+        guard: null,
+        provider: { id: 'deepseek', model: 'deepseek-chat', outcome: 'succeeded', attempts: 1, errorKind: null },
+        updates: { pendingItemIds: [], memoryCandidates: 0 }
+      }
+      database.connection.prepare(`
+        INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(turnId, conversationId, 'succeeded', '2026-01-01T00:00:00.000Z', JSON.stringify(legacy))
+
+      const read = repository.get(turnId)
+      expect(read).not.toBeNull()
+      expect(read!.turnId).toBe(turnId)
+      expect(read!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+      expect(read!.retrieval.selected[0]!.id).toBe(memoryId)
+      // The legacy payload's own values survive the read unchanged; this schema
+      // version adds no fields, so the check is on equivalence, not on absence.
+      expect(read!.intent.confidence).toBe(80)
+      expect(read!.provider.model).toBe('deepseek-chat')
+
+      const listed = repository.listByConversation(conversationId, 10)
+      expect(listed).toHaveLength(1)
+      expect(listed[0]!.schemaVersion).toBe(COGNITIVE_TURN_CONTEXT_SCHEMA_VERSION)
+
+      // Reading must not rewrite the stored payload.
+      const stored = JSON.parse(String((database.connection.prepare('SELECT payload_json FROM cognitive_turn_contexts WHERE turn_id = ?').get(turnId) as { payload_json: string }).payload_json))
+      expect(stored.schemaVersion).toBe(1)
+    } finally {
+      database.close()
+    }
+  })
+
+  it('replaces a failed record with a successful one for the same turn', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      const failed: CognitiveTurnContext = buildCognitiveTurnContext(input({
+        status: 'failed',
+        assistantMessageId: null,
+        provider: { ...input().provider, outcome: 'failed', errorKind: 'PROVIDER_TIMEOUT' }
+      }))
+      repository.upsert(failed)
+      const succeeded = buildCognitiveTurnContext(input())
+      repository.upsert(succeeded)
+      expect(repository.get(turnId)?.status).toBe('succeeded')
+    } finally {
+      database.close()
+    }
+  })
+
+  it('never downgrades a successful record', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      repository.upsert(buildCognitiveTurnContext(input()))
+      repository.upsert(buildCognitiveTurnContext(input({
+        status: 'failed',
+        assistantMessageId: null,
+        provider: { ...input().provider, outcome: 'failed', errorKind: 'PROVIDER_NETWORK' }
+      })))
+      expect(repository.get(turnId)?.status).toBe('succeeded')
+    } finally {
+      database.close()
+    }
+  })
+
+  it('treats an unreadable payload as absent rather than partially trusted', () => {
+    const database = openDatabase()
+    try {
+      const repository = new SqliteTurnContextRepository(database)
+      repository.upsert(buildCognitiveTurnContext(input()))
+      database.connection.prepare('UPDATE cognitive_turn_contexts SET payload_json = ? WHERE turn_id = ?').run('{"schemaVersion":1}', turnId)
+      expect(repository.get(turnId)).toBeNull()
+    } finally {
+      database.close()
+    }
+  })
+})

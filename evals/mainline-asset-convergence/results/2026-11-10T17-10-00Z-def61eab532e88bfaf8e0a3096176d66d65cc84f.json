@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "issue": 85,
+  "stage": 1,
+  "status": "PARTIAL",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "integration/morrow-mainline-asset-convergence-20261110",
+  "initialMainSha": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+  "integrationBaseSha": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+  "sourceRefs": {
+    "audit/pr-40-independent-review": "99cea8db441511d690e374d6c6b517bd431520a2",
+    "audit/pr-40-repair-independent-review": "27a12762921c71d5cca1c01f624552f2ea2f8a9f",
+    "audit/provider-multi-source-independent-review": "626a3cf4b80bde4598b22a2732037b534a863fa4",
+    "chore/phase-1-engineering-consistency": "12f83e19172d02648ff5007ba14fa9ad9d640525",
+    "docs/project-state-baseline": "f55ef0ab518eefa8675b6860eebbed7b83f25300",
+    "feat/ai-life-core-upgrade-20261107": "b63c99836100eb5a4cede50d8e55007c89c793a1",
+    "feat/cognitive-loop-v1-phase2": "d8cdfba0588a7a36da08501745a7e5dcca85700a",
+    "feat/cognitive-loop-v1-phase2-3-reliability": "872367ccfddb1cd4ea17cd5107acd473523e6b58",
+    "feat/cognitive-loop-v1-phase2-4-continuity": "d858cd91a24afa4fc27086bdc84bb54c14eaa3c5",
+    "feat/cognitive-loop-v1-slice1": "e76c1d2bd2bbdb15e7ae91569506beea516cfc11",
+    "feat/cognitive-loop-v1-slice2": "c5696a944d7808a1d4ff950aa7a308e6bcdad805",
+    "feat/cognitive-loop-v1-slice2-2": "d1d22aed34a1ce2971e2a21f8b5fbe70021a5713",
+    "feat/cognitive-operators-algorithm-v2": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+    "feat/morrow-v2-final-closure": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
+    "feat/morrow-v2-product-closure-20261107": "e1d85137b64f4e6d65750a11eb27757135c1f32b",
+    "feat/morrow-v2-product-complete-20261106": "68468cfca95b90b33707fe2dd50c6ee1bcc6fb44",
+    "feat/personality-affect-integration-20261108": "83dab6ad8b2af3b0a2d98ceb9eb342ee5f081691",
+    "feat/phase-2-companion-core": "e252d062581bc6aacc5f1197ff52693f8a944358",
+    "feat/phase-2.2-memory-reliability": "25e80004256a597eaf8d0b8c8c01eb0f8431c9e8",
+    "feat/provider-multi-source-foundation": "326e68adfd1b4e4c7a8b3a69aa7765671c828d12",
+    "feat/stage-2-continuous-companion-cognition": "205bfb096fbac91c1c6c7d3d16e230fde2c906ad",
+    "feat/stage-2-delivery-hardening": "84670792fa08352835d4cca88da6355435ee0cd6",
+    "feat/stage-3-long-term-companion": "548d40e4846556a86b208e29876971f46824e211",
+    "feat/stage-4-companion-confirmation-closure": "4284cb1b6856faf27f5a43dd4980a2c11404b4db",
+    "feat/stage-4a-companion-continuity": "57d2ff39ee1e8117c9dd9f55f23a41c87702e428",
+    "feat/stage-5-relational-presence": "a889ca819ed4686a176a910a54dcf553676fa2a2",
+    "feat/stage-6-appraisal-engine": "b4d3bd408de9693de6e5fa43ddb05878870e3824",
+    "feat/whole-project-return-to-core-20261107": "02b6938a3947bf77b0174747077e7a308584d12c",
+    "feature/algorithm-v2-phase-a": "a6f9e0be683b9a40af028952d625a5643cbf3553",
+    "fix/audit-driven-companion-remediation-20261109": "094ca2cf35b84e5a342becf0508db2ec6287079e",
+    "fix/chat-consent-latency-20261108": "b9988861e49f87ab235847792ac32e21c74e3ca0",
+    "fix/core-subjectivity-final-closure-20261109": "1b7ba085fba4c46086028b611be615dc871d6c66",
+    "fix/memory-reliability-v0.1": "dca6486af4d14edd2002b78e263f957d8b791352",
+    "fix/morrow-core-cognitive-closure-20261108": "efdbf52a25e896ee159d296944f019f9b94ab687",
+    "fix/morrow-p0-evidence-deletion-closure-20261110": "4bf63efaa78649588f5c5ae2ee4ed5795bb11e18",
+    "fix/morrow-project-wide-final-convergence-20261110": "dc2743d7a3877a56db4d3d3bb55feb574dc1a8e8",
+    "fix/phase-2.2.10-memory-trust-hardening": "60a88b854646223238f45d8d2b28161c19f84f48",
+    "fix/phase-2.2.9-memory-reliability-hardening": "34cb6605931f48967a33fffeb4c30544fab43a73",
+    "fix/pr-40-audit-findings": "bb9e409c7b4fda5c03d3180254363ec66b8cb929",
+    "fix/stage-5-final-closeout": "b4d3bd408de9693de6e5fa43ddb05878870e3824",
+    "fix/stage-5-review-findings": "9d54c6e02dea443f5b6911810327a9fa08c5353c",
+    "fix/whole-product-subject-closure-20261108": "45b067c036a6bd85aca9f06f3f85d9155dccadc8",
+    "infra/shared-real-model-test-contract": "5bb221ead8bd7bf92c7d42ec7ccfb44c45619216",
+    "integration/morrow-mainline-asset-convergence-20261110": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+    "main": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+    "release/morrow-v2-final-delivery": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+    "report/project-work-report-2026-10-26": "89f4397d5ae98b1accfefecb7eb5f47f821b8049",
+    "reports/algorithm-v2": "eeeb6b42bfb0752b67feb1ef92ac3b714e09a2eb",
+    "research/cognitive-update-pack-v0.1": "be27778adbf963119f66d08a6d997a9249f6ab7d",
+    "research/glm-morrow-rd-preparation-20261103": "f5a4273a6bb01d84779aa075206b20efaaef67fa",
+    "research/morrow-agent-capability-architecture-v1": "efa4be9c80159ef79f44f11fafa88264ca25fb35"
+  },
+  "sourceCommitShas": {
+    "productTip": "4bf63efaa78649588f5c5ae2ee4ed5795bb11e18",
+    "semantic": "a6f9e0be683b9a40af028952d625a5643cbf3553",
+    "memoryReliability": "25e80004256a597eaf8d0b8c8c01eb0f8431c9e8",
+    "memoryTrust": "60a88b854646223238f45d8d2b28161c19f84f48",
+    "selfModelConsent": "8667e16a87a418eb49ee0cb98dc7702aaef47c1f",
+    "turnContextV2": "205bfb096fbac91c1c6c7d3d16e230fde2c906ad"
+  },
+  "cherryPickMergeMap": [
+    {
+      "action": "fast-forward",
+      "from": "8b207b7d7b80b91ed4369d02fd6ef7e170b81133",
+      "to": "4bf63efaa78649588f5c5ae2ee4ed5795bb11e18",
+      "reason": "main is ancestor of product line; no conflict"
+    }
+  ],
+  "testedCommit": "def61eab532e88bfaf8e0a3096176d66d65cc84f",
+  "packageCommit": null,
+  "finalCodeSha": "def61eab532e88bfaf8e0a3096176d66d65cc84f",
+  "docsHead": "331143d08d641c297e20cbfdfb674c7d7670cbff",
+  "branchCount": 51,
+  "divergentBranches": [
+    "feature/algorithm-v2-phase-a",
+    "feat/phase-2.2-memory-reliability",
+    "fix/memory-reliability-v0.1",
+    "fix/phase-2.2.9-memory-reliability-hardening",
+    "fix/phase-2.2.10-memory-trust-hardening",
+    "feat/ai-life-core-upgrade-20261107",
+    "feat/phase-2-companion-core",
+    "feat/stage-2-continuous-companion-cognition",
+    "audit/pr-40-independent-review",
+    "audit/pr-40-repair-independent-review",
+    "audit/provider-multi-source-independent-review",
+    "chore/phase-1-engineering-consistency",
+    "docs/project-state-baseline",
+    "infra/shared-real-model-test-contract",
+    "report/project-work-report-2026-10-26",
+    "reports/algorithm-v2",
+    "research/cognitive-update-pack-v0.1",
+    "research/glm-morrow-rd-preparation-20261103",
+    "research/morrow-agent-capability-architecture-v1"
+  ],
+  "tests": {
+    "command": "npx vitest run",
+    "files": 151,
+    "tests": 1299,
+    "passed": 1299,
+    "failed": 0,
+    "log": "docs/reports/results/mainline-asset-convergence/run-20261110T1704Z-def61ea/vitest.txt"
+  },
+  "typecheck": {
+    "exit": 0,
+    "log": "docs/reports/results/mainline-asset-convergence/run-20261110T1704Z-def61ea/typecheck.txt"
+  },
+  "build": {
+    "exit": 0,
+    "log": "docs/reports/results/mainline-asset-convergence/run-20261110T1704Z-def61ea/build.txt"
+  },
+  "chatSmoke": {
+    "status": "PASS",
+    "evidence": "docs/reports/results/mainline-asset-convergence/run-20261110T1704Z-def61ea/chat-smoke-built.json"
+  },
+  "windows": {
+    "packageCommit": null,
+    "status": "NOT_RUN_AT_THIS_SHA",
+    "note": "b229 package is stale"
+  },
+  "stages": {
+    "1": "PARTIAL_DONE",
+    "2": "NOT_RUN",
+    "3": "NOT_RUN",
+    "4": "PARTIAL",
+    "5": "NOT_RUN",
+    "6": "NOT_RUN"
+  },
+  "residualP0": {
+    "C1": "PASS",
+    "C2": "PASS",
+    "C3": "PASS",
+    "C4": "PASS",
+    "C5": "PARTIAL",
+    "C6": "PARTIAL",
+    "C7": "PARTIAL"
+  },
+  "notDone": {
+    "mainModified": false,
+    "mergedToMain": false,
+    "branchesDeleted": false,
+    "releasePublished": false
+  }
+}

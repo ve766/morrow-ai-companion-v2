@@ -1,0 +1,98 @@
+{
+  "harnessVersion": "stage-2-ablation-v1",
+  "headSha": "5635a9c6e0023d8bc059f6c4322dd65dc5b9101b",
+  "startedAt": "2026-10-30T02:48:41.333Z",
+  "finishedAt": "2026-10-30T02:48:43.248Z",
+  "providerMode": "scripted",
+  "dataset": {
+    "turns": 3,
+    "memories": 2
+  },
+  "arms": [
+    {
+      "arm": "full",
+      "personalizationEnabled": true,
+      "turns": 3,
+      "payloadBytes": [
+        1393,
+        1427,
+        1496
+      ],
+      "personalizationBlockTurns": 2,
+      "memoryIdsFirstTurn": 0,
+      "recordedPersonalization": [
+        {
+          "dimension": "exploration",
+          "value": 0.515,
+          "evidenceCount": 1
+        },
+        {
+          "dimension": "depth",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "pace",
+          "value": 0.5,
+          "evidenceCount": 0
+        }
+      ]
+    },
+    {
+      "arm": "no_personalization",
+      "personalizationEnabled": false,
+      "turns": 3,
+      "payloadBytes": [
+        1393,
+        1185,
+        1254
+      ],
+      "personalizationBlockTurns": 0,
+      "memoryIdsFirstTurn": 0,
+      "recordedPersonalization": [
+        {
+          "dimension": "exploration",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "depth",
+          "value": 0.5,
+          "evidenceCount": 0
+        },
+        {
+          "dimension": "pace",
+          "value": 0.5,
+          "evidenceCount": 0
+        }
+      ]
+    }
+  ],
+  "comparison": {
+    "personalizationBlockAppearsOnlyWhenEnabled": true,
+    "fullBlockTurns": 2,
+    "offBlockTurns": 0,
+    "payloadBytesDelta": [
+      0,
+      242,
+      242
+    ]
+  },
+  "notRun": [
+    {
+      "arm": "no_context_utility",
+      "status": "NOT_RUN",
+      "reason": "B3 has no injectable switch; adding one would change the assembler signature in a batch that also touches ranking"
+    },
+    {
+      "arm": "no_reflection",
+      "status": "NOT_RUN",
+      "reason": "B5 needs a reflection finding to cross the confirmation boundary; the harness cannot fabricate that without asserting its own premise"
+    }
+  ],
+  "limits": [
+    "Scripted provider: this measures what is serialized, not reply quality.",
+    "One conversation per arm, three turns: enough to detect a wiring difference, not a rate.",
+    "B1/B3/B5 arms are NOT_RUN and are not counted as evidence of anything."
+  ]
+}

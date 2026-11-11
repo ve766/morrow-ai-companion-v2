@@ -1,0 +1,330 @@
+{
+  "datasetVersion": "v1",
+  "harnessVersion": "stage-2-runner-v1",
+  "headSha": "42a51e075af8a8ce9628c87490c37df8c92b7580",
+  "startedAt": "2026-10-30T06:12:31.941Z",
+  "finishedAt": "2026-10-30T06:12:40.260Z",
+  "providerMode": "scripted",
+  "providerNote": "The provider returns fixed text. This runner proves wiring and payload contents, never model quality.",
+  "counts": {
+    "executed": 12,
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0,
+    "blocked": 2,
+    "notRun": 0
+  },
+  "passRate": 1,
+  "passRateDenominator": "PASS + FAIL only; SKIPPED, BLOCKED and NOT_RUN are excluded, never counted as passing.",
+  "scenarios": [
+    {
+      "id": "B",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "the memory is delivered in the first session",
+          "ok": true,
+          "detail": "delivered=1"
+        },
+        {
+          "name": "the memory is delivered in a later session",
+          "ok": true,
+          "detail": "delivered=1"
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "control: the value is deliverable before retraction",
+          "ok": true,
+          "detail": "delivered=1"
+        },
+        {
+          "name": "the retracted memory id is absent afterwards",
+          "ok": true,
+          "detail": "delivered=0"
+        },
+        {
+          "name": "the retracted value is absent from the payload",
+          "ok": true,
+          "detail": "text scan"
+        }
+      ]
+    },
+    {
+      "id": "I",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "a repeated requestId produces exactly one assistant message",
+          "ok": true,
+          "detail": "assistants=1"
+        },
+        {
+          "name": "the repeated call returns the same assistant message",
+          "ok": true,
+          "detail": "identity"
+        },
+        {
+          "name": "the provider is called once",
+          "ok": true,
+          "detail": "calls=1"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "reflection actually ran (not rate limited)",
+          "ok": true,
+          "detail": "completed"
+        },
+        {
+          "name": "the long-term layer holds an interest for the topic",
+          "ok": true,
+          "detail": "rows=3 distinctLabels=3 active=1"
+        },
+        {
+          "name": "the promoted interest keeps its evidence trail",
+          "ok": true,
+          "detail": "support=3 sessions=2"
+        },
+        {
+          "name": "an active interest reaches the next serialized request",
+          "ok": true,
+          "detail": "active=1 block=true"
+        },
+        {
+          "name": "the request block names the promoted interest",
+          "ok": true,
+          "detail": "target=咖啡拉花 named=true"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "a successful turn is recorded as committed",
+          "ok": true,
+          "detail": "state=committed"
+        },
+        {
+          "name": "a failing turn is recorded as failed",
+          "ok": true,
+          "detail": "state=failed threw=true"
+        },
+        {
+          "name": "the failing turn stored no assistant message",
+          "ok": true,
+          "detail": "provider rejected"
+        }
+      ]
+    },
+    {
+      "id": "A",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "a reference with nothing to resolve against is recorded as unresolved",
+          "ok": true,
+          "detail": "dep=unresolved label=ambiguous"
+        },
+        {
+          "name": "a self-contained question does not claim a prior turn",
+          "ok": true,
+          "detail": "dep=none label=information_query"
+        },
+        {
+          "name": "a pronoun follow-up is recorded as depending on the prior turn",
+          "ok": true,
+          "detail": "dep=prior_turn label=information_query"
+        },
+        {
+          "name": "the two cases stay distinguishable in the stored record",
+          "ok": true,
+          "detail": "orphan=unresolved follow=prior_turn"
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "control: the original value was deliverable before the correction",
+          "ok": true,
+          "detail": "delivered=1 hasOld=true"
+        },
+        {
+          "name": "the correction keeps both revisions chained",
+          "ok": true,
+          "detail": "revisions=2 rev=2 prev=1 type=corrected"
+        },
+        {
+          "name": "the corrected record is the current one",
+          "ok": true,
+          "detail": "rev=2 current=我住在苏州。"
+        },
+        {
+          "name": "the next request carries the new value and not the old one",
+          "ok": true,
+          "detail": "delivered=1 new=true old=false"
+        }
+      ]
+    },
+    {
+      "id": "E",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "the personality version never moves on its own",
+          "ok": true,
+          "detail": "versions=1,1,1,1 expected=1"
+        },
+        {
+          "name": "no revision is written without a user edit",
+          "ok": true,
+          "detail": "revisions=1 before=1"
+        },
+        {
+          "name": "every request states the same user-controlled preferences",
+          "ok": true,
+          "detail": "distinct=1 sample=User-controlled communication preferences, versi"
+        },
+        {
+          "name": "the stored profile is still the user's own values",
+          "ok": true,
+          "detail": "warmth=55 directness=65 humor=20 unknownTurn=true"
+        }
+      ]
+    },
+    {
+      "id": "F",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "a feedback turn applies exactly one state event",
+          "ok": true,
+          "detail": "applied=true event=positive_feedback"
+        },
+        {
+          "name": "the recorded after-state is the committed state, not a projection",
+          "ok": true,
+          "detail": "ctxRevision=1 stateRevision=1 ctxValence=0.0395 stateValence=0.0395"
+        },
+        {
+          "name": "no single turn moves a dimension beyond its limit",
+          "ok": true,
+          "detail": "before={\"revision\":0,\"valence\":0,\"activation\":0,\"tension\":0,\"explorationPriority\":0,\"uncertainty\":\"not_scored\"} after={\"revision\":1,\"valence\":0.0395,\"activation\":0,\"tension\":0,\"explorationPriority\":0,\"uncertainty\":\"medium\"}"
+        },
+        {
+          "name": "the state stays inside its declared range",
+          "ok": true,
+          "detail": "after={\"revision\":1,\"valence\":0.0395,\"activation\":0,\"tension\":0,\"explorationPriority\":0,\"uncertainty\":\"medium\"}"
+        },
+        {
+          "name": "the request discloses the state as bounded and non-overriding",
+          "ok": true,
+          "detail": "text scan"
+        }
+      ]
+    },
+    {
+      "id": "G",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "three mentions inside one session do not promote",
+          "ok": true,
+          "detail": "status=candidate evidence=3 sessions=1"
+        },
+        {
+          "name": "a second session promotes the same topic",
+          "ok": true,
+          "detail": "status=active sessions=2 evidence=4 min=2/3"
+        },
+        {
+          "name": "an unrelated topic stays a candidate",
+          "ok": true,
+          "detail": "status=candidate label=吉他"
+        },
+        {
+          "name": "promotion does not leak into other topics",
+          "ok": true,
+          "detail": "active=1 ids=676505ec-5a88-4f8f-a2d5-01570da0646c"
+        }
+      ]
+    },
+    {
+      "id": "H",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "the hourly budget is actually spent",
+          "ok": true,
+          "detail": "executed=6 limit=6"
+        },
+        {
+          "name": "the next run is refused, not silently run",
+          "ok": true,
+          "detail": "result=rate_limited"
+        },
+        {
+          "name": "a refused run leaves no run record",
+          "ok": true,
+          "detail": "runs=6"
+        },
+        {
+          "name": "the window reopens after an hour",
+          "ok": true,
+          "detail": "canRun(+1h)=true"
+        }
+      ]
+    },
+    {
+      "id": "J",
+      "status": "PASS",
+      "assertions": [
+        {
+          "name": "the hash the user approved is the hash of what was sent",
+          "ok": true,
+          "detail": "approved=15ef264efa81 sent=15ef264efa81"
+        },
+        {
+          "name": "a replayed turn sends nothing new",
+          "ok": true,
+          "detail": "providerCalls=0"
+        },
+        {
+          "name": "changing delivered content changes the approved hash",
+          "ok": true,
+          "detail": "before=15ef264efa81 after=e4f5b2baa19c"
+        },
+        {
+          "name": "the retracted value is gone from the new payload",
+          "ok": true,
+          "detail": "hasOld=false"
+        }
+      ]
+    },
+    {
+      "id": "K",
+      "status": "BLOCKED",
+      "assertions": [],
+      "blockedBy": "scripted provider only in this offline runner; real-provider coverage comes from phase24-real-model (5/5 runnable scenarios PASS, S4 SKIPPED)"
+    },
+    {
+      "id": "L",
+      "status": "BLOCKED",
+      "assertions": [],
+      "blockedBy": "GUI process cannot be hosted inside this offline runner; desktop coverage comes from `npm run smoke` (exit 0, sandbox enabled)"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION } from './migrations'
+import { applyMigrations, CURRENT_SCHEMA_VERSION, DEGRADED_OPEN_MINIMUM_VERSION, SchemaIdentityError } from './migrations'
 
 function currentVersion(connection: DatabaseSync): number {
   const schemaTable = connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").get()
@@ -106,7 +106,8 @@ export class SqliteDatabase {
       let version: number
       try {
         version = applyMigrations(connection)
-      } catch {
+      } catch (error) {
+        if (error instanceof SchemaIdentityError) throw new Error('Local storage could not be opened.')
         version = currentVersion(connection)
         if (version < DEGRADED_OPEN_MINIMUM_VERSION) throw new Error('Database migration failed.')
       }
@@ -127,16 +128,34 @@ export class SqliteDatabase {
     }
   }
 
+  /**
+   * Runs `operation` in a transaction, nested or not.
+   *
+   * Nesting used to throw `cannot start a transaction within a transaction`,
+   * and the callers that read state inside a write (the turn finalization reads
+   * the committed feeling state) swallowed that error and carried on with a
+   * default value. A nested call now becomes a savepoint, so an inner read sees
+   * the outer transaction's uncommitted writes and an inner failure rolls back
+   * only the inner work.
+   */
+  private transactionDepth = 0
+
   transaction<T>(operation: () => T): T {
     if (this.closed) throw new Error('Local storage is closed.')
-    this.connection.exec('BEGIN IMMEDIATE')
+    const nested = this.transactionDepth > 0
+    const savepoint = `morrow_sp_${this.transactionDepth}`
+    this.connection.exec(nested ? `SAVEPOINT ${savepoint}` : 'BEGIN IMMEDIATE')
+    this.transactionDepth += 1
     try {
       const value = operation()
-      this.connection.exec('COMMIT')
+      this.transactionDepth -= 1
+      this.connection.exec(nested ? `RELEASE ${savepoint}` : 'COMMIT')
       return value
     } catch (error) {
+      this.transactionDepth -= 1
       try {
-        this.connection.exec('ROLLBACK')
+        this.connection.exec(nested ? `ROLLBACK TO ${savepoint}` : 'ROLLBACK')
+        if (nested) this.connection.exec(`RELEASE ${savepoint}`)
       } catch {
         throw new Error('Local storage operation failed.')
       }

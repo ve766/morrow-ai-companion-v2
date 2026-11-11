@@ -1,0 +1,89 @@
+{
+  "suite": "stage-4a-scripted",
+  "datasetVersion": "stage-4a-cat-name-v1",
+  "codeCommit": "c9e01b533595ae96115dcfa141ef1cd1fda75b61",
+  "branch": "feat/stage-4a-companion-continuity",
+  "command": "npm run eval:stage4a",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "provider": "scripted-offline (not a model)",
+  "startedAt": "2026-11-01T14:03:22.021Z",
+  "finishedAt": "2026-11-01T14:03:23.768Z",
+  "counts": {
+    "PASS": 2,
+    "FAIL": 0
+  },
+  "unmeasured": [
+    "real model behaviour (run with --live)",
+    "human experience review"
+  ],
+  "results": [
+    {
+      "id": "fact-state",
+      "status": "PASS",
+      "detail": "{\"current\":[\"豆豆\"],\"history\":[\"豆豆:active\",\"咪咪:superseded\"]}"
+    },
+    {
+      "id": "provenance",
+      "status": "PASS",
+      "detail": "[{\"value\":\"豆豆\",\"message\":\"65748836-c237-40fc-8e50-a53d035a4f13\",\"kind\":\"message\"},{\"value\":\"咪咪\",\"message\":\"00e4b898-5ea4-4adc-b20e-02e0da1e2196\",\"kind\":\"message\"}]"
+    }
+  ],
+  "turns": [
+    {
+      "session": "A",
+      "user": "我有一只猫，它叫咪咪。帮我记住。",
+      "reply": "好的。",
+      "deliveredEvidence": "我的猫叫咪咪。",
+      "payloadDigest": "9038ed619ad37dd3",
+      "assertions": []
+    },
+    {
+      "session": "B",
+      "user": "你还记得我的猫叫什么吗？",
+      "reply": "好的。",
+      "deliveredEvidence": "我的猫叫咪咪。",
+      "payloadDigest": "635a2b0bda693710",
+      "assertions": [
+        {
+          "name": "证据含 咪咪",
+          "ok": true,
+          "detail": "我的猫叫咪咪。"
+        }
+      ]
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "好的。",
+      "deliveredEvidence": "我的猫叫豆豆。",
+      "payloadDigest": "20ae56ff4e8bafd8",
+      "assertions": []
+    },
+    {
+      "session": "D",
+      "user": "我的猫叫什么？",
+      "reply": "好的。",
+      "deliveredEvidence": "我的猫叫豆豆。",
+      "payloadDigest": "2ee0196b8b1d0e79",
+      "assertions": [
+        {
+          "name": "证据含 豆豆",
+          "ok": true,
+          "detail": "我的猫叫豆豆。"
+        }
+      ]
+    },
+    {
+      "session": "D",
+      "user": "它之前叫什么来着？",
+      "reply": "好的。",
+      "deliveredEvidence": "我的猫叫豆豆。",
+      "payloadDigest": "f896611a1ca02ba3",
+      "assertions": []
+    }
+  ]
+}

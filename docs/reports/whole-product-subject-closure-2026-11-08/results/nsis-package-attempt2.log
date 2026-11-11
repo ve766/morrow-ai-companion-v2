@@ -1,0 +1,24 @@
+  • electron-builder  version=26.15.3 os=10.0.26200
+  • loaded configuration  file=package.json ("build" field)
+  • author is missed in the package.json  appPackageFile=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\package.json
+  • executing @electron/rebuild  electronVersion=44.9.3 arch=x64 buildFromSource=false workspaceRoot=E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=44.9.3 appOutDir=release\win-unpacked
+  • downloaded      label=electron progress=100%
+  ⨯ Response code 504 (Gateway Time-out)  failedTask=build stackTrace=HTTPError: Response code 504 (Gateway Time-out)
+    at Request._onResponseBase (E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\node_modules\got\dist\source\core\index.js:913:31)
+    at Request._onResponse (E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\node_modules\got\dist\source\core\index.js:948:24)
+    at ClientRequest.<anonymous> (E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\node_modules\got\dist\source\core\index.js:962:23)
+    at Object.onceWrapper (node:events:634:26)
+    at ClientRequest.emit (node:events:531:35)
+    at ClientRequest.origin.emit (E:\Hasee\Documents\morrow v2\zcode\stage3-audit\repo\node_modules\@szmarczak\http-timer\dist\source\index.js:43:20)
+    at HTTPParser.parserOnIncomingClient (node:_http_client:780:27)
+    at HTTPParser.parserOnHeadersComplete (node:_http_common:125:17)
+    at TLSSocket.socketOnData (node:_http_client:615:22)
+    at TLSSocket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at TLSSocket.Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:189:23)
+PACKAGE_EXIT=1

@@ -1,0 +1,221 @@
+{
+  "runId": "20261105T031237Z-f9c9988e",
+  "suite": "morrow-v2-final-product-path",
+  "startedAt": "2026-11-05T03:12:37.520Z",
+  "finishedAt": "2026-11-05T03:12:58.207Z",
+  "status": "PASS",
+  "platform": "win32",
+  "electronVersion": "44.9.3",
+  "sandboxDisabled": false,
+  "profile": "isolated-temporary-profile",
+  "checks": [
+    {
+      "name": "seed continuity stores",
+      "ok": true,
+      "detail": "personality v2, memory 31f433a8-70e7-401e-87c3-2b548db90b4a, goal 2858bef5-d4bc-4525-8c63-ad4a455166be, conversation 34328e2b-31f0-42d6-8063-45cc5e2f3d4d"
+    },
+    {
+      "name": "create profile A through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "create profile B through renderer form",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path B」"
+    },
+    {
+      "name": "UI evidence screenshots captured",
+      "ok": true,
+      "detail": "9 screenshots at 1440×900 / 1280×800 / 390×844"
+    },
+    {
+      "name": "two profiles use distinct OS secret files",
+      "ok": true,
+      "detail": "distinct ciphertext digests"
+    },
+    {
+      "name": "profiles and OS secrets survive restart",
+      "ok": true,
+      "detail": "both profiles read back configured after restart"
+    },
+    {
+      "name": "continuity unchanged across restart",
+      "ok": true,
+      "detail": "baseline={\"interests\":0,\"memories\":1,\"goals\":1} after={\"interests\":1,\"memories\":1,\"goals\":1}"
+    },
+    {
+      "name": "SQLite continuity rows preserved across restart",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across restart",
+      "ok": true,
+      "detail": "removed=0 changed=0 unexpectedAdded=0 allowedChanges=0 allowedAdditions={\"interests\":1,\"interest_evidence\":1,\"reflection_findings\":1,\"reflection_finding_routes\":1,\"reflection_runs\":1,\"event_journal\":7}"
+    },
+    {
+      "name": "endpoint change clears the old secret and disables the remote profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」。接入地址已变更，旧密钥已清除；请重新输入 API Key 并启用后使用。"
+    },
+    {
+      "name": "only the changed profile secret was removed",
+      "ok": true,
+      "detail": "B ciphertext unchanged"
+    },
+    {
+      "name": "re-entering a key re-enables the profile",
+      "ok": true,
+      "detail": "feedback: 已保存「Product Path A」"
+    },
+    {
+      "name": "rekey writes a new OS secret without touching the other profile",
+      "ok": true,
+      "detail": "A ciphertext rotated, B unchanged"
+    },
+    {
+      "name": "switch A → B → A through the product bridge",
+      "ok": true,
+      "detail": "A is default again"
+    },
+    {
+      "name": "continuity unchanged across provider switch",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "SQLite continuity rows preserved across provider switch",
+      "ok": true,
+      "detail": "no continuity table was cleared"
+    },
+    {
+      "name": "full-field continuity across provider switch",
+      "ok": true,
+      "detail": "removed=0 changed=0 unexpectedAdded=0 allowedChanges=0 allowedAdditions={\"interests\":1,\"interest_evidence\":1,\"reflection_findings\":1,\"reflection_finding_routes\":1,\"reflection_runs\":4,\"event_journal\":22}"
+    },
+    {
+      "name": "delete profile B through the renderer",
+      "ok": true,
+      "detail": "B removed from the list"
+    },
+    {
+      "name": "deleting B removes only B’s OS secret",
+      "ok": true,
+      "detail": "A secret retained"
+    },
+    {
+      "name": "final restart keeps only A configured",
+      "ok": true,
+      "detail": "one configured profile remains"
+    },
+    {
+      "name": "final continuity unchanged",
+      "ok": true,
+      "detail": "baseline identities and content preserved"
+    },
+    {
+      "name": "full-field continuity final A",
+      "ok": true,
+      "detail": "removed=0 changed=0 unexpectedAdded=0 allowedChanges=0 allowedAdditions={\"interests\":1,\"interest_evidence\":1,\"reflection_findings\":1,\"reflection_finding_routes\":1,\"reflection_runs\":5,\"event_journal\":31}"
+    }
+  ],
+  "continuity": {
+    "bridge": {
+      "baselineSha256": "57189981ef099b84427a3414d25bd698b9298300491d0c57686ca6f99401af73",
+      "afterRestartSha256": "57cb37683ea1ff6aaade367bf4b10732df5903db36aca2eb32645902e9666bc2",
+      "afterSwitchSha256": "57cb37683ea1ff6aaade367bf4b10732df5903db36aca2eb32645902e9666bc2",
+      "finalSha256": "57cb37683ea1ff6aaade367bf4b10732df5903db36aca2eb32645902e9666bc2"
+    },
+    "databaseCounts": {
+      "baselineSha256": "2d426d0b3151ac70165ceb4d25f3423074720afdaa6c4853b7737f4bea03a326",
+      "afterRestartSha256": "9594c352c760145119e49371883d434b27c1cf4436a75a692fba73c9d09bc6b2",
+      "afterSwitchSha256": "9594c352c760145119e49371883d434b27c1cf4436a75a692fba73c9d09bc6b2",
+      "tables": [
+        "personality_profiles",
+        "self_model_entries",
+        "interests",
+        "memories",
+        "goals",
+        "relationship_threads",
+        "conversations",
+        "messages",
+        "cognitive_pending_items",
+        "reflection_findings",
+        "reflection_finding_routes"
+      ]
+    },
+    "fullField": {
+      "restart": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [],
+        "allowedAdditions": {
+          "interests": 1,
+          "interest_evidence": 1,
+          "reflection_findings": 1,
+          "reflection_finding_routes": 1,
+          "reflection_runs": 1,
+          "event_journal": 7
+        }
+      },
+      "switch": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [],
+        "allowedAdditions": {
+          "interests": 1,
+          "interest_evidence": 1,
+          "reflection_findings": 1,
+          "reflection_finding_routes": 1,
+          "reflection_runs": 4,
+          "event_journal": 22
+        }
+      },
+      "final": {
+        "removed": [],
+        "changed": [],
+        "added": {},
+        "allowedChanges": [],
+        "allowedAdditions": {
+          "interests": 1,
+          "interest_evidence": 1,
+          "reflection_findings": 1,
+          "reflection_finding_routes": 1,
+          "reflection_runs": 5,
+          "event_journal": 31
+        }
+      }
+    }
+  },
+  "secrets": {
+    "a": {
+      "before": "b80e64c80f086c4eaa19211f4ee572759210ff5178609a871c5b2e9552e43542",
+      "afterChange": null,
+      "afterRekey": "bc0b6e84b56b27fb11bf79716540d86adb8953d8324273d4ad812d4c44b54a6e"
+    },
+    "b": {
+      "before": "85c29bd77aff60253856cec9523549f16c2f8e772e9aba3012b90edddad000ba",
+      "afterChange": "85c29bd77aff60253856cec9523549f16c2f8e772e9aba3012b90edddad000ba",
+      "afterDelete": null
+    }
+  },
+  "limitation": "Native provider-consent dialogs are not automatable through CDP; consent denial and fetch-count-zero are proven by the service integration suite at the same SHA. Connection tests were not triggered here to avoid an unattended native dialog.",
+  "uiEvidence": [
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\chat-1440x900.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\chat-1280x800.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\chat-390x844.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\memory-1440x900.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\memory-1280x800.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\memory-390x844.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\settings-1440x900.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\settings-1280x800.png",
+    "D:\\a\\morrow-ai-companion-v2\\morrow-ai-companion-v2\\docs\\ui\\evidence\\20261105T031237Z-f9c9988e\\settings-390x844.png"
+  ],
+  "profiles": {
+    "a": "4f09ca1b-b9a5-43d2-b5b7-3c10ce3d4b81",
+    "b": "06df9a1b-c78c-4a67-834e-460d565c3207"
+  }
+}

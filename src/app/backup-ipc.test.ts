@@ -15,7 +15,7 @@ function createHarness(options: { url: string; backup?: BackupActions }) {
     version: '0.0.0',
     platform: 'win32',
     electronVersion: '44.9.0',
-    dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+    dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
   }) }, trustedUrl, {
     memories: {} as never,
     goals: {} as never,
@@ -41,7 +41,7 @@ describe('backup IPC surface', () => {
   it('exists only when backup actions are provided', () => {
     const withoutBackup = createIpcHandlers({ getAppInfo: () => ({
       name: 'Morrow', version: '0.0.0', platform: 'win32', electronVersion: '44.9.0',
-      dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+      dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
     }) }, trustedUrl, { memories: {} as never, goals: {} as never, reminders: {} as never })
     expect(withoutBackup[IPC_CHANNELS.backupExport]).toBeUndefined()
     expect(withoutBackup[IPC_CHANNELS.backupPreview]).toBeUndefined()
@@ -62,7 +62,7 @@ describe('backup IPC surface', () => {
     const frame = { url: trustedUrl }
     const handlers = createIpcHandlers({ getAppInfo: () => ({
       name: 'Morrow', version: '0.0.0', platform: 'win32', electronVersion: '44.9.0',
-      dataPolicy: 'local-first-consented-deepseek-egress-memory-goals-reminders'
+      dataPolicy: 'local-first-consented-provider-egress-memory-goals-reminders'
     }) }, trustedUrl, { memories: {} as never, goals: {} as never, reminders: {} as never, backup: fakeBackup })
     const subframeEvent: IpcEventLike = { sender: { mainFrame: { url: trustedUrl } }, senderFrame: frame }
     const exportHandler = handlers[IPC_CHANNELS.backupExport]

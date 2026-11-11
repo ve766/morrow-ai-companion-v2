@@ -121,6 +121,11 @@ export function parseGoalIdRequest(value: unknown): { goalId: string } {
   const input = parseObject(value, ['goalId'], 'Goal request')
   return { goalId: parseIdentifier(input.goalId) }
 }
+export function parseGoalCandidateIdRequest(value: unknown): { candidateId: string } {
+  const input = parseObject(value, ['candidateId'], 'Goal candidate request')
+  return { candidateId: parseIdentifier(input.candidateId) }
+}
+
 
 export function parseTaskIdRequest(value: unknown): { taskId: string } {
   const input = parseObject(value, ['taskId'], 'Task request')
@@ -152,7 +157,7 @@ export function parseBackupRestoreRequest(value: unknown): { token: string; conf
 
 export function parseProviderConfigInput(value: unknown): ProviderConfigInput {
   const object = parseObject(value, ['providerId', 'model', 'endpoint', 'enabled', 'apiKey'], 'Provider settings')
-  if (object.providerId !== 'deepseek' && object.providerId !== 'local-openai') {
+  if (object.providerId !== 'deepseek' && object.providerId !== 'local-openai' && object.providerId !== 'spark') {
     throw new InputValidationError('Provider settings are invalid.')
   }
   if (typeof object.enabled !== 'boolean') throw new InputValidationError('Provider settings are invalid.')
@@ -165,6 +170,20 @@ export function parseProviderConfigInput(value: unknown): ProviderConfigInput {
     return {
       providerId: 'deepseek',
       model: 'deepseek-flash',
+      enabled: object.enabled,
+      ...(object.apiKey === undefined ? {} : { apiKey: object.apiKey })
+    }
+  }
+  if (object.providerId === 'spark') {
+    // The endpoint is fixed by the registry; the model id comes from the
+    // account's own model list and is validated by shape.
+    if (object.endpoint !== undefined) throw new InputValidationError('The Spark endpoint is fixed and cannot be changed.')
+    if (typeof object.model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u.test(object.model)) {
+      throw new InputValidationError('The Spark model id must be 1 to 64 letters, digits, dot, colon, underscore or dash.')
+    }
+    return {
+      providerId: 'spark' as const,
+      model: object.model,
       enabled: object.enabled,
       ...(object.apiKey === undefined ? {} : { apiKey: object.apiKey })
     }
@@ -184,18 +203,58 @@ export function parseProviderConfigInput(value: unknown): ProviderConfigInput {
   }
 }
 
-export function parseProviderGetRequest(value: unknown): { providerId?: ProviderId } {
+const PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/u
+
+function parseProfileId(value: unknown): string {
+  if (typeof value !== 'string' || !PROFILE_ID_PATTERN.test(value)) throw new InputValidationError('Provider profile id is invalid.')
+  return value
+}
+
+export function parseProviderGetRequest(value: unknown): { providerId?: string } {
   if (value === undefined) return {}
   const input = parseObject(value, ['providerId'], 'Provider request')
   if (input.providerId === undefined) return {}
-  if (input.providerId !== 'deepseek' && input.providerId !== 'local-openai') throw new InputValidationError('Provider is unsupported.')
-  return { providerId: input.providerId }
+  return { providerId: parseProfileId(input.providerId) }
 }
 
-export function parseProviderConnectionRequest(value: unknown): { providerId: ProviderId } {
+export function parseProviderConnectionRequest(value: unknown): { providerId: string } {
   const input = parseObject(value, ['providerId'], 'Provider connection test')
-  if (input.providerId !== 'deepseek' && input.providerId !== 'local-openai') throw new InputValidationError('Provider is unsupported.')
-  return { providerId: input.providerId }
+  return { providerId: parseProfileId(input.providerId) }
+}
+
+export function parseProviderProfileIdRequest(value: unknown): { profileId: string } {
+  const input = parseObject(value, ['profileId'], 'Provider profile request')
+  return { profileId: parseProfileId(input.profileId) }
+}
+
+export function parseProviderModelsRequest(value: unknown): { profileId: string } {
+  const input = parseObject(value, ['profileId'], 'Provider model discovery')
+  return { profileId: parseProfileId(input.profileId) }
+}
+
+export function parseProviderProfileSaveInput(value: unknown): import('../shared/companion').ProviderProfileSaveInput {
+  const input = parseObject(value, ['profileId', 'displayName', 'sourceKind', 'protocolId', 'endpoint', 'endpointPath', 'model', 'enabled', 'isDefault', 'apiKey'], 'Provider profile')
+  if (input.sourceKind !== 'custom-proxy' && input.sourceKind !== 'local') throw new InputValidationError('Provider source kind is not supported.')
+  if (input.protocolId !== 'openai-chat-completions') throw new InputValidationError('Provider protocol is not supported.')
+  if (typeof input.displayName !== 'string' || input.displayName.trim().length === 0 || input.displayName.length > 80) throw new InputValidationError('Provider display name is invalid.')
+  if (typeof input.endpoint !== 'string' || input.endpoint.length < 8 || input.endpoint.length > 2000) throw new InputValidationError('Provider endpoint is invalid.')
+  if (input.endpointPath !== undefined && input.endpointPath !== null && (typeof input.endpointPath !== 'string' || input.endpointPath.length > 300 || !input.endpointPath.startsWith('/') || input.endpointPath.includes('..'))) throw new InputValidationError('Provider endpoint path is invalid.')
+  if (typeof input.model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(input.model)) throw new InputValidationError('Provider model is invalid.')
+  if (typeof input.enabled !== 'boolean') throw new InputValidationError('Provider enabled flag is invalid.')
+  if (input.isDefault !== undefined && typeof input.isDefault !== 'boolean') throw new InputValidationError('Provider default flag is invalid.')
+  if (input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 10000 || /[ -]/u.test(input.apiKey))) throw new InputValidationError('Provider API key is invalid.')
+  return {
+    ...(input.profileId === undefined ? {} : { profileId: parseProfileId(input.profileId) }),
+    displayName: input.displayName.trim(),
+    sourceKind: input.sourceKind,
+    protocolId: input.protocolId,
+    endpoint: input.endpoint.trim(),
+    ...(input.endpointPath === undefined ? {} : { endpointPath: input.endpointPath as string | null }),
+    model: input.model.trim(),
+    enabled: input.enabled,
+    ...(input.isDefault === undefined ? {} : { isDefault: input.isDefault }),
+    ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey })
+  }
 }
 
 export function parseInterestIdRequest(value: unknown): { interestId: string } {
@@ -238,6 +297,11 @@ export function parseSelfModelIdRequest(value: unknown): { entryId: string } {
 export function parseReflectionFindingsRequest(value: unknown): { runId: string } {
   const input = parseObject(value, ['runId'], 'Reflection findings request')
   return { runId: parseIdentifier(input.runId) }
+}
+
+export function parseTurnContextRequest(value: unknown): { turnId: string } {
+  const input = parseObject(value, ['turnId'], 'Turn context request')
+  return { turnId: parseIdentifier(input.turnId) }
 }
 
 export function parseChatRequest(value: unknown): { conversationId: string; requestId: string; content: string; includeSensitive: boolean } {
@@ -389,4 +453,37 @@ export function parseReminderRescheduleRequest(value: unknown): ReminderReschedu
 export function parseReminderIdRequest(value: unknown): ReminderIdRequest {
   const input = parseObject(value, ['reminderId'], 'Reminder request')
   return { reminderId: parseIdentifier(input.reminderId) }
+}
+
+export function parsePersonalityGrowthRollbackRequest(value: unknown): { dimension: 'warmth' | 'directness' | 'humor' } {
+  const input = parseObject(value, ['dimension'], 'Personality growth rollback request')
+  if (input.dimension !== 'warmth' && input.dimension !== 'directness' && input.dimension !== 'humor') {
+    throw new InputValidationError('Personality growth rollback requires a known dimension')
+  }
+  return { dimension: input.dimension }
+}
+
+export function parsePendingItemDecisionRequest(value: unknown): { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' } {
+  const input = parseObject(value, ['itemId', 'decision'], 'Pending item decision request')
+  if (input.decision !== 'accepted' && input.decision !== 'rejected' && input.decision !== 'dismissed') {
+    throw new InputValidationError('Pending item decision must be accepted, rejected or dismissed')
+  }
+  return { itemId: parseIdentifier(input.itemId), decision: input.decision }
+}
+
+export function parseAffectRegulateRequest(value: unknown): { emotionId: string; kind: 'reappraised' | 'regulated' | 'retracted'; rationale: string } {
+  const input = parseObject(value, ['emotionId', 'kind', 'rationale'], 'Affect regulation request')
+  if (input.kind !== 'reappraised' && input.kind !== 'regulated' && input.kind !== 'retracted') {
+    throw new InputValidationError('Affect regulation kind is invalid.')
+  }
+  const rationale = parseText(input.rationale, 'Affect regulation rationale', 1, 240)
+  return { emotionId: parseIdentifier(input.emotionId), kind: input.kind, rationale }
+}
+
+export function parseConsentGrantRevokeRequest(value: unknown): { scopeFingerprint: string } {
+  const input = parseObject(value, ['scopeFingerprint'], 'Consent grant revoke request')
+  if (typeof input.scopeFingerprint !== 'string' || !/^[a-f0-9]{64}$/u.test(input.scopeFingerprint)) {
+    throw new InputValidationError('Consent grant fingerprint is invalid.')
+  }
+  return { scopeFingerprint: input.scopeFingerprint }
 }

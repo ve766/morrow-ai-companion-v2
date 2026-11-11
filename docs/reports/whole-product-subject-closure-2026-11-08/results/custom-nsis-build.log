@@ -1,0 +1,18 @@
+Processing config: C:\Users\Hasee\AppData\Local\electron-builder\Cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\nsisconf.nsh
+Processing script file: ".tmp/morrow-custom.nsi" (ACP)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "C:\morrow-out\Morrow-2.0.0-x64-custom-setup.exe"
+Install: 2 pages (128 bytes), 1 section (16408 bytes), 139 instructions (3892 bytes), 686 strings (3506 bytes), 1 language table (266 bytes).
+Uninstall: 2 pages (192 bytes), 1 section (16408 bytes), 54 instructions (1512 bytes), 327 strings (1632 bytes), 1 language table (250 bytes).
+
+Using zlib compression.
+
+EXE header size:               52736 / 39424 bytes
+Install code:                   2859 / 24664 bytes
+Install data:              158310865 / 387400497 bytes
+Uninstall code+data:           11122 / 15443 bytes
+CRC (0xF1E6EE82):                  4 / 4 bytes
+
+Total size:                158377586 / 387480032 bytes (40.8%)

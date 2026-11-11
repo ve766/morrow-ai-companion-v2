@@ -140,11 +140,11 @@ describe('cognitive closed loop over a real loopback provider', () => {
       await stack.companion.sendChat({ conversationId: conversationB.id, requestId: randomUUID(), content: '继续。', includeSensitive: false }, () => {})
       const chatRequests = server.requests.filter((request) => request.url.endsWith('/chat/completions'))
       const lastSystem = chatRequests.at(-1)?.body.messages.find((message) => message.role === 'system')?.content ?? ''
-      expect(lastSystem).toContain('Bounded long-term attention signal')
+      expect(lastSystem).toContain('Topics the user returned to across conversations')
       expect(lastSystem).toContain(promoted!.label)
       // earlier requests (before promotion) did not contain the block
       const firstSystem = chatRequests[0]?.body.messages.find((message) => message.role === 'system')?.content ?? ''
-      expect(firstSystem).not.toContain('Bounded long-term attention signal')
+      expect(firstSystem).not.toContain('Topics the user returned to across conversations')
 
       // The unified journal traces the whole chain.
       const journal = stack.events.list({ ascending: true })
@@ -177,8 +177,11 @@ describe('cognitive closed loop over a real loopback provider', () => {
     databases.push(firstDatabase)
     const stack = buildStack(firstDatabase)
     const conversation = stack.companion.createConversation()
+    // Distinct turns carry distinct message ids. Reusing one id would (correctly)
+    // be treated as a replay and would not add evidence, so the fixture has to
+    // model two separate turns to test restoration of a real ledger.
     stack.interests.observe({ conversationId: conversation.id, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: nextTimestamp(), topicText: '天文学很有意思' })
-    stack.interests.observe({ conversationId: conversation.id, messageId: '22222222-2222-4111-8111-111111111111', occurredAt: nextTimestamp(), topicText: '还是天文学有意思' })
+    stack.interests.observe({ conversationId: conversation.id, messageId: '22222222-2222-4111-8111-111111111112', occurredAt: nextTimestamp(), topicText: '还是天文学有意思' })
     stack.selfModel.record({ kind: 'fact', statement: '用户偏好简短回答', confidence: 55 })
 
     const eventsBefore = stack.events.count()
@@ -194,8 +197,8 @@ describe('cognitive closed loop over a real loopback provider', () => {
 
     // Observing again across a NEW conversation promotes instead of duplicating.
     const secondConversation = restored.companion.createConversation()
-    restored.interests.observe({ conversationId: secondConversation.id, messageId: '33333333-3333-4111-8111-111111111111', occurredAt: nextTimestamp(), topicText: '天文学的进展真快' })
-    restored.interests.observe({ conversationId: secondConversation.id, messageId: '33333333-3333-4111-8111-111111111111', occurredAt: nextTimestamp(), topicText: '天文学新闻真多' })
+    restored.interests.observe({ conversationId: secondConversation.id, messageId: '33333333-3333-4111-8111-111111111113', occurredAt: nextTimestamp(), topicText: '天文学的进展真快' })
+    restored.interests.observe({ conversationId: secondConversation.id, messageId: '33333333-3333-4111-8111-111111111114', occurredAt: nextTimestamp(), topicText: '天文学新闻真多' })
     const promoted = restored.interests.list().find((interest) => interest.status === 'active')
     expect(promoted).toBeDefined()
     expect(promoted?.evidenceCount).toBe(4)

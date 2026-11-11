@@ -1,0 +1,33 @@
+{
+  "runId": "2026-10-29T08-35Z-local-not-run",
+  "datasetVersion": "v1",
+  "headSha": "e7efb4c421aa81593baf1ba21c18cf69ca967051",
+  "overallStatus": "NOT_RUN",
+  "counts": {
+    "executed": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "blocked": 2,
+    "notRun": 10
+  },
+  "passRate": null,
+  "passRateNote": "Undefined by construction: no scenario was executed. Writing 0.0 or 1.0 here would be a fabricated statistic.",
+  "blockingEvidence": [
+    {
+      "item": "real provider",
+      "evidence": "MORROW_SPARK_API_KEY / SPARK_API_KEY / DEEPSEEK_API_KEY / MORROW_DEEPSEEK_API_KEY absent; https://maas-api.cn-huabei-1.xf-yun.com/v1/models returns 401 (reachable, credential missing)",
+      "status": "BLOCKED"
+    },
+    {
+      "item": "desktop runtime",
+      "evidence": "A six-line Electron app loading a data: URL crashes with render-process-gone 0x80000003; with --no-sandbox the Morrow main process exits 0xC0000005",
+      "status": "BLOCKED"
+    },
+    {
+      "item": "CI",
+      "evidence": "Actions run 40840918994 attempt 2: all three jobs conclusion=failure with runner_id=0 and zero steps, so no log can exist",
+      "status": "BLOCKED"
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+{
+  "suite": "pr-40-audit-findings-repair",
+  "task": "Issue #47",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "pr": 40,
+  "prState": "OPEN",
+  "prMerged": false,
+  "branch": "fix/pr-40-audit-findings",
+  "baseBranch": "feat/stage-4-companion-confirmation-closure",
+  "baseCommit": "3812b185398c0442fcc0d0ba5b180713cafee1d9",
+  "implementationBase": "052bcaa9c0320ef5e726c7bf66df85a49055628d",
+  "codeSha": "16620217cd0fd1ace9598fd57c74bc6425a6b16f",
+  "evidenceHeadSha": "see the commit containing this file",
+  "generatedAt": "2026-11-04T06:55:44Z",
+  "executor": {
+    "tool": "ZCode",
+    "model": "magpie/workbuddy/deepseek-v4.1-flash",
+    "note": "implementation only; independent review is a separate agent/context and is not written by this executor"
+  },
+  "environment": {
+    "platform": "win32",
+    "osVersion": "10.0.26200",
+    "node": "v22.23.2",
+    "npm": "10.9.8",
+    "vitest": "5.0.5",
+    "electron": "44.9.3"
+  },
+  "findings": [
+    {
+      "id": "AUD45-P1-01",
+      "severity": "P1",
+      "status": "FIXED",
+      "implementation": [
+        "src/self-model/reflection-concern.ts: normalizeConcern/concernKeyOf/concernDigestOf/reflectionPendingKeys",
+        "src/self-model/reflection-mapping.ts: dedupeKeyOf uses concern identity for memory_gap/open_question/intent_correction/consistency_note",
+        "src/cognition/reflection-routing.ts: ingestFinding re-observation archive, per-finding failure isolation, recoverUnrouted",
+        "src/cognition/pending-items.ts: absorbReflection/findReflectionConcern reuse current and legacy keys",
+        "src/app/startup-composition.ts and src/app/companion-service.ts: recovery on startup and rate-limited retry",
+        "src/app/companion-service.ts: the rate-limited projector throws REFLECTION_RECOVERY_INCOMPLETE when recoverUnrouted().failed > 0, and rethrows schema failures after recording cognition.pending_schema_unavailable",
+        "src/cognition/reflection-routing.ts: recoverUnrouted rethrows PendingSchemaUnavailableError",
+        "src/app/companion-service.ts: the success branch also calls recoverUnrouted() and throws REFLECTION_RECOVERY_INCOMPLETE when failed > 0",
+        "src/app/index.ts: manual reflection runs recovery after the ingest and maps PendingSchemaUnavailableError to SCHEMA_UPGRADE_REQUIRED"
+      ],
+      "tests": [
+        "reflection-concern.test.ts (4)",
+        "reflection-mapping.test.ts concern/evidence identity (2)",
+        "reflection-routing.test.ts ingests a second finding for the same concern without PENDING_LINK_MISMATCH",
+        "reflection-routing.test.ts routes later findings when one finding cannot be routed, and records the failure",
+        "reflection-routing.test.ts recovers a finding that was stored without a route, idempotently",
+        "stage4-startup-composition.integration.test.ts a second startup gap for the same label keeps the run successful",
+        "stage4-reflection-producer.integration.test.ts a second correction event does not fail manual ingestion",
+        "stage4-outbox-reflection.integration.test.ts (2): failed recovery leaves the row pending; schema failure leaves it pending and records the event",
+        "stage4-outbox-reflection: recovers a finding stranded by a transient pending write on a non-rate-limited retry"
+      ],
+      "evidence": "real-router O2: first drain pending/attempts=1 and route null; second non-rate-limited drain done and route routed"
+    },
+    {
+      "id": "AUD45-P2-02",
+      "severity": "P2",
+      "status": "FIXED",
+      "implementation": [
+        "src/persistence/migrations.test.ts: upgrades a v47 database with pending items and keeps them decidable",
+        ".github/workflows/ci.yml step renamed to Persistence and migration tests (up to the current schema, includes v47 feature paths)",
+        "docs/reports/stage-4-migration-verification.md corrected"
+      ],
+      "tests": [
+        "upgrades a v47 database with pending items and keeps them decidable"
+      ],
+      "evidence": "npx vitest run src/persistence: 8 files / 61 tests passed"
+    },
+    {
+      "id": "AUD45-P2-03",
+      "severity": "P2",
+      "status": "FIXED",
+      "implementation": [
+        "src/persistence/cognitive-context-repository.ts: resolveLegacyRoutes by stored statement digest",
+        "audit payload routeStatus null / routeResolution unresolved when unprovable; routesUpdated count",
+        "src/persistence/cognitive-context-repository.ts: decide converges the exact route AND every provable sibling route of the same concern; routeResolution linked_with_siblings, routesUpdated total"
+      ],
+      "tests": [
+        "converges a legacy item route by its stored concern digest",
+        "does not guess a legacy route when the concern cannot be proven",
+        "v47 migration test decides through the production repository",
+        "reflection-routing.test.ts: converges every route of a legacy concern adopted by a later observation"
+      ],
+      "evidence": "item done, original and later routes consumed, audit linked_with_siblings/routesUpdated=2"
+    },
+    {
+      "id": "AUD45-P2-04",
+      "severity": "P2",
+      "status": "FIXED",
+      "implementation": [
+        "src/app/stage4-restart-consistency.integration.test.ts: real file close/reopen",
+        "docs/testing/stage-4-companion-confirmation-acceptance-matrix.md and stage-4-final-repair-acceptance-matrix.md corrected; P09 scope restored"
+      ],
+      "tests": [
+        "keeps an open pending item decidable after a real close/reopen",
+        "keeps a decided pending item and its route terminal after close/reopen"
+      ],
+      "evidence": "2 tests passed on a real SQLite file"
+    },
+    {
+      "id": "AUD45-P2-05",
+      "severity": "P2",
+      "status": "FIXED",
+      "implementation": [
+        "src/evaluation/git-metadata.ts: readGitMetadata with branch/branchReason/commit/workingTree",
+        "evals/stage-5/run.ts and evals/stage-4a/run.ts use dynamic metadata in scripted and live payloads",
+        "old result files untouched; evidence index states the historical mislabel"
+      ],
+      "tests": [
+        "src/evaluation/git-metadata.test.ts (5)"
+      ],
+      "evidence": "new Stage 5 result branch=fix/pr-40-audit-findings, reason=ok; Stage 4-A result branch same, workingTree dirty explained by uncommitted Stage 5 result"
+    },
+    {
+      "id": "AUD45-P3-06",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "PendingAuditSink required in SqlitePendingItemRepository; all production/eval/test constructors inject EventLogService"
+      ],
+      "tests": [
+        "@ts-expect-error compile-time contract",
+        "requires a durable audit sink for decisions"
+      ],
+      "evidence": "tsc 0; runtime guard covered"
+    },
+    {
+      "id": "AUD45-P3-07",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "complete/drop removed from port, service and repository; tests use decide",
+        "src/persistence/intent-reading-repository.ts: closeOpenItems requires the audit sink and calls resolveSystem; no status-only SQL",
+        "src/persistence/cognitive-context-repository.ts: resolveSystem writes decision=dismissed, converges routes, audits pending.system_dismissed (actor system)",
+        "intent closure catches non-schema decision failures: item stays open, pending.system_dismiss_failed is recorded, the reading save continues; a later withdrawal retries"
+      ],
+      "tests": [
+        "has no public write path that changes status without a decision (@ts-expect-error)",
+        "intent-reading-pending-closure.test.ts: withdrawal writes dismissed state, route and system audit",
+        "intent-reading-pending-closure: failure keeps the item open, records the failure and retries"
+      ],
+      "evidence": "no status-only path; degraded schema leaves the item open and records pending.schema_unavailable"
+    },
+    {
+      "id": "AUD45-P3-08",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "runStartupReflection returns ran|skipped|failed|degraded with reason/recovered",
+        "durable reflection.startup_result / reflection.startup_failed audit (best effort)",
+        "index.ts logs non-ran status; startup does not throw"
+      ],
+      "tests": [
+        "returns skipped when the service rate-limits the run and never throws",
+        "reports producer failure without throwing and records the failed stage",
+        "ingest failure/recovery cases",
+        "stage4-startup-composition: keeps startup running when the lifecycle audit fails; repeated startup does not duplicate findings/routes/items",
+        "stage4-startup-composition: repeated startup after a finding does not duplicate it"
+      ],
+      "evidence": "startup composition suite passed"
+    },
+    {
+      "id": "AUD45-P3-09",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "pickMorrowGapCandidate docstring moved back above its function"
+      ],
+      "tests": [
+        "code review + tsc"
+      ],
+      "evidence": "no behavior change"
+    },
+    {
+      "id": "AUD45-P3-10",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "removed parsePendingItemIdRequest, PendingItemIdRequest and the unused ipc import"
+      ],
+      "tests": [
+        "repository-wide grep; tsc"
+      ],
+      "evidence": "no references remain"
+    },
+    {
+      "id": "AUD45-P3-11",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "SqlitePendingItemRepository.assertStage4Writable throws PendingSchemaUnavailableError below v48",
+        "IPC maps to SCHEMA_UPGRADE_REQUIRED",
+        "ChatService.applyFinalization skips drafts and records degradation",
+        "startup returns degraded/schema_upgrade_required; outbox records cognition.pending_schema_unavailable",
+        "src/app/index.ts + runBounded: the manual reflection path preserves the original error and maps PendingSchemaUnavailableError to SCHEMA_UPGRADE_REQUIRED"
+      ],
+      "tests": [
+        "pending-schema-gate.test.ts (real v47 degraded DB + startup degraded)",
+        "ipc.test.ts schema error mapping",
+        "pending-items.test.ts: runBounded preserves the original error for the IPC mapping"
+      ],
+      "evidence": "Manual reflection now throws ApplicationError(SCHEMA_UPGRADE_REQUIRED); ipc maps it to the same code. runBounded preserves the original error."
+    },
+    {
+      "id": "AUD45-P3-12",
+      "severity": "P3",
+      "status": "FIXED",
+      "implementation": [
+        "pending-ui renders accepted/rejected/dismissed/unchanged/conflict/not_found/error; re-enables retry; #pending-feedback"
+      ],
+      "tests": [
+        "tests/pending-ui.test.ts (5)"
+      ],
+      "evidence": "all result branches asserted with the real bridge shape"
+    }
+  ],
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 118,
+      "tests": 1083,
+      "passed": 1083,
+      "failed": 0
+    },
+    {
+      "command": "npx vitest run (Stage 4 + review 13 files)",
+      "exitCode": 0,
+      "files": 13,
+      "tests": 126,
+      "passed": 126,
+      "failed": 0
+    },
+    {
+      "command": "npx vitest run src/persistence",
+      "exitCode": 0,
+      "files": 9,
+      "tests": 63,
+      "passed": 63,
+      "failed": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run eval:stage5",
+      "exitCode": 0,
+      "scenarios": 12,
+      "PASS": 12,
+      "FAIL": 0,
+      "file": "evals/stage-5/results/20261104T065441Z-1662021.json"
+    },
+    {
+      "command": "npm run eval:stage4a",
+      "exitCode": 0,
+      "PASS": 7,
+      "FAIL": 0,
+      "file": "evals/stage-4a/results/20261104T065456Z-1662021.json"
+    },
+    {
+      "command": "npm run eval:stage3",
+      "exitCode": 0,
+      "PASS": 15,
+      "NOT_RUN": 1,
+      "denominator": 16,
+      "file": "evals/stage-3/results/20261104T065500Z-1662021.json"
+    }
+  ],
+  "ci": {
+    "status": "PENDING",
+    "note": "Round-2 CI 41783721663 was green on e1219dc; the round-3 head CI is recorded in the PR/Issue comment and closure result after it completes."
+  },
+  "external": {
+    "humanReview": "PENDING_HUMAN",
+    "secondProvider": "NOT_RUN",
+    "realMachineInstall": "PENDING_HUMAN",
+    "stage5LiveRerun": "NOT_RUN",
+    "localElectronSmoke": "NOT_RUN (CI double-platform smoke)"
+  },
+  "review": {
+    "status": "PENDING_INDEPENDENT_REVIEW",
+    "note": "Review evidence is written by a separate agent/context under docs/audit/pr-40-repair-* and evals/pr-40-audit-findings/review-results/; this file must not claim PASS on its behalf."
+  },
+  "round": 3,
+  "reviewHistory": {
+    "round1": {
+      "reviewedSha": "e4aad40a6f08300704a07a7d74303bfb2b7c2dd0",
+      "reviewPr": 49,
+      "verdict": "DO_NOT_MERGE",
+      "blocking": [
+        "outbox marked done when recoverUnrouted() returned failed>0",
+        "legacy item adopted by a later observation left the original route routed",
+        "IntentReadingRepository.closeOpenItems wrote status-only for source=open_question"
+      ]
+    },
+    "round2": {
+      "reviewedSha": "e1219dc07d52c4458d27c9ec2b9adabb6ff2e173",
+      "reviewPr": 49,
+      "verdict": "DO_NOT_MERGE",
+      "blocking": [
+        "non-rate-limited outbox retry marked done while a finding from the failed attempt stayed unrouted",
+        "manual reflection schema mapping was claimed but not implemented",
+        "evidence count 8/61 instead of 9/62"
+      ]
+    },
+    "round3": {
+      "status": "PENDING_INDEPENDENT_REVIEW",
+      "note": "The success branch now calls recoverUnrouted before completing; a real-router outbox retry test covers the transient pending-write case; manual reflection maps schema to SCHEMA_UPGRADE_REQUIRED."
+    }
+  }
+}

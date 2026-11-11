@@ -1,0 +1,102 @@
+{
+  "suite": "stage-4a-scripted",
+  "datasetVersion": "stage-4a-cat-name-v2",
+  "codeCommit": "294dcd50c64ee5af2d99cca47dd8a0e6669539b8",
+  "branch": "feat/stage-4a-companion-continuity",
+  "command": "npm run eval:stage4a",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "provider": "scripted-offline (not a model)",
+  "startedAt": "2026-11-03T15:23:59.551Z",
+  "finishedAt": "2026-11-03T15:24:03.007Z",
+  "counts": {
+    "PASS": 7,
+    "FAIL": 0
+  },
+  "unmeasured": [
+    "real model behaviour (run with --live)",
+    "human experience review"
+  ],
+  "assertions": [
+    {
+      "id": "A-operation",
+      "ok": true,
+      "detail": "Memory operation for this turn (authoritative; produced by the application before this reply): - operation=create predic"
+    },
+    {
+      "id": "B-evidence",
+      "ok": true,
+      "detail": "我的猫叫咪咪。"
+    },
+    {
+      "id": "C-operation",
+      "ok": true,
+      "detail": "Memory operation for this turn (authoritative; produced by the application before this reply): - operation=correct predi"
+    },
+    {
+      "id": "D-evidence",
+      "ok": true,
+      "detail": "我的猫叫豆豆。"
+    },
+    {
+      "id": "final-current",
+      "ok": true,
+      "detail": "[\"豆豆\"]"
+    },
+    {
+      "id": "final-history",
+      "ok": true,
+      "detail": "[\"豆豆:active\",\"咪咪:superseded\"]"
+    },
+    {
+      "id": "provenance",
+      "ok": true,
+      "detail": "message-or-legacy"
+    }
+  ],
+  "turns": [
+    {
+      "session": "A",
+      "user": "我有一只猫，它叫咪咪。帮我记住。",
+      "reply": "好的。",
+      "evidence": "我的猫叫咪咪。",
+      "operationBlock": "Memory operation for this turn (authoritative; produced by the application before this reply):\n- operation=create predicate=pet_name status=committed_and_verified current_value=咪咪 memory_revision=1\nSa",
+      "payloadDigest": "baa7432ef35e0d38"
+    },
+    {
+      "session": "B",
+      "user": "你还记得我的猫叫什么吗？",
+      "reply": "好的。",
+      "evidence": "我的猫叫咪咪。",
+      "operationBlock": "",
+      "payloadDigest": "81a58b7c089c6354"
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "好的。",
+      "evidence": "我的猫叫豆豆。",
+      "operationBlock": "Memory operation for this turn (authoritative; produced by the application before this reply):\n- operation=correct predicate=pet_name status=committed_and_verified previous_value=咪咪 current_value=豆豆 m",
+      "payloadDigest": "cfb4c2ba201b1964"
+    },
+    {
+      "session": "D",
+      "user": "我的猫现在叫什么？",
+      "reply": "好的。",
+      "evidence": "我的猫叫豆豆。",
+      "operationBlock": "",
+      "payloadDigest": "23017fcd59a52990"
+    },
+    {
+      "session": "E",
+      "user": "它之前叫什么？",
+      "reply": "好的。",
+      "evidence": "",
+      "operationBlock": "",
+      "payloadDigest": "820fdae2aac848b5"
+    }
+  ]
+}

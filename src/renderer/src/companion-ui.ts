@@ -1,4 +1,5 @@
-import type { IpcResult } from '../../shared/contracts'
+import type { CognitionConsistencyStatus, IpcResult } from '../../shared/contracts'
+import type { TurnTraceRecord } from '../../cognition/turn-state-machine'
 import type { FeelingEventType } from '../../affective-state/feeling'
 import type {
   ChatStreamEvent,
@@ -10,6 +11,7 @@ import type {
   ProviderConfigRecord,
   Sensitivity
 } from '../../shared/companion'
+import { isProviderUsable, selectChatProvider } from './provider-readiness'
 
 class UiError extends Error {
   constructor(message: string, readonly code: string) {
@@ -71,13 +73,16 @@ export function initializeCompanion(): void {
   const state: {
     conversationId: string
     provider: ProviderConfigRecord | null
+    officialProvider: ProviderConfigRecord | null
     localProvider: ProviderConfigRecord | null
     providerStorageUnverified: boolean
+    cognitionConsistency: CognitionConsistencyStatus | null
     sending: boolean
+    follow: boolean
     requestId: string
     retry: { conversationId: string; requestId: string; content: string; includeSensitive: boolean } | undefined
     streaming: HTMLElement | undefined
-  } = { conversationId: '', provider: null, localProvider: null, providerStorageUnverified: false, sending: false, requestId: '', retry: undefined, streaming: undefined }
+  } = { conversationId: '', provider: null, officialProvider: null, localProvider: null, providerStorageUnverified: false, cognitionConsistency: null, sending: false, follow: true, requestId: '', retry: undefined, streaming: undefined }
 
   const setStatus = (message: string, isError = false): void => {
     const status = element<HTMLParagraphElement>('#chat-feedback')
@@ -99,25 +104,76 @@ export function initializeCompanion(): void {
     state.streaming = undefined
   }
 
-  const updateProviderStatus = (provider: ProviderConfigRecord | null, localProvider: ProviderConfigRecord | null = state.localProvider): void => {
+  const setFollow = (follow: boolean): void => {
+    state.follow = follow
+    const chip = element<HTMLSpanElement>('#stream-follow')
+    chip.hidden = !state.sending
+    chip.textContent = follow ? '跟随中' : '已松手'
+  }
+
+  element<HTMLDivElement>('#chat-messages').addEventListener('scroll', () => {
+    if (!state.sending) return
+    const list = element<HTMLDivElement>('#chat-messages')
+    const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 24
+    if (atBottom !== state.follow) setFollow(atBottom)
+  })
+
+  const setInspectorOpen = (open: boolean): void => {
+    document.body.dataset.inspector = open ? 'open' : 'closed'
+    element<HTMLButtonElement>('#inspector-toggle').setAttribute('aria-expanded', String(open))
+  }
+
+  setInspectorOpen(false)
+  element<HTMLButtonElement>('#inspector-toggle').addEventListener('click', () => {
+    setInspectorOpen(document.body.dataset.inspector !== 'open')
+  })
+  element<HTMLButtonElement>('#inspector-close').addEventListener('click', () => setInspectorOpen(false))
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && document.body.dataset.inspector === 'open') setInspectorOpen(false)
+  })
+
+  const updateProviderStatus = (provider: ProviderConfigRecord | null, officialProvider: ProviderConfigRecord | null = state.officialProvider, localProvider: ProviderConfigRecord | null = state.localProvider): void => {
     state.provider = provider
+    state.officialProvider = officialProvider
     state.localProvider = localProvider
     const status = element<HTMLSpanElement>('#provider-status')
     if (state.providerStorageUnverified) status.textContent = '系统安全存储状态未确认；聊天已暂停。请重启应用后复查，未确认前不要发送。'
-    else if (!provider) status.textContent = '尚未配置；聊天保持离线。'
-    else if (!provider.apiKeyConfigured) status.textContent = '没有可用的系统安全存储密钥；聊天保持离线。'
-    else if (!provider.enabled) status.textContent = 'DeepSeek 已配置但未启用。'
-    else status.textContent = 'DeepSeek-V4.1-Flash-1017 已配置；每次发送前都会显示精确请求并单独确认。'
+    else if (!officialProvider) status.textContent = '官方连接未配置。'
+    else if (!officialProvider.apiKeyConfigured) status.textContent = '官方连接没有可用密钥。'
+    else if (!officialProvider.enabled) status.textContent = '官方连接已配置但未启用。'
+    else status.textContent = '官方连接已配置；每次发送前都会显示精确请求并单独确认。'
     const localStatus = element<HTMLSpanElement>('#local-provider-status')
     if (state.providerStorageUnverified) localStatus.textContent = '系统安全存储状态未确认；聊天已暂停。'
     else if (!localProvider) localStatus.textContent = '未配置'
     else if (!localProvider.enabled) localStatus.textContent = '已配置但未启用'
     else localStatus.textContent = `已启用：${localProvider.model}`
-    const deepseekReady = Boolean(provider?.enabled && provider.apiKeyConfigured)
+    const chatReady = isProviderUsable(provider)
     const localReady = Boolean(localProvider?.enabled)
-    const ready = Boolean(!state.providerStorageUnverified && (deepseekReady || localReady))
+    const officialReady = Boolean(officialProvider?.enabled && officialProvider.apiKeyConfigured)
+    const cognitionLocked = state.cognitionConsistency?.state === 'locked'
+    const ready = Boolean(!state.providerStorageUnverified && !cognitionLocked && chatReady)
+    const dot = element<HTMLSpanElement>('#status-dot')
+    dot.classList.toggle('ready', ready)
+    dot.classList.toggle('unverified', state.providerStorageUnverified)
+    element<HTMLSpanElement>('#status-provider').textContent = state.providerStorageUnverified
+      ? '安全存储未确认'
+      : provider
+        ? `${provider.displayName ?? provider.id} · ${chatReady ? '已就绪' : '未就绪'}`
+        : 'Provider 未就绪'
     element<HTMLButtonElement>('#chat-send').disabled = !ready || state.sending
-    element<HTMLButtonElement>('#provider-test').disabled = !deepseekReady || state.sending
+    const consistencyBanner = element<HTMLDivElement>('#cognition-consistency')
+    consistencyBanner.hidden = !cognitionLocked
+    if (cognitionLocked) {
+      const reasons = state.cognitionConsistency?.reasons.join(', ') || 'unknown'
+      element<HTMLParagraphElement>('#cognition-consistency-reason').textContent = `本地删除/撤回检查未完成（${reasons}）。聊天记录不会被删除；修复数据后可重试。`
+    }
+    element<HTMLDivElement>('#chat-provider-cta').hidden = ready
+    element<HTMLButtonElement>('#provider-test').disabled = !officialReady || state.sending
+    if (!state.sending) {
+      element<HTMLSpanElement>('#chat-state').textContent = cognitionLocked
+        ? '数据一致性检查未完成'
+        : provider ? (chatReady ? `${provider.displayName ?? provider.id} · 已就绪` : 'Provider 尚未就绪') : '尚未配置 Provider'
+    }
     element<HTMLButtonElement>('#local-provider-test').disabled = !localReady || state.sending
     element<HTMLButtonElement>('#conversation-new').disabled = state.sending
     element<HTMLButtonElement>('#conversation-delete').disabled = state.sending
@@ -132,12 +188,19 @@ export function initializeCompanion(): void {
     updateProviderStatus(state.provider)
   }
 
+  const loadCognitionConsistency = async (): Promise<void> => {
+    state.cognitionConsistency = unwrap(await window.morrow.cognition.consistency())
+    updateProviderStatus(state.provider)
+  }
+
   const loadProvider = async (): Promise<void> => {
     state.providerStorageUnverified = false
-    const deepseek = unwrap(await window.morrow.providers.get({ providerId: 'deepseek' }))
+    const profiles = unwrap(await window.morrow.providers.listProfiles())
+    const chatProvider = selectChatProvider(profiles)
+    const official = unwrap(await window.morrow.providers.get({ providerId: 'deepseek' }))
     const local = unwrap(await window.morrow.providers.get({ providerId: 'local-openai' }))
-    updateProviderStatus(deepseek, local)
-    element<HTMLInputElement>('#provider-enabled').checked = state.provider?.enabled ?? false
+    updateProviderStatus(chatProvider, official, local)
+    element<HTMLInputElement>('#provider-enabled').checked = state.officialProvider?.enabled ?? false
     element<HTMLInputElement>('#provider-api-key').value = ''
     element<HTMLInputElement>('#local-provider-enabled').checked = state.localProvider?.enabled ?? false
     element<HTMLInputElement>('#local-provider-endpoint').value = state.localProvider?.endpoint ?? ''
@@ -223,7 +286,7 @@ export function initializeCompanion(): void {
   const renderMessages = (messages: ConversationMessage[]): void => {
     const list = element<HTMLDivElement>('#chat-messages')
     if (messages.length === 0) {
-      list.replaceChildren(node('p', 'companion-muted', '这段对话还没有消息。发送前会弹出系统确认，未确认时不会向 DeepSeek 请求。'))
+      list.replaceChildren(node('p', 'companion-muted', '这段对话还没有消息。发送前会弹出系统确认，未确认时不会向模型服务请求。'))
       return
     }
     const items = messages.map((message) => {
@@ -240,11 +303,105 @@ export function initializeCompanion(): void {
     list.scrollTop = list.scrollHeight
   }
 
+  const traceStageLabels: Record<TurnTraceRecord['stage'], string> = {
+    turn_received: '接收本轮',
+    cognition_analysis: '认知分析',
+    context_built: '上下文/记忆',
+    consent: '逐次授权',
+    provider_request: 'Provider 请求',
+    provider_delta: '流式回复',
+    persistence: '持久化',
+    turn_completed: '本轮完成',
+    turn_failed: '本轮失败',
+    turn_cancelled: '本轮取消',
+    recovery: '恢复'
+  }
+
+  const traceStages: TurnTraceRecord['stage'][] = [
+    'turn_received',
+    'cognition_analysis',
+    'context_built',
+    'consent',
+    'provider_request',
+    'provider_delta',
+    'persistence',
+    'turn_completed'
+  ]
+
+  const renderRuntimeTrace = (trace: TurnTraceRecord[]): void => {
+    const status = element<HTMLSpanElement>('#runtime-trace-status')
+    const list = element<HTMLDivElement>('#runtime-trace-list')
+    const bar = element<HTMLSpanElement>('#status-trace')
+    const skippedSection = element<HTMLElement>('#runtime-trace-skipped-section')
+    const skippedList = element<HTMLUListElement>('#runtime-trace-skipped')
+    if (trace.length === 0) {
+      status.textContent = '尚无运行记录'
+      bar.textContent = '轨迹 · 尚无记录'
+      bar.classList.remove('incomplete')
+      skippedSection.hidden = true
+      list.replaceChildren(node('p', 'companion-muted', '发送一条消息后，这里会显示主进程实际执行的阶段。'))
+      return
+    }
+    const lastTurnId = trace[trace.length - 1]!.turnId
+    const allEvents = trace.filter((event) => event.turnId === lastTurnId)
+    const events = allEvents.slice(-40)
+    const incomplete = allEvents.some((event) => event.reason === 'TRACE_WRITE_FAILED')
+    status.textContent = `${events.length} 条事件 · turn ${lastTurnId.slice(0, 8)}${incomplete ? ' · 轨迹不完整' : ''}`
+    bar.textContent = `轨迹 · ${events.length} 条${incomplete ? ' · 不完整' : ''}`
+    bar.classList.toggle('incomplete', incomplete)
+    const items = events.map((event) => {
+      const card = node('article', `runtime-trace-item ${event.status === 'failed' ? 'failed' : ''}`.trim())
+      card.append(node('strong', '', traceStageLabels[event.stage] ?? event.stage))
+      const meta = node('div', 'runtime-trace-meta')
+      meta.append(node('span', `trace-status-${event.status}`, event.status))
+      meta.append(node('span', '', event.durationMs === null ? '—' : `${event.durationMs}ms`))
+      meta.append(node('span', '', event.moduleId ?? ''))
+      card.append(meta)
+      if (event.reason) card.append(node('p', '', `原因：${event.reason}`))
+      return card
+    })
+    list.replaceChildren(...items)
+    const executed = new Set(allEvents.map((event) => event.stage))
+    const skippedRows = allEvents
+      .filter((event) => event.status === 'skipped')
+      .map((event) => {
+        const item = node('li', '')
+        item.append(node('strong', '', traceStageLabels[event.stage] ?? event.stage))
+        item.append(document.createTextNode(` · ${event.reason ?? '本轮未执行'}`))
+        return item
+      })
+    const absentRows = traceStages
+      .filter((stage) => !executed.has(stage))
+      .map((stage) => {
+        const item = node('li', '')
+        item.append(node('strong', '', traceStageLabels[stage]))
+        item.append(document.createTextNode(' · 本轮未触发'))
+        return item
+      })
+    skippedSection.hidden = skippedRows.length + absentRows.length === 0
+    skippedList.replaceChildren(...skippedRows, ...absentRows)
+  }
+
+  const loadRuntimeTrace = async (): Promise<void> => {
+    if (!state.conversationId) return
+    try {
+      const trace = unwrap(await window.morrow.chat.trace({ conversationId: state.conversationId }))
+      renderRuntimeTrace(trace)
+    } catch (error) {
+      element<HTMLSpanElement>('#runtime-trace-status').textContent = '运行轨迹不可用 · 轨迹不完整'
+      element<HTMLSpanElement>('#status-trace').textContent = '轨迹 · 不完整'
+      element<HTMLSpanElement>('#status-trace').classList.add('incomplete')
+      element<HTMLElement>('#runtime-trace-skipped-section').hidden = true
+      element<HTMLDivElement>('#runtime-trace-list').replaceChildren(node('p', 'companion-muted', errorText(error)))
+    }
+  }
+
   const loadConversation = async (): Promise<void> => {
     if (!state.conversationId) return
     const conversation = unwrap(await window.morrow.conversations.read({ conversationId: state.conversationId }))
     renderMessages(conversation.messages)
     await loadSuggestions()
+    await loadRuntimeTrace()
   }
 
   const loadConversations = async (): Promise<void> => {
@@ -263,6 +420,7 @@ export function initializeCompanion(): void {
       return option
     }))
     select.value = state.conversationId
+    element<HTMLSpanElement>('#status-conversation').textContent = select.selectedOptions[0]?.textContent ?? '本地对话'
     await loadConversation()
   }
 
@@ -306,8 +464,8 @@ export function initializeCompanion(): void {
     clear.disabled = !settings.available || state.sending
     element<HTMLParagraphElement>('#cognitive-settings-status').textContent = settings.available
       ? settings.enabled
-        ? '本机规则已启用。只保存结构化意图/事件、消息引用和短期状态，不会把原文重复写进认知记录。状态提示仅随你逐次确认的 DeepSeek 请求发送，可能增加 token 用量；本地计算不联网。关闭后立即停止新增分析和提示，已有状态会衰减，可单独清除。分值未校准，不代表真实感受或意识，也不会改写记忆、人格、权限或安全规则。'
-        : '本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用后只在本机保存结构化意图/事件、消息引用和短期状态，不复制原文。状态提示仅随你逐次确认的 DeepSeek 请求发送，可能增加 token 用量；本地计算不联网、不增加模型调用。状态不代表真实感受或意识，也不改写记忆、人格、权限或安全规则。'
+        ? '本机规则已启用。只保存结构化意图/事件、消息引用和短期状态，不会把原文重复写进认知记录。状态提示仅随你逐次确认的 模型服务请求发送，可能增加 token 用量；本地计算不联网。关闭后立即停止新增分析和提示，已有状态会衰减，可单独清除。分值未校准，不代表真实感受或意识，也不会改写记忆、人格、权限或安全规则。'
+        : '本地认知默认关闭；关闭时不会运行分析、保存认知记录或注入状态提示。启用后只在本机保存结构化意图/事件、消息引用和短期状态，不复制原文。状态提示仅随你逐次确认的 模型服务请求发送，可能增加 token 用量；本地计算不联网、不增加模型调用。状态不代表真实感受或意识，也不改写记忆、人格、权限或安全规则。'
       : '认知数据结构不可用；对话仍可继续，但本地认知分析与感受状态已安全停用。'
     const view = unwrap(await window.morrow.cognition.getFeelingState())
     const summary = element<HTMLDivElement>('#cognitive-state-summary')
@@ -365,7 +523,7 @@ export function initializeCompanion(): void {
     try {
       const provider = unwrap(await window.morrow.providers.clearCredential())
       state.providerStorageUnverified = false
-      updateProviderStatus(provider)
+      updateProviderStatus(state.provider, provider, state.localProvider)
       setProviderFeedback('API 密钥已从本机安全存储移除；聊天保持离线。')
     } catch (error) {
       markProviderStorageUnverified(error)
@@ -378,13 +536,13 @@ export function initializeCompanion(): void {
     buttonControl.disabled = true
     setProviderFeedback('会发送固定测试消息，不含对话和记忆；需在系统确认框中允许，且可能产生 API 费用。')
     try {
-      const result = unwrap(await window.morrow.providers.testConnection({ providerId: 'deepseek' }))
-      setProviderFeedback(`连接成功。DeepSeek 返回模型标识：${result.model}`)
+      const result = unwrap(await window.morrow.providers.testConnection({ providerId: state.officialProvider?.id ?? 'deepseek' }))
+      setProviderFeedback(`连接成功。模型服务返回模型标识：${result.model}`)
     } catch (error) {
       markProviderStorageUnverified(error)
       setProviderFeedback(errorText(error), true)
     } finally {
-      buttonControl.disabled = state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured
+      buttonControl.disabled = state.providerStorageUnverified || !state.officialProvider?.enabled || !state.officialProvider.apiKeyConfigured
     }
   })
 
@@ -459,7 +617,7 @@ export function initializeCompanion(): void {
     try {
       const requestedEnabled = element<HTMLInputElement>('#cognitive-enabled').checked
       const current = unwrap(await window.morrow.cognition.getSettings())
-      if (requestedEnabled && !current.enabled && !window.confirm('启用后，本地规则会分析有限上下文，并把结构化意图/事件、消息引用和短期状态保存到本机 SQLite（不会为认知记录重复保存原文）。状态提示只会进入你逐次确认发送的 DeepSeek 请求，可能增加 token 用量；本地计算不联网、不增加模型调用。它不代表 Morrow 有真实感受或意识，也不会改写记忆、人格、权限或安全规则。你可以随时关闭或清除记录。继续启用吗？')) {
+      if (requestedEnabled && !current.enabled && !window.confirm('启用后，本地规则会分析有限上下文，并把结构化意图/事件、消息引用和短期状态保存到本机 SQLite（不会为认知记录重复保存原文）。状态提示只会进入你逐次确认发送的 模型服务请求，可能增加 token 用量；本地计算不联网、不增加模型调用。它不代表 Morrow 有真实感受或意识，也不会改写记忆、人格、权限或安全规则。你可以随时关闭或清除记录。继续启用吗？')) {
         await loadCognitive()
         return
       }
@@ -512,6 +670,8 @@ export function initializeCompanion(): void {
     const value = (event.currentTarget as HTMLSelectElement).value
     state.conversationId = value
     state.retry = undefined
+    const select = event.currentTarget as HTMLSelectElement
+    element<HTMLSpanElement>('#status-conversation').textContent = select.selectedOptions[0]?.textContent ?? '本地对话'
     try {
       await loadConversation()
     } catch (error) {
@@ -545,7 +705,16 @@ export function initializeCompanion(): void {
 
   element<HTMLFormElement>('#chat-form').addEventListener('submit', async (event) => {
     event.preventDefault()
-    if (state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured || state.sending || !state.conversationId) return
+    if (state.providerStorageUnverified) {
+      setStatus('系统安全存储状态未确认；聊天已暂停。请重启应用后复查。', true)
+      return
+    }
+    if (!isProviderUsable(state.provider) || !state.conversationId) {
+      element<HTMLDivElement>('#chat-provider-cta').hidden = false
+      setStatus('尚未配置可用的模型 API。请先在设置中保存并启用一个 Provider。', true)
+      return
+    }
+    if (state.sending) return
     const content = element<HTMLTextAreaElement>('#chat-content').value.trim()
     if (!content) return
     const includeSensitive = element<HTMLInputElement>('#chat-include-sensitive').checked
@@ -555,6 +724,7 @@ export function initializeCompanion(): void {
       : crypto.randomUUID()
     state.requestId = requestId
     state.sending = true
+    setFollow(true)
     element<HTMLInputElement>('#cognitive-enabled').disabled = true
     element<HTMLButtonElement>('#cognitive-settings-save').disabled = true
     element<HTMLButtonElement>('#cognitive-clear').disabled = true
@@ -565,12 +735,13 @@ export function initializeCompanion(): void {
     element<HTMLSelectElement>('#conversation-select').disabled = true
     element<HTMLButtonElement>('#provider-clear-key').disabled = true
     state.streaming = undefined
-    setStatus('等待系统级发送确认；在确认前不会连接 DeepSeek。')
+    setStatus('等待系统级发送确认；在确认前不会连接模型服务。')
     try {
       const result = unwrap(await window.morrow.chat.send({ conversationId: state.conversationId, requestId, content, includeSensitive }))
       state.retry = undefined
       state.streaming = undefined
       element<HTMLTextAreaElement>('#chat-content').value = ''
+      element<HTMLTextAreaElement>('#chat-content').style.height = 'auto'
       element<HTMLInputElement>('#chat-include-sensitive').checked = false
       element<HTMLSpanElement>('#chat-memory-count').textContent = `本次带入 ${result.includedMemoryCount} 条相关记忆`
       setStatus('回复已完整保存到本机对话。')
@@ -584,14 +755,28 @@ export function initializeCompanion(): void {
       await loadConversation()
     } finally {
       state.sending = false
+      element<HTMLSpanElement>('#stream-follow').hidden = true
       element<HTMLButtonElement>('#chat-cancel').disabled = true
       element<HTMLButtonElement>('#conversation-new').disabled = false
       element<HTMLButtonElement>('#conversation-delete').disabled = false
       element<HTMLSelectElement>('#conversation-select').disabled = false
       element<HTMLButtonElement>('#provider-clear-key').disabled = false
-      element<HTMLButtonElement>('#chat-send').disabled = state.providerStorageUnverified || !state.provider?.enabled || !state.provider.apiKeyConfigured
+      element<HTMLButtonElement>('#chat-send').disabled = state.providerStorageUnverified || state.cognitionConsistency?.state === 'locked' || !isProviderUsable(state.provider)
       await loadCognitive().catch((error) => setStatus(errorText(error), true))
     }
+  })
+
+  const chatInput = element<HTMLTextAreaElement>('#chat-content')
+  const resizeChatInput = (): void => {
+    chatInput.style.height = 'auto'
+    chatInput.style.height = `${Math.min(chatInput.scrollHeight, 140)}px`
+  }
+  chatInput.addEventListener('input', resizeChatInput)
+
+  element<HTMLTextAreaElement>('#chat-content').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || (!event.ctrlKey && !event.metaKey)) return
+    event.preventDefault()
+    element<HTMLFormElement>('#chat-form').requestSubmit()
   })
 
   element<HTMLButtonElement>('#chat-cancel').addEventListener('click', async () => {
@@ -616,8 +801,28 @@ export function initializeCompanion(): void {
       const body = state.streaming.querySelector<HTMLElement>('.chat-message-body')
       if (body) body.textContent += event.delta
     }
-    list.scrollTop = list.scrollHeight
+    if (state.follow) list.scrollTop = list.scrollHeight
   })
 
-  void Promise.all([loadCurrentProviderSafe(), loadConversations(), loadPersonality(), loadCognitive()]).catch((error) => setStatus(errorText(error), true))
+  window.addEventListener('morrow:providers-changed', () => {
+    void loadProvider().catch((error) => setStatus(errorText(error), true))
+  })
+
+  element<HTMLButtonElement>('#chat-provider-cta-button').addEventListener('click', () => {
+    const nav = document.querySelector<HTMLButtonElement>('.nav-item[data-view="settings"]')
+    nav?.click()
+    setTimeout(() => element<HTMLInputElement>('#provider-profile-name').focus(), 120)
+  })
+
+  element<HTMLButtonElement>('#cognition-consistency-retry').addEventListener('click', async () => {
+    try {
+      state.cognitionConsistency = unwrap(await window.morrow.cognition.reconcile())
+      updateProviderStatus(state.provider)
+      setStatus(state.cognitionConsistency.state === 'ready' ? '数据一致性检查已完成，可以发送消息。' : '检查仍未完成，请查看原因后重试。', state.cognitionConsistency.state !== 'ready')
+    } catch (error) {
+      setStatus(errorText(error), true)
+    }
+  })
+
+  void Promise.all([loadCurrentProviderSafe(), loadCognitionConsistency(), loadConversations(), loadPersonality(), loadCognitive()]).catch((error) => setStatus(errorText(error), true))
 }

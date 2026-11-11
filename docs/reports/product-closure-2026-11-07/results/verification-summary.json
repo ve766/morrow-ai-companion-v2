@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "issue": 61,
+  "generatedAt": "2026-11-07T12:35:44.819833+00:00",
+  "branch": "feat/morrow-v2-product-closure-20261107",
+  "verifiedSourceCommit": "812099e3ac4116a6c8147cf7de0647abfbb8403d",
+  "note": "verifiedSourceCommit is the HEAD at deterministic-run time; later commits add results/docs. See PR/Issue #61 for final head.",
+  "environment": {
+    "os": "Windows 11 Build 26200",
+    "node": "v22.23.2",
+    "electron": "44.9.3"
+  },
+  "tiers": {
+    "fast": {
+      "overall": "PASS",
+      "counts": {
+        "total": 2,
+        "pass": 2,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    "full": {
+      "overall": "PASS",
+      "counts": {
+        "total": 6,
+        "pass": 6,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    "stages": {
+      "overall": "PASS",
+      "counts": {
+        "total": 9,
+        "pass": 7,
+        "fail": 0,
+        "skipped": 2
+      }
+    },
+    "product": {
+      "overall": "PASS",
+      "counts": {
+        "total": 1,
+        "pass": 1,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "realProvider": {
+    "turnId": "02918746-4cfc-4140-aaad-5425dd4d6423",
+    "state": "committed",
+    "assistant": "收到。",
+    "traceEvents": 9
+  },
+  "window": {
+    "samples": 120,
+    "visible": 120,
+    "result": "PASS_VISIBLE_WINDOW",
+    "humanSignoff": "PENDING_HUMAN_CONFIRMATION",
+    "realChats": 5,
+    "minimizeRestore": 3,
+    "secondInstance": true,
+    "restartPreserved": true
+  },
+  "ui": {
+    "layout": "250px sidebar + central 760px chat + bottom composer; inspector drawer",
+    "effects": [
+      "none",
+      "perspective",
+      "holo",
+      "brutal",
+      "collage",
+      "plasma"
+    ],
+    "controlContract": "docs/ui/control-contract.json",
+    "controlTests": "tests/ui-control-contract.test.ts (3 passed)"
+  },
+  "status": {
+    "ciRealRun": "BLOCKED",
+    "windows": "PASS_AUTOMATED_PENDING_HUMAN",
+    "productPath": "PASS",
+    "deterministic": "PASS",
+    "ui": "PASS",
+    "overall": "PARTIAL"
+  },
+  "resultsFiles": {
+    "fast": "fast.json",
+    "full": "full.json",
+    "stages": "stages.json",
+    "product": "product.json",
+    "window": "window-visibility.json",
+    "windowHumanGate": "window-human-gate.json"
+  }
+}

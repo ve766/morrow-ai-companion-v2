@@ -1,0 +1,57 @@
+{
+  "kind": "b5_reflection_ablation",
+  "generatedAt": "2026-10-30T08:43:28.456Z",
+  "commitSha": "a8e382de96840e72effa9c8d7901971bee6e6e89",
+  "sourceReport": "evals/stage-2/ablation/results/2026-10-30T08-43-28-440Z-5d4f8b2-reflection-positive.json",
+  "fixture": {
+    "memories": [
+      "我在学咖啡拉花。",
+      "最近一直在练咖啡拉花。"
+    ],
+    "topicTurns": [
+      "今天又练了咖啡拉花。",
+      "还在练咖啡拉花。"
+    ],
+    "probeTurn": "继续。",
+    "intent": "2 memory-backed evidence rows (1 conversation) + 1 message evidence (another conversation) = 3 / 2, which is exactly the promotion threshold; without reflection only 1 / 1 remains"
+  },
+  "layers": {
+    "reflectionRan": {
+      "full": true,
+      "no_reflection": false
+    },
+    "candidateProduced": {
+      "full": true,
+      "no_reflection": true
+    },
+    "gatePassed": {
+      "full": true,
+      "no_reflection": false
+    },
+    "payloadChanged": {
+      "full": true,
+      "no_reflection": false
+    }
+  },
+  "evidence": {
+    "full": {
+      "evidence": 3,
+      "conversations": 2,
+      "status": "active"
+    },
+    "no_reflection": {
+      "evidence": 2,
+      "conversations": 1,
+      "status": "candidate"
+    }
+  },
+  "retractionRemovesPayloadBlock": true,
+  "comparison": {
+    "reflectionRunsDiffer": true,
+    "promotionDiffers": true,
+    "probePayloadDiffers": true,
+    "payloadBytesDelta": 309,
+    "retractionRemovesBlock": true,
+    "interestIdVisibleInFullPayload": false
+  }
+}

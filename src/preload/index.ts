@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   IPC_CHANNELS,
   type AppInfo,
+  type CognitionConsistencyStatus,
   type BackupExportOutcome,
   type BackupPreviewOutcome,
   type BackupRestoreOutcome,
@@ -18,12 +19,22 @@ import {
   type MorrowBridge,
   type ConversationIdRequest,
   type PersonalityRestoreRequest,
+  type PersonalityGrowthRollbackRequest,
   type CognitiveSettingsRequest,
   type InterestStatusRequest,
   type SelfModelListRequest,
   type SelfModelCorrectRequest,
   type SelfModelIdRequest,
-  type ReflectionFindingsRequest
+  type ReflectionFindingsRequest,
+  type PendingItemDecisionRequest,
+  type GoalCandidateIdRequest,
+  type PendingDecisionResult,
+  type ProviderGetRequest,
+  type ProviderModelsRequest,
+  type ProviderModelsResult,
+  type ProviderProfileIdRequest,
+  type ProviderProfileSaveInput,
+  type TurnContextRequest
 } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -44,10 +55,13 @@ import type {
   ProviderConnectionResult
 } from '../shared/companion'
 import type { MemoryRecord, MemoryRevisionRecord } from '../memory/memory-domain'
+import type { CompanionGoal, CompanionGoalCandidate, GoalCandidateDecisionResult } from '../motivation/companion-goal'
 import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '../motivation/goals'
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
+import type { PendingItem } from '../cognition/pending-items'
+import type { CognitiveTurnContext } from '../cognition/turn-context'
 
 function invoke<T>(channel: string, request?: unknown): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, request) as Promise<IpcResult<T>>
@@ -56,10 +70,17 @@ function invoke<T>(channel: string, request?: unknown): Promise<IpcResult<T>> {
 const bridge: MorrowBridge = Object.freeze({
   getAppInfo: () => invoke<AppInfo>(IPC_CHANNELS.appInfo),
   providers: Object.freeze({
-    get: () => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet),
+    get: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet, request),
     save: (request: ProviderConfigInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerSave, request),
-    clearCredential: () => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential),
-    testConnection: (request: ProviderConnectionRequest) => invoke<ProviderConnectionResult>(IPC_CHANNELS.providerTestConnection, request)
+    clearCredential: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential, request),
+    testConnection: (request: ProviderConnectionRequest) => invoke<ProviderConnectionResult>(IPC_CHANNELS.providerTestConnection, request),
+    listProfiles: () => invoke<ProviderConfigRecord[]>(IPC_CHANNELS.providerProfilesList),
+    saveProfile: (request: ProviderProfileSaveInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerProfileSave, request),
+    deleteProfile: (request: ProviderProfileIdRequest) => invoke<void>(IPC_CHANNELS.providerProfileDelete, request),
+    setDefaultProfile: (request: ProviderProfileIdRequest) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerProfileSetDefault, request),
+    discoverModels: (request: ProviderModelsRequest) => invoke<ProviderModelsResult>(IPC_CHANNELS.providerProfileDiscoverModels, request),
+    listConsentGrants: () => invoke<import('../shared/contracts').ConsentGrantView[]>(IPC_CHANNELS.consentGrantsList),
+    revokeConsentGrant: (request: import('../shared/contracts').ConsentGrantRevokeRequest) => invoke<boolean>(IPC_CHANNELS.consentGrantRevoke, request)
   }),
   conversations: Object.freeze({
     create: () => invoke<ConversationRecord>(IPC_CHANNELS.conversationsCreate),
@@ -71,7 +92,9 @@ const bridge: MorrowBridge = Object.freeze({
     get: () => invoke<PersonalityProfile>(IPC_CHANNELS.personalityGet),
     save: (request: PersonalityInput) => invoke<PersonalityProfile>(IPC_CHANNELS.personalitySave, request),
     history: () => invoke<PersonalityRevision[]>(IPC_CHANNELS.personalityHistory),
-    restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request)
+    restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request),
+    growthGet: () => invoke<import('../personalization/personality-growth').GrowthEntry[] | null>(IPC_CHANNELS.personalityGrowthGet),
+    growthRollback: (request: PersonalityGrowthRollbackRequest) => invoke<boolean>(IPC_CHANNELS.personalityGrowthRollback, request)
   }),
   selfModel: Object.freeze({
     listInterests: () => invoke<import('../self-model/self-model-domain').InterestRecord[]>(IPC_CHANNELS.interestsList),
@@ -84,14 +107,27 @@ const bridge: MorrowBridge = Object.freeze({
     listReflectionFindings: (request: ReflectionFindingsRequest) => invoke<import('../self-model/self-model-domain').ReflectionFinding[]>(IPC_CHANNELS.reflectionFindings, request)
   }),
   cognition: Object.freeze({
+    consistency: () => invoke<CognitionConsistencyStatus>(IPC_CHANNELS.cognitionConsistencyStatus),
+    reconcile: () => invoke<CognitionConsistencyStatus>(IPC_CHANNELS.cognitionConsistencyReconcile),
     getSettings: () => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsGet),
     saveSettings: (request: CognitiveSettingsRequest) => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsSave, request),
     getFeelingState: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveFeelingSnapshot),
-    clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory)
+    clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory),
+    getAffectState: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectStateGet),
+    regulateAffect: (request: import('../shared/contracts').AffectRegulateRequest) => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectRegulate, request),
+    clearAffect: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectClear),
+    pauseAffectMood: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectMoodPause),
+    resumeAffectMood: () => invoke<import('../shared/contracts').AffectStateView>(IPC_CHANNELS.affectMoodResume)
+  }),
+  continuity: Object.freeze({
+    listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),
+    decidePendingItem: (request: PendingItemDecisionRequest) => invoke<PendingDecisionResult>(IPC_CHANNELS.pendingItemsDecide, request),
+    readTurnContext: (request: TurnContextRequest) => invoke<CognitiveTurnContext | null>(IPC_CHANNELS.turnContextRead, request)
   }),
   chat: Object.freeze({
     send: (request: ChatRequest) => invoke<ChatResult>(IPC_CHANNELS.chatSend, request),
     cancel: (request: ConversationIdRequest) => invoke<boolean>(IPC_CHANNELS.chatCancel, request),
+    trace: (request: ConversationIdRequest) => invoke<import('../cognition/turn-state-machine').TurnTraceRecord[]>(IPC_CHANNELS.chatTurnTrace, request),
     onDelta: (listener: (event: ChatStreamEvent) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: ChatStreamEvent): void => listener(payload)
       ipcRenderer.on(IPC_CHANNELS.chatDelta, handler)
@@ -124,6 +160,12 @@ const bridge: MorrowBridge = Object.freeze({
     cancelTask: (request: TaskIdRequest) => invoke<TaskRecord>(IPC_CHANNELS.goalsCancelTask, request),
     stop: (request: GoalIdRequest) => invoke<GoalRecord>(IPC_CHANNELS.goalsStop, request),
     delete: (request: GoalIdRequest) => invoke<void>(IPC_CHANNELS.goalsDelete, request)
+  }),
+  companionGoals: Object.freeze({
+    listGoals: () => invoke<CompanionGoal[]>(IPC_CHANNELS.companionGoalsList),
+    listCandidates: () => invoke<CompanionGoalCandidate[]>(IPC_CHANNELS.companionGoalCandidatesList),
+    acceptCandidate: (request: GoalCandidateIdRequest) => invoke<GoalCandidateDecisionResult>(IPC_CHANNELS.companionGoalCandidateAccept, request),
+    rejectCandidate: (request: GoalCandidateIdRequest) => invoke<GoalCandidateDecisionResult>(IPC_CHANNELS.companionGoalCandidateReject, request)
   }),
   reminders: Object.freeze({
     getSnapshot: () => invoke<ReminderSnapshot>(IPC_CHANNELS.remindersSnapshot),

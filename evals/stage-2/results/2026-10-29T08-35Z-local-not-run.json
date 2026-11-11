@@ -1,0 +1,36 @@
+{
+  "runId": "2026-10-29T08-35Z-local-not-run",
+  "datasetVersion": "v1",
+  "harnessVersion": "not-implemented",
+  "headSha": "e7efb4c421aa81593baf1ba21c18cf69ca967051",
+  "environment": {
+    "os": "Windows 10.0.26200",
+    "node": "v22.22.2",
+    "electron": "44.9.3"
+  },
+  "status": "NOT_RUN",
+  "reason": "The Stage 2 A-L harness does not exist yet. No scenario was executed, so no pass, fail or skip count is reported. This file exists so the results path is real and is never confused with a fabricated run.",
+  "scenarios": [
+    { "id": "A", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "B", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "C", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "D", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "E", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "F", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "G", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "H", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "I", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "J", "status": "NOT_RUN", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0 },
+    { "id": "K", "status": "BLOCKED", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0, "blockedBy": "no provider credential in this environment" },
+    { "id": "L", "status": "BLOCKED", "objectivePass": 0, "objectiveTotal": 0, "subjectiveScored": 0, "errors": 0, "blockedBy": "Chromium renderer sandbox cannot start on this host" }
+  ],
+  "totals": {
+    "executed": 0,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "blocked": 2,
+    "notRun": 10
+  },
+  "summaryRule": "Only scenarios with status PASS enter the numerator; statuses FAIL, SKIPPED, BLOCKED and NOT_RUN never count as passing, and SKIPPED is excluded from the denominator rather than divided in."
+}

@@ -1,0 +1,168 @@
+{
+  "datasetVersion": "stage-3-v1",
+  "harnessVersion": "stage-3-longitudinal-v2",
+  "codeCommit": "7dbe70e97f6b1245ca3131328ddad9889bc6561c",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "clock": "injected",
+  "clockNote": "Time is advanced by the harness (1 day per block, 60s per turn). This is NOT ten days of real use and must not be reported as such.",
+  "simulatedDays": 10,
+  "turnsPerDay": 3,
+  "simulatedSpanHours": 240,
+  "realElapsedMs": 4795,
+  "startedAt": "2026-10-30T12:30:41.003Z",
+  "finishedAt": "2026-10-30T12:30:45.799Z",
+  "dayLog": [
+    {
+      "day": 1,
+      "simulatedAt": "2026-10-02T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 0,
+        "humor": 0
+      },
+      "raised": 1
+    },
+    {
+      "day": 2,
+      "simulatedAt": "2026-10-03T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 0,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 3,
+      "simulatedAt": "2026-10-04T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 1.8619,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 4,
+      "simulatedAt": "2026-10-05T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 2.4637,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 5,
+      "simulatedAt": "2026-10-06T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 3.0563,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 6,
+      "simulatedAt": "2026-10-07T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 3.6398,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 7,
+      "simulatedAt": "2026-10-08T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 4.2143,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 8,
+      "simulatedAt": "2026-10-09T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 4.7802,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 9,
+      "simulatedAt": "2026-10-10T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 5.3373,
+        "humor": 0
+      },
+      "raised": 0
+    },
+    {
+      "day": 10,
+      "simulatedAt": "2026-10-11T00:00:00.000Z",
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 5.886,
+        "humor": 0
+      },
+      "raised": 0
+    }
+  ],
+  "status": "PASS",
+  "assertions": [
+    {
+      "name": "模拟十天后人格漂移仍在硬上限内",
+      "ok": true,
+      "detail": "warmth:0,directness:5.886,humor:0"
+    },
+    {
+      "name": "用户编辑的基线未被任何一天改写",
+      "ok": true,
+      "detail": "v1"
+    },
+    {
+      "name": "每日主动发起不超过上限",
+      "ok": true,
+      "detail": "1:1,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0"
+    },
+    {
+      "name": "至少真实发生一次提出（正例）",
+      "ok": true,
+      "detail": "max=1 labels=者之间信任|长期记忆里证据"
+    },
+    {
+      "name": "冷却期内（+1h）不得再次许可",
+      "ok": true,
+      "detail": "cooldown"
+    },
+    {
+      "name": "冷却结束后（+7h）恢复许可",
+      "ok": true,
+      "detail": "allowed"
+    },
+    {
+      "name": "一个半衰期前的证据只贡献约一半",
+      "ok": true,
+      "detail": "fresh=3 aged=1.5"
+    }
+  ]
+}

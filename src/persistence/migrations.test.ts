@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +10,9 @@ import { SqliteDatabase } from './database'
 import { isFeelingState } from '../affective-state/feeling'
 import { analyzeCognitiveTurn } from '../cognition/cognitive-turn-analyzer'
 import { isCognitiveTurnAnalysis } from '../cognition/cognition'
+import { EventLogService } from './event-log'
+import { SqlitePendingItemRepository } from './cognitive-context-repository'
+import { PendingCognitionService } from '../cognition/pending-items'
 
 const timestamp = '2026-10-24T00:00:00.000Z'
 
@@ -276,8 +280,121 @@ describe('versioned local SQLite storage', () => {
   })
 })
 
-describe('foreign implementation-line databases', () => {
-  it('fails closed without writing when migration names do not match this application', () => {
+describe('v18 reflection-summary privacy rewrite', () => {
+  it('rewrites a legacy reflection summary without deleting the row or its state', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v18-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 17)
+      const id = '11111111-1111-4111-8111-111111111111'
+      const legacySummary = '以下关于自己的判断仍是未经确认的推断，等待用户澄清：「我对青霉素严重过敏」'
+      connection.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, ?, 'reflection', 'consistency_note', ?, 45, 'open', NULL, ?, ?, ?, NULL)
+      `).run(
+        id,
+        'reflection:consistency_note:0123456789abcdef',
+        legacySummary,
+        JSON.stringify({ runId: '22222222-2222-4222-8222-222222222222', statementDigest: '0123456789abcdef', extra: '我对青霉素严重过敏' }),
+        timestamp,
+        timestamp
+      )
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const row = connection.prepare('SELECT * FROM cognitive_pending_items WHERE id = ?').get(id) as Record<string, unknown>
+      // The row survives with its identity and workflow state intact.
+      expect(row.id).toBe(id)
+      expect(row.status).toBe('open')
+      expect(row.priority).toBe(45)
+      expect(row.created_at).toBe(timestamp)
+      expect(row.dedupe_key).toBe('reflection:consistency_note:0123456789abcdef')
+      // The quoted text is gone from both columns that could carry it.
+      const serialized = JSON.stringify(row)
+      expect(serialized).not.toContain('青霉素')
+      expect(row.summary).toBe('反思发现存在尚未确认的自我判断，等待用户澄清。')
+      expect(JSON.parse(String(row.detail_json))).toEqual({
+        runId: '22222222-2222-4222-8222-222222222222',
+        statementDigest: '0123456789abcdef',
+        summaryPolicy: 'category_template_v1'
+      })
+      // Exactly one row: the rewrite is an update, not a delete-and-insert.
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM cognitive_pending_items').get()).toEqual({ count: 1 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('leaves non-reflection items untouched', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v18-conflict-'))
+    const connection = new DatabaseSync(join(directory, 'morrow.sqlite3'))
+    try {
+      applyMigrations(connection, 17)
+      const id = '33333333-3333-4333-8333-333333333333'
+      const summary = '已保存的记录在「residence」上互相矛盾，尚未确认哪一条是当前状态。'
+      connection.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, 'conflict:residence:a,b', 'conflict', 'conflict_residence', ?, 70, 'open', NULL, '{}', ?, ?, NULL)
+      `).run(id, summary, timestamp, timestamp)
+
+      applyMigrations(connection)
+
+      const row = connection.prepare('SELECT summary FROM cognitive_pending_items WHERE id = ?').get(id) as { summary: string }
+      expect(row.summary).toBe(summary)
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('derived-data deletion boundaries', () => {
+  it('deletes source-linked self-model and interest rows plus conversation-scoped continuity records', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-derived-delete-'))
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    const db = database.connection
+    const conversationId = '11111111-1111-4111-8111-111111111111'
+    const messageId = '22222222-2222-4222-8222-222222222222'
+    const turnId = '33333333-3333-4333-8333-333333333333'
+    const assistantId = '44444444-4444-4444-8444-444444444444'
+    const selfModelId = '55555555-5555-4555-8555-555555555555'
+    const interestId = '66666666-6666-4666-8666-666666666666'
+    const pendingId = '77777777-7777-4777-8777-777777777777'
+
+    try {
+      db.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, 'delete me', timestamp, timestamp)
+      db.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', 'I like coffee.', timestamp, 1, turnId)
+      db.prepare(`
+        INSERT INTO self_model_entries(id, kind, statement, status, confidence, source_message_id, conversation_id, superseded_by, created_at, updated_at)
+        VALUES (?, 'fact', 'I like coffee.', 'active', 55, ?, ?, NULL, ?, ?)
+      `).run(selfModelId, messageId, conversationId, timestamp, timestamp)
+      db.prepare(`
+        INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json)
+        VALUES (?, 'coffee', 'candidate', 1, 1, 0.2, 40, ?, ?, ?, ?, ?, '[]')
+      `).run(interestId, messageId, conversationId, timestamp, timestamp, timestamp)
+      db.prepare('INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json) VALUES (?, ?, ?, ?, ?)')
+        .run(turnId, conversationId, 'succeeded', timestamp, '{}')
+      db.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, 'interest:coffee', 'interest', 'interest_candidate', 'Candidate interest', 20, 'open', ?, '{}', ?, ?, NULL)
+      `).run(pendingId, conversationId, timestamp, timestamp)
+      db.prepare('INSERT INTO cognitive_turn_finalizations(turn_id, conversation_id, user_message_id, assistant_message_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(turnId, conversationId, messageId, assistantId, '{}', timestamp)
+
+      db.prepare('DELETE FROM conversations WHERE id = ?').run(conversationId)
+
+      for (const table of ['messages', 'self_model_entries', 'interests', 'cognitive_turn_contexts', 'cognitive_pending_items', 'cognitive_turn_finalizations']) {
+        expect(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0 })
+      }
+    } finally {
+      database.close()
+    }
+  })
+})
+
+describe('foreign implementation-line databases', () => {  it('fails closed without writing when migration names do not match this application', () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-foreign-schema-'))
     try {
       const path = join(directory, 'morrow.sqlite3')
@@ -306,6 +423,387 @@ describe('foreign implementation-line databases', () => {
       expect(columns).toEqual(['id', 'kind', 'claim'])
     } finally {
       rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    }
+  })
+})
+
+describe('v25 memory-backed interest evidence', () => {
+  it('upgrades a v24 ledger without losing rows and invalidates on retract afterwards', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v25-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      // Build a v24 database, then write one memory-backed evidence row that the
+      // upgrade must keep (it predates the revision column).
+      expect(applyMigrations(connection, 24)).toBe(24)
+      connection.prepare(
+        'INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)'
+      ).run('11111111-1111-4111-8111-111111111111', 'topic', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z')
+      connection.prepare(
+        'INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('44444444-4444-4444-8444-444444444444', '我在学咖啡拉花。', '我在学咖啡拉花。', 'user_explicit_input', 'active', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', 1)
+      connection.prepare(
+        'INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('55555555-5555-4555-8555-555555555555', '咖啡拉花', 'candidate', 1, 1, 0.5, 40, '44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', '[]')
+      connection.prepare(
+        'INSERT INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('55555555-5555-4555-8555-555555555555', '44444444-4444-4444-8444-444444444444', 'memory', '11111111-1111-4111-8111-111111111111', 'support', 0.9, 'same_topic', '2026-10-29T09:00:00.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      // The upgrade keeps the row and marks the revision as unknown (NULL).
+      const kept = connection.prepare('SELECT evidence_ref, evidence_revision FROM interest_evidence').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ evidence_ref: '44444444-4444-4444-8444-444444444444', evidence_revision: null })
+
+      // Retracting the memory now clears it, which the v24 schema did not do.
+      connection.prepare('UPDATE memories SET status = ?, updated_at = ? WHERE id = ?')
+        .run('retracted', '2026-10-29T10:00:00.000Z', '44444444-4444-4444-8444-444444444444')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM interest_evidence').get()).toEqual({ count: 0 })
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('v26 reflection finding kinds', () => {
+  it('keeps existing findings when the kind constraint is widened', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v26-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 25)).toBe(25)
+      connection.prepare('INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run('66666666-6666-4666-8666-666666666666', 'manual', '2026-10-30T00:00:00.000Z', '2026-10-30T00:00:01.000Z', 1, 2, 1, 'completed')
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('77777777-7777-4777-8777-777777777777', '66666666-6666-4666-8666-666666666666', 'memory_gap', 'existing finding', 50, '[]', '2026-10-30T00:00:01.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const kept = connection.prepare('SELECT kind, statement FROM reflection_findings').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ kind: 'memory_gap', statement: 'existing finding' })
+      // The widened constraint accepts the two new kinds…
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('88888888-8888-4888-8888-888888888888', '66666666-6666-4666-8666-666666666666', 'intent_correction', 'new kind', 60, '[]', '2026-10-30T00:00:02.000Z')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM reflection_findings').get()).toEqual({ count: 2 })
+      // …and still rejects anything outside the enumeration.
+      expect(() => connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('99999999-9999-4999-8999-999999999999', '66666666-6666-4666-8666-666666666666', 'made_up_kind', 'x', 60, '[]', '2026-10-30T00:00:03.000Z')).toThrow()
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('v39 exploration states and finding routing', () => {
+  it('drops the unreachable user_rejected state, keeps rows, and adds the routing tables', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v39-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 38)).toBe(38)
+      // A state the production writer could reach before the upgrade.
+      connection.prepare(
+        "INSERT INTO exploration_events(id, turn_id, interest_id, state, reason, created_at) VALUES (?, ?, ?, 'actually_raised', ?, ?)"
+      ).run('77777777-7777-4777-8777-777777777777', '88888888-8888-4888-8888-888888888888', '99999999-9999-4999-8999-999999999999', 'reply mentioned the topic', '2026-10-31T00:00:00.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      // The upgrade keeps the row and the new CHECK refuses the dead state:
+      // no production writer ever set it, so honest removal costs nothing.
+      const kept = connection.prepare('SELECT id, state FROM exploration_events').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ id: '77777777-7777-4777-8777-777777777777', state: 'actually_raised' })
+      expect(() => connection.prepare(
+        "INSERT INTO exploration_events(id, turn_id, interest_id, state, reason, created_at) VALUES (?, ?, ?, 'user_rejected', ?, ?)"
+      ).run('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dead state', '2026-10-31T00:01:00.000Z')).toThrow()
+
+      // Routing table: routes and statuses are closed sets.
+      expect(() => connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'context_hint', 'routed', 'hint for next turn', ?, 'memory_gap', ?, ?)"
+      ).run('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-10-31T00:02:00.000Z', '2026-10-31T00:02:00.000Z')).toThrow()
+      // The FK is real: a route row needs its finding row.
+      expect(() => connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'audit_only', 'routed', 'consumed by the interest effect', ?, 'interest_candidate', ?, ?)"
+      ).run('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-10-31T00:02:00.000Z', '2026-10-31T00:02:00.000Z')).toThrow()
+
+      // Maintenance state: exactly one row, closed status set.
+      connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (1, ?, 'ok', 12)"
+      ).run('2026-10-31T00:03:00.000Z')
+      expect(() => connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (2, ?, 'ok', 12)"
+      ).run('2026-10-31T00:03:00.000Z')).toThrow()
+      expect(() => connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (1, ?, 'skipped', 12)"
+      ).run('2026-10-31T00:04:00.000Z')).toThrow()
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('v48 pending decision terminal state', () => {
+  it('upgrades a v47 database with pending items and keeps them decidable', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v48-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const runId = '11111111-1111-4111-8111-111111111111'
+    const findingId = '22222222-2222-4222-8222-222222222222'
+    const openId = '33333333-3333-4333-8333-333333333333'
+    const doneId = '44444444-4444-4444-8444-444444444444'
+    const statement = '用户纠正过助手对上一轮的理解；下一轮应先复述自己的理解再回答。'
+    const digest = createHash('sha256').update(statement).digest('hex').slice(0, 16)
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 47)).toBe(47)
+      connection.prepare('INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(runId, 'manual', timestamp, timestamp, 1, 1, 1, 'completed')
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(findingId, runId, 'intent_correction', statement, 60, '[]', timestamp, 'v47-finding')
+      connection.prepare("INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'pending_user', 'routed', 'v47 route', ?, 'intent_correction', ?, ?)")
+        .run(findingId, runId, timestamp, timestamp)
+      connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'open before v48', 40, 'open', NULL, '{}', ?, ?, NULL)")
+        .run(openId, `reflection:intent_correction:${digest}`, timestamp, timestamp)
+      connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES (?, ?, 'reflection', 'intent_correction', 'done before v48', 40, 'done', NULL, '{}', ?, ?, ?)")
+        .run(doneId, 'reflection:intent_correction:0123456789abcdef', timestamp, timestamp, timestamp)
+
+      // v48 columns do not exist yet.
+      expect(connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)).not.toContain('finding_id')
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
+      expect(columns).toContain('finding_id')
+      expect(columns).toContain('decision')
+      expect(connection.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'cognitive_pending_items_finding_idx'").get()).toBeDefined()
+      const rows = connection.prepare('SELECT id, status, finding_id, decision, completed_at FROM cognitive_pending_items ORDER BY id').all() as Array<{ id: string; status: string; finding_id: string | null; decision: string | null; completed_at: string | null }>
+      expect(rows).toHaveLength(2)
+      expect(rows.find((row) => row.id === openId)).toMatchObject({ status: 'open', finding_id: null, decision: null, completed_at: null })
+      expect(rows.find((row) => row.id === doneId)).toMatchObject({ status: 'done', finding_id: null, decision: null, completed_at: timestamp })
+      expect(connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+      expect(connection.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    } finally {
+      connection.close()
+    }
+
+    // The production boundary opens the upgraded file and the old row is
+    // decidable; its route is converged by the stored concern digest.
+    const database = SqliteDatabase.open(path)
+    try {
+      const events = new EventLogService(database)
+      const pending = new PendingCognitionService(new SqlitePendingItemRepository(database, events))
+      expect(pending.decide(openId, 'accepted')).toMatchObject({ status: 'decided', itemStatus: 'done' })
+      expect(pending.get(openId)).toMatchObject({ status: 'done', decision: 'accepted', findingId: null })
+      expect(database.connection.prepare('SELECT status FROM reflection_finding_routes WHERE finding_id = ?').get(findingId)).toEqual({ status: 'consumed' })
+      const audit = database.connection.prepare("SELECT payload_json FROM event_journal WHERE event_type = 'pending.decision' AND subject_id = ?").get(openId) as { payload_json: string }
+      expect(JSON.parse(audit.payload_json)).toMatchObject({ routeStatus: 'consumed', routeResolution: 'resolved_by_concern', routesUpdated: 1 })
+      expect(database.connection.prepare('SELECT status FROM cognitive_pending_items WHERE id = ?').get(doneId)).toEqual({ status: 'done' })
+    } finally {
+      database.close()
+    }
+  })
+})
+
+
+describe('v49 provider multi-source profiles final', () => {
+  const capabilities = '{"streaming":{"declared":true,"probed":false,"verified":false},"vision":{"declared":false,"probed":false,"verified":false},"toolCalling":{"declared":false,"probed":false,"verified":false},"jsonMode":{"declared":false,"probed":false,"verified":false},"systemRole":{"declared":true,"probed":false,"verified":false}}'
+
+  function seedReleaseProviders(connection: DatabaseSync): void {
+    connection.prepare("INSERT OR REPLACE INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('deepseek', 'remote', 'https://api.deepseek.com', 'deepseek-flash', 1, ?)").run(timestamp)
+    connection.prepare("INSERT OR REPLACE INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('spark', 'remote', 'https://maas-api.cn-huabei-1.xf-yun.com/v2', 'spark-x2', 0, ?)").run(timestamp)
+    connection.prepare("INSERT OR REPLACE INTO provider_profiles(id, provider_class, endpoint, model, enabled, updated_at) VALUES ('local-openai', 'local', 'http://127.0.0.1:1234/v1', 'local-model', 1, ?)").run(timestamp)
+  }
+
+  function applyProviderV48(connection: DatabaseSync): void {
+    connection.exec(`
+      CREATE TABLE provider_profiles_v48 (
+        id TEXT PRIMARY KEY NOT NULL CHECK (
+          length(id) BETWEEN 1 AND 64 AND id NOT GLOB '*[^a-z0-9-]*'
+        ),
+        display_name TEXT NOT NULL CHECK (length(trim(display_name)) BETWEEN 1 AND 80),
+        source_kind TEXT NOT NULL CHECK (source_kind IN ('official', 'custom-proxy', 'local', 'private-network')),
+        protocol_id TEXT NOT NULL CHECK (protocol_id IN ('openai-chat-completions', 'anthropic-messages', 'ollama-native')),
+        provider_class TEXT NOT NULL CHECK (provider_class IN ('remote', 'local')),
+        endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 8 AND 2000),
+        endpoint_path TEXT CHECK (
+          endpoint_path IS NULL OR (length(endpoint_path) BETWEEN 1 AND 300 AND substr(endpoint_path, 1, 1) = '/')
+        ),
+        model TEXT NOT NULL CHECK (length(model) BETWEEN 1 AND 128),
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+        capabilities_json TEXT NOT NULL,
+        last_test_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO provider_profiles_v48(
+        id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+        model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+      )
+        SELECT id,
+               CASE id WHEN 'deepseek' THEN 'DeepSeek'
+                       WHEN 'spark' THEN 'iFlytek Spark'
+                       ELSE 'Local OpenAI' END,
+               CASE id WHEN 'local-openai' THEN 'local' ELSE 'official' END,
+               'openai-chat-completions',
+               provider_class,
+               endpoint,
+               NULL,
+               model,
+               enabled,
+               0,
+               '${capabilities}',
+               NULL,
+               updated_at,
+               updated_at
+        FROM provider_profiles;
+      DROP TABLE provider_profiles;
+      ALTER TABLE provider_profiles_v48 RENAME TO provider_profiles;
+      CREATE UNIQUE INDEX provider_profiles_default_uq
+        ON provider_profiles(is_default) WHERE is_default = 1;
+      INSERT INTO schema_migrations(version, name, applied_at)
+        VALUES (48, 'provider-multi-source-profiles', '2026-11-04T00:00:00.000Z');
+    `)
+    connection.prepare(`INSERT INTO provider_profiles(
+      id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path,
+      model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at
+    ) VALUES ('custom-proxy-a', 'Custom A', 'custom-proxy', 'openai-chat-completions', 'remote',
+      'https://relay.example.com', '/v1', 'relay-model', 1, 1, ?, ?, ?, ?)`).run(capabilities, JSON.stringify({ status: 'connected', at: timestamp }), timestamp, timestamp)
+  }
+
+  it('upgrades a release v47 database and preserves every built-in profile', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-release-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 47)).toBe(47)
+      seedReleaseProviders(connection)
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const rows = connection.prepare('SELECT id, display_name, source_kind, protocol_id, endpoint, endpoint_path, model, enabled, is_default FROM provider_profiles ORDER BY id').all() as Array<Record<string, unknown>>
+      expect(rows).toEqual([
+        { id: 'deepseek', display_name: 'DeepSeek', source_kind: 'official', protocol_id: 'openai-chat-completions', endpoint: 'https://api.deepseek.com', endpoint_path: null, model: 'deepseek-flash', enabled: 1, is_default: 0 },
+        { id: 'local-openai', display_name: 'Local OpenAI', source_kind: 'local', protocol_id: 'openai-chat-completions', endpoint: 'http://127.0.0.1:1234/v1', endpoint_path: null, model: 'local-model', enabled: 1, is_default: 0 },
+        { id: 'spark', display_name: 'iFlytek Spark', source_kind: 'official', protocol_id: 'openai-chat-completions', endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2', endpoint_path: null, model: 'spark-x2', enabled: 0, is_default: 0 }
+      ])
+      const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
+      expect(columns).toContain('finding_id')
+      expect(columns).toContain('decision')
+      expect(connection.prepare('SELECT name FROM schema_migrations WHERE version = 48').get()).toEqual({ name: 'pending-decision-terminal-state' })
+      expect(connection.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok')
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('upgrades a Stage 4 v48 database without losing pending or provider data', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-stage4-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      expect(applyMigrations(connection, 48)).toBe(48)
+      connection.prepare("INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'stage4:key', 'reflection', 'intent_correction', 'kept', 40, 'open', NULL, '{}', ?, ?, NULL)").run(timestamp, timestamp)
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+      expect(connection.prepare('SELECT status, summary FROM cognitive_pending_items WHERE id = ?').get('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).toEqual({ status: 'open', summary: 'kept' })
+      expect(connection.prepare("SELECT display_name, source_kind FROM provider_profiles WHERE id = 'deepseek'").get()).toEqual({ display_name: 'DeepSeek', source_kind: 'official' })
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations WHERE version IN (48, 49)').get()).toEqual({ count: 2 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('upgrades a standalone Provider v48 database through the integration bridge', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-provider-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      applyProviderV48(connection)
+      expect(connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)).not.toContain('finding_id')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+      const columns = connection.prepare('PRAGMA table_info(cognitive_pending_items)').all().map((row) => row.name)
+      expect(columns).toContain('finding_id')
+      expect(connection.prepare('SELECT name FROM schema_migrations WHERE version = 48').get()).toEqual({ name: 'pending-decision-terminal-state' })
+      expect(connection.prepare("SELECT display_name, endpoint_path, model, is_default FROM provider_profiles WHERE id = 'custom-proxy-a'").get()).toEqual({ display_name: 'Custom A', endpoint_path: '/v1', model: 'relay-model', is_default: 1 })
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 4 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('is idempotent across repeated startups and bridge retries', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-repeat-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      applyProviderV48(connection)
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+      connection.close()
+
+      const reopened = SqliteDatabase.open(path)
+      try {
+        expect(reopened.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
+        expect(reopened.connection.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: CURRENT_SCHEMA_VERSION })
+        expect(reopened.connection.prepare("SELECT COUNT(*) AS count FROM provider_profiles WHERE id = 'custom-proxy-a'").get()).toEqual({ count: 1 })
+      } finally {
+        reopened.close()
+      }
+    } finally {
+      try { connection.close() } catch { /* already closed */ }
+    }
+  })
+
+  it('rolls back a failed v49 rebuild and can retry after the conflict is removed', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-rollback-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 47)
+      seedReleaseProviders(connection)
+      applyProviderV48(connection)
+      // Remove the provider branch's uniqueness guard and create a second
+      // default: v49's unique index must fail, roll back, and leave v48 intact.
+      connection.exec('DROP INDEX provider_profiles_default_uq')
+      connection.prepare("INSERT INTO provider_profiles(id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path, model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at) VALUES ('custom-proxy-b', 'Custom B', 'custom-proxy', 'openai-chat-completions', 'remote', 'https://relay-b.example.com', NULL, 'relay-b', 1, 1, ?, NULL, ?, ?)").run(capabilities, timestamp, timestamp)
+
+      expect(() => applyMigrations(connection)).toThrow('Database migration failed.')
+      expect(connection.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({ version: 48 })
+      expect(connection.prepare('PRAGMA table_info(provider_profiles)').all().map((row) => row.name)).toContain('display_name')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles').get()).toEqual({ count: 5 })
+
+      connection.prepare("UPDATE provider_profiles SET is_default = 0 WHERE id = 'custom-proxy-b'").run()
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM provider_profiles WHERE is_default = 1').get()).toEqual({ count: 1 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('rejects a provider id longer than the secret store limit at the database boundary', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v49-id-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection)
+      expect(() => connection.prepare("INSERT INTO provider_profiles(id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path, model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at) VALUES (?, 'Long', 'custom-proxy', 'openai-chat-completions', 'remote', 'https://relay.example.com', NULL, 'm', 1, 0, ?, NULL, ?, ?)").run('a'.repeat(41), capabilities, timestamp, timestamp)).toThrow()
+      expect(connection.prepare("INSERT INTO provider_profiles(id, display_name, source_kind, protocol_id, provider_class, endpoint, endpoint_path, model, enabled, is_default, capabilities_json, last_test_json, created_at, updated_at) VALUES (?, 'Ok', 'custom-proxy', 'openai-chat-completions', 'remote', 'https://relay.example.com', NULL, 'm', 1, 0, ?, NULL, ?, ?)").run('a'.repeat(40), capabilities, timestamp, timestamp)).toBeDefined()
+    } finally {
+      connection.close()
     }
   })
 })

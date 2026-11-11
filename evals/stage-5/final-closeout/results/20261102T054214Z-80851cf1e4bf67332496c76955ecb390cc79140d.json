@@ -1,0 +1,472 @@
+{
+  "suite": "stage-5-final-closeout",
+  "task": "Issue #29 — Stage 5 收尾：关系删除闭环、用户消息可靠入队、表达策略校准",
+  "repository": "ve766/morrow-ai-companion-v2",
+  "branch": "fix/stage-5-final-closeout",
+  "base": "fix/stage-5-review-findings",
+  "startCommit": "9d54c6e02dea443f5b6911810327a9fa08c5353c",
+  "codeSha": "80851cf1e4bf67332496c76955ecb390cc79140d",
+  "docsSha": null,
+  "docsNote": "Docs are committed after this machine result; the exact docs commit is reported in the PR/Issue and the evidence index. This file never claims a docs SHA it does not have.",
+  "ciHeadSha": "80851cf1e4bf67332496c76955ecb390cc79140d",
+  "generatedAt": "2026-11-02T05:42:14Z",
+  "businessTreeDirty": false,
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2",
+    "note": "TEMP/TMP redirected to <repo>/.tmp/es because esbuild cannot write to the OS temp directory on this host (reproduced with a one-file bundle)."
+  },
+  "secrets": {
+    "MORROW_TEST_API_KEY": "present; value never read into this file, logs or reports"
+  },
+  "findings": {
+    "F1": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test": "deleting the source message tombstones the thread and no value survives",
+          "status": "PASS"
+        },
+        {
+          "test": "deleting the conversation tombstones every thread it owned",
+          "status": "PASS"
+        },
+        {
+          "test": "reconcile erases a thread whose evidence is an orphan and is idempotent",
+          "status": "PASS"
+        },
+        {
+          "test": "the v46 migration backfills historical orphan evidence and erases content",
+          "status": "PASS"
+        }
+      ]
+    },
+    "F2": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test": "a provider failure keeps the relationship obligation pending and it applies once later",
+          "status": "PASS"
+        },
+        {
+          "test": "a restart projects the pending obligation exactly once",
+          "status": "PASS"
+        },
+        {
+          "test": "deleting the conversation while the obligation is pending cancels it and projects nothing",
+          "status": "PASS"
+        },
+        {
+          "test": "replaying the same turn adds one obligation and one evidence row",
+          "status": "PASS"
+        },
+        {
+          "test": "a delayed older observation cannot compete with a newer address decision",
+          "status": "PASS"
+        }
+      ]
+    },
+    "F3": {
+      "status": "PASS",
+      "tests": [
+        {
+          "test": "an explicit first-person emotion statement is high confidence",
+          "status": "PASS"
+        },
+        {
+          "test": "a time-framed strong statement is recognised without a leading 我",
+          "status": "PASS"
+        },
+        {
+          "test": "an extreme statement is enough on its own",
+          "status": "PASS"
+        },
+        {
+          "test": "a causal frame counts as an explicit statement",
+          "status": "PASS"
+        },
+        {
+          "test": "a tool word containing 烦 is not distress: 麻烦你帮我检查一下代码",
+          "status": "PASS"
+        },
+        {
+          "test": "a tool word containing 烦 is not distress: 这个操作很麻烦",
+          "status": "PASS"
+        },
+        {
+          "test": "a tool word containing 烦 is not distress: 我不喜欢这个方案",
+          "status": "PASS"
+        },
+        {
+          "test": "a tool word containing 烦 is not distress: 麻烦把日志发我",
+          "status": "PASS"
+        },
+        {
+          "test": "a boundary complaint without an emotion frame stays non-distress",
+          "status": "PASS"
+        },
+        {
+          "test": "unresolved tension alone is recorded but not treated as distress",
+          "status": "PASS"
+        },
+        {
+          "test": "a direct request wins even when the user is distressed",
+          "status": "PASS"
+        },
+        {
+          "test": "a plain request is not made to acknowledge emotion",
+          "status": "PASS"
+        },
+        {
+          "test": "explicit distress selects acknowledgement when no direct request exists",
+          "status": "PASS"
+        }
+      ]
+    },
+    "F4": {
+      "status": "PASS",
+      "detail": "PR #28 docs unified to run 41386833397 / head 9d54c6e; this result keeps codeSha, ciHeadSha and docsSha separate."
+    },
+    "F5": {
+      "status": "PARTIAL",
+      "humanNaturalness": "PENDING_HUMAN",
+      "secondProvider": "NOT_RUN",
+      "humanPacket": "evals/stage-5/final-closeout/review/human-review-packet.md"
+    }
+  },
+  "commands": [
+    {
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run",
+      "exitCode": 0,
+      "files": 106,
+      "tests": 993,
+      "passed": 993,
+      "failed": 0,
+      "resultFile": ".tmp/full-vitest-80851cf.json"
+    },
+    {
+      "command": "npx vitest run src/app/stage5-final-closeout.integration.test.ts src/affective-state/distress-evidence.test.ts",
+      "exitCode": 0,
+      "tests": 22,
+      "passed": 22,
+      "failed": 0,
+      "resultFile": ".tmp/closeout-vitest-80851cf.json"
+    },
+    {
+      "command": "npm run eval:stage5",
+      "exitCode": 0,
+      "file": "evals/stage-5/results/20261102T051855Z-80851cf.json",
+      "scenarios": 12,
+      "PASS": 12,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run eval:stage5:live",
+      "exitCode": 0,
+      "file": "evals/stage-5/results/20261102T052010Z-80851cf-stage-5.json",
+      "scenarios": 12,
+      "PASS": 12,
+      "FAIL": 0,
+      "ERROR": 0,
+      "provider": "spark",
+      "model": "spark-x2.6",
+      "protocol": "openai-chat-completions"
+    },
+    {
+      "command": "npm run eval:stage3",
+      "exitCode": 0,
+      "file": "evals/stage-3/results/20261102T051918Z-80851cf.json",
+      "PASS": 15,
+      "NOT_RUN": 1,
+      "denominator": 16
+    },
+    {
+      "command": "npm run eval:stage4a",
+      "exitCode": 0,
+      "file": "evals/stage-4a/results/20261102T051952Z-80851cf.json",
+      "PASS": 7,
+      "FAIL": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "MORROW_SMOKE_DISABLE_SANDBOX=1 npm run smoke",
+      "exitCode": 1,
+      "status": "BLOCKED_LOCAL",
+      "detail": "0xC0000005 before any page committed; environment evidence, CI smoke passed"
+    }
+  ],
+  "ci": {
+    "runId": 41394584400,
+    "url": "https://github.com/ve766/morrow-ai-companion-v2/actions/runs/41394584400",
+    "headSha": "80851cf1e4bf67332496c76955ecb390cc79140d",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "Typecheck, tests, build and smoke (ubuntu-latest)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck, tests, build and smoke (windows-latest)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Windows upgrade path (schema migrations under the real app)",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "liveScenarios": [
+    {
+      "id": "S1",
+      "name": "新会话自然接续明确约定的话题",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块含 项目时间线",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S2",
+      "name": "分享日常小事，未被转成任务",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "无记忆操作块",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S3",
+      "name": "表达挫折时不立刻给清单建议",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "策略已记录",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S4",
+      "name": "明确要求直接解决时不绕题",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "策略=explicit_direct_request",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S5",
+      "name": "有证据时自然使用偏好",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据含 咖啡",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S6",
+      "name": "纠正称呼后只用新值",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块含 阿林",
+          "ok": true
+        },
+        {
+          "name": "连续性块不含 小林",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S7",
+      "name": "撤回约定后不再主动提起",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块不含 项目时间线",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S8",
+      "name": "多义关系线索主动澄清",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "未写入 豆豆",
+          "ok": true
+        },
+        {
+          "name": "操作块含 status=clarify",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S9",
+      "name": "内在状态改变策略但不改变事实",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据含 花生",
+          "ok": true
+        },
+        {
+          "name": "策略=explicit_direct_request",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S10",
+      "name": "低置信度时承认不确定",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据为空（不编造）",
+          "ok": true
+        },
+        {
+          "name": "使用规则仍在原则中",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S11",
+      "name": "礼貌表达独立判断且接受有效纠正",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "证据含 杭州",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    },
+    {
+      "id": "S12",
+      "name": "Provider 配置变更后关系线索与事实连续（应用侧）",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "连续性块含 长期记忆的边界",
+          "ok": true
+        },
+        {
+          "name": "策略块声明不暴露内部数值",
+          "ok": true
+        }
+      ],
+      "semanticReview": "PENDING_HUMAN"
+    }
+  ],
+  "naturalness": {
+    "S3": {
+      "reply": "这确实很打击——特别是\"又\"被推翻，换谁都会觉得泄气。\n\n先想确认一下：你现在是想单纯吐槽一下，还是想聊聊接下来怎么办？如果什么都不想管，那就把这事儿搁一边也完全没问题。",
+      "humanReview": "PENDING_HUMAN"
+    },
+    "S5": {
+      "reply": "按我记得的，你更喜欢咖啡。那就咖啡吧——要是今天想换换口味，茶也行，你说了算。",
+      "humanReview": "PENDING_HUMAN"
+    },
+    "S6": {
+      "reply": "你好，阿林！很高兴听到你的消息——今天过得怎么样？",
+      "humanReview": "PENDING_HUMAN"
+    },
+    "packet": "evals/stage-5/final-closeout/review/human-review-packet.md"
+  },
+  "blocked": [
+    {
+      "item": "Human naturalness review",
+      "status": "PENDING_HUMAN",
+      "detail": "7 fixed samples + blind rating sheet; agent cannot fill it"
+    },
+    {
+      "item": "Second real provider",
+      "status": "NOT_RUN",
+      "detail": "no second provider credential/endpoint"
+    },
+    {
+      "item": "Local Electron smoke (this host)",
+      "status": "BLOCKED_LOCAL",
+      "detail": "0xC0000005; CI windows/ubuntu smoke passed"
+    }
+  ],
+  "notes": [
+    "F1/F2/F3 acceptance tests run through the production CompanionService assembly, not helper-only calls.",
+    "The v46 migration backfill is exercised on a real v43 database created by applyMigrations.",
+    "Historical result JSON files were not modified."
+  ]
+}

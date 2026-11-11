@@ -1,0 +1,49 @@
+Windows acceptance log (Issue #81)
+Code SHA: 60ae6fe11e751bd7e5b80df942d231eade98b8eb
+Date: 2026-11-10 (local)
+
+Installer: C:\morrow-out\Morrow-2.0.0-x64-custom-setup.exe
+Bytes: 158332209
+SHA-256: 80c15fb5aac6e54bd1aab92226b31c345ea9d490da6f33f751b5e570c202f7a9
+
+1. Initial attempt to install to a path containing spaces
+   command: <installer> /S /D=E:\...\.tmp\install-test
+   exit: 0
+   observation: NSIS ignored the /D path and used the previously recorded
+   install directory %LOCALAPPDATA%\MorrowV2-WholeProduct. This is why the
+   test was moved to a space-free isolated path.
+
+2. Uninstall of the previous default directory
+   command: %LOCALAPPDATA%\MorrowV2-WholeProduct\Uninstall.exe /S
+   exit: 0
+   Morrow.exe remains: false
+
+3. Install to isolated directory
+   command: <installer> /S /D=C:\morrow81test
+   exit: 0
+   C:\morrow81test\Morrow.exe exists: true
+   file count: 19
+
+4. Start + chat against the installed app
+   command: MORROW_SMOKE_EXE=C:/morrow81test/Morrow.exe node scripts/chat-ui-smoke.mjs
+   result: PASS
+   checks: renderer input -> submit -> streamed assistant reply -> persisted conversation
+   requests: 1
+   messages: user, assistant
+   logs: auto:false, grant:false, decision remember:true (native dialog source
+   not independently observed; recorded as PENDING_HUMAN in the matrix)
+
+5. Uninstall
+   command: C:\morrow81test\Uninstall.exe /S
+   exit: 0
+   directory remains: false
+   Morrow.exe remains: false
+
+Portable:
+   zip: release\Morrow-2.0.0-x64-portable-final.zip
+   bytes: 162762914
+   SHA-256: 276cc9aba550fdc62d0cbd266fe970797e257013229fc463723309c4fe48148c
+   extracted: C:\morrow81portable
+   chat smoke: PASS (same checks)
+
+Isolation: install and portable paths are new; no V1 path or data was touched.

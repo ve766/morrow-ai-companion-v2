@@ -1,0 +1,16 @@
+{
+  "status": "BLOCKED_NO_SECRET",
+  "suite": "semantic",
+  "reason": "Environment variable MORROW_TEST_API_KEY is not set.",
+  "datasetVersion": "c1-semantic-v1",
+  "harnessVersion": "c1-semantic-runner-v1",
+  "paramsVersion": "c1-params-v1",
+  "codeCommit": "unknown",
+  "provider": "spark",
+  "providerModelId": "spark-x2.6",
+  "expectedEndpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions",
+  "startedAt": "2026-10-31T15:58:46.479Z",
+  "finishedAt": "2026-10-31T15:58:46.860Z",
+  "workingTree": "unknown",
+  "notRun": "C1 语义证据未产生：本文件不是评估结果，只是缺少凭据的记录。"
+}
