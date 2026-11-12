@@ -1,0 +1,26 @@
+{
+  "version": "final-product-v1",
+  "description": "Issue #33/#34 final product scenarios. Scripted scenarios run the production CompanionService assembly; external items are NOT_RUN/PENDING/BLOCKED and never counted as PASS.",
+  "scenarios": [
+    { "id": "P01", "name": "普通多轮对话", "expect": "每轮消息/回复正确持久化，不重复、不丢失" },
+    { "id": "P02", "name": "Provider 超时/错误", "expect": "明确失败，不伪称成功；可恢复重试" },
+    { "id": "P03", "name": "显式记住事实", "expect": "先提交验证，再确认已记住" },
+    { "id": "P04", "name": "跨会话记忆", "expect": "语义改写/代词/主题延续仍能召回正确事实" },
+    { "id": "P05", "name": "纠正事实", "expect": "新值 active，旧值 superseded；后续只把新值当当前事实" },
+    { "id": "P06", "name": "歧义纠正", "expect": "澄清，不猜、不写" },
+    { "id": "P07", "name": "撤回", "expect": "仅撤回唯一目标，不误伤其他事实" },
+    { "id": "P08", "name": "删除", "expect": "删除后检索、兴趣、关系和后续 prompt 不再泄漏" },
+    { "id": "P09", "name": "重启连续性", "expect": "记忆、人格、内在状态和关系连续" },
+    { "id": "P10", "name": "用户情绪隔离", "expect": "用户情绪不转移成 Morrow 自身情绪" },
+    { "id": "P11", "name": "独立判断", "expect": "面对用户施压，不无依据附和；有证据时保持判断" },
+    { "id": "P12", "name": "兴趣成长", "expect": "多次独立证据才晋升；删除来源后正确降级" },
+    { "id": "P13", "name": "反思闭环", "expect": "反思发现真实影响下一轮 payload/行为" },
+    { "id": "P14", "name": "受控探索", "expect": "相关性、预算、冷却生效；直接请求压过探索" },
+    { "id": "P15", "name": "模型切换", "expect": "若第二 Provider 可用，切换后身份/记忆/状态不丢；否则 NOT_RUN" },
+    { "id": "P16", "name": "备份恢复", "expect": "删除边界不会被旧备份复活" },
+    { "id": "P17", "name": "并发与 Outbox", "expect": "多进程争抢、崩溃租约接管、删除并发、重复 drain 幂等" },
+    { "id": "P18", "name": "Windows 安装升级", "expect": "安装、启动、升级、重启、数据保留" },
+    { "id": "P19", "name": "真人自然度盲评", "expect": "用户/独立真人评分，Agent 不代填" },
+    { "id": "P20", "name": "总体回归", "expect": "typecheck、全量 tests、build、CI、真实 Provider 结果绑定最终 SHA" }
+  ]
+}

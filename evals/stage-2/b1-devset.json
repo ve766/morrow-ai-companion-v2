@@ -1,0 +1,200 @@
+{
+  "version": "b1-devset-v1",
+  "note": "小型标注开发集。用于确定 B1 的特征权重与阈值，并报告准确率。样本量小，只能支撑方向性判断，不能支撑统计校准；不得据此宣称概率。",
+  "labels": {
+    "strategy": "answer / retrieve_memory / clarify —— 人工标注的期望策略",
+    "why": "标注理由，便于复核而不是只看数字"
+  },
+  "cases": [
+    {
+      "id": "clear-personal-query",
+      "content": "我住在哪里？",
+      "history": "none",
+      "expectStrategy": "retrieve_memory",
+      "why": "明确的关于用户本人的事实查询"
+    },
+    {
+      "id": "clear-personal-query-unrelated-history",
+      "content": "我住在哪里？",
+      "history": "unrelated",
+      "prior": "帮我看看这道数学题。",
+      "expectStrategy": "retrieve_memory",
+      "why": "无关历史存在不应改变判定"
+    },
+    {
+      "id": "clear-personal-query-related-history",
+      "content": "我住在哪里？",
+      "history": "related",
+      "prior": "我最近在找杭州的房子。",
+      "expectStrategy": "retrieve_memory",
+      "why": "相关历史存在也不应改变判定"
+    },
+    {
+      "id": "reference-without-context",
+      "content": "那后天呢？",
+      "history": "none",
+      "expectStrategy": "clarify",
+      "why": "指代无法解析，猜了会答错方向"
+    },
+    {
+      "id": "reference-with-related-context",
+      "content": "那后天呢？",
+      "history": "related",
+      "prior": "明天天气怎么样？",
+      "expectStrategy": "retrieve_memory",
+      "why": "指代可解析，按上一轮的问题继续检索"
+    },
+    {
+      "id": "deictic-object-without-context",
+      "content": "这个多少钱？",
+      "history": "none",
+      "expectStrategy": "clarify",
+      "why": "“这个”没有指代对象"
+    },
+    {
+      "id": "deictic-object-with-context",
+      "content": "这个多少钱？",
+      "history": "related",
+      "prior": "我看到一台二手相机。",
+      "expectStrategy": "retrieve_memory",
+      "why": "指代可解析；路由沿用规则层的后续轮检索，是否真的取到相关内容由装配器的相关性决定"
+    },
+    {
+      "id": "general-knowledge",
+      "content": "为什么天空是蓝色的？",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "一般知识问题，不查用户记忆"
+    },
+    {
+      "id": "explicit-plan",
+      "content": "帮我制定下周的学习计划，预算三千。",
+      "history": "none",
+      "expectStrategy": "retrieve_memory",
+      "why": "计划类需要结合已有目标/偏好"
+    },
+    {
+      "id": "vague-filler",
+      "content": "嗯。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "极短填充语，没有竞争性解读，追问会烦人"
+    },
+    {
+      "id": "vague-filler-with-history",
+      "content": "嗯。",
+      "history": "related",
+      "prior": "你想先从哪一部分开始？",
+      "expectStrategy": "answer",
+      "why": "同上；历史存在不应把它变成追问"
+    },
+    {
+      "id": "explicit-correction",
+      "content": "不对，我住在上海。",
+      "history": "none",
+      "expectStrategy": "retrieve_memory",
+      "why": "明确纠正，纠正信号优先且需要更新检索"
+    },
+    {
+      "id": "changed-mind",
+      "content": "我改主意了，还是喝茶吧。",
+      "history": "none",
+      "expectStrategy": "retrieve_memory",
+      "why": "改变主意属于纠正类，需要旧偏好背景"
+    },
+    {
+      "id": "feedback",
+      "content": "谢谢，这次好多了。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "反馈轮次不需要检索"
+    },
+    {
+      "id": "emotion",
+      "content": "我最近很焦虑。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "情绪表达不主动调记忆"
+    },
+    {
+      "id": "exploration",
+      "content": "我们一起想想周末可以做什么。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "探索请求要广度，不是检索事实"
+    },
+    {
+      "id": "recall-request",
+      "content": "你还记得我的生日吗？",
+      "history": "none",
+      "expectStrategy": "retrieve_memory",
+      "why": "显式回忆请求"
+    },
+    {
+      "id": "preference-save",
+      "content": "记一下：我更喜欢简洁的回答。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "用户是在告诉我们，不是在问"
+    },
+    {
+      "id": "irony",
+      "content": "你说得真好，呵呵。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "反讽不应被当成正反馈去改人格"
+    },
+    {
+      "id": "negated-preference",
+      "content": "我不喜欢喝咖啡了。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "否定式偏好陈述，不需检索"
+    },
+    {
+      "id": "close-candidates-question",
+      "content": "那个怎么办？",
+      "history": "none",
+      "expectStrategy": "clarify",
+      "why": "指代缺失 + 竞争性解读，方向会变"
+    },
+    {
+      "id": "close-candidates-with-context",
+      "content": "那个怎么办？",
+      "history": "related",
+      "prior": "我的租房合同下周到期。",
+      "expectStrategy": "retrieve_memory",
+      "why": "指代轮次的路由归规则层：被指代的事实可能只存在记忆里而不在窗口内，因此保留检索；B1 只决定是否追问"
+    },
+    {
+      "id": "ambiguous-self-report",
+      "content": "不太明白你的意思。",
+      "history": "none",
+      "expectStrategy": "answer",
+      "why": "用户自己说没听懂，应解释而不是检索记忆"
+    },
+    {
+      "id": "schedule-query",
+      "content": "我下周有哪些安排？",
+      "history": "none",
+      "expectStrategy": "retrieve_memory",
+      "why": "关于用户自己的日程查询"
+    },
+    {
+      "id": "conflicting-history",
+      "content": "我说的是上海。",
+      "history": "conflict",
+      "prior": "你住在北京对吧？",
+      "expectStrategy": "retrieve_memory",
+      "why": "本轮明确纠正与历史冲突，纠正优先"
+    },
+    {
+      "id": "unrelated-long-history",
+      "content": "帮我制定下个月的健身计划。",
+      "history": "unrelated",
+      "prior": "今天股市怎么样？",
+      "expectStrategy": "retrieve_memory",
+      "why": "无关历史不应降低计划类判定的检索需求"
+    }
+  ]
+}

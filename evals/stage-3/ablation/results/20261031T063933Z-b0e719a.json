@@ -1,0 +1,339 @@
+{
+  "datasetVersion": "stage-3-v2.1",
+  "harnessVersion": "stage-3-ablation-v2",
+  "codeCommit": "b0e719ad116db5607295da9f5ccddc6e2f4589b4",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "startedAt": "2026-10-31T06:39:33.705Z",
+  "finishedAt": "2026-10-31T06:41:20.463Z",
+  "arms": [
+    {
+      "id": "full",
+      "label": "full system",
+      "counts": {
+        "PASS": 15,
+        "NOT_RUN": 1
+      },
+      "scenarios": [
+        {
+          "id": "L1",
+          "status": "PASS"
+        },
+        {
+          "id": "L2",
+          "status": "PASS"
+        },
+        {
+          "id": "L3",
+          "status": "PASS"
+        },
+        {
+          "id": "L4",
+          "status": "PASS"
+        },
+        {
+          "id": "L5",
+          "status": "PASS"
+        },
+        {
+          "id": "L6",
+          "status": "PASS"
+        },
+        {
+          "id": "L7",
+          "status": "PASS"
+        },
+        {
+          "id": "L8",
+          "status": "PASS"
+        },
+        {
+          "id": "L9",
+          "status": "PASS"
+        },
+        {
+          "id": "L10",
+          "status": "PASS"
+        },
+        {
+          "id": "L11",
+          "status": "PASS"
+        },
+        {
+          "id": "L12",
+          "status": "PASS"
+        },
+        {
+          "id": "L13",
+          "status": "PASS"
+        },
+        {
+          "id": "L14",
+          "status": "PASS"
+        },
+        {
+          "id": "L16",
+          "status": "PASS"
+        },
+        {
+          "id": "L15",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "no_growth",
+      "label": "growth off",
+      "counts": {
+        "PASS": 13,
+        "FAIL": 2,
+        "NOT_RUN": 1
+      },
+      "scenarios": [
+        {
+          "id": "L1",
+          "status": "PASS"
+        },
+        {
+          "id": "L2",
+          "status": "PASS"
+        },
+        {
+          "id": "L3",
+          "status": "PASS"
+        },
+        {
+          "id": "L4",
+          "status": "FAIL"
+        },
+        {
+          "id": "L5",
+          "status": "PASS"
+        },
+        {
+          "id": "L6",
+          "status": "PASS"
+        },
+        {
+          "id": "L7",
+          "status": "PASS"
+        },
+        {
+          "id": "L8",
+          "status": "PASS"
+        },
+        {
+          "id": "L9",
+          "status": "PASS"
+        },
+        {
+          "id": "L10",
+          "status": "PASS"
+        },
+        {
+          "id": "L11",
+          "status": "PASS"
+        },
+        {
+          "id": "L12",
+          "status": "FAIL"
+        },
+        {
+          "id": "L13",
+          "status": "PASS"
+        },
+        {
+          "id": "L14",
+          "status": "PASS"
+        },
+        {
+          "id": "L16",
+          "status": "PASS"
+        },
+        {
+          "id": "L15",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "no_exploration",
+      "label": "exploration off",
+      "counts": {
+        "PASS": 14,
+        "FAIL": 1,
+        "NOT_RUN": 1
+      },
+      "scenarios": [
+        {
+          "id": "L1",
+          "status": "PASS"
+        },
+        {
+          "id": "L2",
+          "status": "PASS"
+        },
+        {
+          "id": "L3",
+          "status": "PASS"
+        },
+        {
+          "id": "L4",
+          "status": "PASS"
+        },
+        {
+          "id": "L5",
+          "status": "FAIL"
+        },
+        {
+          "id": "L6",
+          "status": "PASS"
+        },
+        {
+          "id": "L7",
+          "status": "PASS"
+        },
+        {
+          "id": "L8",
+          "status": "PASS"
+        },
+        {
+          "id": "L9",
+          "status": "PASS"
+        },
+        {
+          "id": "L10",
+          "status": "PASS"
+        },
+        {
+          "id": "L11",
+          "status": "PASS"
+        },
+        {
+          "id": "L12",
+          "status": "PASS"
+        },
+        {
+          "id": "L13",
+          "status": "PASS"
+        },
+        {
+          "id": "L14",
+          "status": "PASS"
+        },
+        {
+          "id": "L16",
+          "status": "PASS"
+        },
+        {
+          "id": "L15",
+          "status": "NOT_RUN"
+        }
+      ]
+    },
+    {
+      "id": "no_reflection",
+      "label": "reflection off",
+      "counts": {
+        "PASS": 13,
+        "FAIL": 2,
+        "NOT_RUN": 1
+      },
+      "scenarios": [
+        {
+          "id": "L1",
+          "status": "PASS"
+        },
+        {
+          "id": "L2",
+          "status": "PASS"
+        },
+        {
+          "id": "L3",
+          "status": "PASS"
+        },
+        {
+          "id": "L4",
+          "status": "PASS"
+        },
+        {
+          "id": "L5",
+          "status": "FAIL"
+        },
+        {
+          "id": "L6",
+          "status": "PASS"
+        },
+        {
+          "id": "L7",
+          "status": "PASS"
+        },
+        {
+          "id": "L8",
+          "status": "PASS"
+        },
+        {
+          "id": "L9",
+          "status": "FAIL"
+        },
+        {
+          "id": "L10",
+          "status": "PASS"
+        },
+        {
+          "id": "L11",
+          "status": "PASS"
+        },
+        {
+          "id": "L12",
+          "status": "PASS"
+        },
+        {
+          "id": "L13",
+          "status": "PASS"
+        },
+        {
+          "id": "L14",
+          "status": "PASS"
+        },
+        {
+          "id": "L16",
+          "status": "PASS"
+        },
+        {
+          "id": "L15",
+          "status": "NOT_RUN"
+        }
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "arm": "no_growth",
+      "changedScenarios": [
+        "L4",
+        "L12"
+      ],
+      "changedCount": 2
+    },
+    {
+      "arm": "no_exploration",
+      "changedScenarios": [
+        "L5"
+      ],
+      "changedCount": 1
+    },
+    {
+      "arm": "no_reflection",
+      "changedScenarios": [
+        "L5",
+        "L9"
+      ],
+      "changedCount": 2
+    }
+  ],
+  "note": "An arm with zero changed scenarios is reported as \"no observable difference\"; that is not evidence the module is useless, only that these 15 scripted scenarios do not exercise it."
+}

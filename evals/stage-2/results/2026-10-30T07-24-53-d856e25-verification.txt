@@ -1,0 +1,123 @@
+# Stage 2 verification log
+head=d856e255b1f0232cc5930d8bc439a4025c66090d
+branch=feat/stage-2-delivery-hardening
+dirty_at_start=3
+node=v22.22.2
+os=MINGW64_NT-10.0-26200 3.6.9-b4195d69.x86_64
+startedAt=2026-10-30T07:24:53Z
+
+## tsc
+command: npx tsc --noEmit
+started: 2026-10-30T07:24:53Z
+finished: 2026-10-30T07:25:02Z
+exit: 0
+--- last 12 lines ---
+
+## tests
+command: npx vitest run --maxWorkers=2
+started: 2026-10-30T07:25:02Z
+finished: 2026-10-30T07:26:39Z
+exit: 0
+--- last 12 lines ---
+ [32m✓[39m src/providers/provider-registry.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/security/secrets.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/app/retrieval-query.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m77 passed[39m[22m[90m (77)[39m
+[2m      Tests [22m [1m[32m676 passed[39m[22m[90m (676)[39m
+[2m   Start at [22m 15:25:05
+[2m   Duration [22m 93.83s[2m (tests 96%, import 3%)[22m
+
+[2m    Isolate [22m [33m77 workers spawned[39m[2m · ~306ms startup each (spawn + environment, per file)[22m
+[2m            [22m [2mat least ~11.46s faster with [22m[33misolate: false[39m[2m — reuses workers across files instead of one per file[22m
+
+
+## build
+command: npm run build
+started: 2026-10-30T07:26:39Z
+finished: 2026-10-30T07:26:44Z
+exit: 0
+--- last 12 lines ---
+[32m✓[39m 2 modules transformed.
+rendering chunks...
+[2mout/preload/[22m[36mindex.js  [39m[1m[2m8.92 kB[22m[1m[22m
+[32m✓ built in 191ms[39m
+[36mvite v6.4.5 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 13 modules transformed.
+rendering chunks...
+[2m../../out/renderer/[22m[32mindex.html                 [39m[1m[2m25.04 kB[22m[1m[22m
+[2m../../out/renderer/[22m[35massets/index-BKo2bJ4h.css  [39m[1m[2m24.99 kB[22m[1m[22m
+[2m../../out/renderer/[22m[36massets/index-BlNhTzmE.js   [39m[1m[2m79.73 kB[22m[1m[22m
+[32m✓ built in 763ms[39m
+
+## eval-stage2
+command: npm run eval:stage2
+started: 2026-10-30T07:26:44Z
+finished: 2026-10-30T07:26:54Z
+exit: 0
+--- last 12 lines ---
+B5: PASS (5/5 assertions)
+B4: PASS (3/3 assertions)
+A: PASS (4/4 assertions)
+C: PASS (4/4 assertions)
+E: PASS (4/4 assertions)
+F: PASS (5/5 assertions)
+G: PASS (4/4 assertions)
+H: PASS (4/4 assertions)
+J: PASS (4/4 assertions)
+K: BLOCKED — scripted provider only in this offline runner; real-provider coverage comes from phase24-real-model (5/5 runnable scenarios PASS, S4 SKIPPED)
+L: BLOCKED — GUI process cannot be hosted inside this offline runner; desktop coverage comes from `npm run smoke` (exit 0, sandbox enabled)
+counts: {"executed":12,"passed":12,"failed":0,"skipped":0,"blocked":2,"notRun":0} report=E:\opencode\morrow-v1-cognitive-v1\evals\stage-2\results\2026-10-30T07-26-54-d856e25.json
+
+## eval-topic-identity
+command: npm run eval:topic-identity
+started: 2026-10-30T07:26:54Z
+finished: 2026-10-30T07:26:56Z
+exit: 0
+--- last 12 lines ---
+
+confusion matrix (rows = labelled, columns = predicted)
+  same->same 8   same->different 1
+  diff->same 0   diff->different 17
+ambiguous decisions: 4
+precision 1.000  recall 0.889
+gate: falsePositive must be 0 (actual 0); recall misses are reported, not gated (actual 1)
+
+misclassified:
+  p03 (cjk_expression_change) expected=same got=different score=0.1625 reason=below_threshold
+
+report written: E:\opencode\morrow-v1-cognitive-v1\evals\stage-2\results\topic-identity-devset-report.json  headSha: d856e255b1f0232cc5930d8bc439a4025c66090d
+
+## eval-ablation
+command: npm run eval:ablation
+started: 2026-10-30T07:26:56Z
+finished: 2026-10-30T07:27:02Z
+exit: 0
+--- last 12 lines ---
+
+> morrow-ai-companion-v2@1.0.0 eval:ablation
+> node node_modules/esbuild/bin/esbuild evals/stage-2/ablation/run.ts --bundle --platform=node --format=cjs --external:electron --outfile=node_modules/.cache/stage2-ablation.cjs --log-level=warning && node node_modules/.cache/stage2-ablation.cjs
+
+(node:14468) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+full: personalization block in 3/4 payloads, bytes=1393,1427,1496,3404
+no_personalization: block in 0/4 payloads, bytes=1393,1185,1254,3162
+wiring difference detected: true
+report: E:\opencode\morrow-v1-cognitive-v1\evals\stage-2\ablation\results\2026-10-30T07-27-02-d856e25.json
+
+## smoke
+command: npm run smoke
+started: 2026-10-30T07:27:03Z
+finished: 2026-10-30T07:27:29Z
+exit: 0
+--- last 12 lines ---
+
+> morrow-ai-companion-v2@1.0.0 smoke
+> node scripts/smoke.mjs
+
+(node:14800) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Morrow smoke passed: built Electron app, default-off DeepSeek configuration, secure credential save/restart/delete (encrypted-restart-corruption-protected-then-explicit-delete-verified, no Provider requests), cognitive default-off/explicit opt-in and restart persistence, no fabricated reply, M1 memory lifecycle, M2 goal and approval safety, M4 reminder controls, local persistence, deletion, and restart verification.
+
+finishedAt=2026-10-30T07:27:29Z

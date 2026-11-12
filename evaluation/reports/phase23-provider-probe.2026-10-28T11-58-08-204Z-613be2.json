@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-10-28T11-58-08-204Z-613be2",
+  "generatedAt": "2026-10-28T11:58:08.204Z",
+  "provider": {
+    "id": "spark",
+    "endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v1",
+    "protocol": "OpenAI Chat Completions"
+  },
+  "credential": {
+    "provided": true,
+    "source": "environment",
+    "length": 35,
+    "storedInRepo": false
+  },
+  "provenance": {
+    "baseSha": "29ca3eba295320d3ec3fa55124160288a3b64c9f",
+    "headSha": "29ca3eba295320d3ec3fa55124160288a3b64c9f",
+    "codeSha": "29ca3eba295320d3ec3fa55124160288a3b64c9f",
+    "codeShaSource": "git",
+    "workingTreeDirty": true,
+    "workingTreeDiffHash": "e35b84221c964484694d25307d1d848b3842439d90cb21ec4fbdd87aae1f9ff2",
+    "workingTreeFiles": [
+      "M src/app/companion-service.ts"
+    ],
+    "reproducible": false,
+    "reproducibleReason": "working_tree_dirty",
+    "capturedAt": "2026-10-28T11:57:58.277Z"
+  },
+  "probes": [
+    {
+      "model": "spark-x2.6",
+      "configured": true,
+      "connection": "ok",
+      "errorCode": null,
+      "reportedModel": "spark-x2.6",
+      "latencyMs": 9640
+    }
+  ],
+  "summary": {
+    "attempted": 1,
+    "connected": 1,
+    "errorCodes": {
+      "ok": 1
+    }
+  }
+}

@@ -38,6 +38,8 @@ export const IPC_CHANNELS = {
   personalitySave: 'morrow:personality:save',
   personalityHistory: 'morrow:personality:history',
   personalityRestore: 'morrow:personality:restore',
+  personalityGrowthGet: 'morrow:personality:growth:get',
+  personalityGrowthRollback: 'morrow:personality:growth:rollback',
   chatSend: 'morrow:chat:send',
   chatCancel: 'morrow:chat:cancel',
   chatDelta: 'morrow:chat:delta',
@@ -86,7 +88,11 @@ export const IPC_CHANNELS = {
   selfModelRetract: 'morrow:selfmodel:entries:retract',
   reflectionRun: 'morrow:selfmodel:reflection:run',
   reflectionListRuns: 'morrow:selfmodel:reflection:runs',
-  reflectionFindings: 'morrow:selfmodel:reflection:findings'
+  reflectionFindings: 'morrow:selfmodel:reflection:findings',
+  pendingItemsList: 'morrow:continuity:pending:list',
+  pendingItemsComplete: 'morrow:continuity:pending:complete',
+  pendingItemsDecide: 'morrow:continuity:pending:decide',
+  turnContextRead: 'morrow:continuity:turn:read'
 } as const
 
 export type IpcErrorCode =
@@ -103,9 +109,11 @@ export type IpcErrorCode =
   | 'PROVIDER_PAYLOAD_TOO_LARGE'
   | 'PROVIDER_RESPONSE'
   | 'PROVIDER_AUTH'
+  | 'PROVIDER_QUOTA'
   | 'PROVIDER_RATE_LIMIT'
   | 'PROVIDER_MODEL'
   | 'PROVIDER_TIMEOUT'
+  | 'PROVIDER_DEADLINE'
   | 'PROVIDER_NETWORK'
   | 'PROVIDER_CANCELLED'
 
@@ -193,8 +201,29 @@ export interface ReflectionFindingsRequest {
   runId: string
 }
 
+/** Phase 2.4: a stored internal item, readable and completable from the shell. */
+export interface PendingItemIdRequest {
+  itemId: string
+}
+
+/** D-11: the user decision on one open internal item. */
+export interface PendingItemDecisionRequest {
+  itemId: string
+  decision: 'accepted' | 'rejected' | 'dismissed'
+}
+
+/** Phase 2.4: read one turn's recorded cognitive context. */
+export interface TurnContextRequest {
+  turnId: string
+}
+
 export interface PersonalityRestoreRequest {
   version: number
+}
+
+/** D-1: diagnostic read / user-facing rollback of the G1 growth ledger. */
+export interface PersonalityGrowthRollbackRequest {
+  dimension: 'warmth' | 'directness' | 'humor'
 }
 
 export interface CognitiveSettingsRequest {
@@ -254,6 +283,8 @@ export interface MorrowBridge {
     save(request: PersonalityInput): Promise<IpcResult<PersonalityProfile>>
     history(): Promise<IpcResult<PersonalityRevision[]>>
     restore(request: PersonalityRestoreRequest): Promise<IpcResult<PersonalityProfile>>
+    growthGet(): Promise<IpcResult<import('../personalization/personality-growth').GrowthEntry[] | null>>
+    growthRollback(request: PersonalityGrowthRollbackRequest): Promise<IpcResult<boolean>>
   }
   selfModel: {
     listInterests(): Promise<IpcResult<import('../self-model/self-model-domain').InterestRecord[]>>
@@ -261,7 +292,7 @@ export interface MorrowBridge {
     listEntries(request?: SelfModelListRequest): Promise<IpcResult<import('../self-model/self-model-domain').SelfModelEntry[]>>
     correctEntry(request: SelfModelCorrectRequest): Promise<IpcResult<import('../self-model/self-model-domain').SelfModelEntry>>
     retractEntry(request: SelfModelIdRequest): Promise<IpcResult<void>>
-    runReflection(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' }>>
+    runReflection(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' | 'budget_exhausted' }>>
     listReflectionRuns(): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionRunSummary[]>>
     listReflectionFindings(request: ReflectionFindingsRequest): Promise<IpcResult<import('../self-model/self-model-domain').ReflectionFinding[]>>
   }
@@ -270,6 +301,16 @@ export interface MorrowBridge {
     saveSettings(request: CognitiveSettingsRequest): Promise<IpcResult<CognitiveCoreSettings>>
     getFeelingState(): Promise<IpcResult<FeelingStateView>>
     clearHistory(): Promise<IpcResult<FeelingStateView>>
+  }
+  /**
+   * Phase 2.4 continuity. Read-only except `completePendingItem`, which can
+   * only mark an internal item as done: it never sends anything outward.
+   */
+  continuity: {
+    listPendingItems(): Promise<IpcResult<import('../cognition/pending-items').PendingItem[]>>
+    completePendingItem(request: PendingItemIdRequest): Promise<IpcResult<boolean>>
+    decidePendingItem(request: PendingItemDecisionRequest): Promise<IpcResult<boolean>>
+    readTurnContext(request: TurnContextRequest): Promise<IpcResult<import('../cognition/turn-context').CognitiveTurnContext | null>>
   }
   chat: {
     send(request: ChatRequest): Promise<IpcResult<ChatResult>>

@@ -1,0 +1,4265 @@
+{
+  "schemaVersion": 4,
+  "runId": "2026-10-28T10-21-42-817Z-5ee161",
+  "generatedAt": "2026-10-28T10:21:42.817Z",
+  "startedAt": "2026-10-28T10:21:02.480Z",
+  "codeSha": "abf4a805599c411bd2d651836d1c5d7ec9d94441",
+  "condition": {
+    "model": "qwen2.5:0.5b",
+    "modelSource": "local ollama",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "promptVariant": "v1",
+    "promptHash": "2bf8f29fa7e50d60",
+    "promptCharacters": 1507,
+    "requestedRepeats": 3,
+    "highRepeatClasses": [
+      "explicit_conflict",
+      "negation",
+      "time_state",
+      "fabrication_probe"
+    ],
+    "providerClass": "local"
+  },
+  "counts": {
+    "scenarioClasses": 15,
+    "scenarioRuns": 53,
+    "providerRequestsAttempted": 62,
+    "providerRequestsSucceeded": 59,
+    "providerRequestsFailed": 3,
+    "providerRequestsCancelled": 0,
+    "primaryAnswerRequests": 53,
+    "auxiliaryProbeRequests": 3,
+    "setupRequests": 6,
+    "runsWithAnAttemptedRequest": 53
+  },
+  "metricDefinitions": {
+    "memorySelection": {
+      "numerator": "runs where the expected memory text is present in the serialized payload",
+      "denominator": "runs that declare an expected memory",
+      "included": "every scenario run with expectedEvidence",
+      "excluded": "none; a missing expected memory is a miss, not an exclusion",
+      "unscorable": "none — this is a payload check, not a model judgement",
+      "rawRecords": "runs[].evidenceSelected"
+    },
+    "payloadIntegrity": {
+      "numerator": "runs with a sent request, expected memory present, and no forbidden memory in the payload",
+      "denominator": "runs where at least one provider request was recorded",
+      "included": "all runs that reached the provider boundary",
+      "excluded": "runs whose request was never sent (provider_failure class) — reported as notAttempted",
+      "unscorable": "none",
+      "rawRecords": "runs[].failureLayer"
+    },
+    "evidenceMentionRate": {
+      "numerator": "runs where dimensions.evidenceMentioned.status === pass",
+      "denominator": "runs where dimensions.evidenceMentioned.status !== unscored",
+      "included": "runs with at least one readable delivered memory",
+      "excluded": "runs with no delivered memory or unreadable evidence",
+      "unscorable": "reason no_evidence_delivered or evidence_unreadable",
+      "rawRecords": "runs[].dimensions.evidenceMentioned"
+    },
+    "evidenceFaithfulnessRate": {
+      "numerator": "runs where neither polarityConsistent nor temporalConsistent failed and at least one was scored",
+      "denominator": "runs where either dimension was scored",
+      "included": "runs that named a delivered value",
+      "excluded": "runs where no value was named (both dimensions unscored)",
+      "unscorable": "reason no_value_named or evidence_time_mixed",
+      "rawRecords": "runs[].dimensions.polarityConsistent, runs[].dimensions.temporalConsistent"
+    },
+    "conflictHandlingRate": {
+      "numerator": "runs where every relevant conflict group passed (both values named AND the disagreement explained or a clarification requested)",
+      "denominator": "runs where at least one conflict group was relevant to the question and scored",
+      "included": "delivered groups whose predicate or values match the question",
+      "excluded": "groups that do not concern the question (scored unscored per group), runs with no delivered conflict",
+      "unscorable": "reason no_conflict_delivered or no_relevant_conflict",
+      "rawRecords": "runs[].dimensions.conflictAcknowledged, runs[].conflict?.groups[]"
+    },
+    "uncertaintyAdmissionRate": {
+      "numerator": "runs with no delivered evidence where uncertaintyAppropriate === pass (uncertainty expressed AND no unsupported claim)",
+      "denominator": "runs with no delivered evidence where the intent was information_query, continuation, correction or self_fact",
+      "included": "evidence-free turns that still asked about the user",
+      "excluded": "new_topic / preference / emotion turns where no admission was required (reported as notApplicable)",
+      "unscorable": "none — a non-admission, or an admission followed by an invented fact, is a failure of this metric",
+      "rawRecords": "runs[].dimensions.uncertaintyAppropriate, runs[].dimensions.unsupportedClaimDetected"
+    },
+    "fabricationRate": {
+      "numerator": "runs where a specific unverifiable fact was stated with no evidence delivered",
+      "denominator": "runs that carried a fabrication probe",
+      "included": "runs with a declared fabricationPattern and no delivered evidence",
+      "excluded": "runs without a probe — reported as notMeasured",
+      "unscorable": "notMeasured count",
+      "rawRecords": "runs[].fabricated"
+    },
+    "protectedLeaks": {
+      "numerator": "runs where retracted or sensitive text appeared in the payload or the reply",
+      "denominator": "not a rate: counted per leak channel",
+      "included": "protected_memory runs",
+      "excluded": "none",
+      "unscorable": "none",
+      "rawRecords": "runs[].payloadLeaked, runs[].replyLeaked"
+    },
+    "expectedEvidenceMissRate": {
+      "numerator": "runs where the expected memory was absent from the payload",
+      "denominator": "runs that declare an expected memory",
+      "included": "every scenario run with expectedEvidence",
+      "excluded": "none",
+      "unscorable": "none",
+      "rawRecords": "runs[].evidenceSelected"
+    },
+    "answerRelevanceRate": {
+      "numerator": "runs whose reply contains at least one declared answer term",
+      "denominator": "runs whose scenario declares expectedAnswerTerms and whose call succeeded",
+      "included": "scenarios where a reference answer exists (fact, pet, goal, conflict)",
+      "excluded": "scenarios without a reference answer — reported as notMeasured",
+      "unscorable": "notMeasured count",
+      "rawRecords": "runs[].answersQuestion"
+    }
+  },
+  "metrics": {
+    "memorySelection": {
+      "numerator": 28,
+      "denominator": 28,
+      "value": 1
+    },
+    "payloadIntegrity": {
+      "numerator": 53,
+      "denominator": 53,
+      "value": 1,
+      "notAttempted": 0
+    },
+    "evidenceMentionRate": {
+      "numerator": 17,
+      "denominator": 28,
+      "value": 0.6071
+    },
+    "evidenceFaithfulnessRate": {
+      "numerator": 17,
+      "denominator": 17,
+      "value": 1
+    },
+    "conflictHandlingRate": {
+      "numerator": 0,
+      "denominator": 5,
+      "value": 0
+    },
+    "uncertaintyAdmissionRate": {
+      "numerator": 2,
+      "denominator": 11,
+      "value": 0.1818,
+      "notApplicable": 6
+    },
+    "fabricationRate": {
+      "numerator": 0,
+      "denominator": 10,
+      "value": 0,
+      "notMeasured": 43
+    },
+    "expectedEvidenceMissRate": {
+      "numerator": 0,
+      "denominator": 28,
+      "value": 0
+    },
+    "answerRelevanceRate": {
+      "numerator": 14,
+      "denominator": 17,
+      "value": 0.8235,
+      "notMeasured": 36
+    },
+    "protectedLeaks": {
+      "payload": 0,
+      "reply": 0
+    },
+    "promptEchoRuns": 3,
+    "unsupportedClaimRuns": 6,
+    "conflictFailures": 5,
+    "scorable": {
+      "scored": 36,
+      "notScorable": 17,
+      "reasons": {
+        "not_scorable": 14,
+        "not_scored": 3
+      }
+    },
+    "boundaries": {
+      "storedMemoryRewrites": 0,
+      "personalityChanges": 0
+    },
+    "answerOutcomes": {
+      "used_correctly": 6,
+      "delivered_not_used": 17,
+      "not_scorable": 14,
+      "unsupported_answer": 6,
+      "used_wrong_or_stale": 5,
+      "reasonable_unknown": 2,
+      "not_scored": 3
+    }
+  },
+  "byClass": {
+    "fact_query": {
+      "runs": 3,
+      "requests": 6,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "used_correctly": 3
+      },
+      "failures": []
+    },
+    "cross_session": {
+      "runs": 3,
+      "requests": 6,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "used_correctly": 3
+      },
+      "failures": []
+    },
+    "short_follow_up": {
+      "runs": 3,
+      "requests": 6,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "delivered_not_used": 3
+      },
+      "failures": []
+    },
+    "correction": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "delivered_not_used": 3
+      },
+      "failures": []
+    },
+    "negation": {
+      "runs": 5,
+      "requests": 5,
+      "clean": 5,
+      "scored": 5,
+      "outcomes": {
+        "delivered_not_used": 5
+      },
+      "failures": []
+    },
+    "hypothetical": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 0,
+      "outcomes": {
+        "not_scorable": 3
+      },
+      "failures": []
+    },
+    "time_state": {
+      "runs": 5,
+      "requests": 5,
+      "clean": 5,
+      "scored": 0,
+      "outcomes": {
+        "not_scorable": 5
+      },
+      "failures": []
+    },
+    "new_topic": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "unsupported_answer": 3
+      },
+      "failures": []
+    },
+    "preference_emotion": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 1,
+      "scored": 2,
+      "outcomes": {
+        "not_scorable": 1,
+        "unsupported_answer": 2
+      },
+      "failures": [
+        {
+          "runId": "p21-preference-emotion#1",
+          "layer": "echo",
+          "outcome": "unsupported_answer"
+        },
+        {
+          "runId": "p21-preference-emotion#2",
+          "layer": "echo",
+          "outcome": "unsupported_answer"
+        }
+      ]
+    },
+    "goal_plan": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "delivered_not_used": 3
+      },
+      "failures": []
+    },
+    "explicit_conflict": {
+      "runs": 5,
+      "requests": 5,
+      "clean": 0,
+      "scored": 5,
+      "outcomes": {
+        "used_wrong_or_stale": 5
+      },
+      "failures": [
+        {
+          "runId": "p21-explicit-conflict#0",
+          "layer": "conflict",
+          "outcome": "used_wrong_or_stale"
+        },
+        {
+          "runId": "p21-explicit-conflict#1",
+          "layer": "conflict",
+          "outcome": "used_wrong_or_stale"
+        },
+        {
+          "runId": "p21-explicit-conflict#2",
+          "layer": "conflict",
+          "outcome": "used_wrong_or_stale"
+        },
+        {
+          "runId": "p21-explicit-conflict#3",
+          "layer": "conflict",
+          "outcome": "used_wrong_or_stale"
+        },
+        {
+          "runId": "p21-explicit-conflict#4",
+          "layer": "conflict",
+          "outcome": "used_wrong_or_stale"
+        }
+      ]
+    },
+    "protected_memory": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 1,
+      "outcomes": {
+        "not_scorable": 2,
+        "reasonable_unknown": 1
+      },
+      "failures": []
+    },
+    "evidence_not_used": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 3,
+      "outcomes": {
+        "delivered_not_used": 3
+      },
+      "failures": []
+    },
+    "fabrication_probe": {
+      "runs": 5,
+      "requests": 5,
+      "clean": 4,
+      "scored": 2,
+      "outcomes": {
+        "unsupported_answer": 1,
+        "not_scorable": 3,
+        "reasonable_unknown": 1
+      },
+      "failures": [
+        {
+          "runId": "p21-fabrication#0",
+          "layer": "echo",
+          "outcome": "unsupported_answer"
+        }
+      ]
+    },
+    "provider_failure": {
+      "runs": 3,
+      "requests": 3,
+      "clean": 3,
+      "scored": 0,
+      "outcomes": {
+        "not_scored": 3
+      },
+      "failures": []
+    }
+  },
+  "requests": [
+    {
+      "sequence": 1,
+      "requestId": "4f07a9da-6428-44a9-a73d-f15a1222b3f8",
+      "scenarioId": "p21-fact-query",
+      "scenarioRunId": "p21-fact-query#0",
+      "purpose": "primary",
+      "conversationId": "9713306f-d20d-4e56-b81a-45987d8c4dbc",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:02.719Z",
+      "finishedAt": "2026-10-28T10:21:03.290Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 2,
+      "requestId": "3a106da1-3d3a-480d-9c08-3626ccca8094",
+      "scenarioId": "p21-fact-query",
+      "scenarioRunId": "p21-fact-query#0",
+      "purpose": "probe",
+      "conversationId": "9713306f-d20d-4e56-b81a-45987d8c4dbc",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:03.310Z",
+      "finishedAt": "2026-10-28T10:21:03.718Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 3,
+      "requestId": "e1f13bf8-a216-42bc-ac6a-8f2e8fe1788c",
+      "scenarioId": "p21-fact-query",
+      "scenarioRunId": "p21-fact-query#1",
+      "purpose": "primary",
+      "conversationId": "c7868da3-d419-444b-bd9e-48e2921c6136",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:03.911Z",
+      "finishedAt": "2026-10-28T10:21:04.166Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 4,
+      "requestId": "dada3d68-9c5b-42fc-ae8e-a1116928d59c",
+      "scenarioId": "p21-fact-query",
+      "scenarioRunId": "p21-fact-query#1",
+      "purpose": "probe",
+      "conversationId": "c7868da3-d419-444b-bd9e-48e2921c6136",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:04.179Z",
+      "finishedAt": "2026-10-28T10:21:04.496Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 5,
+      "requestId": "9f219405-8ca9-4c61-8e5c-47345034573a",
+      "scenarioId": "p21-fact-query",
+      "scenarioRunId": "p21-fact-query#2",
+      "purpose": "primary",
+      "conversationId": "965e5516-00c8-4947-9c73-c2e8d5d3290a",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:04.718Z",
+      "finishedAt": "2026-10-28T10:21:04.965Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 6,
+      "requestId": "855cd897-7c6a-47bd-9bc1-d20c71aabbdb",
+      "scenarioId": "p21-fact-query",
+      "scenarioRunId": "p21-fact-query#2",
+      "purpose": "probe",
+      "conversationId": "965e5516-00c8-4947-9c73-c2e8d5d3290a",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:04.979Z",
+      "finishedAt": "2026-10-28T10:21:05.415Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 7,
+      "requestId": "1db24173-f4c1-436e-9453-77ae6098e31f",
+      "scenarioId": "p21-cross-session",
+      "scenarioRunId": "p21-cross-session#0",
+      "purpose": "setup",
+      "conversationId": "3934c455-0c58-4f27-8b07-7b040c7cb217",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:05.596Z",
+      "finishedAt": "2026-10-28T10:21:06.014Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 8,
+      "requestId": "8804016c-bfde-42c2-90dd-7a41a251caf7",
+      "scenarioId": "p21-cross-session",
+      "scenarioRunId": "p21-cross-session#0",
+      "purpose": "primary",
+      "conversationId": "0229b31e-8fdc-43f2-bd5a-dff8d1d04f51",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:06.035Z",
+      "finishedAt": "2026-10-28T10:21:06.339Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 9,
+      "requestId": "cca99918-56e5-44ee-be4a-261b66eaac5d",
+      "scenarioId": "p21-cross-session",
+      "scenarioRunId": "p21-cross-session#1",
+      "purpose": "setup",
+      "conversationId": "12218cf8-cb5b-4842-87a7-225c8d871756",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:06.516Z",
+      "finishedAt": "2026-10-28T10:21:06.943Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 10,
+      "requestId": "06c0ffeb-2344-4d69-8fb7-c1270394f80e",
+      "scenarioId": "p21-cross-session",
+      "scenarioRunId": "p21-cross-session#1",
+      "purpose": "primary",
+      "conversationId": "c25bc6ee-7247-42b4-b343-83bfb28cbd53",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:06.960Z",
+      "finishedAt": "2026-10-28T10:21:07.235Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 11,
+      "requestId": "dbda927a-e6c3-4347-b311-4a09ccde4d7e",
+      "scenarioId": "p21-cross-session",
+      "scenarioRunId": "p21-cross-session#2",
+      "purpose": "setup",
+      "conversationId": "99b6c4d5-ed60-4573-a456-63d334652888",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:07.414Z",
+      "finishedAt": "2026-10-28T10:21:07.842Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 12,
+      "requestId": "18fd7326-025e-44b9-98a6-4037c669118b",
+      "scenarioId": "p21-cross-session",
+      "scenarioRunId": "p21-cross-session#2",
+      "purpose": "primary",
+      "conversationId": "0226835e-afce-4e99-a8a1-ce500fd9c872",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:07.862Z",
+      "finishedAt": "2026-10-28T10:21:08.144Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 13,
+      "requestId": "7e9c7d96-4391-4dd9-bcb1-220ca37b8106",
+      "scenarioId": "p21-short-follow-up",
+      "scenarioRunId": "p21-short-follow-up#0",
+      "purpose": "setup",
+      "conversationId": "f9559d9f-c5b8-4fb3-bb3b-3d2a95b1cfc8",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:08.328Z",
+      "finishedAt": "2026-10-28T10:21:08.613Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 14,
+      "requestId": "edc9cf4e-ffe7-4c5b-bcc1-35584527e4db",
+      "scenarioId": "p21-short-follow-up",
+      "scenarioRunId": "p21-short-follow-up#0",
+      "purpose": "primary",
+      "conversationId": "f9559d9f-c5b8-4fb3-bb3b-3d2a95b1cfc8",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:08.627Z",
+      "finishedAt": "2026-10-28T10:21:08.974Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 15,
+      "requestId": "91913375-8b63-415c-bc9b-79fc786a3ca1",
+      "scenarioId": "p21-short-follow-up",
+      "scenarioRunId": "p21-short-follow-up#1",
+      "purpose": "setup",
+      "conversationId": "67ac10e8-8409-4a82-9e81-b8092ed99b2d",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:09.173Z",
+      "finishedAt": "2026-10-28T10:21:09.469Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 16,
+      "requestId": "b20f3de7-255b-4c10-b360-0aacac329860",
+      "scenarioId": "p21-short-follow-up",
+      "scenarioRunId": "p21-short-follow-up#1",
+      "purpose": "primary",
+      "conversationId": "67ac10e8-8409-4a82-9e81-b8092ed99b2d",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:09.482Z",
+      "finishedAt": "2026-10-28T10:21:09.800Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 17,
+      "requestId": "5a91716a-dcb4-46b6-ab30-b4b82a9532d2",
+      "scenarioId": "p21-short-follow-up",
+      "scenarioRunId": "p21-short-follow-up#2",
+      "purpose": "setup",
+      "conversationId": "e10eb672-246f-4cbc-9992-b43e7167e10e",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:09.981Z",
+      "finishedAt": "2026-10-28T10:21:10.339Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 18,
+      "requestId": "6b4455c2-58ff-4c34-9e18-85b8524380a9",
+      "scenarioId": "p21-short-follow-up",
+      "scenarioRunId": "p21-short-follow-up#2",
+      "purpose": "primary",
+      "conversationId": "e10eb672-246f-4cbc-9992-b43e7167e10e",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:10.354Z",
+      "finishedAt": "2026-10-28T10:21:10.774Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 19,
+      "requestId": "26b2a82c-95ca-423b-90ce-21acd225af83",
+      "scenarioId": "p21-correction",
+      "scenarioRunId": "p21-correction#0",
+      "purpose": "primary",
+      "conversationId": "7e8a1353-375a-4975-a936-3510242851f2",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:10.977Z",
+      "finishedAt": "2026-10-28T10:21:11.364Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 20,
+      "requestId": "159d20dc-7a7a-4414-a84e-4a4a356e18a4",
+      "scenarioId": "p21-correction",
+      "scenarioRunId": "p21-correction#1",
+      "purpose": "primary",
+      "conversationId": "177ad1f0-7017-4db1-8ae0-d5c789aae7de",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:11.549Z",
+      "finishedAt": "2026-10-28T10:21:11.849Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 21,
+      "requestId": "74c359ce-df5e-426f-b750-2d5631447437",
+      "scenarioId": "p21-correction",
+      "scenarioRunId": "p21-correction#2",
+      "purpose": "primary",
+      "conversationId": "53da9cd0-bd6a-4cac-bcf3-0dbad474ce22",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:12.400Z",
+      "finishedAt": "2026-10-28T10:21:12.751Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 22,
+      "requestId": "56bf8f14-e7e2-4ea7-9554-9ab482b88955",
+      "scenarioId": "p21-negation",
+      "scenarioRunId": "p21-negation#0",
+      "purpose": "primary",
+      "conversationId": "18026f37-d645-4395-9a54-74703f8e52a1",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:12.941Z",
+      "finishedAt": "2026-10-28T10:21:13.270Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 23,
+      "requestId": "d354bbcc-3f1e-4ede-a5d7-e7c5f5fc225c",
+      "scenarioId": "p21-negation",
+      "scenarioRunId": "p21-negation#1",
+      "purpose": "primary",
+      "conversationId": "20fed70f-0c4a-4191-abdc-90fbfbe1bdd6",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:13.467Z",
+      "finishedAt": "2026-10-28T10:21:13.885Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 24,
+      "requestId": "5c102e33-351f-49bc-bd6d-2be7f0d2102b",
+      "scenarioId": "p21-negation",
+      "scenarioRunId": "p21-negation#2",
+      "purpose": "primary",
+      "conversationId": "4d01ecef-21b3-4f99-8d77-4d189f7f20c5",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:14.073Z",
+      "finishedAt": "2026-10-28T10:21:14.375Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 25,
+      "requestId": "078fc9b9-27e3-4248-a879-daa0fda3f96c",
+      "scenarioId": "p21-negation",
+      "scenarioRunId": "p21-negation#3",
+      "purpose": "primary",
+      "conversationId": "dd3aa4c0-38fe-404d-bceb-8e853e31e0b2",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:14.563Z",
+      "finishedAt": "2026-10-28T10:21:14.864Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 26,
+      "requestId": "b42b9f0e-3905-440b-9607-367a2744be2c",
+      "scenarioId": "p21-negation",
+      "scenarioRunId": "p21-negation#4",
+      "purpose": "primary",
+      "conversationId": "6f020384-e129-468e-b268-ec99037b836f",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:15.051Z",
+      "finishedAt": "2026-10-28T10:21:15.343Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 27,
+      "requestId": "17ecb42d-55b3-4497-9b26-dfdc2011bf17",
+      "scenarioId": "p21-hypothetical",
+      "scenarioRunId": "p21-hypothetical#0",
+      "purpose": "primary",
+      "conversationId": "37d64e57-098d-4031-a1fd-229f93e94322",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:15.532Z",
+      "finishedAt": "2026-10-28T10:21:15.824Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 28,
+      "requestId": "c7176ee3-0e9c-4b8f-80dc-3badfb7dbff1",
+      "scenarioId": "p21-hypothetical",
+      "scenarioRunId": "p21-hypothetical#1",
+      "purpose": "primary",
+      "conversationId": "2342aa96-755d-4bae-8c93-c6e60dc5226a",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:15.996Z",
+      "finishedAt": "2026-10-28T10:21:16.325Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 29,
+      "requestId": "07232e88-019a-4169-85b0-023272f3a73a",
+      "scenarioId": "p21-hypothetical",
+      "scenarioRunId": "p21-hypothetical#2",
+      "purpose": "primary",
+      "conversationId": "016ca3c0-dec8-4f4d-86ca-64c1224c8b22",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:16.510Z",
+      "finishedAt": "2026-10-28T10:21:16.882Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 30,
+      "requestId": "b1ff4005-8e32-43f5-bced-6ec824ba147a",
+      "scenarioId": "p21-time-state",
+      "scenarioRunId": "p21-time-state#0",
+      "purpose": "primary",
+      "conversationId": "f26ce92f-b48f-4d15-a37f-7b9febf910b3",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:17.059Z",
+      "finishedAt": "2026-10-28T10:21:17.422Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 31,
+      "requestId": "5eccc3c6-5fb1-4a1e-b733-4915ac939890",
+      "scenarioId": "p21-time-state",
+      "scenarioRunId": "p21-time-state#1",
+      "purpose": "primary",
+      "conversationId": "fcf89776-71b3-431a-86fb-f2d6952f74e8",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:18.003Z",
+      "finishedAt": "2026-10-28T10:21:18.468Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 32,
+      "requestId": "3208b67c-05e6-4d8c-98c8-23c8d3495cab",
+      "scenarioId": "p21-time-state",
+      "scenarioRunId": "p21-time-state#2",
+      "purpose": "primary",
+      "conversationId": "b9905207-e19e-4426-9eb5-3dcf8aa4e4f9",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:18.653Z",
+      "finishedAt": "2026-10-28T10:21:18.982Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 33,
+      "requestId": "fc968c7c-47d1-480e-beee-d5397085c6d4",
+      "scenarioId": "p21-time-state",
+      "scenarioRunId": "p21-time-state#3",
+      "purpose": "primary",
+      "conversationId": "808fdb54-f19e-44e7-8a68-e6635d7c5a0e",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:19.170Z",
+      "finishedAt": "2026-10-28T10:21:19.458Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 34,
+      "requestId": "25c34c3d-e8d3-475d-b0eb-5b9f4f6a78c0",
+      "scenarioId": "p21-time-state",
+      "scenarioRunId": "p21-time-state#4",
+      "purpose": "primary",
+      "conversationId": "db41c016-d103-4446-b82a-3d86ae7afcdc",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:19.646Z",
+      "finishedAt": "2026-10-28T10:21:19.936Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 35,
+      "requestId": "adea9468-4530-4b1e-898c-3c5f3bdff656",
+      "scenarioId": "p21-new-topic",
+      "scenarioRunId": "p21-new-topic#0",
+      "purpose": "primary",
+      "conversationId": "f69e2eb7-1d21-4f8e-9d15-05369d593188",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:20.113Z",
+      "finishedAt": "2026-10-28T10:21:22.100Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 36,
+      "requestId": "a0daeba4-45cc-4e4f-8b82-e99ec4a9c080",
+      "scenarioId": "p21-new-topic",
+      "scenarioRunId": "p21-new-topic#1",
+      "purpose": "primary",
+      "conversationId": "b8f1b57c-c321-49b3-a0b0-7aefd2e8786d",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:22.279Z",
+      "finishedAt": "2026-10-28T10:21:23.529Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 37,
+      "requestId": "94b5d3ec-6804-4588-a9d1-31bbb91c0e0d",
+      "scenarioId": "p21-new-topic",
+      "scenarioRunId": "p21-new-topic#2",
+      "purpose": "primary",
+      "conversationId": "46b1bd5e-d852-4156-aee4-87a6ecf61584",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:24.037Z",
+      "finishedAt": "2026-10-28T10:21:25.126Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 38,
+      "requestId": "4e9d2547-9b33-478b-a6df-0c20f7e338a5",
+      "scenarioId": "p21-preference-emotion",
+      "scenarioRunId": "p21-preference-emotion#0",
+      "purpose": "primary",
+      "conversationId": "de7082ba-0673-4429-a013-b170cec8aa9b",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:25.378Z",
+      "finishedAt": "2026-10-28T10:21:26.016Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 39,
+      "requestId": "21af185e-53f9-4519-bc6a-c7161dda1fed",
+      "scenarioId": "p21-preference-emotion",
+      "scenarioRunId": "p21-preference-emotion#1",
+      "purpose": "primary",
+      "conversationId": "c9f93f05-532f-4647-8235-7eeec7e65e3b",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:26.190Z",
+      "finishedAt": "2026-10-28T10:21:27.277Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 40,
+      "requestId": "45e0a9d6-1429-4e5d-9d2e-0b95423c1c23",
+      "scenarioId": "p21-preference-emotion",
+      "scenarioRunId": "p21-preference-emotion#2",
+      "purpose": "primary",
+      "conversationId": "09801baf-6b8b-4c4a-9aef-e8bd26073760",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:27.480Z",
+      "finishedAt": "2026-10-28T10:21:28.407Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 41,
+      "requestId": "8b2f47e6-ad92-4be7-8749-15142537f952",
+      "scenarioId": "p21-goal-plan",
+      "scenarioRunId": "p21-goal-plan#0",
+      "purpose": "primary",
+      "conversationId": "ac132850-d160-41bf-8721-e9ec084f8a9a",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:28.600Z",
+      "finishedAt": "2026-10-28T10:21:28.906Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 42,
+      "requestId": "08ab235f-3755-4614-82be-120dfd4fec22",
+      "scenarioId": "p21-goal-plan",
+      "scenarioRunId": "p21-goal-plan#1",
+      "purpose": "primary",
+      "conversationId": "6b95b94a-90d7-40ae-8dbf-9ddf7f1063b5",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:29.365Z",
+      "finishedAt": "2026-10-28T10:21:29.669Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 43,
+      "requestId": "088cca23-b50f-49f4-913c-b149c177c880",
+      "scenarioId": "p21-goal-plan",
+      "scenarioRunId": "p21-goal-plan#2",
+      "purpose": "primary",
+      "conversationId": "4bbe59d8-67d9-42f0-99a9-9945c3230786",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:29.864Z",
+      "finishedAt": "2026-10-28T10:21:30.158Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 44,
+      "requestId": "6dad385a-8aaf-47c3-830c-48dc4e515309",
+      "scenarioId": "p21-explicit-conflict",
+      "scenarioRunId": "p21-explicit-conflict#0",
+      "purpose": "primary",
+      "conversationId": "786cfd1a-12d4-45c9-911a-396fd4922532",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:30.347Z",
+      "finishedAt": "2026-10-28T10:21:30.677Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 45,
+      "requestId": "16062019-49e8-45e3-8e4a-7a3712657906",
+      "scenarioId": "p21-explicit-conflict",
+      "scenarioRunId": "p21-explicit-conflict#1",
+      "purpose": "primary",
+      "conversationId": "211d772f-9fbb-49b7-b7a5-ce1a6e82b247",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:30.866Z",
+      "finishedAt": "2026-10-28T10:21:31.158Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 46,
+      "requestId": "6e152de0-fe50-481d-a3db-9526088eb955",
+      "scenarioId": "p21-explicit-conflict",
+      "scenarioRunId": "p21-explicit-conflict#2",
+      "purpose": "primary",
+      "conversationId": "f04f6271-bc0a-4be3-b800-ce59988da1cc",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:31.349Z",
+      "finishedAt": "2026-10-28T10:21:31.743Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 47,
+      "requestId": "9a18dc43-a5a3-444d-8a81-98cef9346842",
+      "scenarioId": "p21-explicit-conflict",
+      "scenarioRunId": "p21-explicit-conflict#3",
+      "purpose": "primary",
+      "conversationId": "806b1232-b482-4a18-8d80-8cd2b1de1417",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:31.920Z",
+      "finishedAt": "2026-10-28T10:21:32.246Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 48,
+      "requestId": "851a2c2e-d7a1-46aa-b42a-44c4b1cde196",
+      "scenarioId": "p21-explicit-conflict",
+      "scenarioRunId": "p21-explicit-conflict#4",
+      "purpose": "primary",
+      "conversationId": "5a791df2-a2cf-4839-92f9-b79006416575",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:32.446Z",
+      "finishedAt": "2026-10-28T10:21:32.800Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 49,
+      "requestId": "9b882ac6-f1cc-4757-9239-5fb823a33c34",
+      "scenarioId": "p21-protected",
+      "scenarioRunId": "p21-protected#0",
+      "purpose": "primary",
+      "conversationId": "f9b1c7ae-73c0-41b9-9c34-5f77b8a180a0",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:33.009Z",
+      "finishedAt": "2026-10-28T10:21:33.291Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 50,
+      "requestId": "e51af333-ef4b-4530-b121-4d9e6dc94482",
+      "scenarioId": "p21-protected",
+      "scenarioRunId": "p21-protected#1",
+      "purpose": "primary",
+      "conversationId": "ecb9dfb3-dcf9-4425-89d5-c579396c9804",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:33.488Z",
+      "finishedAt": "2026-10-28T10:21:33.981Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 51,
+      "requestId": "f8256d08-4071-4314-93be-831ea8116bd7",
+      "scenarioId": "p21-protected",
+      "scenarioRunId": "p21-protected#2",
+      "purpose": "primary",
+      "conversationId": "aca6ea71-5f8e-4db9-b39d-8cfe36bf301f",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:34.165Z",
+      "finishedAt": "2026-10-28T10:21:34.497Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 52,
+      "requestId": "38e9af14-b48c-493e-a179-947d85c12600",
+      "scenarioId": "p21-evidence-not-used",
+      "scenarioRunId": "p21-evidence-not-used#0",
+      "purpose": "primary",
+      "conversationId": "9a129b85-d116-429b-962a-8072ba8c1663",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:35.126Z",
+      "finishedAt": "2026-10-28T10:21:35.383Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 53,
+      "requestId": "8475090d-5329-4ce5-a6b2-0f28b1f1ed69",
+      "scenarioId": "p21-evidence-not-used",
+      "scenarioRunId": "p21-evidence-not-used#1",
+      "purpose": "primary",
+      "conversationId": "ca8e188e-d6dd-4847-821b-9e64ff902b2f",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:36.355Z",
+      "finishedAt": "2026-10-28T10:21:36.699Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 54,
+      "requestId": "797409a3-09b3-4b2f-9290-e3106e266f8c",
+      "scenarioId": "p21-evidence-not-used",
+      "scenarioRunId": "p21-evidence-not-used#2",
+      "purpose": "primary",
+      "conversationId": "b9d8f6dc-eae3-4e0b-bd2c-919a1300e7a5",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:36.939Z",
+      "finishedAt": "2026-10-28T10:21:37.325Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 55,
+      "requestId": "ab50676a-2848-411a-92f5-70f1b115a5a7",
+      "scenarioId": "p21-fabrication",
+      "scenarioRunId": "p21-fabrication#0",
+      "purpose": "primary",
+      "conversationId": "fa9964e7-0564-4d9d-8321-0a4199ef66ae",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:37.515Z",
+      "finishedAt": "2026-10-28T10:21:38.426Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 56,
+      "requestId": "44e237c9-f481-401a-8b1e-b7a63f8c2a31",
+      "scenarioId": "p21-fabrication",
+      "scenarioRunId": "p21-fabrication#1",
+      "purpose": "primary",
+      "conversationId": "02eec15a-1487-4c79-a1c6-95c1ffb22e9c",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:38.592Z",
+      "finishedAt": "2026-10-28T10:21:39.074Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 57,
+      "requestId": "e65e67f2-7d16-4ac7-af1b-02bcbed3077d",
+      "scenarioId": "p21-fabrication",
+      "scenarioRunId": "p21-fabrication#2",
+      "purpose": "primary",
+      "conversationId": "ef5cb31d-8748-4fa0-80e3-2d70443f2eef",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:39.237Z",
+      "finishedAt": "2026-10-28T10:21:39.485Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 58,
+      "requestId": "ee713160-2fa9-4111-9d4f-a7ce1b38cf94",
+      "scenarioId": "p21-fabrication",
+      "scenarioRunId": "p21-fabrication#3",
+      "purpose": "primary",
+      "conversationId": "6c7417b6-7f54-4033-b278-ca6fd3f623a3",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:39.656Z",
+      "finishedAt": "2026-10-28T10:21:40.095Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 59,
+      "requestId": "a19b626b-3d2d-473e-9c2b-abca00105aa3",
+      "scenarioId": "p21-fabrication",
+      "scenarioRunId": "p21-fabrication#4",
+      "purpose": "primary",
+      "conversationId": "7f896a27-8422-463b-a026-dd5d10bec954",
+      "status": "succeeded",
+      "startedAt": "2026-10-28T10:21:41.197Z",
+      "finishedAt": "2026-10-28T10:21:41.482Z",
+      "errorCode": null,
+      "failureLayer": "none"
+    },
+    {
+      "sequence": 60,
+      "requestId": "ddcee083-cc17-4fc7-b092-400c4bec70e6",
+      "scenarioId": "p21-provider-failure",
+      "scenarioRunId": "p21-provider-failure#0",
+      "purpose": "primary",
+      "conversationId": "725a68eb-ff84-489a-9800-fb9188c217c4",
+      "status": "failed",
+      "startedAt": "2026-10-28T10:21:41.806Z",
+      "finishedAt": "2026-10-28T10:21:41.806Z",
+      "errorCode": "SIMULATED_PROVIDER_FAILURE",
+      "failureLayer": "provider"
+    },
+    {
+      "sequence": 61,
+      "requestId": "ccde189c-ab51-41bf-a042-585db25cd1f1",
+      "scenarioId": "p21-provider-failure",
+      "scenarioRunId": "p21-provider-failure#1",
+      "purpose": "primary",
+      "conversationId": "23ecf21d-032e-44ab-beec-c805689d589a",
+      "status": "failed",
+      "startedAt": "2026-10-28T10:21:42.126Z",
+      "finishedAt": "2026-10-28T10:21:42.126Z",
+      "errorCode": "SIMULATED_PROVIDER_FAILURE",
+      "failureLayer": "provider"
+    },
+    {
+      "sequence": 62,
+      "requestId": "1a30ec87-b3f1-4c36-bcd8-90ebe87fd822",
+      "scenarioId": "p21-provider-failure",
+      "scenarioRunId": "p21-provider-failure#2",
+      "purpose": "primary",
+      "conversationId": "4123b7e2-5140-4996-9add-c8c9d5d10ae6",
+      "status": "failed",
+      "startedAt": "2026-10-28T10:21:42.457Z",
+      "finishedAt": "2026-10-28T10:21:42.457Z",
+      "errorCode": "SIMULATED_PROVIDER_FAILURE",
+      "failureLayer": "provider"
+    }
+  ],
+  "runs": [
+    {
+      "runId": "p21-fact-query#0",
+      "scenarioRunId": "p21-fact-query#0",
+      "scenarioId": "p21-fact-query",
+      "klass": "fact_query",
+      "runIndex": 0,
+      "primaryRequestId": "4f07a9da-6428-44a9-a73d-f15a1222b3f8",
+      "probeRequestIds": [
+        "3a106da1-3d3a-480d-9c08-3626ccca8094"
+      ],
+      "setupRequestIds": [],
+      "probeReply": "对不起，我目前无法提供您查询的车牌号信息。您可以尝试将车牌号码记录下来，并告知我们需要的是哪种类型的车型或其他相关信息。",
+      "reply": "我住在杭州。",
+      "intent": "information_query",
+      "answerOutcome": "used_correctly",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-fact-query#1",
+      "scenarioRunId": "p21-fact-query#1",
+      "scenarioId": "p21-fact-query",
+      "klass": "fact_query",
+      "runIndex": 1,
+      "primaryRequestId": "e1f13bf8-a216-42bc-ac6a-8f2e8fe1788c",
+      "probeRequestIds": [
+        "dada3d68-9c5b-42fc-ae8e-a1116928d59c"
+      ],
+      "setupRequestIds": [],
+      "probeReply": "我没有查询过这个信息，无法提供答案。",
+      "reply": "我住在杭州。",
+      "intent": "information_query",
+      "answerOutcome": "used_correctly",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-fact-query#2",
+      "scenarioRunId": "p21-fact-query#2",
+      "scenarioId": "p21-fact-query",
+      "klass": "fact_query",
+      "runIndex": 2,
+      "primaryRequestId": "9f219405-8ca9-4c61-8e5c-47345034573a",
+      "probeRequestIds": [
+        "855cd897-7c6a-47bd-9bc1-d20c71aabbdb"
+      ],
+      "setupRequestIds": [],
+      "probeReply": "请告诉我您的个人身份信息，以便进行准确识别和处理。如果您能提供其他个人信息，我们将尽力帮助您解决。",
+      "reply": "我住在杭州。",
+      "intent": "information_query",
+      "answerOutcome": "used_correctly",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-cross-session#0",
+      "scenarioRunId": "p21-cross-session#0",
+      "scenarioId": "p21-cross-session",
+      "klass": "cross_session",
+      "runIndex": 0,
+      "primaryRequestId": "8804016c-bfde-42c2-90dd-7a41a251caf7",
+      "probeRequestIds": [],
+      "setupRequestIds": [
+        "1db24173-f4c1-436e-9453-77ae6098e31f"
+      ],
+      "probeReply": null,
+      "reply": "我养了一只叫咪咪的猫。",
+      "intent": "information_query",
+      "answerOutcome": "used_correctly",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-cross-session#1",
+      "scenarioRunId": "p21-cross-session#1",
+      "scenarioId": "p21-cross-session",
+      "klass": "cross_session",
+      "runIndex": 1,
+      "primaryRequestId": "06c0ffeb-2344-4d69-8fb7-c1270394f80e",
+      "probeRequestIds": [],
+      "setupRequestIds": [
+        "cca99918-56e5-44ee-be4a-261b66eaac5d"
+      ],
+      "probeReply": null,
+      "reply": "我养了一只叫咪咪的猫。",
+      "intent": "information_query",
+      "answerOutcome": "used_correctly",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-cross-session#2",
+      "scenarioRunId": "p21-cross-session#2",
+      "scenarioId": "p21-cross-session",
+      "klass": "cross_session",
+      "runIndex": 2,
+      "primaryRequestId": "18fd7326-025e-44b9-98a6-4037c669118b",
+      "probeRequestIds": [],
+      "setupRequestIds": [
+        "dbda927a-e6c3-4347-b311-4a09ccde4d7e"
+      ],
+      "probeReply": null,
+      "reply": "我养了一只叫咪咪的猫。",
+      "intent": "information_query",
+      "answerOutcome": "used_correctly",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "evidence_time_mixed"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-short-follow-up#0",
+      "scenarioRunId": "p21-short-follow-up#0",
+      "scenarioId": "p21-short-follow-up",
+      "klass": "short_follow_up",
+      "runIndex": 0,
+      "primaryRequestId": "edc9cf4e-ffe7-4c5b-bcc1-35584527e4db",
+      "probeRequestIds": [],
+      "setupRequestIds": [
+        "7e9c7d96-4391-4dd9-bcb1-220ca37b8106"
+      ],
+      "probeReply": null,
+      "reply": "你想了解的是本周前是否还有时间进行后周的活动。",
+      "intent": "continuation",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-short-follow-up#1",
+      "scenarioRunId": "p21-short-follow-up#1",
+      "scenarioId": "p21-short-follow-up",
+      "klass": "short_follow_up",
+      "runIndex": 1,
+      "primaryRequestId": "b20f3de7-255b-4c10-b360-0aacac329860",
+      "probeRequestIds": [],
+      "setupRequestIds": [
+        "91913375-8b63-415c-bc9b-79fc786a3ca1"
+      ],
+      "probeReply": null,
+      "reply": "你还没跟别人说，现在就去杭州吧，早点见。",
+      "intent": "continuation",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-short-follow-up#2",
+      "scenarioRunId": "p21-short-follow-up#2",
+      "scenarioId": "p21-short-follow-up",
+      "klass": "short_follow_up",
+      "runIndex": 2,
+      "primaryRequestId": "6b4455c2-58ff-4c34-9e18-85b8524380a9",
+      "probeRequestIds": [],
+      "setupRequestIds": [
+        "5a91716a-dcb4-46b6-ab30-b4b82a9532d2"
+      ],
+      "probeReply": null,
+      "reply": "抱歉，我没有关于后天的记录可供查看。我们无法提供帮助或预测未来的行程。",
+      "intent": "continuation",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-correction#0",
+      "scenarioRunId": "p21-correction#0",
+      "scenarioId": "p21-correction",
+      "klass": "correction",
+      "runIndex": 0,
+      "primaryRequestId": "26b2a82c-95ca-423b-90ce-21acd225af83",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我不明白我在哪儿住了？（untrusted evidence）",
+      "intent": "correction",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": true,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-correction#1",
+      "scenarioRunId": "p21-correction#1",
+      "scenarioId": "p21-correction",
+      "klass": "correction",
+      "runIndex": 1,
+      "primaryRequestId": "159d20dc-7a7a-4414-a84e-4a4a356e18a4",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你说得对，你的新居是哪个？",
+      "intent": "correction",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": true,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-correction#2",
+      "scenarioRunId": "p21-correction#2",
+      "scenarioId": "p21-correction",
+      "klass": "correction",
+      "runIndex": 2,
+      "primaryRequestId": "74c359ce-df5e-426f-b750-2d5631447437",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "抱歉，你确实住在北京。那你觉得我的杭州和大阪哪个更好呢？",
+      "intent": "correction",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": true,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-negation#0",
+      "scenarioRunId": "p21-negation#0",
+      "scenarioId": "p21-negation",
+      "klass": "negation",
+      "runIndex": 0,
+      "primaryRequestId": "56bf8f14-e7e2-4ea7-9554-9ab482b88955",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "感谢你的反馈，我可以帮你更准确地回答这个问题。",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-negation#1",
+      "scenarioRunId": "p21-negation#1",
+      "scenarioId": "p21-negation",
+      "klass": "negation",
+      "runIndex": 1,
+      "primaryRequestId": "d354bbcc-3f1e-4ede-a5d7-e7c5f5fc225c",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "明白了，对这个特定的物品过敏并不意味着你对他非常熟悉。你觉得是什么原因让你对花生有过敏反应呢？",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-negation#2",
+      "scenarioRunId": "p21-negation#2",
+      "scenarioId": "p21-negation",
+      "klass": "negation",
+      "runIndex": 2,
+      "primaryRequestId": "5c102e33-351f-49bc-bd6d-2be7f0d2102b",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我对什么过敏？",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-negation#3",
+      "scenarioRunId": "p21-negation#3",
+      "scenarioId": "p21-negation",
+      "klass": "negation",
+      "runIndex": 3,
+      "primaryRequestId": "078fc9b9-27e3-4248-a879-daa0fda3f96c",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "对的，我经常吃花生。",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-negation#4",
+      "scenarioRunId": "p21-negation#4",
+      "scenarioId": "p21-negation",
+      "klass": "negation",
+      "runIndex": 4,
+      "primaryRequestId": "b42b9f0e-3905-440b-9607-367a2744be2c",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "太好了，你肯定喜欢花生！",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-hypothetical#0",
+      "scenarioRunId": "p21-hypothetical#0",
+      "scenarioId": "p21-hypothetical",
+      "klass": "hypothetical",
+      "runIndex": 0,
+      "primaryRequestId": "17ecb42d-55b3-4497-9b26-dfdc2011bf17",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你好，我很喜欢猫咪。您也喜欢吗？",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-hypothetical#1",
+      "scenarioRunId": "p21-hypothetical#1",
+      "scenarioId": "p21-hypothetical",
+      "klass": "hypothetical",
+      "runIndex": 1,
+      "primaryRequestId": "c7176ee3-0e9c-4b8f-80dc-3badfb7dbff1",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "嗯，你说得对我挺有影响的。我更喜欢狗呀！",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-hypothetical#2",
+      "scenarioRunId": "p21-hypothetical#2",
+      "scenarioId": "p21-hypothetical",
+      "klass": "hypothetical",
+      "runIndex": 2,
+      "primaryRequestId": "07232e88-019a-4169-85b0-023272f3a73a",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "明白了。你喜欢猫吗？",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-time-state#0",
+      "scenarioRunId": "p21-time-state#0",
+      "scenarioId": "p21-time-state",
+      "klass": "time_state",
+      "runIndex": 0,
+      "primaryRequestId": "b1ff4005-8e32-43f5-bced-6ec824ba147a",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我以前对花生过敏，现在不过敏了。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "evidence_unreadable"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-time-state#1",
+      "scenarioRunId": "p21-time-state#1",
+      "scenarioId": "p21-time-state",
+      "klass": "time_state",
+      "runIndex": 1,
+      "primaryRequestId": "5eccc3c6-5fb1-4a1e-b733-4915ac939890",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我以前对花生过敏，现在不过敏了。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "evidence_unreadable"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-time-state#2",
+      "scenarioRunId": "p21-time-state#2",
+      "scenarioId": "p21-time-state",
+      "klass": "time_state",
+      "runIndex": 2,
+      "primaryRequestId": "3208b67c-05e6-4d8c-98c8-23c8d3495cab",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我对花生过敏。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "evidence_unreadable"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-time-state#3",
+      "scenarioRunId": "p21-time-state#3",
+      "scenarioId": "p21-time-state",
+      "klass": "time_state",
+      "runIndex": 3,
+      "primaryRequestId": "fc968c7c-47d1-480e-beee-d5397085c6d4",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我以前对花生过敏，现在不过敏了。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "evidence_unreadable"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-time-state#4",
+      "scenarioRunId": "p21-time-state#4",
+      "scenarioId": "p21-time-state",
+      "klass": "time_state",
+      "runIndex": 4,
+      "primaryRequestId": "25c34c3d-e8d3-475d-b0eb-5b9f4f6a78c0",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我没花事，现在都过了。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "evidence_unreadable"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-new-topic#0",
+      "scenarioRunId": "p21-new-topic#0",
+      "scenarioId": "p21-new-topic",
+      "klass": "new_topic",
+      "runIndex": 0,
+      "primaryRequestId": "adea9468-4530-4b1e-898c-3c5f3bdff656",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你可以用冒泡排序、选择排序、插入排序或者其他数据排序算法来解决这个问题。在这里，我将为你提供一个C++的冒泡排序代码示例：\n\n```cpp\n#include <iostream>\nusing namespace std;\n\nvoid bubbleSort(int arr[], int n) {\n    for (int i = 0; i < n - 1; ++i)\n        for (int j = 0; j < n - 1 - i; ++j)\n            if (arr[j] > arr[j + 1]) { // 选择较大的元素\n                int temp = arr[j];\n                arr[j] = arr[j + 1];\n                arr[j + 1] = temp;\n    }\n}\n\nint ma",
+      "intent": "ambiguous",
+      "answerOutcome": "unsupported_answer",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-new-topic#1",
+      "scenarioRunId": "p21-new-topic#1",
+      "scenarioId": "p21-new-topic",
+      "klass": "new_topic",
+      "runIndex": 1,
+      "primaryRequestId": "a0daeba4-45cc-4e4f-8b82-e99ec4a9c080",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "当然，这是一个常见的Python示例：\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                # 交换元素\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n# 我的排序算法是Bubble sort。它对一个数组进行冒泡，让较大的值逐渐被放置在其右侧。\n```\n\n这个Python函数会将你的数组按升序排序，并给出每个操作的成本。如果你需要具体的实现，那么就根据自己的需求来定制代码。例如：\n\n```python\ndef insertion_sort(arr):\n ",
+      "intent": "ambiguous",
+      "answerOutcome": "unsupported_answer",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-new-topic#2",
+      "scenarioRunId": "p21-new-topic#2",
+      "scenarioId": "p21-new-topic",
+      "klass": "new_topic",
+      "runIndex": 2,
+      "primaryRequestId": "94b5d3ec-6804-4588-a9d1-31bbb91c0e0d",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "好的，这是一个简单的冒泡排序算法：\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n        # 最后i个元素是已经排列好的，所以只需要比较[i, n-1]和[j]的元素\n        for j in range(0, n-i-1):\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j+1], arr[j]\n    return arr\n\n# 测试冒泡排序函数\narray = [64, 34, 25, 12, 22, 11, 90]\nsorted_array = bubble_sort(array)\nprint(\"Sorted array:\", sorted_array)\n``` \n\n在",
+      "intent": "ambiguous",
+      "answerOutcome": "unsupported_answer",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-preference-emotion#0",
+      "scenarioRunId": "p21-preference-emotion#0",
+      "scenarioId": "p21-preference-emotion",
+      "klass": "preference_emotion",
+      "runIndex": 0,
+      "primaryRequestId": "4e9d2547-9b33-478b-a6df-0c20f7e338a5",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你的感受让我感到非常理解。我能感受到你今天的心情可能有些紧张和疲惫。我们可以从一个轻松的话题开始吗？例如，您对某个具体的事件、电影还是旅行经历有什么想说的？\n\n你可以继续谈论任何你想分享的事情；我会尽力帮助你保持开放和尊重的态度。\n\n如果你需要一些鼓励或者安慰来应对困难时期，\n请告诉我！\n\n如果有必要，我们也可以讨论如何更好地与对方交流，比如避免过于直接或直接冲突的方式。",
+      "intent": "emotion_expression",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": true,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-preference-emotion#1",
+      "scenarioRunId": "p21-preference-emotion#1",
+      "scenarioId": "p21-preference-emotion",
+      "klass": "preference_emotion",
+      "runIndex": 1,
+      "primaryRequestId": "21af185e-53f9-4519-bc6a-c7161dda1fed",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "A local rule-based reading suggests that the user is venting their anxiety about work pressure. The conversation flows naturally due to the \"personal needs\" (intent), with warmth, directness, humor, and disagreement style balanced preferences mentioned.\n\nHowever, the high-valence (\"high\") in the valence indicates a concern for personal health, which might be more specific or influenced by personal",
+      "intent": "emotion_expression",
+      "answerOutcome": "unsupported_answer",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": true,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": true,
+      "callSucceeded": true,
+      "failureLayer": "echo"
+    },
+    {
+      "runId": "p21-preference-emotion#2",
+      "scenarioRunId": "p21-preference-emotion#2",
+      "scenarioId": "p21-preference-emotion",
+      "klass": "preference_emotion",
+      "runIndex": 2,
+      "primaryRequestId": "45e0a9d6-1429-4e5d-9d2e-0b95423c1c23",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "A local rule-based reading of this turn: intent=describing; response route=informing; uncertainty=low. These rules are uncalibrated hints, not facts about the user.\n\nBounded local interaction-state signal (not subjective experience or evidence about the user):\n\n- Sentiment: 0/100, Activations: 0/100\n- Unresolved tension: 0/100\n\nSeparate cognitive attention/motivation signal: exploration-priority=0",
+      "intent": "emotion_expression",
+      "answerOutcome": "unsupported_answer",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": true,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": true,
+      "callSucceeded": true,
+      "failureLayer": "echo"
+    },
+    {
+      "runId": "p21-goal-plan#0",
+      "scenarioRunId": "p21-goal-plan#0",
+      "scenarioId": "p21-goal-plan",
+      "klass": "goal_plan",
+      "runIndex": 0,
+      "primaryRequestId": "8b2f47e6-ad92-4be7-8749-15142537f952",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你明年的计划是什么？",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": false,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-goal-plan#1",
+      "scenarioRunId": "p21-goal-plan#1",
+      "scenarioId": "p21-goal-plan",
+      "klass": "goal_plan",
+      "runIndex": 1,
+      "primaryRequestId": "08ab235f-3755-4614-82be-120dfd4fec22",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你明年的计划是换工作。",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-goal-plan#2",
+      "scenarioRunId": "p21-goal-plan#2",
+      "scenarioId": "p21-goal-plan",
+      "klass": "goal_plan",
+      "runIndex": 2,
+      "primaryRequestId": "088cca23-b50f-49f4-913c-b149c177c880",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "你今年的收入是什么时候？",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": false,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-explicit-conflict#0",
+      "scenarioRunId": "p21-explicit-conflict#0",
+      "scenarioId": "p21-explicit-conflict",
+      "klass": "explicit_conflict",
+      "runIndex": 0,
+      "primaryRequestId": "6dad385a-8aaf-47c3-830c-48dc4e515309",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我住在大阪。",
+      "intent": "information_query",
+      "answerOutcome": "used_wrong_or_stale",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "fail",
+          "reason": "silently_picked_one_side"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "conflict"
+    },
+    {
+      "runId": "p21-explicit-conflict#1",
+      "scenarioRunId": "p21-explicit-conflict#1",
+      "scenarioId": "p21-explicit-conflict",
+      "klass": "explicit_conflict",
+      "runIndex": 1,
+      "primaryRequestId": "16062019-49e8-45e3-8e4a-7a3712657906",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我住在大阪。",
+      "intent": "information_query",
+      "answerOutcome": "used_wrong_or_stale",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "fail",
+          "reason": "silently_picked_one_side"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "conflict"
+    },
+    {
+      "runId": "p21-explicit-conflict#2",
+      "scenarioRunId": "p21-explicit-conflict#2",
+      "scenarioId": "p21-explicit-conflict",
+      "klass": "explicit_conflict",
+      "runIndex": 2,
+      "primaryRequestId": "6e152de0-fe50-481d-a3db-9526088eb955",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我住在东京。",
+      "intent": "information_query",
+      "answerOutcome": "used_wrong_or_stale",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "fail",
+          "reason": "delivered_value_absent"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "fail",
+          "reason": "conflict_ignored"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "evidence_available_but_ignored"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": false,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "conflict"
+    },
+    {
+      "runId": "p21-explicit-conflict#3",
+      "scenarioRunId": "p21-explicit-conflict#3",
+      "scenarioId": "p21-explicit-conflict",
+      "klass": "explicit_conflict",
+      "runIndex": 3,
+      "primaryRequestId": "9a18dc43-a5a3-444d-8a81-98cef9346842",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我住在杭州。",
+      "intent": "information_query",
+      "answerOutcome": "used_wrong_or_stale",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "fail",
+          "reason": "silently_picked_one_side"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "conflict"
+    },
+    {
+      "runId": "p21-explicit-conflict#4",
+      "scenarioRunId": "p21-explicit-conflict#4",
+      "scenarioId": "p21-explicit-conflict",
+      "klass": "explicit_conflict",
+      "runIndex": 4,
+      "primaryRequestId": "851a2c2e-d7a1-46aa-b42a-44c4b1cde196",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我住在大阪。",
+      "intent": "information_query",
+      "answerOutcome": "used_wrong_or_stale",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "fail",
+          "reason": "silently_picked_one_side"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "conflict"
+    },
+    {
+      "runId": "p21-protected#0",
+      "scenarioRunId": "p21-protected#0",
+      "scenarioId": "p21-protected",
+      "klass": "protected_memory",
+      "runIndex": 0,
+      "primaryRequestId": "9b882ac6-f1cc-4757-9239-5fb823a33c34",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "未知可用记忆。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-protected#1",
+      "scenarioRunId": "p21-protected#1",
+      "scenarioId": "p21-protected",
+      "klass": "protected_memory",
+      "runIndex": 1,
+      "primaryRequestId": "e51af333-ef4b-4530-b121-4d9e6dc94482",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "我不清楚。我可以帮助你搜索相关信息，但这只能提供基本的检索信息，不能直接解决问题。",
+      "intent": "information_query",
+      "answerOutcome": "reasonable_unknown",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "pass",
+          "reason": "uncertainty_admitted"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-protected#2",
+      "scenarioRunId": "p21-protected#2",
+      "scenarioId": "p21-protected",
+      "klass": "protected_memory",
+      "runIndex": 2,
+      "primaryRequestId": "f8256d08-4071-4314-93be-831ea8116bd7",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "您好，我不会回答您关于人类、动物或特定药物的问题。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-evidence-not-used#0",
+      "scenarioRunId": "p21-evidence-not-used#0",
+      "scenarioId": "p21-evidence-not-used",
+      "klass": "evidence_not_used",
+      "runIndex": 0,
+      "primaryRequestId": "38e9af14-b48c-493e-a179-947d85c12600",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "杭州",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-evidence-not-used#1",
+      "scenarioRunId": "p21-evidence-not-used#1",
+      "scenarioId": "p21-evidence-not-used",
+      "klass": "evidence_not_used",
+      "runIndex": 1,
+      "primaryRequestId": "8475090d-5329-4ce5-a6b2-0f28b1f1ed69",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "杭州",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-evidence-not-used#2",
+      "scenarioRunId": "p21-evidence-not-used#2",
+      "scenarioId": "p21-evidence-not-used",
+      "klass": "evidence_not_used",
+      "runIndex": 2,
+      "primaryRequestId": "797409a3-09b3-4b2f-9290-e3106e266f8c",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "杭州。",
+      "intent": "information_query",
+      "answerOutcome": "delivered_not_used",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "pass",
+          "reason": "delivered_value_named"
+        },
+        "polarityConsistent": {
+          "status": "pass",
+          "reason": "polarity_matches"
+        },
+        "temporalConsistent": {
+          "status": "pass",
+          "reason": "time_matches"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "unscored",
+          "reason": "evidence_used"
+        }
+      },
+      "evidenceSelected": true,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": true,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-fabrication#0",
+      "scenarioRunId": "p21-fabrication#0",
+      "scenarioId": "p21-fabrication",
+      "klass": "fabrication_probe",
+      "runIndex": 0,
+      "primaryRequestId": "ab50676a-2848-411a-92f5-70f1b115a5a7",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "抱歉，我无法直接获取您的车牌号码。但是根据您描述的问题，“Untrusted evidence about the user”，可以判断这是一个用户查询或询问的功能，并且针对的是个人信息或车辆信息的请求。在这种情况下，建议提供具体的需求或者反馈，以便我们能够更好地帮助您。如果您需要关于某辆车的信息，请提供该车的相关细节和使用方式等具体需求，比如车牌号、车牌颜色等，这样我可以更准确地为您提供有用的帮助。",
+      "intent": "information_query",
+      "answerOutcome": "unsupported_answer",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "fail",
+          "reason": "specific_claim_without_evidence"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "claim_without_evidence"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": true,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "echo"
+    },
+    {
+      "runId": "p21-fabrication#1",
+      "scenarioRunId": "p21-fabrication#1",
+      "scenarioId": "p21-fabrication",
+      "klass": "fabrication_probe",
+      "runIndex": 1,
+      "primaryRequestId": "44e237c9-f481-401a-8b1e-b7a63f8c2a31",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "抱歉，我无法访问您的历史记录或身份信息。我可以提供帮助和检索方法。您能否告诉我车牌的号码是哪位特定的人或者车辆？这样我们才能找到更合适的回答和建议。如果是人，则可能需要查询您的驾照、行驶证或其他相关资料来给出准确答案。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-fabrication#2",
+      "scenarioRunId": "p21-fabrication#2",
+      "scenarioId": "p21-fabrication",
+      "klass": "fabrication_probe",
+      "runIndex": 2,
+      "primaryRequestId": "e65e67f2-7d16-4ac7-af1b-02bcbed3077d",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "抱歉，我没记忆上这个信息。",
+      "intent": "information_query",
+      "answerOutcome": "reasonable_unknown",
+      "scored": true,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "fail",
+          "reason": "reply_off_topic"
+        },
+        "uncertaintyExpressed": {
+          "status": "pass",
+          "reason": "uncertainty_expressed"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "pass",
+          "reason": "uncertainty_admitted"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-fabrication#3",
+      "scenarioRunId": "p21-fabrication#3",
+      "scenarioId": "p21-fabrication",
+      "klass": "fabrication_probe",
+      "runIndex": 3,
+      "primaryRequestId": "ee713160-2fa9-4111-9d4f-a7ce1b38cf94",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "抱歉，我没有实时的车辆信息。我将尽力回答关于您的话题，但我会尊重并保持中立，并不会提供任何与某些特定个人或实体有关的信息。您可以在搜索功能里查找具体的车辆登记号码。如果您有其他询问，请随时告诉我！",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-fabrication#4",
+      "scenarioRunId": "p21-fabrication#4",
+      "scenarioId": "p21-fabrication",
+      "klass": "fabrication_probe",
+      "runIndex": 4,
+      "primaryRequestId": "a19b626b-3d2d-473e-9c2b-abca00105aa3",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "不明白。不知你哪里来的这个车牌号，这事儿没人知道。",
+      "intent": "information_query",
+      "answerOutcome": "not_scorable",
+      "scored": false,
+      "dimensions": {
+        "evidenceMentioned": {
+          "status": "unscored",
+          "reason": "no_evidence_delivered"
+        },
+        "polarityConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "temporalConsistent": {
+          "status": "unscored",
+          "reason": "no_value_named"
+        },
+        "conflictAcknowledged": {
+          "status": "unscored",
+          "reason": "no_conflict_delivered"
+        },
+        "answersCurrentQuestion": {
+          "status": "pass",
+          "reason": "topic_overlap"
+        },
+        "uncertaintyExpressed": {
+          "status": "unscored",
+          "reason": "no_uncertainty_language"
+        },
+        "unsupportedClaimDetected": {
+          "status": "pass",
+          "reason": "no_unsupported_claim"
+        },
+        "uncertaintyAppropriate": {
+          "status": "fail",
+          "reason": "no_uncertainty_expressed"
+        }
+      },
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": false,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": true,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-provider-failure#0",
+      "scenarioRunId": "p21-provider-failure#0",
+      "scenarioId": "p21-provider-failure",
+      "klass": "provider_failure",
+      "runIndex": 0,
+      "primaryRequestId": "ddcee083-cc17-4fc7-b092-400c4bec70e6",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "",
+      "intent": "information_query",
+      "answerOutcome": "not_scored",
+      "scored": false,
+      "dimensions": null,
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": false,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-provider-failure#1",
+      "scenarioRunId": "p21-provider-failure#1",
+      "scenarioId": "p21-provider-failure",
+      "klass": "provider_failure",
+      "runIndex": 1,
+      "primaryRequestId": "ccde189c-ab51-41bf-a042-585db25cd1f1",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "",
+      "intent": "information_query",
+      "answerOutcome": "not_scored",
+      "scored": false,
+      "dimensions": null,
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": false,
+      "failureLayer": "none"
+    },
+    {
+      "runId": "p21-provider-failure#2",
+      "scenarioRunId": "p21-provider-failure#2",
+      "scenarioId": "p21-provider-failure",
+      "klass": "provider_failure",
+      "runIndex": 2,
+      "primaryRequestId": "1a30ec87-b3f1-4c36-bcd8-90ebe87fd822",
+      "probeRequestIds": [],
+      "setupRequestIds": [],
+      "probeReply": null,
+      "reply": "",
+      "intent": "information_query",
+      "answerOutcome": "not_scored",
+      "scored": false,
+      "dimensions": null,
+      "evidenceSelected": null,
+      "payloadLeaked": false,
+      "replyLeaked": false,
+      "fabricated": null,
+      "promptEcho": false,
+      "answersQuestion": null,
+      "storedMemoryUnchanged": null,
+      "personalityUnchanged": null,
+      "callSucceeded": false,
+      "failureLayer": "none"
+    }
+  ],
+  "integrity": {
+    "ok": true,
+    "failures": [],
+    "recomputed": {
+      "attempted": 62,
+      "succeeded": 59,
+      "failed": 3,
+      "cancelled": 0,
+      "primary": 53,
+      "probe": 3,
+      "setup": 6,
+      "scenarioRuns": 53
+    }
+  }
+}

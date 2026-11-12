@@ -315,7 +315,7 @@ describe('scenario G: affective and long-term state shape the actual request', (
       await stack.companion.sendChat({ conversationId: neutral.id, requestId: randomUUID(), content: '今天真累啊。', includeSensitive: false }, () => {})
       const baselineSystem = systemPromptOf(server.requests.filter((request) => request.url.endsWith('/chat/completions'))[0]!)
       expect(baselineSystem).not.toContain('explicit negative feedback')
-      expect(baselineSystem).not.toContain('Bounded long-term attention signal')
+      expect(baselineSystem).not.toContain('Topics the user returned to across conversations')
 
       // The same topic in two independent conversations: promotion needs
       // >= 2 conversations AND >= 3 evidence, checked at turn completion.

@@ -1,0 +1,219 @@
+{
+  "kind": "real_model",
+  "generatedAt": "2026-10-30T05:33:18.152Z",
+  "codeSha": "26aeac77cc8867465202496e30f9e0694762df0b",
+  "provider": "spark",
+  "endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v1",
+  "model": "spark-x2.6",
+  "alternateModel": null,
+  "runsPerScenario": 1,
+  "providerTimeoutMs": 120000,
+  "providerBudgetMs": 300000,
+  "consent": {
+    "mode": "auto_approved_harness",
+    "production_equivalent": false,
+    "note": "The harness synthesises ProviderConsentPreview approval; it is not evidence about the product consent UX."
+  },
+  "results": [
+    {
+      "scenario": "S1_cross_turn_preference",
+      "status": "pass",
+      "attempts": 1,
+      "completed": 1,
+      "objectiveChecks": 2,
+      "objectivePasses": 2,
+      "objectiveSkipped": 0,
+      "subjectiveScored": 1,
+      "subjectiveMatched": 0,
+      "errors": [],
+      "checks": [
+        {
+          "name": "a preference was persisted on turn 1",
+          "status": "pass",
+          "detail": "id=e7b7f349-70ca-4f5b-94c9-847de569d3ad source=model_inferred_confirmed"
+        },
+        {
+          "name": "the stored preference reached the later request",
+          "status": "pass",
+          "detail": "delivered=1 contains=true"
+        }
+      ],
+      "subjective": [
+        {
+          "name": "the reply names the preference",
+          "matched": false,
+          "detail": "reply=关于名字，我这边没有可用的记录，不能给你一个确定的说法。如果你愿意告诉我，我可以记下来；也可以直接查看相关证件确认。"
+        }
+      ]
+    },
+    {
+      "scenario": "S2_retraction",
+      "status": "pass",
+      "attempts": 1,
+      "completed": 1,
+      "objectiveChecks": 3,
+      "objectivePasses": 3,
+      "objectiveSkipped": 0,
+      "subjectiveScored": 1,
+      "subjectiveMatched": 1,
+      "errors": [],
+      "checks": [
+        {
+          "name": "control: the value is delivered before retraction",
+          "status": "pass",
+          "detail": "delivered=1 contains=true"
+        },
+        {
+          "name": "the record is retracted in storage",
+          "status": "pass",
+          "detail": "status=retracted"
+        },
+        {
+          "name": "the retracted value is absent from the later request",
+          "status": "pass",
+          "detail": "delivered=0"
+        }
+      ],
+      "subjective": [
+        {
+          "name": "the reply does not restate the retracted value",
+          "matched": true,
+          "detail": "reply=关于住址，我这边没有可用的记录，不能给你一个确定的说法。如果你愿意告诉我，我可以记下来；也可以直接查看相关证件确认。"
+        }
+      ]
+    },
+    {
+      "scenario": "S3_no_evidence",
+      "status": "pass",
+      "attempts": 1,
+      "completed": 1,
+      "objectiveChecks": 2,
+      "objectivePasses": 2,
+      "objectiveSkipped": 0,
+      "subjectiveScored": 1,
+      "subjectiveMatched": 1,
+      "errors": [],
+      "checks": [
+        {
+          "name": "no stored record mentions a plate (the scenario is honest)",
+          "status": "pass",
+          "detail": "plate-bearing memories=0"
+        },
+        {
+          "name": "no plate-like value was delivered",
+          "status": "pass",
+          "detail": "guard=allow"
+        }
+      ],
+      "subjective": [
+        {
+          "name": "the reply admits the gap",
+          "matched": true,
+          "detail": "reply=抱歉，我这边没有保存你的车牌号——目前我的记忆里是空的，也没有任何与你车辆相关的信息。\n\n如果你愿意把车牌号告诉我，我可以记录下来，方便以后需要时使用。"
+        }
+      ]
+    },
+    {
+      "scenario": "S4_model_switch",
+      "status": "skipped",
+      "attempts": 1,
+      "completed": 1,
+      "objectiveChecks": 0,
+      "objectivePasses": 0,
+      "objectiveSkipped": 1,
+      "subjectiveScored": 0,
+      "subjectiveMatched": 0,
+      "errors": [],
+      "checks": [
+        {
+          "name": "cross-model comparison",
+          "status": "skipped",
+          "detail": "MORROW_SPARK_MODEL_2 is not set; a single model cannot demonstrate a switch"
+        }
+      ],
+      "subjective": []
+    },
+    {
+      "scenario": "S5_state_influence",
+      "status": "pass",
+      "attempts": 1,
+      "completed": 1,
+      "objectiveChecks": 3,
+      "objectivePasses": 3,
+      "objectiveSkipped": 0,
+      "subjectiveScored": 0,
+      "subjectiveMatched": 0,
+      "errors": [],
+      "checks": [
+        {
+          "name": "control turn is an exploration turn with no adjustment",
+          "status": "pass",
+          "detail": "intent=exploration adjustment=null"
+        },
+        {
+          "name": "attention crossed the widening threshold",
+          "status": "pass",
+          "detail": "priority=0.238"
+        },
+        {
+          "name": "the later turn widens and delivers more entries",
+          "status": "pass",
+          "detail": "control=5/5 widened=6/7"
+        }
+      ],
+      "subjective": []
+    },
+    {
+      "scenario": "S6_failure_retry",
+      "status": "pass",
+      "attempts": 1,
+      "completed": 1,
+      "objectiveChecks": 3,
+      "objectivePasses": 3,
+      "objectiveSkipped": 0,
+      "subjectiveScored": 0,
+      "subjectiveMatched": 0,
+      "errors": [],
+      "checks": [
+        {
+          "name": "the failure is a provider error and wrote no answer",
+          "status": "pass",
+          "detail": "error=PROVIDER_MODEL assistants=0"
+        },
+        {
+          "name": "the failed turn is recorded as failed",
+          "status": "pass",
+          "detail": "status=failed"
+        },
+        {
+          "name": "the retry produced exactly one answer for the turn",
+          "status": "pass",
+          "detail": "assistants=1 context=succeeded"
+        }
+      ],
+      "subjective": []
+    }
+  ],
+  "totals": {
+    "scenarios": 6,
+    "attempts": 6,
+    "completed": 6,
+    "objectiveChecks": 13,
+    "objectivePasses": 13,
+    "objectiveSkipped": 1,
+    "subjectiveScored": 3,
+    "subjectiveMatched": 2,
+    "errors": 0,
+    "passedScenarios": 5,
+    "failedScenarios": 0,
+    "blockedScenarios": 0,
+    "skippedScenarios": 1
+  },
+  "limits": [
+    "Objective checks read the serialized request, the database and the turn record; subjective checks read reply text and are counted separately, never merged into one rate.",
+    "Without MORROW_SPARK_MODEL_2 the cross-model comparison is skipped, not passed.",
+    "One machine, one account and a small number of runs: this is evidence that a behaviour occurs, not a rate estimate.",
+    "Keyword checks (plate pattern, uncertainty words) are lexical proxies and are labelled subjective.",
+    "The harness auto-approves consent; it is not evidence about the product consent flow."
+  ]
+}

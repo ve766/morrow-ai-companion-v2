@@ -1,0 +1,361 @@
+{
+  "kind": "b1_calibration",
+  "generatedAt": "2026-10-30T06:48:22.182Z",
+  "headSha": "55432fc2816feb223a1205b40592306d205d0bc8",
+  "datasetVersion": "b1-devset-v1",
+  "datasetPath": "evals/stage-2/b1-devset.json",
+  "calibration": "uncalibrated_heuristic",
+  "note": "26 例开发集：只支撑权重方向与阈值选择，不支撑概率校准；holdout 仅为防止只报 in-sample 数字。",
+  "search": {
+    "weightStep": 0.1,
+    "weightsEnumerated": 1001,
+    "marginFloors": [
+      0.08,
+      0.1,
+      0.12
+    ],
+    "clarifyThresholds": [
+      0.42,
+      0.45,
+      0.48
+    ],
+    "degenerateVectorsSkipped": "ambiguity/semantic/explicitness 为 0 的角点被排除",
+    "totalEvaluated": 9009
+  },
+  "chosen": {
+    "weights": {
+      "semantic": 0.1,
+      "explicitness": 0.1,
+      "completeness": 0.6,
+      "context": 0,
+      "ambiguity": 0.2
+    },
+    "marginFloor": 0.08,
+    "clarifyThreshold": 0.42
+  },
+  "accuracy": {
+    "dev": {
+      "cases": 18,
+      "correct": 16,
+      "rate": 0.8889
+    },
+    "holdout": {
+      "cases": 8,
+      "correct": 8,
+      "rate": 1
+    },
+    "all": {
+      "cases": 26,
+      "correct": 24,
+      "rate": 0.9231
+    }
+  },
+  "confusion": {
+    "retrieve_memory": {
+      "retrieve_memory": 11,
+      "clarify": 1
+    },
+    "clarify": {
+      "clarify": 3
+    },
+    "answer": {
+      "retrieve_memory": 1,
+      "answer": 10
+    }
+  },
+  "failures": [
+    {
+      "id": "deictic-object-with-context",
+      "expected": "answer",
+      "actual": "retrieve_memory",
+      "top": "information_query",
+      "margin": 0.058,
+      "z": 0.684
+    },
+    {
+      "id": "conflicting-history",
+      "expected": "retrieve_memory",
+      "actual": "clarify",
+      "top": "correction",
+      "margin": 0.794,
+      "z": 0.794
+    }
+  ],
+  "historyContrast": [
+    {
+      "content": "我住在哪里？",
+      "label": "information_query",
+      "withoutHistoryTopScore": 0.748,
+      "withUnrelatedTopScore": 0.748,
+      "withRelatedTopScore": 0.748,
+      "sameLabelScores": [
+        0.748,
+        0.748,
+        0.748
+      ],
+      "identical": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "clear-personal-query",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.748,
+      "margin": 0.11,
+      "band": "high"
+    },
+    {
+      "id": "clear-personal-query-unrelated-history",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.748,
+      "margin": 0.11,
+      "band": "high"
+    },
+    {
+      "id": "clear-personal-query-related-history",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.748,
+      "margin": 0.11,
+      "band": "high"
+    },
+    {
+      "id": "reference-without-context",
+      "expected": "clarify",
+      "actual": "clarify",
+      "strategy": "clarify",
+      "top": "information_query",
+      "z": 0.604,
+      "margin": 0.36,
+      "band": "medium"
+    },
+    {
+      "id": "reference-with-related-context",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "continuation",
+      "z": 0.726,
+      "margin": 0.122,
+      "band": "high"
+    },
+    {
+      "id": "deictic-object-without-context",
+      "expected": "clarify",
+      "actual": "clarify",
+      "strategy": "clarify",
+      "top": "information_query",
+      "z": 0.584,
+      "margin": 0.42,
+      "band": "medium"
+    },
+    {
+      "id": "deictic-object-with-context",
+      "expected": "answer",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.684,
+      "margin": 0.058,
+      "band": "medium"
+    },
+    {
+      "id": "general-knowledge",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "information_query",
+      "z": 0.744,
+      "margin": 0.086,
+      "band": "high"
+    },
+    {
+      "id": "explicit-plan",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "goal_or_plan",
+      "z": 0.788,
+      "margin": 0.788,
+      "band": "high"
+    },
+    {
+      "id": "vague-filler",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "ambiguous",
+      "z": 0,
+      "margin": 0,
+      "band": "low"
+    },
+    {
+      "id": "vague-filler-with-history",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "ambiguous",
+      "z": 0,
+      "margin": 0,
+      "band": "low"
+    },
+    {
+      "id": "explicit-correction",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "correction",
+      "z": 0.764,
+      "margin": 0.116,
+      "band": "high"
+    },
+    {
+      "id": "changed-mind",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "correction",
+      "z": 0.788,
+      "margin": 0.788,
+      "band": "high"
+    },
+    {
+      "id": "feedback",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "feedback",
+      "z": 0.698,
+      "margin": 0.698,
+      "band": "high"
+    },
+    {
+      "id": "emotion",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "emotion_expression",
+      "z": 0.696,
+      "margin": 0.696,
+      "band": "high"
+    },
+    {
+      "id": "exploration",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "exploration",
+      "z": 0.694,
+      "margin": 0.694,
+      "band": "high"
+    },
+    {
+      "id": "recall-request",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.792,
+      "margin": 0.792,
+      "band": "high"
+    },
+    {
+      "id": "preference-save",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "preference_expression",
+      "z": 0.724,
+      "margin": 0.724,
+      "band": "high"
+    },
+    {
+      "id": "irony",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "ambiguous",
+      "z": 0,
+      "margin": 0,
+      "band": "low"
+    },
+    {
+      "id": "negated-preference",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "preference_expression",
+      "z": 0.694,
+      "margin": 0.694,
+      "band": "high"
+    },
+    {
+      "id": "close-candidates-question",
+      "expected": "clarify",
+      "actual": "clarify",
+      "strategy": "clarify",
+      "top": "information_query",
+      "z": 0.584,
+      "margin": 0.42,
+      "band": "medium"
+    },
+    {
+      "id": "close-candidates-with-context",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.684,
+      "margin": 0.058,
+      "band": "medium"
+    },
+    {
+      "id": "ambiguous-self-report",
+      "expected": "answer",
+      "actual": "answer",
+      "strategy": "answer",
+      "top": "ambiguous",
+      "z": 0.176,
+      "margin": 0.176,
+      "band": "low"
+    },
+    {
+      "id": "schedule-query",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "information_query",
+      "z": 0.788,
+      "margin": 0.788,
+      "band": "high"
+    },
+    {
+      "id": "conflicting-history",
+      "expected": "retrieve_memory",
+      "actual": "clarify",
+      "strategy": "clarify",
+      "top": "correction",
+      "z": 0.794,
+      "margin": 0.794,
+      "band": "high"
+    },
+    {
+      "id": "unrelated-long-history",
+      "expected": "retrieve_memory",
+      "actual": "retrieve_memory",
+      "strategy": "retrieve_memory",
+      "top": "goal_or_plan",
+      "z": 0.792,
+      "margin": 0.792,
+      "band": "high"
+    }
+  ]
+}

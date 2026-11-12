@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "runId": "2026-10-28T11-45-02-811Z-c75ec8",
+  "generatedAt": "2026-10-28T11:45:02.812Z",
+  "provider": {
+    "id": "spark",
+    "endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v1",
+    "protocol": "OpenAI Chat Completions"
+  },
+  "credential": {
+    "provided": true,
+    "source": "environment",
+    "length": 35,
+    "storedInRepo": false
+  },
+  "provenance": {
+    "baseSha": "f6498cbd5e6b17db82c77b9cc56ab248e126aa4c",
+    "headSha": "f6498cbd5e6b17db82c77b9cc56ab248e126aa4c",
+    "codeSha": "f6498cbd5e6b17db82c77b9cc56ab248e126aa4c",
+    "codeShaSource": "git",
+    "workingTreeDirty": true,
+    "workingTreeDiffHash": "b8a9bec163eb1bffc85a362519c9267473e9d79098f4a8fbad30ca36ef68f5ad",
+    "workingTreeFiles": [
+      "M src/app/companion-service.ts",
+      "M src/app/ipc.ts",
+      "M src/persistence/migrations.ts",
+      "M src/providers/openai-compatible.test.ts",
+      "M src/providers/openai-compatible.ts",
+      "M src/shared/companion.ts",
+      "M src/shared/contracts.ts",
+      "M src/shared/errors.ts",
+      "M src/shared/validation.ts",
+      "?? scripts/provider-probe.ts",
+      "?? src/providers/provider-registry.test.ts",
+      "?? src/providers/provider-registry.ts"
+    ],
+    "reproducible": false,
+    "reproducibleReason": "working_tree_dirty",
+    "capturedAt": "2026-10-28T11:45:01.486Z"
+  },
+  "probes": [
+    {
+      "model": "xdeepseekv3",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_QUOTA",
+      "reportedModel": null,
+      "latencyMs": 197
+    },
+    {
+      "model": "xdeepseekr1",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_QUOTA",
+      "reportedModel": null,
+      "latencyMs": 126
+    },
+    {
+      "model": "xop3qwen235b",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_QUOTA",
+      "reportedModel": null,
+      "latencyMs": 57
+    },
+    {
+      "model": "x1",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_MODEL",
+      "reportedModel": null,
+      "latencyMs": 147
+    },
+    {
+      "model": "generalv3.5",
+      "configured": true,
+      "connection": "error",
+      "errorCode": "PROVIDER_MODEL",
+      "reportedModel": null,
+      "latencyMs": 182
+    }
+  ],
+  "summary": {
+    "attempted": 5,
+    "connected": 0,
+    "errorCodes": {
+      "PROVIDER_QUOTA": 3,
+      "PROVIDER_MODEL": 2
+    }
+  }
+}

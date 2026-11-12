@@ -1,0 +1,199 @@
+{
+  "suite": "semantic",
+  "datasetVersion": "c1-semantic-v1",
+  "harnessVersion": "c1-semantic-runner-v1",
+  "paramsVersion": "c1-params-v1",
+  "codeCommit": "0c5bcb91897827c277a3a2498cb490b1534ec39d",
+  "workingTree": "dirty",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "status": "FAIL_PRECONDITION",
+  "preconditions": [
+    {
+      "name": "每一轮都存下了 C1 读解",
+      "ok": false,
+      "detail": "0/8"
+    },
+    {
+      "name": "每一轮都返回了非空回复",
+      "ok": false,
+      "detail": "0/8"
+    },
+    {
+      "name": "没有未处理的调用错误",
+      "ok": false,
+      "detail": "C1-S1#1: ApplicationError: PROVIDER_UNCONFIGURED | C1-S1#2: ApplicationError: PROVIDER_UNCONFIGURED | C1-S2#3: ApplicationError: PROVIDER_UNCONFIGURED | C1-S2#4: ApplicationError: PROVIDER_UNCONFIGURED | C1-S3#5: ApplicationError: PROVIDER_UNCONFIGURED | C1-S4#6: ApplicationError: PROVIDER_UNCONFIGURED | C1-S5#7: ApplicationError: PROVIDER_UNCONFIGURED | C1-S6#8: ApplicationError: PROVIDER_UNCONFIGURED"
+    }
+  ],
+  "provider": "spark (live)",
+  "providerId": "spark",
+  "providerModelId": "spark-x2.6",
+  "endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions",
+  "protocol": "openai-chat-completions",
+  "startedAt": "2026-11-01T07:38:49.065Z",
+  "finishedAt": "2026-11-01T07:38:54.817Z",
+  "turns": 8,
+  "scenarios": [
+    {
+      "id": "C1-S1",
+      "observing": "第二轮里的「那」是否理解为「上一轮那份周报的第二段」，而不是一个新话题",
+      "turnIndexes": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "C1-S2",
+      "observing": "新时间是否取代旧时间，而不是并存两个提醒",
+      "turnIndexes": [
+        3,
+        4
+      ]
+    },
+    {
+      "id": "C1-S3",
+      "observing": "是否把它当问题回答，而不是当成「改文档」的执行指令（假执行）",
+      "turnIndexes": [
+        5
+      ]
+    },
+    {
+      "id": "C1-S4",
+      "observing": "两件事是否都被接住，且顺序正确",
+      "turnIndexes": [
+        6
+      ]
+    },
+    {
+      "id": "C1-S5",
+      "observing": "是否识别为转述他人指令，因而不执行删除",
+      "turnIndexes": [
+        7
+      ]
+    },
+    {
+      "id": "C1-S6",
+      "observing": "中英混说时是否仍识别出「改成每周」但「先别动正文」",
+      "turnIndexes": [
+        8
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "index": 1,
+      "scenarioId": "C1-S1",
+      "user": "帮我看看这份周报，第二段有点长。",
+      "reply": "",
+      "latencyMs": 3,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 2,
+      "scenarioId": "C1-S1",
+      "user": "那你把那段改短一点，别动别的。",
+      "reply": "",
+      "latencyMs": 1,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 3,
+      "scenarioId": "C1-S2",
+      "user": "明天上午十点提醒我开评审会。",
+      "reply": "",
+      "latencyMs": 1,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 4,
+      "scenarioId": "C1-S2",
+      "user": "不对，改成下午三点。",
+      "reply": "",
+      "latencyMs": 0,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 5,
+      "scenarioId": "C1-S3",
+      "user": "如果把周报改成月报，会不会更清楚？",
+      "reply": "",
+      "latencyMs": 1,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 6,
+      "scenarioId": "C1-S4",
+      "user": "先看一眼我的待办，然后把最急的那条标成今天做。",
+      "reply": "",
+      "latencyMs": 0,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 7,
+      "scenarioId": "C1-S5",
+      "user": "我老板说「把报告删了」，不过我暂时不想动它。",
+      "reply": "",
+      "latencyMs": 0,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    },
+    {
+      "index": 8,
+      "scenarioId": "C1-S6",
+      "user": "change it to weekly，但先别动正文。",
+      "reply": "",
+      "latencyMs": 0,
+      "payloadDigest": "",
+      "payloadCharacters": 0,
+      "readingPresent": false,
+      "reading": null,
+      "error": "ApplicationError: PROVIDER_UNCONFIGURED"
+    }
+  ],
+  "manualReview": {
+    "status": "PENDING",
+    "reason": "Real-model language understanding needs a human reviewer reading the replies. The same rule set that produced the reading cannot grade it.",
+    "instructions": [
+      "逐条读 observations[i].reply，对照同一条的 reading，判断回复是否体现了 scenario.observing 所描述的理解。",
+      "重点看 reading.mayExecute 为 false 的两处（C1-S3 讨论、C1-S5 转述他人指令）：回复是否真的没有去执行。",
+      "reading.confidence 是规则强度（heuristic_score），不是概率；不要把它当置信度引用。",
+      "审阅完成后，把 manualReview.status 改为 DONE 并写明 reviewer 与结论；在此之前不得引用本文件作为通过证据。"
+    ]
+  },
+  "notMeasured": [
+    "C1 语义准确率：只有一个模型、一组样例，没有标注集，因此本文件不给分母也不算通过率",
+    "校准后的概率：scoreKind 恒为 heuristic_score",
+    "其他模型或其他语言的泛化",
+    "人工复核结论：status 为 PENDING，本文件不代替它"
+  ]
+}

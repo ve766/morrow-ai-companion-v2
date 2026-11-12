@@ -4,7 +4,7 @@ import type { AppInfo, GoalCreateRequest } from '../shared/contracts'
 import { IPC_CHANNELS } from '../shared/contracts'
 import { GOAL_DEFAULT_CONSTRAINTS, GOAL_SUCCESS_CRITERION, SUPPORTED_GOAL_INTENT } from '../motivation/goals'
 import { GoalService } from '../motivation/goal-service'
-import { createIpcHandlers, type CompanionActions, type IpcEventLike, type IpcHandler } from './ipc'
+import { createIpcHandlers, type CompanionActions, type ContinuityActions, type IpcEventLike, type IpcHandler } from './ipc'
 import { MemoryService } from '../memory/memory-service'
 import { SqliteDatabase } from '../persistence/database'
 import { SqliteGoalRepository } from '../persistence/goal-repository'
@@ -33,7 +33,8 @@ const validGoal: GoalCreateRequest = {
 function createHarness(
   service?: MemoryService,
   provider: { getAppInfo(): AppInfo } = { getAppInfo: () => appInfo },
-  companion?: CompanionActions
+  companion?: CompanionActions,
+  continuity?: ContinuityActions
 ) {
   const database = SqliteDatabase.open(':memory:')
   const memories = service ?? new MemoryService(
@@ -50,7 +51,7 @@ function createHarness(
   )
   const goals = new GoalService(goalRepository, memories, { reminderLifecycle: reminders })
   return {
-    handlers: createIpcHandlers(provider, trustedUrl, { memories, goals, reminders, ...(companion ? { companion } : {}) }),
+    handlers: createIpcHandlers(provider, trustedUrl, { memories, goals, reminders, ...(companion ? { companion } : {}), ...(continuity ? { continuity } : {}) }),
     reminders,
     close: () => {
       reminders.shutdown()
@@ -386,6 +387,92 @@ describe('main-frame IPC authorization and error boundary', () => {
       expect(JSON.stringify(result)).not.toContain('private')
     } finally {
       failingHarness.close()
+    }
+  })
+})
+
+describe('Phase 2.4 continuity surface', () => {
+  function continuityHarness() {
+    const completed: string[] = []
+    const actions: ContinuityActions = {
+      listPendingItems: () => [],
+      decidePendingItem: ({ itemId }) => {
+        completed.push(itemId)
+        return true
+      },
+      completePendingItem: ({ itemId }) => {
+        completed.push(itemId)
+        return true
+      },
+      readTurnContext: () => null
+    }
+    return { harness: createHarness(undefined, undefined, undefined, actions), completed }
+  }
+
+  it('lists open internal items for the trusted main frame', async () => {
+    const { harness } = continuityHarness()
+    try {
+      await expect(call(harness.handlers, IPC_CHANNELS.pendingItemsList, trustedEvent())).resolves.toEqual({ ok: true, data: [] })
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('routes a valid completion through the typed action', async () => {
+    const { harness, completed } = continuityHarness()
+    try {
+      const itemId = randomUUID()
+      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, trustedEvent(), { itemId })
+      expect(result).toEqual({ ok: true, data: true })
+      expect(completed).toEqual([itemId])
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('rejects an unknown field or a malformed id before calling the action', async () => {
+    const { harness, completed } = continuityHarness()
+    try {
+      const withExtra = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, trustedEvent(), { itemId: randomUUID(), status: 'done' })
+      expect(withExtra).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
+      const badId = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, trustedEvent(), { itemId: 'not-a-uuid' })
+      expect(badId).toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
+      expect(completed).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('reads a turn context by id and rejects a malformed one', async () => {
+    const { harness } = continuityHarness()
+    try {
+      await expect(call(harness.handlers, IPC_CHANNELS.turnContextRead, trustedEvent(), { turnId: randomUUID() })).resolves.toEqual({ ok: true, data: null })
+      await expect(call(harness.handlers, IPC_CHANNELS.turnContextRead, trustedEvent(), { turnId: '../../etc/passwd' }))
+        .resolves.toMatchObject({ ok: false, error: { code: 'INVALID_INPUT' } })
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('rejects an untrusted frame before it can complete an item', async () => {
+    const { harness, completed } = continuityHarness()
+    try {
+      const frame = { url: 'https://attacker.invalid/' }
+      const result = await call(harness.handlers, IPC_CHANNELS.pendingItemsComplete, { sender: { mainFrame: frame }, senderFrame: frame }, { itemId: randomUUID() })
+      expect(result).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+      expect(completed).toEqual([])
+    } finally {
+      harness.close()
+    }
+  })
+
+  it('does not register the channels when no continuity actions are wired', () => {
+    const harness = createHarness()
+    try {
+      expect(harness.handlers[IPC_CHANNELS.pendingItemsList]).toBeUndefined()
+      expect(harness.handlers[IPC_CHANNELS.turnContextRead]).toBeUndefined()
+    } finally {
+      harness.close()
     }
   })
 })

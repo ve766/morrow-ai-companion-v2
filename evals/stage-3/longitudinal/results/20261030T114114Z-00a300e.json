@@ -1,0 +1,150 @@
+{
+  "datasetVersion": "stage-3-v1",
+  "harnessVersion": "stage-3-longitudinal-v1",
+  "codeCommit": "00a300e5f8a3c03db0663470cbf712ebb8fb5e79",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.22.2"
+  },
+  "provider": "scripted-offline (not a model)",
+  "simulatedDays": 10,
+  "turnsPerDay": 3,
+  "clockNote": "The clock is real; a \"day\" is a block of three turns, not 24 hours. Wall-clock decay is asserted separately on the pure fold.",
+  "startedAt": "2026-10-30T11:41:14.500Z",
+  "finishedAt": "2026-10-30T11:41:19.325Z",
+  "dayLog": [
+    {
+      "day": 1,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 0,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 2,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 0,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 3,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 0.846,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 4,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 1.128,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 5,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 1.41,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 6,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 1.692,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 7,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 1.974,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 8,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 2.256,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 9,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 2.538,
+        "humor": 0
+      },
+      "raises": 0
+    },
+    {
+      "day": 10,
+      "turns": 3,
+      "offsets": {
+        "warmth": 0,
+        "directness": 2.82,
+        "humor": 0
+      },
+      "raises": 0
+    }
+  ],
+  "status": "PASS",
+  "assertions": [
+    {
+      "name": "十天后人格漂移仍在硬上限内",
+      "ok": true,
+      "detail": "warmth:0,directness:2.82,humor:0"
+    },
+    {
+      "name": "用户编辑的基线未被任何一天改写",
+      "ok": true,
+      "detail": "v1"
+    },
+    {
+      "name": "每日主动发起不超过上限",
+      "ok": true,
+      "detail": "1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0"
+    },
+    {
+      "name": "冷却期内不重复发起",
+      "ok": true,
+      "detail": "last24h=0"
+    },
+    {
+      "name": "一个半衰期前的证据只贡献约一半",
+      "ok": true,
+      "detail": "fresh=3 aged=1.5"
+    },
+    {
+      "name": "长期运行不产生未受控的状态增长",
+      "ok": true,
+      "detail": "warmth:0,directness:10,humor:0"
+    }
+  ]
+}

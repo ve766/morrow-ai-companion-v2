@@ -276,8 +276,121 @@ describe('versioned local SQLite storage', () => {
   })
 })
 
-describe('foreign implementation-line databases', () => {
-  it('fails closed without writing when migration names do not match this application', () => {
+describe('v18 reflection-summary privacy rewrite', () => {
+  it('rewrites a legacy reflection summary without deleting the row or its state', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v18-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      applyMigrations(connection, 17)
+      const id = '11111111-1111-4111-8111-111111111111'
+      const legacySummary = '以下关于自己的判断仍是未经确认的推断，等待用户澄清：「我对青霉素严重过敏」'
+      connection.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, ?, 'reflection', 'consistency_note', ?, 45, 'open', NULL, ?, ?, ?, NULL)
+      `).run(
+        id,
+        'reflection:consistency_note:0123456789abcdef',
+        legacySummary,
+        JSON.stringify({ runId: '22222222-2222-4222-8222-222222222222', statementDigest: '0123456789abcdef', extra: '我对青霉素严重过敏' }),
+        timestamp,
+        timestamp
+      )
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const row = connection.prepare('SELECT * FROM cognitive_pending_items WHERE id = ?').get(id) as Record<string, unknown>
+      // The row survives with its identity and workflow state intact.
+      expect(row.id).toBe(id)
+      expect(row.status).toBe('open')
+      expect(row.priority).toBe(45)
+      expect(row.created_at).toBe(timestamp)
+      expect(row.dedupe_key).toBe('reflection:consistency_note:0123456789abcdef')
+      // The quoted text is gone from both columns that could carry it.
+      const serialized = JSON.stringify(row)
+      expect(serialized).not.toContain('青霉素')
+      expect(row.summary).toBe('反思发现存在尚未确认的自我判断，等待用户澄清。')
+      expect(JSON.parse(String(row.detail_json))).toEqual({
+        runId: '22222222-2222-4222-8222-222222222222',
+        statementDigest: '0123456789abcdef',
+        summaryPolicy: 'category_template_v1'
+      })
+      // Exactly one row: the rewrite is an update, not a delete-and-insert.
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM cognitive_pending_items').get()).toEqual({ count: 1 })
+    } finally {
+      connection.close()
+    }
+  })
+
+  it('leaves non-reflection items untouched', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v18-conflict-'))
+    const connection = new DatabaseSync(join(directory, 'morrow.sqlite3'))
+    try {
+      applyMigrations(connection, 17)
+      const id = '33333333-3333-4333-8333-333333333333'
+      const summary = '已保存的记录在「residence」上互相矛盾，尚未确认哪一条是当前状态。'
+      connection.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, 'conflict:residence:a,b', 'conflict', 'conflict_residence', ?, 70, 'open', NULL, '{}', ?, ?, NULL)
+      `).run(id, summary, timestamp, timestamp)
+
+      applyMigrations(connection)
+
+      const row = connection.prepare('SELECT summary FROM cognitive_pending_items WHERE id = ?').get(id) as { summary: string }
+      expect(row.summary).toBe(summary)
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('derived-data deletion boundaries', () => {
+  it('deletes source-linked self-model and interest rows plus conversation-scoped continuity records', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-derived-delete-'))
+    const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+    const db = database.connection
+    const conversationId = '11111111-1111-4111-8111-111111111111'
+    const messageId = '22222222-2222-4222-8222-222222222222'
+    const turnId = '33333333-3333-4333-8333-333333333333'
+    const assistantId = '44444444-4444-4444-8444-444444444444'
+    const selfModelId = '55555555-5555-4555-8555-555555555555'
+    const interestId = '66666666-6666-4666-8666-666666666666'
+    const pendingId = '77777777-7777-4777-8777-777777777777'
+
+    try {
+      db.prepare('INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+        .run(conversationId, 'delete me', timestamp, timestamp)
+      db.prepare('INSERT INTO messages(id, conversation_id, role, body, created_at, sequence, turn_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(messageId, conversationId, 'user', 'I like coffee.', timestamp, 1, turnId)
+      db.prepare(`
+        INSERT INTO self_model_entries(id, kind, statement, status, confidence, source_message_id, conversation_id, superseded_by, created_at, updated_at)
+        VALUES (?, 'fact', 'I like coffee.', 'active', 55, ?, ?, NULL, ?, ?)
+      `).run(selfModelId, messageId, conversationId, timestamp, timestamp)
+      db.prepare(`
+        INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json)
+        VALUES (?, 'coffee', 'candidate', 1, 1, 0.2, 40, ?, ?, ?, ?, ?, '[]')
+      `).run(interestId, messageId, conversationId, timestamp, timestamp, timestamp)
+      db.prepare('INSERT INTO cognitive_turn_contexts(turn_id, conversation_id, status, recorded_at, payload_json) VALUES (?, ?, ?, ?, ?)')
+        .run(turnId, conversationId, 'succeeded', timestamp, '{}')
+      db.prepare(`
+        INSERT INTO cognitive_pending_items(id, dedupe_key, source, kind, summary, priority, status, conversation_id, detail_json, created_at, updated_at, completed_at)
+        VALUES (?, 'interest:coffee', 'interest', 'interest_candidate', 'Candidate interest', 20, 'open', ?, '{}', ?, ?, NULL)
+      `).run(pendingId, conversationId, timestamp, timestamp)
+      db.prepare('INSERT INTO cognitive_turn_finalizations(turn_id, conversation_id, user_message_id, assistant_message_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(turnId, conversationId, messageId, assistantId, '{}', timestamp)
+
+      db.prepare('DELETE FROM conversations WHERE id = ?').run(conversationId)
+
+      for (const table of ['messages', 'self_model_entries', 'interests', 'cognitive_turn_contexts', 'cognitive_pending_items', 'cognitive_turn_finalizations']) {
+        expect(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0 })
+      }
+    } finally {
+      database.close()
+    }
+  })
+})
+
+describe('foreign implementation-line databases', () => {  it('fails closed without writing when migration names do not match this application', () => {
     const directory = mkdtempSync(join(tmpdir(), 'morrow-foreign-schema-'))
     try {
       const path = join(directory, 'morrow.sqlite3')
@@ -306,6 +419,126 @@ describe('foreign implementation-line databases', () => {
       expect(columns).toEqual(['id', 'kind', 'claim'])
     } finally {
       rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    }
+  })
+})
+
+describe('v25 memory-backed interest evidence', () => {
+  it('upgrades a v24 ledger without losing rows and invalidates on retract afterwards', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v25-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      // Build a v24 database, then write one memory-backed evidence row that the
+      // upgrade must keep (it predates the revision column).
+      expect(applyMigrations(connection, 24)).toBe(24)
+      connection.prepare(
+        'INSERT INTO conversations(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)'
+      ).run('11111111-1111-4111-8111-111111111111', 'topic', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z')
+      connection.prepare(
+        'INSERT INTO memories(id, original_text, current_text, source_category, status, created_at, updated_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('44444444-4444-4444-8444-444444444444', '我在学咖啡拉花。', '我在学咖啡拉花。', 'user_explicit_input', 'active', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', 1)
+      connection.prepare(
+        'INSERT INTO interests(id, label, status, evidence_count, conversation_count, strength, confidence, source_message_id, conversation_id, first_seen_at, last_seen_at, updated_at, terms_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('55555555-5555-4555-8555-555555555555', '咖啡拉花', 'candidate', 1, 1, 0.5, 40, '44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', '2026-10-29T09:00:00.000Z', '[]')
+      connection.prepare(
+        'INSERT INTO interest_evidence(interest_id, evidence_ref, evidence_kind, conversation_id, polarity, match_score, match_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run('55555555-5555-4555-8555-555555555555', '44444444-4444-4444-8444-444444444444', 'memory', '11111111-1111-4111-8111-111111111111', 'support', 0.9, 'same_topic', '2026-10-29T09:00:00.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      // The upgrade keeps the row and marks the revision as unknown (NULL).
+      const kept = connection.prepare('SELECT evidence_ref, evidence_revision FROM interest_evidence').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ evidence_ref: '44444444-4444-4444-8444-444444444444', evidence_revision: null })
+
+      // Retracting the memory now clears it, which the v24 schema did not do.
+      connection.prepare('UPDATE memories SET status = ?, updated_at = ? WHERE id = ?')
+        .run('retracted', '2026-10-29T10:00:00.000Z', '44444444-4444-4444-8444-444444444444')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM interest_evidence').get()).toEqual({ count: 0 })
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('v26 reflection finding kinds', () => {
+  it('keeps existing findings when the kind constraint is widened', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v26-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 25)).toBe(25)
+      connection.prepare('INSERT INTO reflection_runs(id, trigger_kind, started_at, finished_at, examined_turns, examined_events, findings_count, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run('66666666-6666-4666-8666-666666666666', 'manual', '2026-10-30T00:00:00.000Z', '2026-10-30T00:00:01.000Z', 1, 2, 1, 'completed')
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('77777777-7777-4777-8777-777777777777', '66666666-6666-4666-8666-666666666666', 'memory_gap', 'existing finding', 50, '[]', '2026-10-30T00:00:01.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      const kept = connection.prepare('SELECT kind, statement FROM reflection_findings').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ kind: 'memory_gap', statement: 'existing finding' })
+      // The widened constraint accepts the two new kinds…
+      connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('88888888-8888-4888-8888-888888888888', '66666666-6666-4666-8666-666666666666', 'intent_correction', 'new kind', 60, '[]', '2026-10-30T00:00:02.000Z')
+      expect(connection.prepare('SELECT COUNT(*) AS count FROM reflection_findings').get()).toEqual({ count: 2 })
+      // …and still rejects anything outside the enumeration.
+      expect(() => connection.prepare('INSERT INTO reflection_findings(id, run_id, kind, statement, confidence, evidence_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('99999999-9999-4999-8999-999999999999', '66666666-6666-4666-8666-666666666666', 'made_up_kind', 'x', 60, '[]', '2026-10-30T00:00:03.000Z')).toThrow()
+    } finally {
+      connection.close()
+    }
+  })
+})
+
+describe('v39 exploration states and finding routing', () => {
+  it('drops the unreachable user_rejected state, keeps rows, and adds the routing tables', () => {
+    directory = mkdtempSync(join(tmpdir(), 'morrow-v39-'))
+    const path = join(directory, 'morrow.sqlite3')
+    const connection = new DatabaseSync(path)
+    try {
+      connection.exec('PRAGMA foreign_keys = ON')
+      expect(applyMigrations(connection, 38)).toBe(38)
+      // A state the production writer could reach before the upgrade.
+      connection.prepare(
+        "INSERT INTO exploration_events(id, turn_id, interest_id, state, reason, created_at) VALUES (?, ?, ?, 'actually_raised', ?, ?)"
+      ).run('77777777-7777-4777-8777-777777777777', '88888888-8888-4888-8888-888888888888', '99999999-9999-4999-8999-999999999999', 'reply mentioned the topic', '2026-10-31T00:00:00.000Z')
+
+      expect(applyMigrations(connection)).toBe(CURRENT_SCHEMA_VERSION)
+
+      // The upgrade keeps the row and the new CHECK refuses the dead state:
+      // no production writer ever set it, so honest removal costs nothing.
+      const kept = connection.prepare('SELECT id, state FROM exploration_events').all()
+      expect(kept).toHaveLength(1)
+      expect(kept[0]).toMatchObject({ id: '77777777-7777-4777-8777-777777777777', state: 'actually_raised' })
+      expect(() => connection.prepare(
+        "INSERT INTO exploration_events(id, turn_id, interest_id, state, reason, created_at) VALUES (?, ?, ?, 'user_rejected', ?, ?)"
+      ).run('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dead state', '2026-10-31T00:01:00.000Z')).toThrow()
+
+      // Routing table: routes and statuses are closed sets.
+      expect(() => connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'context_hint', 'routed', 'hint for next turn', ?, 'memory_gap', ?, ?)"
+      ).run('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-10-31T00:02:00.000Z', '2026-10-31T00:02:00.000Z')).toThrow()
+      // The FK is real: a route row needs its finding row.
+      expect(() => connection.prepare(
+        "INSERT INTO reflection_finding_routes(finding_id, route, status, reason, run_id, kind, created_at, updated_at) VALUES (?, 'audit_only', 'routed', 'consumed by the interest effect', ?, 'interest_candidate', ?, ?)"
+      ).run('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-10-31T00:02:00.000Z', '2026-10-31T00:02:00.000Z')).toThrow()
+
+      // Maintenance state: exactly one row, closed status set.
+      connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (1, ?, 'ok', 12)"
+      ).run('2026-10-31T00:03:00.000Z')
+      expect(() => connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (2, ?, 'ok', 12)"
+      ).run('2026-10-31T00:03:00.000Z')).toThrow()
+      expect(() => connection.prepare(
+        "INSERT INTO memory_maintenance_state(singleton, last_run_at, last_status, last_duration_ms) VALUES (1, ?, 'skipped', 12)"
+      ).run('2026-10-31T00:04:00.000Z')).toThrow()
+    } finally {
+      connection.close()
     }
   })
 })

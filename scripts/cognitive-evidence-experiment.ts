@@ -1,0 +1,366 @@
+/**
+ * Phase 2.2 — evidence-to-answer experiment.
+ *
+ * The question is not "can the prompt be improved" but "where does the chain
+ * break: in the request we assemble, in the instruction we give, or in the
+ * model itself". Four conditions share the same model, questions, evidence and
+ * generation parameters; only one factor changes between adjacent conditions:
+ *
+ *   A  production format            JSON evidence block + v2 guidance
+ *   B  concise fact entries         same guidance, entries instead of JSON
+ *   C  entries + explicit reading   v3 guidance: negation, time, unknown
+ *   D  entries + conflict protocol  v4 guidance: list both values, ask which
+ *
+ * Every run records the final serialized request (roles, order, lengths), the
+ * evidence block, the reply, the automatic assessment and the reference check,
+ * so a human can re-label it without re-running anything.
+ *
+ * Run (see docs/reports/cognitive-loop-v1-phase2-2.md):
+ *   node_modules/.bin/esbuild scripts/cognitive-evidence-experiment.ts \
+ *     --bundle --platform=node --format=cjs --alias:electron=<stub> \
+ *     --outfile=/tmp/phase22.cjs
+ *   NO_PROXY=127.0.0.1,localhost MORROW_PHASE2_ENDPOINT=... \
+ *     MORROW_PHASE2_MODEL=qwen2.5:0.5b MORROW_EVIDENCE_CONDITION=A node /tmp/phase22.cjs
+ */
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { CompanionService } from '../src/app/companion-service'
+import type { EvidenceGuidanceVariant } from '../src/app/companion-service'
+import { ConversationService } from '../src/conversation/conversation-service'
+import { MemoryService } from '../src/memory/memory-service'
+import { SqliteDatabase } from '../src/persistence/database'
+import { SqliteConversationRepository } from '../src/persistence/conversation-repository'
+import { SqliteMemoryRepository } from '../src/persistence/memory-repository'
+import { MemorySecretStore } from '../src/security/secrets'
+import { OpenAICompatibleProvider } from '../src/providers/openai-compatible'
+import { LOCAL_PROVIDER_ID, SPARK_MAAS_BASE_URL, SPARK_PROVIDER_ID } from '../src/shared/companion'
+import { ApplicationError } from '../src/shared/errors'
+import type { ProviderConsentPreview } from '../src/providers/provider-policy'
+import type { TurnEvaluation } from '../src/cognition/turn-evaluation'
+import type { EvidencePresentation } from '../src/memory/memory-context-assembler'
+import { RequestLedger } from '../src/evaluation/request-ledger'
+import { validateReportIntegrity } from '../src/evaluation/report-integrity'
+import { captureProvenance, reconcileProvenance } from '../src/evaluation/code-provenance'
+
+const providerKind = (process.env.MORROW_EVIDENCE_PROVIDER ?? 'local').toLowerCase()
+const sparkApiKey = process.env.MORROW_SPARK_API_KEY ?? ''
+const sparkModel = process.env.MORROW_SPARK_MODEL ?? 'xdeepseekv3'
+const endpoint = process.env.MORROW_PHASE2_ENDPOINT ?? ''
+const model = providerKind === 'spark' ? sparkModel : process.env.MORROW_PHASE2_MODEL ?? ''
+if (providerKind === 'spark' && sparkApiKey.length === 0) throw new Error('MORROW_SPARK_API_KEY is required when MORROW_EVIDENCE_PROVIDER=spark.')
+if (providerKind !== 'spark' && providerKind !== 'local') throw new Error('MORROW_EVIDENCE_PROVIDER must be local or spark.')
+const conditionId = (process.env.MORROW_EVIDENCE_CONDITION ?? 'A').toUpperCase()
+const repeats = Number(process.env.MORROW_EVIDENCE_REPEATS ?? '5')
+if (providerKind === 'local' && (!endpoint || !model)) throw new Error('MORROW_PHASE2_ENDPOINT and MORROW_PHASE2_MODEL are required for the local provider.')
+
+interface Condition {
+  id: 'A' | 'B' | 'C' | 'D'
+  presentation: EvidencePresentation
+  variant: EvidenceGuidanceVariant
+  description: string
+}
+
+const CONDITIONS: Record<Condition['id'], Condition> = {
+  A: { id: 'A', presentation: 'json', variant: 'v2', description: 'production: JSON evidence block + v2 guidance' },
+  B: { id: 'B', presentation: 'entries', variant: 'v2', description: 'same guidance, evidence as concise fact entries' },
+  C: { id: 'C', presentation: 'entries', variant: 'v3', description: 'entries + explicit negation/time/unknown reading rules' },
+  D: { id: 'D', presentation: 'entries', variant: 'v4', description: 'entries + conflict protocol: both values, ask which is current' }
+}
+
+const condition = CONDITIONS[conditionId as Condition['id']]
+if (!condition) throw new Error('MORROW_EVIDENCE_CONDITION must be A, B, C or D.')
+
+import { EVIDENCE_SCENARIOS as SCENARIOS, type EvidenceScenario as Scenario, type EvidenceScenarioId as ScenarioId } from '../src/evaluation/evidence-scenarios'
+
+const ledger = new RequestLedger()
+let activeRunId = ''
+let activeScenario = ''
+
+function buildStack(): { companion: CompanionService; memories: MemoryService; payload: () => string; cleanup: () => void; lastEvaluation: () => TurnEvaluation | null } {
+  const directory = mkdtempSync(join(tmpdir(), 'morrow-phase22-'))
+  const database = SqliteDatabase.open(join(directory, 'morrow.sqlite3'))
+  const memories = new MemoryService(new SqliteMemoryRepository(database))
+  const conversations = new ConversationService(new SqliteConversationRepository(database))
+  const secrets = new MemorySecretStore()
+  let lastPayload = ''
+  const evaluations: TurnEvaluation[] = []
+  const companion = new CompanionService({
+    database,
+    memories,
+    conversations,
+    secrets,
+    guidanceVariant: condition.variant,
+    evidencePresentation: condition.presentation,
+    ledger: (evaluation) => evaluations.push(evaluation),
+    authorize: async (preview: ProviderConsentPreview) => {
+      lastPayload = preview.exactPayload
+      const approvedAt = new Date()
+      return {
+        providerId: preview.providerId,
+        payloadSha256: preview.payloadSha256,
+        approvedAt: approvedAt.toISOString(),
+        expiresAt: new Date(approvedAt.getTime() + 60_000).toISOString(),
+        includeSensitive: preview.maximumSensitivity === 'sensitive'
+      }
+    },
+    providerFactory: (config) => {
+      const real = new OpenAICompatibleProvider(config, secrets)
+      return {
+        profile: real.profile,
+        generate: async (input, onDelta) => {
+          const record = ledger.begin()
+          try {
+            const output = await real.generate(input, onDelta)
+            ledger.finish(record, 'succeeded')
+            return output
+          } catch (error) {
+            const code = error instanceof ApplicationError ? error.code : 'PROVIDER_ERROR'
+            ledger.finish(record, code === 'PROVIDER_CANCELLED' ? 'cancelled' : 'failed', code)
+            throw error
+          }
+        }
+      }
+    }
+  })
+  if (providerKind === 'spark') {
+    // The key is stored through the app's secret store; it is never written to
+    // the report or the console.
+    companion.saveProvider({ providerId: SPARK_PROVIDER_ID, model, enabled: true, apiKey: sparkApiKey })
+  } else {
+    companion.saveProvider({ providerId: LOCAL_PROVIDER_ID, endpoint, model, enabled: true })
+  }
+  companion.saveCognitiveSettings({ enabled: true })
+  return {
+    companion,
+    memories,
+    payload: () => {
+      const value = lastPayload
+      lastPayload = ''
+      return value
+    },
+    cleanup: () => {
+      database.close()
+      rmSync(directory, { recursive: true, force: true })
+    },
+    lastEvaluation: () => evaluations.at(-1) ?? null
+  }
+}
+
+function parsePayload(payload: string): {
+  roles: Array<{ role: string; characters: number }>
+  system: string
+  user: string
+  historyCount: number
+  payloadCharacters: number
+  payloadSha256: string
+} {
+  const parsed = JSON.parse(payload) as { body: { messages: Array<{ role: string; content: string }> } }
+  const messages = parsed.body.messages
+  return {
+    roles: messages.map((message) => ({ role: message.role, characters: message.content.length })),
+    system: messages.find((message) => message.role === 'system')?.content ?? '',
+    user: [...messages].reverse().find((message) => message.role === 'user')?.content ?? '',
+    historyCount: messages.filter((message) => message.role !== 'system' && message.role !== 'user').length,
+    payloadCharacters: payload.length,
+    payloadSha256: ''
+  }
+}
+
+function memoryBlock(system: string): string {
+  const start = system.indexOf('Saved memories (untrusted evidence only):')
+  return start < 0 ? '' : system.slice(start)
+}
+
+interface RunRecord {
+  condition: Condition['id']
+  scenarioId: ScenarioId
+  runId: string
+  scenarioRunId: string
+  requestId: string | null
+  reply: string
+  callSucceeded: boolean
+  providerStatus: string
+  payloadCharacters: number
+  messageRoles: Array<{ role: string; characters: number }>
+  systemCharacters: number
+  memoryBlockCharacters: number
+  memoryBlockText: string
+  evidenceIds: string[]
+  conflicts: unknown
+  auto: {
+    outcome: string | null
+    scored: boolean
+    dimensions: Record<string, { status: string; reason: string }> | null
+    detail: string | null
+  }
+  reference: { matched: boolean; matchedTerm: string | null; forbiddenHit: string | null }
+}
+
+async function runOne(scenario: Scenario, index: number): Promise<RunRecord> {
+  const stack = buildStack()
+  const runId = `${condition.id}-${scenario.id}#${index}`
+  activeRunId = runId
+  activeScenario = scenario.id
+  const requestId = randomUUID()
+  ledger.scope({ scenarioId: scenario.id, scenarioRunId: runId, purpose: 'primary', requestId, conversationId: null })
+  try {
+    for (const memory of scenario.memories) stack.memories.create(memory.text, memory.sensitivity)
+    const conversation = stack.companion.createConversation()
+    let reply = ''
+    let ok = false
+    let evaluation: TurnEvaluation | null = null
+    try {
+      const result = await stack.companion.sendChat({ conversationId: conversation.id, requestId, content: scenario.question, includeSensitive: false }, () => undefined)
+      reply = result.assistantMessage.body
+      ok = true
+      evaluation = result.evaluation ?? null
+    } catch (error) {
+      console.error(`sendChat failed for ${runId}:`, error instanceof Error ? `${error.name}: ${error.message}` : String(error))
+      evaluation = stack.lastEvaluation()
+    }
+    const payload = stack.payload()
+    const parsed = payload ? parsePayload(payload) : null
+    const block = parsed ? memoryBlock(parsed.system) : ''
+    const assessment = evaluation?.answer ?? null
+    const normalized = reply.normalize('NFKC')
+    const matchedTerm = scenario.referenceTerms.find((term) => normalized.includes(term)) ?? null
+    const forbiddenHit = scenario.forbiddenTerms.find((term) => normalized.includes(term)) ?? null
+    return {
+      condition: condition.id,
+      scenarioId: scenario.id,
+      runId,
+      scenarioRunId: runId,
+      requestId: ledger.records.some((record) => record.requestId === requestId) ? requestId : null,
+      reply,
+      callSucceeded: ok,
+      providerStatus: ledger.records.find((record) => record.requestId === requestId)?.status ?? 'not_attempted',
+      payloadCharacters: parsed?.payloadCharacters ?? 0,
+      messageRoles: parsed?.roles ?? [],
+      systemCharacters: parsed?.system.length ?? 0,
+      memoryBlockCharacters: block.length,
+      memoryBlockText: block.slice(0, 1500),
+      evidenceIds: assessment?.evidenceIds ?? [],
+      conflicts: assessment?.conflict ?? null,
+      auto: {
+        outcome: assessment?.outcome ?? null,
+        scored: assessment?.scored ?? false,
+        dimensions: (assessment?.dimensions ?? null) as unknown as Record<string, { status: string; reason: string }> | null,
+        detail: assessment?.detail ?? null
+      },
+      reference: { matched: matchedTerm !== null, matchedTerm, forbiddenHit }
+    }
+  } finally {
+    stack.cleanup()
+  }
+}
+
+async function main(): Promise<void> {
+  const start = captureProvenance()
+  const startedAt = new Date().toISOString()
+  const runs: RunRecord[] = []
+  for (const scenario of SCENARIOS) {
+    for (let index = 0; index < repeats; index += 1) {
+      const record = await runOne(scenario, index)
+      runs.push(record)
+      console.log(`${record.runId}: ${record.auto.outcome ?? 'no_evaluation'} ${record.providerStatus}`)
+    }
+  }
+  const requests = ledger.records
+  const end = captureProvenance()
+  const provenance = reconcileProvenance(start, end, new Date().toISOString())
+
+  const byScenario = Object.fromEntries(SCENARIOS.map((scenario) => {
+    const items = runs.filter((run) => run.scenarioId === scenario.id)
+    const outcomes: Record<string, number> = {}
+    for (const run of items) {
+      const key = run.auto.outcome ?? 'no_evaluation'
+      outcomes[key] = (outcomes[key] ?? 0) + 1
+    }
+    return [scenario.id, {
+      runs: items.length,
+      referenceMatched: items.filter((run) => run.reference.matched).length,
+      forbiddenHit: items.filter((run) => run.reference.forbiddenHit).length,
+      autoScored: items.filter((run) => run.auto.scored).length,
+      usedCorrectly: items.filter((run) => run.auto.outcome === 'used_correctly').length,
+      deliveredNotUsed: items.filter((run) => run.auto.outcome === 'delivered_not_used').length,
+      reasonableUnknown: items.filter((run) => run.auto.outcome === 'reasonable_unknown').length,
+      unsupported: items.filter((run) => run.auto.outcome === 'unsupported_answer').length,
+      wrongOrStale: items.filter((run) => run.auto.outcome === 'used_wrong_or_stale').length,
+      notScorable: items.filter((run) => run.auto.outcome === 'not_scorable').length,
+      outcomes
+    }]
+  }))
+
+  const report = {
+    schemaVersion: 1,
+    runId: `${new Date().toISOString().replace(/[:.]/gu, '-')}-${randomUUID().slice(0, 6)}`,
+    startedAt,
+    generatedAt: new Date().toISOString(),
+    condition,
+    model: {
+      provider: providerKind === 'spark' ? 'iflytek-spark-maas' : 'local-ollama',
+      name: model,
+      // Only the endpoint origin is recorded; it carries no credential.
+      endpoint: providerKind === 'spark' ? SPARK_MAAS_BASE_URL : endpoint,
+      protocol: 'OpenAI Chat Completions',
+      parameters: {
+        // The payload builder sends model, messages, max_tokens, stream and
+        // (for DeepSeek) thinking. temperature is NOT sent: it stays at the
+        // provider default and is recorded as such rather than claimed as fixed.
+        temperature: 'not sent (provider default)',
+        // The chat payload builder sends a fixed 2048-token budget and stream=true.
+        maxTokens: 2048,
+        stream: true
+      }
+    },
+    provenance,
+    repeats,
+    counts: {
+      scenarioClasses: SCENARIOS.length,
+      scenarioRuns: runs.length,
+      providerRequestsAttempted: requests.length,
+      providerRequestsSucceeded: requests.filter((record) => record.status === 'succeeded').length,
+      providerRequestsFailed: requests.filter((record) => record.status === 'failed').length,
+      providerRequestsCancelled: requests.filter((record) => record.status === 'cancelled').length,
+      primaryAnswerRequests: requests.length,
+      auxiliaryProbeRequests: 0,
+      setupRequests: 0
+    },
+    byScenario,
+    requests,
+    runs
+  }
+
+  const integrity = validateReportIntegrity({
+    counts: report.counts,
+    requests,
+    runs: runs.map((run) => ({
+      runId: run.runId,
+      scenarioId: run.scenarioId,
+      scenarioRunId: run.scenarioRunId,
+      primaryRequestId: run.requestId,
+      probeRequestIds: [],
+      setupRequestIds: [],
+      callSucceeded: run.callSucceeded
+    }))
+  })
+
+  const outputPrefix = process.env.MORROW_EVIDENCE_OUTPUT ?? 'phase22'
+  const outputPath = join(process.cwd(), 'evaluation', 'reports', `${outputPrefix}-${condition.id}-${report.runId}.json`)
+  mkdirSync(join(process.cwd(), 'evaluation', 'reports'), { recursive: true })
+  writeFileSync(outputPath, JSON.stringify({ ...report, integrity }, null, 2), 'utf8')
+  console.log(JSON.stringify({
+    condition: condition.id,
+    runId: report.runId,
+    counts: report.counts,
+    integrity: { ok: integrity.ok, failures: integrity.failures },
+    reproducible: provenance.reproducible,
+    byScenario,
+    report: outputPath
+  }))
+  if (!integrity.ok) process.exitCode = 1
+}
+
+void main()

@@ -1,0 +1,173 @@
+{
+  "suite": "live",
+  "datasetVersion": "stage-4a-cat-name-v2",
+  "harnessVersion": "stage-4a-live-v2",
+  "codeCommit": "2f95680d8704501b4b4c0a6c9fe871caf47653dc",
+  "branch": "feat/stage-4a-companion-continuity",
+  "command": "npm run eval:stage4a:live",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "status": "AWAITING_MANUAL_REVIEW",
+  "provider": "spark (live)",
+  "providerId": "spark",
+  "providerModelId": "spark-x2.6",
+  "protocol": "openai-chat-completions",
+  "startedAt": "2026-11-01T14:18:34.291Z",
+  "finishedAt": "2026-11-01T14:20:45.740Z",
+  "counts": {
+    "checks": 11,
+    "automatedPass": 9,
+    "automatedFail": 2
+  },
+  "separationNote": "数据库事实状态、请求证据注入、模型语义理解是三个独立指标；自动检查覆盖前两项与回复的显式关系表达，语义质量由真人判定。",
+  "factState": {
+    "current": [
+      "豆豆"
+    ],
+    "history": [
+      {
+        "value": "豆豆",
+        "status": "active",
+        "messageId": "343ee15f-a731-4dd3-8cf9-819f54c0f1af"
+      },
+      {
+        "value": "咪咪",
+        "status": "superseded",
+        "messageId": "8650f701-c8c4-45f7-b5e7-6ec7ad95120b"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "A-op",
+      "name": "回复前已提交 create 并验证",
+      "ok": true,
+      "detail": "Memory operation for this turn (authoritative; produced by the application before this reply): - operation=create predicate=pet_name status=committed_and_verified current_value=咪咪 memory_revision=1 Sa"
+    },
+    {
+      "id": "B-recall",
+      "name": "新会话证据含咪咪",
+      "ok": true,
+      "detail": "我的猫叫咪咪。"
+    },
+    {
+      "id": "C-op",
+      "name": "回复前已提交 correct 并验证（含旧值/新值）",
+      "ok": true,
+      "detail": "Memory operation for this turn (authoritative; produced by the application before this reply): - operation=correct predicate=pet_name status=committed_and_verified previous_value=咪咪 current_value=豆豆 memory_revision=2 Say"
+    },
+    {
+      "id": "C-new",
+      "name": "回复识别新值豆豆",
+      "ok": true,
+      "detail": "已更新完成。之前叫咪咪，现在叫豆豆——宠物名记录已改为「豆豆」，这是最新的一条，不会再用旧名字了。"
+    },
+    {
+      "id": "C-no-deny",
+      "name": "回复未否认/未索要已有旧记录",
+      "ok": true,
+      "detail": "已更新完成。之前叫咪咪，现在叫豆豆——宠物名记录已改为「豆豆」，这是最新的一条，不会再用旧名字了。"
+    },
+    {
+      "id": "C-relation",
+      "name": "回复表达旧值→新值的关系",
+      "ok": true,
+      "detail": "已更新完成。之前叫咪咪，现在叫豆豆——宠物名记录已改为「豆豆」，这是最新的一条，不会再用旧名字了。"
+    },
+    {
+      "id": "D-current",
+      "name": "新会话当前值=豆豆且不含旧值",
+      "ok": true,
+      "detail": "我的猫叫豆豆。"
+    },
+    {
+      "id": "E-history",
+      "name": "历史问句可说明旧值(咪咪)且不作为当前",
+      "ok": false,
+      "detail": "你指的“它”是什么？"
+    },
+    {
+      "id": "X1-clarify",
+      "name": "多候选代词→clarify，不写入",
+      "ok": false,
+      "detail": "[\"豆豆\"]"
+    },
+    {
+      "id": "X3-create",
+      "name": "显式保存产生唯一当前事实",
+      "ok": true,
+      "detail": "[\"杭州\"]"
+    },
+    {
+      "id": "X3-replay",
+      "name": "重复同一句话不产生第二条事实",
+      "ok": true,
+      "detail": "1 active; block="
+    }
+  ],
+  "transcript": [
+    {
+      "session": "A",
+      "user": "我有一只猫，它叫咪咪。帮我记住。",
+      "reply": "已经帮你记住了：你的猫叫咪咪，这条信息已保存到我这里，之后你提到它时我就不会再问了。",
+      "payloadDigest": "e3e9455ccd0c8dc4",
+      "evidence": [
+        "我的猫叫咪咪。"
+      ],
+      "operationBlock": "Memory operation for this turn (authoritative; produced by the application before this reply):\n- operation=create predicate=pet_name status=committed_and_verified current_value=咪咪 memory_revision=1\nSay that it has been stored/updated, and when previous_value i"
+    },
+    {
+      "session": "B",
+      "user": "你还记得我的猫叫什么吗？",
+      "reply": "记得，你的猫叫咪咪。",
+      "payloadDigest": "58a8ba264acb2bfd",
+      "evidence": [
+        "我的猫叫咪咪。"
+      ],
+      "operationBlock": ""
+    },
+    {
+      "session": "C",
+      "user": "我说错了，它现在叫豆豆。帮我更新。",
+      "reply": "已更新完成。之前叫咪咪，现在叫豆豆——宠物名记录已改为「豆豆」，这是最新的一条，不会再用旧名字了。",
+      "payloadDigest": "cddeeee9da58f3a2",
+      "evidence": [
+        "我的猫叫豆豆。"
+      ],
+      "operationBlock": "Memory operation for this turn (authoritative; produced by the application before this reply):\n- operation=correct predicate=pet_name status=committed_and_verified previous_value=咪咪 current_value=豆豆 memory_revision=2\nSay that it has been stored/updated, and wh"
+    },
+    {
+      "session": "D",
+      "user": "我的猫现在叫什么？",
+      "reply": "你的猫叫豆豆。",
+      "payloadDigest": "1f60d8fce9239082",
+      "evidence": [
+        "我的猫叫豆豆。"
+      ],
+      "operationBlock": ""
+    },
+    {
+      "session": "E",
+      "user": "它之前叫什么？",
+      "reply": "你指的“它”是什么？",
+      "payloadDigest": "0c54b25fdfbc5535",
+      "evidence": [],
+      "operationBlock": ""
+    },
+    {
+      "session": "X1",
+      "user": "两只宠物时说：它现在叫豆豆",
+      "reply": "更新好了——猫的名字现在是**豆豆**，之前记的是**小黑**，这次已经替换为豆豆。\n\n顺带说明：上一轮我提到旧名是\"咪咪\"，那是把更早的记录和这次的混在一起说了，准确的说法是——按这次的更新，上一个值是小黑，现在是豆豆。",
+      "payloadDigest": "0c54b25fdfbc5535",
+      "evidence": [],
+      "operationBlock": ""
+    }
+  ],
+  "manualReview": {
+    "status": "PENDING",
+    "note": "五条以上转写由用户亲自判断；AI 不代签。"
+  }
+}

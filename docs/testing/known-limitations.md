@@ -2,6 +2,25 @@
 
 诚实清单：以下是本阶段**未完成、未验证或有意简化**的事项。任何未列出的能力不应被假定存在。
 
+## 最终产品 RC（2026-11-02，release/morrow-v2-final-delivery）
+
+同一清单的当前状态；旧条目保留，发生变化处就地标注“更新”。
+
+| 项 | 当前状态 | 影响 / 绕过 |
+|---|---|---|
+| 真人自然度盲评 | **PENDING_HUMAN** | Stage 5 A–J 样本；不得声称自然度 PASS |
+| 第二真实 Provider | **NOT_RUN** | 无合法凭据；同库重建（S12/P09）不替代真实切换 |
+| Windows 安装包 | **已生成**：`release/Morrow-Setup-2.0.0-x64.exe`（111,751,536 B；SHA-256 `b753df7c…8998`） | 旧条目 2 的“未构建”已被本条更新 |
+| 真机安装/升级 | **PENDING_HUMAN** | 本机无人值守安装挂起（需 GUI/人工）；安装包与哈希已给出 |
+| 本机 Electron smoke | **BLOCKED**（`0xC0000005`，宿主） | CI Ubuntu/Windows 真实应用 smoke 通过（旧条目 13 的“CI 未跑”已被多次 run 更新） |
+| DeepSeek 真实 Key | 仍 **未验证**（条目 1 保留） | 真实验收使用 spark-x2.6；DeepSeek 通道由注入 fetch 测试覆盖 |
+| 反思路由 `open_question` | P2 | domain/DB 支持，registry 缺；不阻断 RC |
+| pending 决策状态 | P2 | accepted→done、rejected/dismissed→dropped；route 行不写终态 |
+| Spark UI | P2 | `getProvider()` 不返回 spark；DeepSeek/本地可用 |
+| 兴趣时间跨度 | P2 | 现有门槛 3 证据/2 会话；加 24h 跨度会改变既有阶段证据 |
+| 归档记忆重述 | P2 | 重述不会恢复召回；产品语义待定 |
+| 语义嵌入检索 | P3 | 四通道 RRF（词法/槽位/值/事实），无语义 embedding |
+
 ## 阻塞类（环境原因）
 
 1. **DeepSeek 真实 Key 端到端未验证**：执行环境没有 DeepSeek API Key，且任务禁止伪造凭据或擅自产生付费调用。云端协议实现（SSE 流式、Bearer、错误码映射、重定向拒绝）由注入 fetch 的测试覆盖；真实调用需持 Key 用户按 README 执行一次。影响：不阻塞运行（本地 Provider 通道完整可用）；属验收门槛中明确允许标记"受环境阻塞"的项。

@@ -1,0 +1,556 @@
+{
+  "suite": "semantic",
+  "datasetVersion": "c1-semantic-v1",
+  "harnessVersion": "c1-semantic-runner-v1",
+  "paramsVersion": "c1-params-v1",
+  "codeCommit": "f7dffecbc2cee09918143108fb421d86e81c20af",
+  "workingTree": "clean",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.23.2"
+  },
+  "clock": "real",
+  "status": "AWAITING_MANUAL_REVIEW",
+  "preconditions": [
+    {
+      "name": "每一轮都存下了 C1 读解",
+      "ok": true,
+      "detail": "8/8"
+    },
+    {
+      "name": "每一轮都返回了非空回复",
+      "ok": true,
+      "detail": "8/8"
+    },
+    {
+      "name": "没有未处理的调用错误",
+      "ok": true,
+      "detail": "none"
+    }
+  ],
+  "provider": "spark (live)",
+  "providerId": "spark",
+  "providerModelId": "spark-x2.6",
+  "endpoint": "https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions",
+  "protocol": "openai-chat-completions",
+  "startedAt": "2026-11-01T07:49:20.380Z",
+  "finishedAt": "2026-11-01T07:55:55.496Z",
+  "turns": 8,
+  "scenarios": [
+    {
+      "id": "C1-S1",
+      "observing": "第二轮里的「那」是否理解为「上一轮那份周报的第二段」，而不是一个新话题",
+      "turnIndexes": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "C1-S2",
+      "observing": "新时间是否取代旧时间，而不是并存两个提醒",
+      "turnIndexes": [
+        3,
+        4
+      ]
+    },
+    {
+      "id": "C1-S3",
+      "observing": "是否把它当问题回答，而不是当成「改文档」的执行指令（假执行）",
+      "turnIndexes": [
+        5
+      ]
+    },
+    {
+      "id": "C1-S4",
+      "observing": "两件事是否都被接住，且顺序正确",
+      "turnIndexes": [
+        6
+      ]
+    },
+    {
+      "id": "C1-S5",
+      "observing": "是否识别为转述他人指令，因而不执行删除",
+      "turnIndexes": [
+        7
+      ]
+    },
+    {
+      "id": "C1-S6",
+      "observing": "中英混说时是否仍识别出「改成每周」但「先别动正文」",
+      "turnIndexes": [
+        8
+      ]
+    }
+  ],
+  "observations": [
+    {
+      "index": 1,
+      "scenarioId": "C1-S1",
+      "user": "帮我看看这份周报，第二段有点长。",
+      "reply": "请问这份周报是发给我看一下，还是有哪份文件/草稿需要我帮忙精简第二段？",
+      "latencyMs": 9592,
+      "payloadDigest": "63c8c53138b75212",
+      "payloadCharacters": 1984,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "request",
+        "secondaryIntents": [],
+        "intentStatus": "inferred",
+        "responseMode": "clarify",
+        "mayExecute": false,
+        "clarificationRequired": true,
+        "clarificationReason": "missing_target",
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 86,
+        "confidenceBand": "high",
+        "speechAct": {
+          "act": "request",
+          "surfaceAct": "request",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "target",
+            "value": "",
+            "status": "unknown",
+            "evidenceMessageId": null
+          }
+        ],
+        "context": {
+          "used": false,
+          "priorUser": false,
+          "priorAssistant": false,
+          "assistantOffer": "none",
+          "continuationTarget": "none",
+          "evidence": []
+        },
+        "decisionReasons": [
+          "imperative_request"
+        ],
+        "uncertainties": [
+          "missing_target"
+        ]
+      },
+      "error": null
+    },
+    {
+      "index": 2,
+      "scenarioId": "C1-S1",
+      "user": "那你把那段改短一点，别动别的。",
+      "reply": "我这边还没看到周报原文，也没有第二段的文本，所以暂时没法直接改。\n\n请把周报发我（粘贴全文/发文件），并指出“第二段”具体是哪一段。我会只改这一段：在不改变原意和关键信息的前提下把它改短；其他段落和标题不碰。",
+      "latencyMs": 13849,
+      "payloadDigest": "fcd8727cb7abae5c",
+      "payloadCharacters": 1795,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "request",
+        "secondaryIntents": [],
+        "intentStatus": "inferred",
+        "responseMode": "answer",
+        "mayExecute": true,
+        "clarificationRequired": false,
+        "clarificationReason": null,
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 86,
+        "confidenceBand": "high",
+        "speechAct": {
+          "act": "request",
+          "surfaceAct": "request",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "topic",
+            "value": "帮我看看这份周报，第二段有点长。",
+            "status": "inferred",
+            "evidenceMessageId": "1409f6d2-b11d-4024-ae44-4d1285961e5a"
+          }
+        ],
+        "context": {
+          "used": true,
+          "priorUser": true,
+          "priorAssistant": true,
+          "assistantOffer": "discuss",
+          "continuationTarget": "none",
+          "evidence": [
+            "prior_user_message",
+            "prior_assistant_message",
+            "assistant_asked_question",
+            "assistant_offered_discuss",
+            "antecedent_bound"
+          ]
+        },
+        "decisionReasons": [
+          "imperative_request"
+        ],
+        "uncertainties": [
+          "negation_scope"
+        ]
+      },
+      "error": null
+    },
+    {
+      "index": 3,
+      "scenarioId": "C1-S2",
+      "user": "明天上午十点提醒我开评审会。",
+      "reply": "抱歉，我没办法在明天上午十点主动给你推送提醒——我无法在后台定时触发通知，只能当你来找我时才回应。\n\n我可以帮你做两件事：\n\n1. **帮你写一条提醒文案**，方便你直接复制到手机闹钟或日历里，比如：\n   > ⏰ 10:00 评审会\n\n2. **被动提醒**：如果明天上午十点前你再来找我（哪怕说一句\"提醒我\"），我可以当场提醒你。\n\n另外说明一下：我这边没有今天的日期信息，\"明天\"具体是哪一天需要你自己确认一下，设闹钟时留意即可。",
+      "latencyMs": 70887,
+      "payloadDigest": "6ed6ced6a76a04d8",
+      "payloadCharacters": 1674,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "ambiguous",
+        "secondaryIntents": [],
+        "intentStatus": "unknown",
+        "responseMode": "answer",
+        "mayExecute": false,
+        "clarificationRequired": false,
+        "clarificationReason": null,
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 30,
+        "confidenceBand": "low",
+        "speechAct": {
+          "act": "statement",
+          "surfaceAct": "statement",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "time_horizon",
+            "value": "明天",
+            "status": "stated",
+            "evidenceMessageId": "059b4dc2-4cdc-4005-94ed-ddd2f570e505"
+          }
+        ],
+        "context": {
+          "used": false,
+          "priorUser": false,
+          "priorAssistant": false,
+          "assistantOffer": "none",
+          "continuationTarget": "none",
+          "evidence": []
+        },
+        "decisionReasons": [
+          "no_rule_matched",
+          "single_weak_signal"
+        ],
+        "uncertainties": [
+          "no_matching_rule"
+        ]
+      },
+      "error": null
+    },
+    {
+      "index": 4,
+      "scenarioId": "C1-S2",
+      "user": "不对，改成下午三点。",
+      "reply": "收到，已按你说的更新：**明天下午 3 点**开评审会——这和我刚才给的文案（上午 10 点）不同，以你说的为准。\n\n再次说明：我无法定时主动推送提醒，所以还是建议你在手机上设个闹钟。更新后的文案：\n\n> ⏰ 明天 15:00 评审会\n\n如果明天下午 3 点前你再来跟我说一句，我也可以当场提醒你。",
+      "latencyMs": 147349,
+      "payloadDigest": "552138a20e93f991",
+      "payloadCharacters": 2928,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "correction",
+        "secondaryIntents": [],
+        "intentStatus": "changed",
+        "responseMode": "answer",
+        "mayExecute": false,
+        "clarificationRequired": false,
+        "clarificationReason": null,
+        "supersedesMessageId": "1a28c563-26f4-4c8d-9fa8-20137072d164",
+        "scoreKind": "heuristic_score",
+        "confidence": 98,
+        "confidenceBand": "high",
+        "speechAct": {
+          "act": "correction",
+          "surfaceAct": "statement",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "target",
+            "value": "",
+            "status": "unknown",
+            "evidenceMessageId": null
+          },
+          {
+            "name": "topic",
+            "value": "不对，改成下午三点。",
+            "status": "inferred",
+            "evidenceMessageId": "1a28c563-26f4-4c8d-9fa8-20137072d164"
+          }
+        ],
+        "context": {
+          "used": true,
+          "priorUser": true,
+          "priorAssistant": true,
+          "assistantOffer": "execute",
+          "continuationTarget": "none",
+          "evidence": [
+            "prior_user_message",
+            "prior_assistant_message",
+            "assistant_offered_execute",
+            "antecedent_bound"
+          ]
+        },
+        "decisionReasons": [
+          "explicit_correction_marker",
+          "changed_mind_marker"
+        ],
+        "uncertainties": [
+          "negation_scope",
+          "missing_target"
+        ]
+      },
+      "error": null
+    },
+    {
+      "index": 5,
+      "scenarioId": "C1-S3",
+      "user": "如果把周报改成月报，会不会更清楚？",
+      "reply": "这得看具体情况，我这边没有你周报/月报的实际内容，所以没法直接判断\"会不会更清楚\"。但从逻辑上讲，主要权衡是这几方面：\n\n**改成月报可能更清楚的情况：**\n- 周报里大部分是琐碎的日常进展，整合成月报后主线更突出\n- 读者（领导、团队）更关注阶段性成果而非每周细节\n- 周报维护成本高，精力可以省下来做深度分析\n\n**改成月报可能反而不清楚的情况：**\n- 项目节奏快，问题需要每周暴露，月报会掩盖滞后风险\n- 月报容易变成流水账或\"为了总结而总结\"，细节太粗\n- 有些指标（比如迭代速度、缺陷收敛）按周看才有意义\n\n一个折中思路：**双轨制**——月报给管理层看趋势和结论，周报压缩成极简版（进度+阻塞+下周计划）给执行层看。这样两边都清楚，也不用二选一。\n\n你能说下现在周报大概是什么内容、给谁看吗？这样我可以给更具体的意见。",
+      "latencyMs": 29805,
+      "payloadDigest": "faaaf61d334d915a",
+      "payloadCharacters": 2731,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "correction",
+        "secondaryIntents": [
+          "request",
+          "information_query"
+        ],
+        "intentStatus": "inferred",
+        "responseMode": "answer",
+        "mayExecute": false,
+        "clarificationRequired": false,
+        "clarificationReason": null,
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 88,
+        "confidenceBand": "medium",
+        "speechAct": {
+          "act": "hypothesis",
+          "surfaceAct": "question",
+          "attributedTo": "hypothetical"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "target",
+            "value": "周报",
+            "status": "stated",
+            "evidenceMessageId": "c07ca6d9-390c-4745-85aa-17d0a1615e10"
+          }
+        ],
+        "context": {
+          "used": false,
+          "priorUser": false,
+          "priorAssistant": false,
+          "assistantOffer": "none",
+          "continuationTarget": "none",
+          "evidence": []
+        },
+        "decisionReasons": [
+          "changed_mind_marker"
+        ],
+        "uncertainties": [
+          "hypothetical_not_instruction",
+          "negation_scope",
+          "competing_readings"
+        ]
+      },
+      "error": null
+    },
+    {
+      "index": 6,
+      "scenarioId": "C1-S4",
+      "user": "先看一眼我的待办，然后把最急的那条标成今天做。",
+      "reply": "我先查了一下：这次对话里我没有检索到你的待办清单——当前保存的记忆中没有任何待办事项，所以我没法判断哪条最急，也没法替你把它标成“今天做”。\n\n有两个办法可以推进：\n\n1. 你把待办列表直接发给我，我看完就能帮你标出最急的一条并设为今天；\n2. 或者告诉我待办存在哪里（比如某个文件、应用或之前的记录），我按你给的方式去取。\n\n注意一点：如果你的待办只存在某个我还没接入的系统里，我目前是看不到的——需要你先提供入口或内容。",
+      "latencyMs": 20495,
+      "payloadDigest": "59fb3875275d7e55",
+      "payloadCharacters": 1836,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "request",
+        "secondaryIntents": [],
+        "intentStatus": "inferred",
+        "responseMode": "answer",
+        "mayExecute": true,
+        "clarificationRequired": false,
+        "clarificationReason": null,
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 86,
+        "confidenceBand": "high",
+        "speechAct": {
+          "act": "request",
+          "surfaceAct": "request",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "time_horizon",
+            "value": "今天",
+            "status": "stated",
+            "evidenceMessageId": "de724201-fdd7-4915-a0f6-934dfd11c0f8"
+          }
+        ],
+        "context": {
+          "used": false,
+          "priorUser": false,
+          "priorAssistant": false,
+          "assistantOffer": "none",
+          "continuationTarget": "none",
+          "evidence": []
+        },
+        "decisionReasons": [
+          "imperative_request"
+        ],
+        "uncertainties": []
+      },
+      "error": null
+    },
+    {
+      "index": 7,
+      "scenarioId": "C1-S5",
+      "user": "我老板说「把报告删了」，不过我暂时不想动它。",
+      "reply": "你说的是哪一份报告？",
+      "latencyMs": 62851,
+      "payloadDigest": "df57ac14041c1d0b",
+      "payloadCharacters": 1990,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "ambiguous",
+        "secondaryIntents": [],
+        "intentStatus": "unknown",
+        "responseMode": "clarify",
+        "mayExecute": false,
+        "clarificationRequired": true,
+        "clarificationReason": "unresolved_reference",
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 74,
+        "confidenceBand": "medium",
+        "speechAct": {
+          "act": "statement",
+          "surfaceAct": "statement",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [],
+        "context": {
+          "used": false,
+          "priorUser": false,
+          "priorAssistant": false,
+          "assistantOffer": "none",
+          "continuationTarget": "none",
+          "evidence": []
+        },
+        "decisionReasons": [
+          "reference_without_context"
+        ],
+        "uncertainties": [
+          "no_matching_rule",
+          "negation_scope",
+          "unresolved_reference"
+        ]
+      },
+      "error": null
+    },
+    {
+      "index": 8,
+      "scenarioId": "C1-S6",
+      "user": "change it to weekly，但先别动正文。",
+      "reply": "我没有这个频率的上下文。我不清楚你指的是哪个“它”——是任务、提醒还是某个计划的频率。而且我手上也没有关于这个安排的任何历史记录。\n\n你能告诉我具体是哪件事要改成每周吗？这样我就能按要求只改频率，先不动正文。",
+      "latencyMs": 37552,
+      "payloadDigest": "bbe2087aeded6169",
+      "payloadCharacters": 1804,
+      "readingPresent": true,
+      "reading": {
+        "version": "c1-reading-v1",
+        "algorithmVersion": "intent-rules-v2",
+        "parameterVersion": "c1-params-v1",
+        "primaryIntent": "ambiguous",
+        "secondaryIntents": [],
+        "intentStatus": "changed",
+        "responseMode": "stop_previous",
+        "mayExecute": false,
+        "clarificationRequired": false,
+        "clarificationReason": null,
+        "supersedesMessageId": null,
+        "scoreKind": "heuristic_score",
+        "confidence": 74,
+        "confidenceBand": "medium",
+        "speechAct": {
+          "act": "retraction",
+          "surfaceAct": "request",
+          "attributedTo": "user"
+        },
+        "entitiesAndSlots": [
+          {
+            "name": "target",
+            "value": "",
+            "status": "unknown",
+            "evidenceMessageId": null
+          }
+        ],
+        "context": {
+          "used": false,
+          "priorUser": false,
+          "priorAssistant": false,
+          "assistantOffer": "none",
+          "continuationTarget": "none",
+          "evidence": []
+        },
+        "decisionReasons": [
+          "reference_without_context"
+        ],
+        "uncertainties": [
+          "no_matching_rule",
+          "negation_scope",
+          "unresolved_reference",
+          "missing_target"
+        ]
+      },
+      "error": null
+    }
+  ],
+  "manualReview": {
+    "status": "PENDING",
+    "reason": "Real-model language understanding needs a human reviewer reading the replies. The same rule set that produced the reading cannot grade it.",
+    "instructions": [
+      "逐条读 observations[i].reply，对照同一条的 reading，判断回复是否体现了 scenario.observing 所描述的理解。",
+      "重点看 reading.mayExecute 为 false 的两处（C1-S3 讨论、C1-S5 转述他人指令）：回复是否真的没有去执行。",
+      "reading.confidence 是规则强度（heuristic_score），不是概率；不要把它当置信度引用。",
+      "审阅完成后，把 manualReview.status 改为 DONE 并写明 reviewer 与结论；在此之前不得引用本文件作为通过证据。"
+    ]
+  },
+  "notMeasured": [
+    "C1 语义准确率：只有一个模型、一组样例，没有标注集，因此本文件不给分母也不算通过率",
+    "校准后的概率：scoreKind 恒为 heuristic_score",
+    "其他模型或其他语言的泛化",
+    "人工复核结论：status 为 PENDING，本文件不代替它"
+  ]
+}

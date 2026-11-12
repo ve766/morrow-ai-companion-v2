@@ -18,12 +18,17 @@ import {
   type MorrowBridge,
   type ConversationIdRequest,
   type PersonalityRestoreRequest,
+  type PersonalityGrowthRollbackRequest,
   type CognitiveSettingsRequest,
   type InterestStatusRequest,
   type SelfModelListRequest,
   type SelfModelCorrectRequest,
   type SelfModelIdRequest,
-  type ReflectionFindingsRequest
+  type ReflectionFindingsRequest,
+  type PendingItemIdRequest,
+  type PendingItemDecisionRequest,
+  type ProviderGetRequest,
+  type TurnContextRequest
 } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -48,6 +53,8 @@ import type { ApprovalChallenge, GoalListItem, GoalRecord, TaskRecord } from '..
 import type { ReminderIdRequest, ReminderRescheduleRequest, ReminderScheduleRequest, ReminderSettingsRequest, ReminderRecord, ReminderSnapshot } from '../motivation/reminders'
 import type { CognitiveCoreSettings } from '../cognition/cognition'
 import type { FeelingStateView } from '../affective-state/feeling'
+import type { PendingItem } from '../cognition/pending-items'
+import type { CognitiveTurnContext } from '../cognition/turn-context'
 
 function invoke<T>(channel: string, request?: unknown): Promise<IpcResult<T>> {
   return ipcRenderer.invoke(channel, request) as Promise<IpcResult<T>>
@@ -56,9 +63,9 @@ function invoke<T>(channel: string, request?: unknown): Promise<IpcResult<T>> {
 const bridge: MorrowBridge = Object.freeze({
   getAppInfo: () => invoke<AppInfo>(IPC_CHANNELS.appInfo),
   providers: Object.freeze({
-    get: () => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet),
+    get: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerGet, request),
     save: (request: ProviderConfigInput) => invoke<ProviderConfigRecord>(IPC_CHANNELS.providerSave, request),
-    clearCredential: () => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential),
+    clearCredential: (request?: ProviderGetRequest) => invoke<ProviderConfigRecord | null>(IPC_CHANNELS.providerClearCredential, request),
     testConnection: (request: ProviderConnectionRequest) => invoke<ProviderConnectionResult>(IPC_CHANNELS.providerTestConnection, request)
   }),
   conversations: Object.freeze({
@@ -71,7 +78,9 @@ const bridge: MorrowBridge = Object.freeze({
     get: () => invoke<PersonalityProfile>(IPC_CHANNELS.personalityGet),
     save: (request: PersonalityInput) => invoke<PersonalityProfile>(IPC_CHANNELS.personalitySave, request),
     history: () => invoke<PersonalityRevision[]>(IPC_CHANNELS.personalityHistory),
-    restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request)
+    restore: (request: PersonalityRestoreRequest) => invoke<PersonalityProfile>(IPC_CHANNELS.personalityRestore, request),
+    growthGet: () => invoke<import('../personalization/personality-growth').GrowthEntry[] | null>(IPC_CHANNELS.personalityGrowthGet),
+    growthRollback: (request: PersonalityGrowthRollbackRequest) => invoke<boolean>(IPC_CHANNELS.personalityGrowthRollback, request)
   }),
   selfModel: Object.freeze({
     listInterests: () => invoke<import('../self-model/self-model-domain').InterestRecord[]>(IPC_CHANNELS.interestsList),
@@ -88,6 +97,12 @@ const bridge: MorrowBridge = Object.freeze({
     saveSettings: (request: CognitiveSettingsRequest) => invoke<CognitiveCoreSettings>(IPC_CHANNELS.cognitiveSettingsSave, request),
     getFeelingState: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveFeelingSnapshot),
     clearHistory: () => invoke<FeelingStateView>(IPC_CHANNELS.cognitiveClearHistory)
+  }),
+  continuity: Object.freeze({
+    listPendingItems: () => invoke<PendingItem[]>(IPC_CHANNELS.pendingItemsList),
+    completePendingItem: (request: PendingItemIdRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsComplete, request),
+    decidePendingItem: (request: PendingItemDecisionRequest) => invoke<boolean>(IPC_CHANNELS.pendingItemsDecide, request),
+    readTurnContext: (request: TurnContextRequest) => invoke<CognitiveTurnContext | null>(IPC_CHANNELS.turnContextRead, request)
   }),
   chat: Object.freeze({
     send: (request: ChatRequest) => invoke<ChatResult>(IPC_CHANNELS.chatSend, request),

@@ -67,7 +67,7 @@ describe('DeepSeek V4.1 Flash adapter', () => {
     const provider = makeProvider(fetcher)
     const deltas: string[] = []
     await expect(provider.generate(input(), (delta) => deltas.push(delta)))
-      .resolves.toEqual({ text: 'Hello world', modelId: 'deepseek-flash' })
+      .resolves.toEqual({ text: 'Hello world', modelId: 'deepseek-flash', attempts: 1 })
     expect(deltas).toEqual(['Hello', ' world'])
     expect(fetcher).toHaveBeenCalledTimes(1)
   })
@@ -148,5 +148,75 @@ describe('DeepSeek V4.1 Flash adapter', () => {
     await expect(pending).rejects.toMatchObject({ code: 'PROVIDER_CANCELLED' })
     const timedOut = makeProvider(waitForAbort, 5)
     await expect(timedOut.generate(input())).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT' })
+  })
+})
+
+describe('iFlytek Spark MaaS adapter (Phase 2.3)', () => {
+  const sparkConfig: ProviderConfigRecord = {
+    id: 'spark',
+    providerClass: 'remote',
+    endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2',
+    model: 'xdeepseekv3',
+    enabled: true,
+    apiKeyConfigured: true,
+    updatedAt: '2026-10-28T00:00:00.000Z'
+  }
+
+  function sparkInput(): ProviderInput {
+    return {
+      prompt: 'ping',
+      context: { text: '', selected: [], omitted: 0, characterCount: 0 },
+      endpoint: 'https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions',
+      maximumSensitivity: 'personal',
+      requestPayload: {
+        model: 'xdeepseekv3',
+        max_tokens: 16,
+        stream: false,
+        messages: [{ role: 'user', content: 'ping' }]
+      }
+    }
+  }
+
+  function sparkProvider(fetcher: (url: string, init?: RequestInit) => Promise<Response>) {
+    const secrets = new MemorySecretStore()
+    secrets.set('spark', 'test-only-secret')
+    return new OpenAICompatibleProvider(sparkConfig, secrets, fetcher, 45_000)
+  }
+
+  it('accepts the allow-listed MaaS host with a verified model id', async () => {
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('https://maas-api.cn-huabei-1.xf-yun.com/v2/chat/completions')
+      expect((init?.headers as Record<string, string>).authorization).toBe('Bearer test-only-secret')
+      expect(String(init?.body)).not.toContain('test-only-secret')
+      return new Response(JSON.stringify({ model: 'xdeepseekv3', choices: [{ message: { content: 'pong' } }] }), { status: 200 })
+    })
+    const output = await sparkProvider(fetcher).generate(sparkInput())
+    expect(output.text).toBe('pong')
+    expect(output.modelId).toBe('xdeepseekv3')
+  })
+
+  it('refuses a host that is not on the allow-list', async () => {
+    const secrets = new MemorySecretStore()
+    secrets.set('spark', 'test-only-secret')
+    const provider = new OpenAICompatibleProvider({ ...sparkConfig, endpoint: 'https://example.com/v1' }, secrets, vi.fn(), 45_000)
+    await expect(provider.generate({ ...sparkInput(), endpoint: 'https://example.com/v1/chat/completions' })).rejects.toMatchObject({ code: 'INVALID_INPUT' })
+  })
+
+  it('maps "no order/quota" (403 + 11200) to PROVIDER_QUOTA instead of PROVIDER_AUTH', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ error: { code: 11200, message: 'no valid authorization: the account lacks an active order' } }), { status: 403 }))
+    await expect(sparkProvider(fetcher).generate(sparkInput())).rejects.toMatchObject({ code: 'PROVIDER_QUOTA' })
+  })
+
+  it('maps "no category route" (400 + 10404) to PROVIDER_MODEL', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ error: { code: 10404, message: 'no category route found' } }), { status: 400 }))
+    await expect(sparkProvider(fetcher).generate(sparkInput())).rejects.toMatchObject({ code: 'PROVIDER_MODEL' })
+  })
+
+  it('keeps the key out of the error when the provider rejects the credential', async () => {
+    const fetcher = vi.fn(async () => new Response('{"error":{"code":10013,"message":"invalid"}}', { status: 401 }))
+    const error = await sparkProvider(fetcher).generate(sparkInput()).catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ code: 'PROVIDER_AUTH' })
+    expect(JSON.stringify(error)).not.toContain('test-only-secret')
+    expect(String((error as Error).message)).not.toContain('test-only-secret')
   })
 })

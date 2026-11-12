@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-29T04:50:13.036Z",
+  "totals": {
+    "runs": 100,
+    "requests": 100,
+    "succeeded": 99,
+    "failed": 1,
+    "cancelled": 0,
+    "integrity": true,
+    "reproducible": true
+  },
+  "referenceMatched": 97,
+  "changed": 23,
+  "labelCounts": {
+    "conflict_handled": 20,
+    "correct_use": 59,
+    "reasonable_unknown": 19,
+    "unsupported_claim": 1,
+    "undecidable": 1
+  },
+  "humanCorrect": 98,
+  "humanCorrectRate": 0.98,
+  "reviewCoverage": 1,
+  "disagreements": 0,
+  "perCondition": [
+    {
+      "condition": "A",
+      "runs": 25,
+      "scored": 25,
+      "usedCorrectly": 20,
+      "reasonableUnknown": 5,
+      "unsupported": 0,
+      "conflictPass": 5,
+      "contradictions": 0,
+      "notScorable": 0,
+      "changed": 6
+    },
+    {
+      "condition": "B",
+      "runs": 25,
+      "scored": 25,
+      "usedCorrectly": 20,
+      "reasonableUnknown": 5,
+      "unsupported": 0,
+      "conflictPass": 5,
+      "contradictions": 0,
+      "notScorable": 0,
+      "changed": 6
+    },
+    {
+      "condition": "C",
+      "runs": 25,
+      "scored": 25,
+      "usedCorrectly": 20,
+      "reasonableUnknown": 5,
+      "unsupported": 0,
+      "conflictPass": 5,
+      "contradictions": 0,
+      "notScorable": 0,
+      "changed": 4
+    },
+    {
+      "condition": "D",
+      "runs": 25,
+      "scored": 24,
+      "usedCorrectly": 19,
+      "reasonableUnknown": 4,
+      "unsupported": 1,
+      "conflictPass": 5,
+      "contradictions": 0,
+      "notScorable": 1,
+      "changed": 7
+    }
+  ],
+  "perScenario": {
+    "fact": 20,
+    "negation": 20,
+    "time_state": 20,
+    "conflict": 20,
+    "no_evidence": 20
+  },
+  "changedDirections": {
+    "contradicts_evidence->used_correctly": 8,
+    "not_scorable->reasonable_unknown": 13,
+    "none->not_scorable": 1,
+    "delivered_not_used->used_correctly": 1
+  },
+  "sources": {
+    "keywordReference": "computed from rescored run rows (reference.matched)",
+    "humanCorrectness": "computed from phase23-human-review.json labels (single reviewer)",
+    "semanticConsistency": "computed by the evaluator; not independently re-derived here"
+  },
+  "limits": [
+    "single human reviewer: this is not inter-annotator agreement",
+    "keyword reference matching is a lexical proxy, not correctness",
+    "the verifier checks report-vs-data consistency, not model capability"
+  ],
+  "codeSha": "f05ae22bf4c0166b8f2d2fe463354bee953071f1",
+  "ok": true,
+  "failures": []
+}

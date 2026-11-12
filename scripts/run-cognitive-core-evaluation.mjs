@@ -10,7 +10,8 @@ const reportDirectory = resolve(root, 'evaluation', 'reports')
 const outputs = [
   { name: 'cognitive-turn-synthetic-example.json', entry: 'src/evaluation/cognitive-evaluation.ts', fixture: 'cognitive-turn-v1.json', run: 'runCognitiveEvaluation' },
   { name: 'feeling-synthetic-example.json', entry: 'src/evaluation/feeling-evaluation.ts', fixture: 'feeling-v1.json', run: 'runFeelingEvaluation' },
-  { name: 'cognitive-alpha-adversarial-report.json', entry: 'src/evaluation/cognitive-alpha-evaluation.ts', fixture: 'cognitive-alpha-adversarial-v1.json', run: 'runCognitiveAlphaEvaluation' }
+  { name: 'cognitive-alpha-adversarial-report.json', entry: 'src/evaluation/cognitive-alpha-evaluation.ts', fixture: 'cognitive-alpha-adversarial-v1.json', run: 'runCognitiveAlphaEvaluation' },
+  { name: 'intent-decision-synthetic-example.json', entry: 'src/evaluation/intent-decision-evaluation.ts', fixture: 'intent-decision-v1.json', run: 'runIntentDecisionEvaluation' }
 ]
 
 function canonicalJson(value) {
@@ -94,9 +95,9 @@ async function main() {
       results.push({ output, report })
     }
 
-    const [cognitive, feeling, alpha] = results
+    const [cognitive, feeling, alpha, intent] = results
     const summary = {
-      passed: Boolean(cognitive.report.gate.passed && feeling.report.gate.passed && alpha.report.gate.passed),
+      passed: Boolean(cognitive.report.gate.passed && feeling.report.gate.passed && alpha.report.gate.passed && intent.report.gate.passed),
       durationMs: Number((performance.now() - started).toFixed(2)),
       cognitive: {
         dataset: cognitive.report.dataset.id,
@@ -144,6 +145,16 @@ async function main() {
         deterministicReplay: alpha.report.determinism.passed,
         gate: alpha.report.gate,
         report: `evaluation/reports/${alpha.output.name}`
+      },
+      intentDecision: {
+        dataset: intent.report.dataset.id,
+        cases: intent.report.dataset.caseCount,
+        intentAccuracy: intent.report.metrics.intentAccuracy,
+        routingAccuracy: intent.report.metrics.routingAccuracy,
+        perClass: intent.report.metrics.perClass,
+        deterministicReplay: intent.report.determinism.passed,
+        gate: intent.report.gate,
+        report: `evaluation/reports/${intent.output.name}`
       },
       offlineExecution: {
         providerCalls: alpha.report.evaluationScope.providerCalls,

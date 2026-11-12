@@ -1,4 +1,4 @@
-import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult } from '../shared/contracts'
+import type { AppInfo, BackupRestoreOutcome, BackupRestoreRequest, CognitiveSettingsRequest, IpcErrorCode, IpcResult, ProviderGetRequest } from '../shared/contracts'
 import { IPC_CHANNELS } from '../shared/contracts'
 import type {
   ChatRequest,
@@ -40,9 +40,11 @@ import {
   parseConversationIdRequest,
   parseProviderConfigInput,
   parseProviderConnectionRequest,
+  parseProviderGetRequest,
   parseChatRequest,
   parsePersonalityInput,
   parsePersonalityRestoreRequest,
+  parsePersonalityGrowthRollbackRequest,
   parseMemoryProposalRequest,
   parseMemorySuggestionReviewRequest,
   parseCognitiveSettingsRequest,
@@ -51,7 +53,10 @@ import {
   parseSelfModelListRequest,
   parseSelfModelCorrectRequest,
   parseSelfModelIdRequest,
-  parseReflectionFindingsRequest
+  parseReflectionFindingsRequest,
+  parsePendingItemIdRequest,
+  parsePendingItemDecisionRequest,
+  parseTurnContextRequest
 } from '../shared/validation'
 import {
   parseGoalCreateRequest,
@@ -78,9 +83,9 @@ export interface AppInfoProvider {
 }
 
 export interface CompanionActions {
-  getProvider(): ProviderConfigRecord | null
+  getProvider(request?: ProviderGetRequest): ProviderConfigRecord | null
   saveProvider(request: ProviderConfigInput): ProviderConfigRecord
-  clearProviderCredential(): ProviderConfigRecord | null
+  clearProviderCredential(request?: ProviderGetRequest): ProviderConfigRecord | null
   testProviderConnection(request: ProviderConnectionRequest): Promise<ProviderConnectionResult>
   createConversation(): ConversationRecord
   listConversations(): ConversationRecord[]
@@ -90,6 +95,8 @@ export interface CompanionActions {
   savePersonality(request: PersonalityInput): PersonalityProfile
   personalityHistory(): PersonalityRevision[]
   restorePersonality(request: { version: number }): PersonalityProfile
+  getGrowthState(): import('../personalization/personality-growth').GrowthEntry[] | null
+  rollbackGrowth(request: { dimension: import('../personalization/personality-growth').GrowthDimension }): boolean
   getCognitiveSettings(): CognitiveCoreSettings
   saveCognitiveSettings(request: CognitiveSettingsRequest): CognitiveCoreSettings
   getFeelingState(): FeelingStateView
@@ -114,9 +121,23 @@ export interface SelfModelActions {
   listEntries(request?: { kind?: 'fact' | 'inference' | 'unknown' | 'correction' }): ReturnType<SelfModelService['list']>
   correctEntry(request: { entryId: string; statement: string }): ReturnType<SelfModelService['correct']>
   retractEntry(request: { entryId: string }): void
-  runReflection(): ReturnType<ReflectionService['run']>
+  runReflection(): Promise<import('../self-model/self-model-domain').ReflectionRunSummary | { skipped: 'rate_limited' | 'budget_exhausted' }>
   listReflectionRuns(): ReturnType<ReflectionService['listRuns']>
   listReflectionFindings(request: { runId: string }): ReturnType<ReflectionService['findings']>
+}
+
+/**
+ * Phase 2.4 continuity surface.
+ *
+ * Deliberately minimal: reading the internal items and the per-turn record,
+ * and marking an item done. Nothing here can send a message outward, change
+ * memory, or alter personality.
+ */
+export interface ContinuityActions {
+  listPendingItems(): ReturnType<import('../cognition/pending-items').PendingCognitionService['listOpen']>
+  completePendingItem(request: { itemId: string }): boolean
+  decidePendingItem(request: { itemId: string; decision: 'accepted' | 'rejected' | 'dismissed' }): boolean
+  readTurnContext(request: { turnId: string }): import('../cognition/turn-context').CognitiveTurnContext | null
 }
 
 export interface ApplicationActions {
@@ -126,6 +147,7 @@ export interface ApplicationActions {
   companion?: CompanionActions
   backup?: BackupActions
   selfModel?: SelfModelActions
+  continuity?: ContinuityActions
 }
 
 function isTrustedSender(event: IpcEventLike, trustedRendererUrl: string): boolean {
@@ -150,6 +172,8 @@ function failure(code: IpcErrorCode): IpcResult<never> {
     PROVIDER_RESPONSE: 'DeepSeek 返回了无效响应，请稍后重试。',
     PROVIDER_AUTH: 'DeepSeek 未接受该 API 密钥或请求权限。',
     PROVIDER_RATE_LIMIT: 'DeepSeek 请求过于频繁，请稍后重试。',
+    PROVIDER_QUOTA: '该 Provider 账户没有有效订单或额度不足，请先在服务控制台开通或充值。',
+    PROVIDER_DEADLINE: '本次请求的总时限已用完，已停止重试；请稍后再试或检查网络。',
     PROVIDER_MODEL: 'DeepSeek 未找到所选模型。',
     PROVIDER_TIMEOUT: 'DeepSeek 请求超时，可重试。',
     PROVIDER_NETWORK: '无法连接 DeepSeek，请检查网络后重试。',
@@ -236,10 +260,16 @@ export function createIpcHandlers(
       [IPC_CHANNELS.reflectionListRuns]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.selfModel!.listReflectionRuns()),
       [IPC_CHANNELS.reflectionFindings]: (event, payload) => execute(event, trustedRendererUrl, payload, parseReflectionFindingsRequest, (request) => actions.selfModel!.listReflectionFindings(request))
     } : {}),
+    ...(actions.continuity ? {
+      [IPC_CHANNELS.pendingItemsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => actions.continuity!.listPendingItems()),
+      [IPC_CHANNELS.pendingItemsComplete]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemIdRequest, (request) => actions.continuity!.completePendingItem(request)),
+      [IPC_CHANNELS.pendingItemsDecide]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePendingItemDecisionRequest, (request) => actions.continuity!.decidePendingItem(request)),
+      [IPC_CHANNELS.turnContextRead]: (event, payload) => execute(event, trustedRendererUrl, payload, parseTurnContextRequest, (request) => actions.continuity!.readTurnContext(request))
+    } : {}),
     ...(companion ? {
-      [IPC_CHANNELS.providerGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getProvider()),
+      [IPC_CHANNELS.providerGet]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderGetRequest, (request) => companion.getProvider(request)),
       [IPC_CHANNELS.providerSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConfigInput, (request) => companion.saveProvider(request)),
-      [IPC_CHANNELS.providerClearCredential]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.clearProviderCredential()),
+      [IPC_CHANNELS.providerClearCredential]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderGetRequest, (request) => companion.clearProviderCredential(request)),
       [IPC_CHANNELS.providerTestConnection]: (event, payload) => execute(event, trustedRendererUrl, payload, parseProviderConnectionRequest, (request) => companion.testProviderConnection(request)),
       [IPC_CHANNELS.conversationsCreate]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.createConversation()),
       [IPC_CHANNELS.conversationsList]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.listConversations()),
@@ -249,6 +279,8 @@ export function createIpcHandlers(
       [IPC_CHANNELS.personalitySave]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePersonalityInput, (request) => companion.savePersonality(request)),
       [IPC_CHANNELS.personalityHistory]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.personalityHistory()),
       [IPC_CHANNELS.personalityRestore]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePersonalityRestoreRequest, (request) => companion.restorePersonality(request)),
+      [IPC_CHANNELS.personalityGrowthGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getGrowthState()),
+      [IPC_CHANNELS.personalityGrowthRollback]: (event, payload) => execute(event, trustedRendererUrl, payload, parsePersonalityGrowthRollbackRequest, (request) => companion.rollbackGrowth(request)),
       [IPC_CHANNELS.cognitiveSettingsGet]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getCognitiveSettings()),
       [IPC_CHANNELS.cognitiveSettingsSave]: (event, payload) => execute(event, trustedRendererUrl, payload, parseCognitiveSettingsRequest, (request) => companion.saveCognitiveSettings(request)),
       [IPC_CHANNELS.cognitiveFeelingSnapshot]: (event, payload) => execute(event, trustedRendererUrl, payload, emptyRequest, () => companion.getFeelingState()),

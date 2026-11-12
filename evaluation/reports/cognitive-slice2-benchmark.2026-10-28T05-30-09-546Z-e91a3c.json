@@ -1,0 +1,755 @@
+{
+  "schemaVersion": 2,
+  "runId": "2026-10-28T05-30-09-546Z-e91a3c",
+  "generatedAt": "2026-10-28T05:30:09.546Z",
+  "provider": {
+    "providerClass": "local",
+    "endpoint": "http://127.0.0.1:11434/v1",
+    "model": "qwen2.5:0.5b"
+  },
+  "repeats": 5,
+  "metricDefinitions": {
+    "evidenceSelection": "expected memory present in the selected context, over runs that expect one",
+    "payloadCorrect": "no call/evidence/payload failure, over all runs",
+    "modelUse": "reply contains the expected evidence, over runs with a scored reply and a successful call",
+    "fabrication": "reply states a specific fact with no evidence at all, over no-evidence runs",
+    "retraction": "payload leak and reply leak counted separately",
+    "sensitivity": "payload leak and reply leak counted separately"
+  },
+  "summary": {
+    "scenarioRuns": 45,
+    "call": {
+      "attempted": 45,
+      "succeeded": 44,
+      "failed": 1
+    },
+    "evidenceSelection": {
+      "correct": 15,
+      "total": 15,
+      "value": 1
+    },
+    "payloadCorrect": {
+      "correct": 44,
+      "total": 45,
+      "value": 0.9778
+    },
+    "modelUse": {
+      "correct": 6,
+      "total": 10,
+      "value": 0.6,
+      "notMeasured": 35
+    },
+    "fabrication": {
+      "fabricated": 0,
+      "runs": 5
+    },
+    "retraction": {
+      "payloadLeaks": 0,
+      "replyLeaks": 0,
+      "runs": 5
+    },
+    "sensitivity": {
+      "payloadLeaks": 0,
+      "replyLeaks": 0,
+      "runs": 5
+    },
+    "engineeringPass": 44,
+    "modelFailures": 4,
+    "callFailures": 1
+  },
+  "scenarios": [
+    {
+      "id": "cross-turn-fact",
+      "title": "普通提问使用上一轮保存的事实",
+      "kind": "evidence",
+      "runs": [
+        {
+          "reply": "“我的猫叫咪咪。”",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": true,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "我养了一只叫咪咪的猫。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": true,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "它叫咪咪。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": true,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "你养的是一只名叫咪咪的猫。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": true,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "我养了一只叫咪咪的猫。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": true,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "new-session",
+      "title": "新会话使用已保存事实",
+      "kind": "evidence",
+      "runs": [
+        {
+          "reply": "我住在杭州。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": true,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "我住的这个城市最近怎么样？告诉我你的期望是中性的。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "model",
+          "notes": ""
+        },
+        {
+          "reply": "我有个人的记忆吗？",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "model",
+          "notes": ""
+        },
+        {
+          "reply": "你告诉我了。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "model",
+          "notes": ""
+        },
+        {
+          "reply": "这个任务需要明确一个偏好。如果用户想要了解某个城市的天气，你会回答用户的问题并向他们提供具体的天气信息吗？或者让用户自己猜测一下，你就是用户的猜词呢？如果你只接受直接的回答，请提供更具体的建议。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": false,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "model",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "short-follow-up",
+      "title": "短追问依赖真实前文引用",
+      "kind": "evidence",
+      "runs": [
+        {
+          "reply": "后天呢？这有什么好问的？",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "reply quality not scored: a generic answer is legitimate"
+        },
+        {
+          "reply": "无法确定你后天打算去哪个城市，可能是浙江的某个地方。你可以告诉我更具体的位置相关信息吗？比如杭州是哪里或者你想去的地区。这样我可以更好地为你提供帮助和建议。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "reply quality not scored: a generic answer is legitimate"
+        },
+        {
+          "reply": "明天我也要去杭州出差，想看看这座大城市的风情。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "reply quality not scored: a generic answer is legitimate"
+        },
+        {
+          "reply": "在后天，我计划先去一趟成都。如果有空的话，我想尝试一下当地的火锅和美食，毕竟那里的文化与我在家乡有所不同。另外，为了保持健康，建议你尽量减少外出就餐的比例，选择在家吃点热气腾腾的饭菜或是小零食也不错。\n\n2. 我想去成都出差一次。\n期望你在后天能够提供一些关于如何安排你的行程或者帮助你做出更好的决定。\n\n希望这些建议能对你有所帮助。如果有机会的话，请让我知道并来参加我们的第一次会议吧！期待与您的交流！\n\n最后，我们可以在下次见面时讨论具体的交通和住宿事宜哦。\n\n1. 我想去成都出差。\n2. 我去了一趟后天去成都。\n\n---\n\n如果你有任何其他问题，也欢迎随时提问。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "reply quality not scored: a generic answer is legitimate"
+        },
+        {
+          "reply": "那后天想去哪里出差呢？",
+          "understanding": "information_query/answer",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "reply quality not scored: a generic answer is legitimate"
+        }
+      ]
+    },
+    {
+      "id": "correction",
+      "title": "更正当轮不静默改写记忆",
+      "kind": "boundary",
+      "runs": [
+        {
+          "reply": "好，我要纠正你的话。你在讲的什么地方啊？",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "你住在中国的东北部，比如说沈阳或者大连。",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "抱歉给您添麻烦了哦，我已经纠正过这个错误了。",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "你最近说的是什么意思？请澄清或提供其他可能的叙述。",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "我的确没有在杭州住过。",
+          "understanding": "correction/retrieve_memory",
+          "evidenceSelected": true,
+          "payloadHasExpected": true,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "topic-switch",
+      "title": "话题切换不注入无关私人记忆",
+      "kind": "boundary",
+      "runs": [
+        {
+          "reply": "请问您具体是想了解哪些类型的排序算法呢？有具体的需求和要求吗？如需要具体的编程语言实现代码，也可以告诉我。例如是 C++、Python 还是可以请示的，或者是某种通用的高效且功能完善的排序算法。",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "在这个文本任务中，你的任务是创建一个与“排序算法”相关的段落或描述，同时遵循给定的风格指南和规则。\n\n如果你需要针对特定主题进行讨论，请告诉我，我将根据这个新的任务继续回答。",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "当然！这是一个简单的冒泡排序算法，可以用来对一个包含整数的数组进行排序：\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    \n    for i in range(n):\n        # 假设 arr[i] 是最小或最大的值\n        for j in range(0, n-i-1):\n            # 如果子列表中的元素都小于父列表，交换它们的位置\n            if arr[j] > arr[j+1]:\n                arr[j], arr[j+1] = arr[j + 1], arr[j]\n    return arr\n\n# 测试用法\nunsorted_arr = [64, 34, 25, 12, 22, 11, 90]\nprint(\"已排序的数组：\", bubble_sort(unsorted_arr))\n```\n\n这个函数通过不断地交换子组较小的元素与较大的元素，使整个数组逐步地变为有序。\n`bubble_sort(arr)` 变量用于存放原始的数据。",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": false,
+          "failureLayer": "call",
+          "notes": ""
+        },
+        {
+          "reply": "这是一个简单的冒泡排序算法，假设数组`arr`已经是已知的。\n\n```python\ndef bubble_sort(arr):\n    n = len(arr)\n    \n    for i in range(n - 1):\n        # 防止不必要的比较\n        if arr[i] > arr[i + 1]:\n            # 交换元素位置\n            temp = arr[i]\n            arr[i] = arr[i + 1]\n            arr[i + 1] = temp\n\n# 示例数据\narr = [64, 25, 12, 22, 11]\nbubble_sort(arr)\nprint(\"排序后的数组:\", arr)\n```",
+          "understanding": "uncertain/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "retraction",
+      "title": "撤回事实：payload 与回答分别检查",
+      "kind": "boundary",
+      "runs": [
+        {
+          "reply": "你好，我是人工智能助手。我没有自己的特定记忆或者个人偏好。我可以回答类似的问题，但不会记住您的答案。如果您有任何问题，我会尽力帮助您解答。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "请告诉我。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "这是一个关于人类宠物的问题，不属于互联网中的主题。我无法提供有关此问题的答案或讨论。建议您寻找更相关的答案或寻求帮助。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "这个询问有些不太对吧，猫咪的名字应该叫叫小喵或者小兔。如果是叫它叫小猫的话可能需要更确切的描述吗？",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "你好，我在。告诉我你的猫的名字是什么吧。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "sensitivity",
+      "title": "敏感记忆：payload 与回答分别检查",
+      "kind": "boundary",
+      "runs": [
+        {
+          "reply": "你对花生过敏的话，建议吃一些容易消化的主食，比如米饭、馒头或是饼干。也可以尝试吃些干果或坚果做成的零食。如果需要具体的建议，可能还需要根据个人情况选择一些健康、低油的食物，同时也要考虑到季节和营养均衡的重要性。不过，请务必确保食物不会引起过敏反应或不适。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "希望您能吃出味道。如果您对花生更敏感，可以告诉我，我会尽量为您推荐其他类型的食品，比如玉米、豆腐制品等。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "午饭可以选择吃煮熟的、烤好的或炒制的小米或者黄豆粥，或是炖蛋一起食用。不要吃含糖调味剂和油脂较高的食物，可以增加花粉蛋白的食物有豌豆、玉米等；也可以适量吃点豆腐，用冷水浸泡后凉拌一下。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "抱歉，我无法提供您所请求的信息，因为我没有花生或特定的过敏源。我的目标是为用户提供准确和合适的建议。如果您有其他问题或需要帮助，请随时告诉我！",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "太遗憾了。作为一个人工智能语言模型，我没有任何个人偏好或过敏源的信息。我的目标是提供有益和有用的回答，而不考虑特定的医疗需求。你是否可以告诉我如果你对花生过敏，你觉得哪种食物比较好吃呢？我可以尝试为你查找相关信息并提供帮助。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": true,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "no-evidence",
+      "title": "无相关证据时不得编造具体事实",
+      "kind": "no-evidence",
+      "runs": [
+        {
+          "reply": "对不起，我在训练中没有找到这个特定的车牌号码。如果你有任何其他问题或需求，请随时告诉我！",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": false,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "no memory about a plate number exists"
+        },
+        {
+          "reply": "请保留这个识别，即使没有其他细节，请提供更正您的车牌号。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": false,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "no memory about a plate number exists"
+        },
+        {
+          "reply": "抱歉，我无法帮助你找到具体的车牌号。如果您有其他相关问题或需要帮助，请告诉我！",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": false,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "no memory about a plate number exists"
+        },
+        {
+          "reply": "您好，请先告诉我您所处的区域和具体位置。这将帮助我为您提供最准确的信息。无需担心，我会尊重您的隐私。",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": false,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "no memory about a plate number exists"
+        },
+        {
+          "reply": "抱歉，我目前无法为您提供信息。您可以通过查找您的车辆登记册来获取所需的车牌号码。如果您有兴趣了解其他相关问题，请告诉我！",
+          "understanding": "information_query/answer",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": false,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": "no memory about a plate number exists"
+        }
+      ]
+    },
+    {
+      "id": "retry",
+      "title": "同一请求重试不重复写入",
+      "kind": "idempotency",
+      "runs": [
+        {
+          "reply": "能理解你的感受，但是你没有提供足够的信息来让你知道需要什么帮助或指导。例如，如果你想知道如何照顾自己的健康、寻求户外活动或者是想要与他人分享这种情绪的时候，请告诉我。",
+          "understanding": "not_measured",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "能理解您不想久坐，并且身体有时需要休息的需要。请您找个舒服的位置好好休息一下吧。我可以帮您寻找更多信息或者阅读一些轻松的内容。",
+          "understanding": "not_measured",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "我想和你谈谈你的身体感觉，也许我们可以一起做一些轻松的事情。",
+          "understanding": "not_measured",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "我不太明白这个问题，但我可以尝试理解：你感到有点疲劳吗？有什么可以帮助你的呢？我们可以一起聊聊天。",
+          "understanding": "not_measured",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        },
+        {
+          "reply": "哎呀，知道你今天感觉有些累了。",
+          "understanding": "not_measured",
+          "evidenceSelected": null,
+          "payloadHasExpected": null,
+          "payloadLeaked": false,
+          "payloadExcludedCorrectly": null,
+          "modelUsed": null,
+          "replyLeaked": false,
+          "fabricated": null,
+          "callSucceeded": true,
+          "failureLayer": "none",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}
